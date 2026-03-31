@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 방송 썸네일 텍스트 자동 생성 - IA 구조도</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #f0f0f0;
+    padding: 40px 20px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #333;
+  }
+  .ia-container {
+    background: #e8e8e8;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    padding: 40px 30px 50px;
+    overflow-x: auto;
+    min-width: 1200px;
+  }
+  /* Flex tree layout */
+  .tree { display: flex; flex-direction: column; align-items: center; }
+  .tree ul {
+    display: flex; justify-content: center; gap: 0;
+    list-style: none; padding: 0; margin: 0;
+    position: relative;
+  }
+  .tree li {
+    display: flex; flex-direction: column; align-items: center;
+    position: relative; padding: 0 8px;
+  }
+  /* Connector lines */
+  .tree li::before, .tree li::after {
+    content: ''; position: absolute; top: 0;
+    border-top: 2px solid #999; width: 50%;
+  }
+  .tree li::before { right: 50%; }
+  .tree li::after { left: 50%; }
+  .tree li:first-child::before,
+  .tree li:last-child::after { border: 0 none; }
+  .tree li:first-child::after { border-radius: 5px 0 0 0; }
+  .tree li:last-child::before { border-radius: 0 5px 0 0; }
+  .tree li:only-child::before, .tree li:only-child::after { border: 0 none; }
+  .tree ul > li::before, .tree ul > li::after { height: 20px; }
+
+  /* Vertical connector from parent */
+  .tree ul::before {
+    content: ''; position: absolute; top: -20px; left: 50%;
+    border-left: 2px solid #999; height: 20px;
+  }
+  .tree li > ul::before { top: -20px; }
+
+  /* Node boxes */
+  .node {
+    padding: 10px 16px; border-radius: 8px;
+    text-align: center; font-size: 13px; font-weight: 600;
+    color: #333; position: relative;
+    margin-bottom: 20px; margin-top: 20px;
+    min-width: 100px; max-width: 180px;
+    line-height: 1.4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  /* Vertical line below node to children */
+  .has-children > .node::after {
+    content: ''; position: absolute; bottom: -20px; left: 50%;
+    border-left: 2px solid #999; height: 20px;
+  }
+
+  /* Color schemes */
+  .root { background: #4a6fa5; color: #fff; font-size: 16px; padding: 14px 32px; min-width: 240px; }
+  .level1-blue { background: #d4e1f5; border: 2px solid #8faed4; color: #2c5282; }
+  .level1-green { background: #d4edda; border: 2px solid #82c896; color: #276749; }
+  .level1-orange { background: #ffecd2; border: 2px solid #f5b461; color: #975a16; }
+  .level1-purple { background: #e2d5f1; border: 2px solid #a78bca; color: #553c9a; }
+  .level2 { background: #fff; border: 2px solid #ccc; font-weight: 600; }
+  .level2-orange { background: #f5b461; border: 2px solid #e09840; color: #fff; }
+  .level2-green { background: #82c896; border: 2px solid #5da872; color: #fff; }
+  .level3 { background: #fff; border: 1.5px solid #ddd; font-weight: 400; font-size: 12px; min-width: 90px; }
+  .level4 { background: #fff; border: 1.5px solid #e0e0e0; font-weight: 400; font-size: 11px; min-width: 80px; max-width: 140px; color: #555; }
+
+  /* Arrow marker for leaf nodes */
+  .leaf .node::before {
+    content: '→'; position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: #999;
+  }
+  .leaf-list {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    margin-top: 20px; position: relative;
+  }
+  .leaf-list::before {
+    content: ''; position: absolute; top: -20px; left: 50%;
+    border-left: 2px solid #999; height: 20px;
+  }
+  .leaf-item {
+    background: #fff; border: 1.5px solid #ddd; border-radius: 6px;
+    padding: 6px 12px; font-size: 11px; color: #555;
+    position: relative; padding-left: 22px; width: 100%;
+    line-height: 1.3;
+  }
+  .leaf-item::before {
+    content: '→'; position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: #aaa;
+  }
+
+  /* Vertical list connector */
+  .vlist { display: flex; flex-direction: column; align-items: center; }
+  .vlist .leaf-list { align-items: stretch; min-width: 120px; }
+</style>
+</head>
+<body>
+
+<h1>AI 방송 썸네일 텍스트 자동 생성 - IA 구조도</h1>
+
+<div class="ia-container">
+<div class="tree">
+
+  <!-- Root -->
+  <div class="node root">방송 설정 메인 화면<br><span style="font-size:12px;opacity:0.85">(셀러 App > 라이브 시작 > 방송)</span></div>
+
+  <!-- Level 1 -->
+  <ul>
+    <!-- 1. 커버 이미지 영역 -->
+    <li class="has-children">
+      <div class="node level1-blue">1. 커버 이미지 영역</div>
+      <ul>
+        <li class="has-children">
+          <div class="node level2">이미지 업로드</div>
+          <div class="leaf-list">
+            <div class="leaf-item">직접 업로드</div>
+            <div class="leaf-item">판매 상품 이미지<br>자동 불러오기</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2-orange">AI 커버 생성/제거</div>
+          <div class="leaf-list">
+            <div class="leaf-item">[✦ AI 커버 생성] 버튼</div>
+            <div class="leaf-item">[✦ AI 커버 제거] 버튼</div>
+            <div class="leaf-item">결과물 즉시 렌더링</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">생성 조건 검증</div>
+          <div class="leaf-list">
+            <div class="leaf-item">(필수) 커버 이미지</div>
+            <div class="leaf-item">(필수) 방송 제목</div>
+            <div class="leaf-item">(옵션) 판매 상품</div>
+            <div class="leaf-item">(옵션) 강조 혜택</div>
+            <div class="leaf-item">미충족 시 토스트</div>
+          </div>
+        </li>
+      </ul>
+    </li>
+
+    <!-- 2. 텍스트 데이터 매핑 -->
+    <li class="has-children">
+      <div class="node level1-green">2. 텍스트 데이터 매핑<br><span style="font-size:11px">(백그라운드 로직)</span></div>
+      <ul>
+        <li class="has-children">
+          <div class="node level2-green">Line 1 상단 텍스트<br><span style="font-size:11px">(최대 8자)</span></div>
+          <div class="leaf-list">
+            <div class="leaf-item">1순위: 대표 상품명<br>첫 8자 (단어 단위)</div>
+            <div class="leaf-item">2순위: 방송 제목<br>첫 단어 추출</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2-green">Line 2 하단 텍스트<br><span style="font-size:11px">(최대 8자)</span></div>
+          <div class="leaf-list">
+            <div class="leaf-item">1순위: 할인율 감지<br>(예: ~50% 할인)</div>
+            <div class="leaf-item">2순위: 강조할 혜택<br>(예: 무료배송 혜택)</div>
+            <div class="leaf-item">3순위: 기본 문구<br>랜덤 노출</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">단어 잘림 방지</div>
+          <div class="leaf-list">
+            <div class="leaf-item">공백 기준 단어<br>단위(Word) 컷오프</div>
+            <div class="leaf-item">8자 초과 시 마지막<br>완전 단어까지 노출</div>
+          </div>
+        </li>
+      </ul>
+    </li>
+
+    <!-- 3. 텍스트 렌더링 엔진 -->
+    <li class="has-children">
+      <div class="node level1-orange">3. 텍스트 렌더링 엔진<br><span style="font-size:11px">(디자인 조합)</span></div>
+      <ul>
+        <li class="has-children">
+          <div class="node level2">폰트</div>
+          <div class="leaf-list">
+            <div class="leaf-item">Pretendard</div>
+            <div class="leaf-item">Cafe24</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">색상 (랜덤)</div>
+          <div class="leaf-list">
+            <div class="leaf-item">하이라이트 색상 3종</div>
+            <div class="leaf-item">블록 배경색 3종</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">레이아웃 4종</div>
+          <div class="leaf-list">
+            <div class="leaf-item">기본 + 강조</div>
+            <div class="leaf-item">강조 + 기본</div>
+            <div class="leaf-item">기본 + 하이라이트</div>
+            <div class="leaf-item">강조 + 강조</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">텍스트 효과</div>
+          <div class="leaf-list">
+            <div class="leaf-item">Text-Shadow 적용</div>
+            <div class="leaf-item">Stroke 외곽선 적용</div>
+            <div class="leaf-item">이미지 중앙 정렬</div>
+            <div class="leaf-item">강조 2줄 시<br>여백 -2 겹침 적용</div>
+          </div>
+        </li>
+      </ul>
+    </li>
+
+    <!-- 4. 부가 기능 -->
+    <li class="has-children">
+      <div class="node level1-purple">4. 부가 기능</div>
+      <ul>
+        <li class="has-children">
+          <div class="node level2">툴팁 안내</div>
+          <div class="leaf-list">
+            <div class="leaf-item">Bottom-up 팝업</div>
+            <div class="leaf-item">타이틀: AI 방송커버<br>가 뭐예요?</div>
+            <div class="leaf-item">샘플 이미지 3장</div>
+            <div class="leaf-item">기능 설명 텍스트</div>
+          </div>
+        </li>
+        <li class="has-children">
+          <div class="node level2">Phase 2 확장</div>
+          <div class="leaf-list">
+            <div class="leaf-item">데이터 변경 시<br>동기화 정책</div>
+            <div class="leaf-item">어뷰징 방지<br>(횟수 제한)</div>
+            <div class="leaf-item">금칙어 정책</div>
+            <div class="leaf-item">이미지 비율<br>9:16 Crop</div>
+          </div>
+        </li>
+      </ul>
+    </li>
+  </ul>
+
+</div>
+</div>
+
+</body>
+</html>
