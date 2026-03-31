@@ -8,406 +8,482 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    background: #f0f0f0;
-    padding: 40px 20px;
+    background: #fff;
+    padding: 50px 40px;
+    color: #222;
   }
-  h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #333; }
-  h2 { font-size: 17px; font-weight: 700; margin: 40px 0 16px; color: #444; }
-  .subtitle { font-size: 13px; color: #777; margin-bottom: 24px; }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 10px; }
+  h2 { font-size: 22px; font-weight: 800; margin: 50px 0 8px; }
+  .desc { font-size: 15px; color: #555; margin-bottom: 30px; }
+  .desc li { margin-left: 20px; margin-bottom: 4px; }
 
-  .flow-container {
-    background: #e8e8e8;
-    border: 1px solid #ccc;
-    border-radius: 12px;
-    padding: 40px 40px 50px;
+  .flow-wrap {
+    background: #f7f7f7;
+    border-radius: 16px;
+    padding: 50px 40px;
     overflow-x: auto;
-    margin-bottom: 30px;
+    margin-bottom: 40px;
   }
 
-  /* Flow elements */
-  .flow {
+  /* ===== Horizontal flow ===== */
+  .hflow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-width: max-content;
+  }
+  .hflow-col {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0;
   }
-  .flow-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 20px;
-    position: relative;
-  }
 
-  /* Connector arrow */
-  .arrow {
+  /* Nodes */
+  .n {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 4px 0;
-    color: #888;
-    font-size: 11px;
-  }
-  .arrow .line {
-    width: 2px; height: 24px;
-    background: #999;
-  }
-  .arrow .head {
-    width: 0; height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 8px solid #999;
-  }
-  .arrow .label {
-    font-size: 11px;
-    color: #777;
-    margin: 2px 0;
-    font-weight: 600;
-  }
-
-  /* Horizontal arrow */
-  .h-arrow {
-    display: flex; align-items: center;
-    padding: 0 4px; color: #888;
-  }
-  .h-arrow .h-line { width: 30px; height: 2px; background: #999; }
-  .h-arrow .h-head {
-    width: 0; height: 0;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-    border-left: 8px solid #999;
-  }
-  .h-arrow .h-label {
-    font-size: 11px; color: #777;
-    margin: 0 4px; font-weight: 600;
-    white-space: nowrap;
-  }
-
-  /* Node styles */
-  .node {
-    padding: 12px 20px;
-    border-radius: 8px;
+    justify-content: center;
     text-align: center;
     font-size: 13px;
     font-weight: 600;
-    line-height: 1.5;
-    min-width: 140px;
-    max-width: 220px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    line-height: 1.45;
+    min-width: 120px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    white-space: nowrap;
   }
-  .node-start {
-    background: #4a6fa5; color: #fff;
+  .n-wrap { white-space: normal; max-width: 160px; }
+
+  /* Rounded start/end */
+  .n-start {
+    background: #222; color: #fff;
     border-radius: 30px; padding: 14px 28px;
   }
-  .node-end {
-    background: #6b8cbe; color: #fff;
-    border-radius: 30px; padding: 14px 28px;
-  }
-  .node-process {
-    background: #fff; border: 2px solid #ccc; color: #333;
-  }
-  .node-decision {
-    background: #fff3cd; border: 2px solid #f0c040;
-    color: #856404;
-    transform: rotate(0deg);
-    border-radius: 4px;
+  .n-end {
+    background: #222; color: #fff;
+    border-radius: 12px; padding: 18px 24px;
     min-width: 160px;
-    position: relative;
-  }
-  .node-decision::before {
-    content: '◆'; position: absolute; left: 8px; top: 50%;
-    transform: translateY(-50%); font-size: 10px; color: #e0a800;
-  }
-  .node-action {
-    background: #d4e1f5; border: 2px solid #8faed4; color: #2c5282;
-  }
-  .node-action-orange {
-    background: #ffecd2; border: 2px solid #f5b461; color: #975a16;
-  }
-  .node-action-green {
-    background: #d4edda; border: 2px solid #82c896; color: #276749;
-  }
-  .node-action-purple {
-    background: #e2d5f1; border: 2px solid #a78bca; color: #553c9a;
-  }
-  .node-error {
-    background: #f8d7da; border: 2px solid #f5c6cb; color: #721c24;
-  }
-  .node-system {
-    background: #e8e8e8; border: 2px dashed #aaa; color: #555;
-    font-weight: 400; font-size: 12px;
-  }
-  .node-tooltip {
-    background: #fff; border: 2px solid #a78bca; color: #553c9a;
   }
 
-  /* Branch layout */
-  .branch {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 40px;
+  /* Process */
+  .n-proc {
+    background: #fff; border: 2px solid #ddd; color: #333;
+  }
+
+  /* Decision diamond */
+  .diamond-wrap {
+    display: flex; align-items: center; justify-content: center;
+    width: 130px; height: 130px;
     position: relative;
   }
-  .branch-path {
+  .diamond {
+    width: 100px; height: 100px;
+    background: #222;
+    transform: rotate(45deg);
+    border-radius: 6px;
+    position: absolute;
+  }
+  .diamond-red {
+    background: #d94040;
+  }
+  .diamond-text {
+    position: relative; z-index: 1;
+    color: #fff; font-size: 12px; font-weight: 700;
+    text-align: center; line-height: 1.4;
+    max-width: 100px;
+  }
+
+  /* Action colors */
+  .n-blue { background: #4a6fa5; color: #fff; }
+  .n-green { background: #48b068; color: #fff; }
+  .n-orange { background: #f5a623; color: #fff; }
+  .n-purple { background: #7c5cbf; color: #fff; }
+  .n-lightblue { background: #d4e1f5; border: 2px solid #8faed4; color: #2c5282; }
+  .n-lightgreen { background: #c8f0d4; border: 2px solid #6dbf80; color: #1a5c2e; }
+  .n-lightorange { background: #ffecd2; border: 2px solid #f5b461; color: #975a16; }
+  .n-lightpurple { background: #e8dff5; border: 2px solid #a78bca; color: #553c9a; }
+  .n-red { background: #f8d7da; border: 2px solid #e88; color: #721c24; }
+
+  /* Arrows */
+  .arrow-r {
+    display: flex; align-items: center;
+    padding: 0; margin: 0 6px;
+  }
+  .arrow-r .shaft { width: 40px; height: 2px; background: #999; }
+  .arrow-r .head {
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 10px solid #999;
+  }
+  .arrow-r .label {
+    font-size: 10px; color: #888; font-weight: 600;
+    position: absolute; margin-top: -18px;
+    white-space: nowrap;
+  }
+  .arrow-r-short .shaft { width: 24px; }
+
+  .arrow-d {
+    display: flex; flex-direction: column; align-items: center;
+    margin: 6px 0;
+  }
+  .arrow-d .shaft { width: 2px; height: 30px; background: #999; }
+  .arrow-d .head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 10px solid #999;
+  }
+
+  .arrow-u {
+    display: flex; flex-direction: column; align-items: center;
+    margin: 6px 0;
+  }
+  .arrow-u .shaft { width: 2px; height: 30px; background: #999; }
+  .arrow-u .head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 10px solid #999;
+  }
+
+  /* Branch (vertical split from diamond) */
+  .branch-v {
+    display: flex; flex-direction: column; align-items: center;
+    position: relative;
+  }
+  .branch-pair {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 12px;
   }
   .branch-label {
-    font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 10px;
-    margin-bottom: 8px;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 10px; border-radius: 10px;
   }
-  .label-yes { background: #d4edda; color: #276749; }
-  .label-no { background: #f8d7da; color: #721c24; }
-  .label-alt { background: #e2d5f1; color: #553c9a; }
+  .bl-yes { background: #c8f0d4; color: #1a5c2e; }
+  .bl-no { background: #f8d7da; color: #721c24; }
+  .bl-alt { background: #e8dff5; color: #553c9a; }
+  .bl-gray { background: #eee; color: #666; }
 
-  /* Horizontal connector for branches */
-  .branch::before {
+  /* Vertical branch connector */
+  .vbranch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .vbranch-split {
+    display: flex;
+    gap: 30px;
+    position: relative;
+  }
+  .vbranch-split::before {
     content: '';
-    position: absolute;
-    top: 0;
-    left: 25%;
-    right: 25%;
+    position: absolute; top: 0;
+    left: 25%; right: 25%;
     border-top: 2px solid #999;
   }
-  .branch-path::before {
-    content: '';
-    width: 2px;
-    height: 12px;
-    background: #999;
+  .vbranch-path {
+    display: flex; flex-direction: column;
+    align-items: center;
+  }
+  .vbranch-path::before {
+    content: ''; width: 2px; height: 10px; background: #999;
   }
 
-  /* Phase badge */
-  .phase-badge {
-    display: inline-block;
-    background: #4a6fa5;
-    color: #fff;
-    padding: 4px 14px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 20px;
+  /* Horizontal branch from diamond */
+  .hbranch {
+    display: flex;
+    align-items: flex-start;
+    position: relative;
+  }
+  .hbranch-top, .hbranch-bottom {
+    display: flex;
+    align-items: center;
   }
 
-  .flow-note {
-    font-size: 11px;
-    color: #888;
+  /* Note annotation */
+  .note {
+    font-size: 11px; color: #999;
     text-align: center;
-    margin-top: 16px;
+    margin-top: 6px;
     font-style: italic;
   }
 
-  /* Side-by-side flows */
-  .dual-flow {
-    display: flex;
-    gap: 30px;
-    align-items: flex-start;
+  /* Section divider */
+  .section-num {
+    display: inline-block;
+    background: #4a6fa5; color: #fff;
+    padding: 4px 14px; border-radius: 12px;
+    font-size: 12px; font-weight: 700;
+    margin-right: 8px;
   }
-  .dual-flow > .flow-container {
-    flex: 1;
+  .section-num.phase2 { background: #7c5cbf; }
+
+  .phase-note {
+    font-size: 12px; color: #999;
+    margin-top: 10px; font-style: italic;
   }
 </style>
 </head>
 <body>
 
-<h1>AI 방송 썸네일 텍스트 자동 생성 - 유저 플로우</h1>
-<p class="subtitle">셀러(그리퍼)가 AI 커버를 생성하는 전체 사용 흐름</p>
+<h1>User Flow</h1>
 
-<!-- ===== FLOW 1: 메인 AI 커버 생성 ===== -->
-<h2><span class="phase-badge">Phase 1</span> 메인 유저 플로우 - AI 커버 생성</h2>
-<div class="flow-container">
-<div class="flow">
+<!-- ===== FLOW 1 ===== -->
+<h2><span class="section-num">Phase 1</span> AI 커버 생성 메인 플로우</h2>
+<ul class="desc"><li>셀러가 방송 설정 화면에서 AI 커버를 생성하는 전체 흐름</li></ul>
 
-  <div class="node node-start">셀러 - 라이브 방송 시작</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+<div class="flow-wrap">
+<div class="hflow">
 
-  <div class="node node-process">방송 설정 메인 화면 진입</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <!-- 시작 -->
+  <div class="n n-start">방송 시작하기</div>
 
-  <div class="node node-decision">커버 이미지가 업로드 되어 있는가?</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-no">No</span>
-      <div class="node node-error">커버 이미지 업로드 필요</div>
-      <div class="arrow"><div class="line"></div><div class="head"></div></div>
-      <div class="node node-process" style="font-size:11px">직접 업로드<br>또는<br>판매 상품 이미지 자동 적용</div>
-    </div>
-    <div class="branch-path">
-      <span class="branch-label label-yes">Yes</span>
-      <div class="node node-action-green" style="font-size:11px">다음 단계로 진행</div>
+  <!-- 방송 설정 -->
+  <div class="n n-proc">방송 설정<br>메인 화면</div>
+
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <!-- 조건 확인 다이아몬드 -->
+  <div class="hflow-col">
+    <div class="diamond-wrap">
+      <div class="diamond"></div>
+      <div class="diamond-text">커버 이미지<br>+<br>방송 제목<br>여부</div>
     </div>
   </div>
 
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-decision">방송 제목이 작성되어 있는가?</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-no">No</span>
-      <div class="node node-error">방송 제목 작성 필요</div>
+  <!-- 분기: 상단 = 미충족 / 우측 = 충족 -->
+  <div class="hflow-col" style="gap:16px;">
+    <!-- 미충족 경로 (위) -->
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-no">미충족</span>
+      <div class="n n-red n-wrap" style="font-size:11px;">토스트 메시지<br>"이미지/제목을<br>먼저 등록해주세요"</div>
     </div>
-    <div class="branch-path">
-      <span class="branch-label label-yes">Yes</span>
-      <div class="node node-action-green" style="font-size:11px">조건 충족</div>
-    </div>
-  </div>
-
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-action" style="font-size:15px; min-width:220px">[✦ AI 커버 생성] 버튼 탭</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-decision">생성 조건 충족 여부 검증</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-no">미충족</span>
-      <div class="node node-error">토스트 메시지 노출<br><span style="font-size:11px">"이미지/제목을 먼저 등록해주세요"</span></div>
-    </div>
-    <div class="branch-path">
-      <span class="branch-label label-yes">충족</span>
-      <div class="node node-action-green">텍스트 데이터 매핑 시작</div>
+    <!-- 충족 경로 (아래) -->
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-yes">충족</span>
+      <div class="n n-blue" style="font-size:14px;">✦ AI 커버 생성<br>버튼 탭</div>
     </div>
   </div>
 
-  <div class="arrow"><div class="line"></div><div class="label">백그라운드 로직</div><div class="line"></div><div class="head"></div></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-  <!-- Line 1 -->
-  <div class="node node-action-orange" style="min-width:200px">Line 1: 상단 텍스트 추출 (최대 8자)</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-yes">상품 선택됨</span>
-      <div class="node node-process" style="font-size:11px">1순위: 대표 상품명<br>첫 8자 추출<br>(단어 단위 컷오프)</div>
+  <!-- 텍스트 매핑 -->
+  <div class="hflow-col" style="gap:12px;">
+    <div class="n n-lightorange n-wrap" style="font-size:11px;">
+      <b>Line 1</b> 상단 텍스트<br>(최대 8자)<br><br>
+      1순위: 대표 상품명<br>
+      2순위: 방송 제목
     </div>
-    <div class="branch-path">
-      <span class="branch-label label-no">상품 미선택</span>
-      <div class="node node-process" style="font-size:11px">2순위: 방송 제목<br>첫 단어 추출<br>(브랜드+카테고리)</div>
-    </div>
-  </div>
-
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <!-- Line 2 -->
-  <div class="node node-action-orange" style="min-width:200px">Line 2: 하단 텍스트 추출 (최대 8자)</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-yes">할인율 감지</span>
-      <div class="node node-process" style="font-size:11px">1순위:<br>"~50% 할인"</div>
-    </div>
-    <div class="branch-path">
-      <span class="branch-label label-alt">혜택 선택됨</span>
-      <div class="node node-process" style="font-size:11px">2순위:<br>"무료배송 혜택"</div>
-    </div>
-    <div class="branch-path">
-      <span class="branch-label label-no">모두 없음</span>
-      <div class="node node-process" style="font-size:11px">3순위: 기본 문구<br>랜덤 노출<br>"라이브 특가" 등</div>
+    <div class="n n-lightorange n-wrap" style="font-size:11px;">
+      <b>Line 2</b> 하단 텍스트<br>(최대 8자)<br><br>
+      1순위: 할인율<br>
+      2순위: 강조 혜택<br>
+      3순위: 기본 문구 랜덤
     </div>
   </div>
 
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-  <!-- Rendering -->
-  <div class="node node-action-purple" style="min-width:280px">
-    텍스트 렌더링 엔진<br>
-    <span style="font-size:11px">폰트 2종 / 색상 3종 / 레이아웃 4종 랜덤 조합<br>Text-Shadow + Stroke 적용</span>
+  <!-- 렌더링 엔진 -->
+  <div class="n n-purple n-wrap" style="max-width:180px;">
+    텍스트 렌더링 엔진<br><br>
+    <span style="font-size:11px; opacity:0.9;">
+      폰트 2종<br>
+      색상 3종 (랜덤)<br>
+      레이아웃 4종 (랜덤)<br>
+      Shadow + Stroke
+    </span>
   </div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
 
-  <div class="node node-action" style="min-width:260px">커버 썸네일 박스에 결과물 즉시 렌더링</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-  <div class="node node-process">버튼명 변경: [✦ AI 커버 제거]</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-end">AI 커버 적용 완료</div>
-
-</div>
-</div>
-
-<!-- ===== FLOW 2 & 3: Side by side ===== -->
-<div class="dual-flow">
-
-<!-- FLOW 2: AI 커버 제거 -->
-<div class="flow-container" style="flex:1">
-<h2 style="margin-top:0">AI 커버 제거 플로우</h2>
-<div class="flow" style="margin-top:20px">
-  <div class="node node-action" style="font-size:14px">[✦ AI 커버 제거] 버튼 탭</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-process">원본 이미지 상태로 복구</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-process">버튼명 변경: [✦ AI 커버 생성]</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-end">원본 커버로 복귀 완료</div>
-</div>
-</div>
-
-<!-- FLOW 3: 툴팁 -->
-<div class="flow-container" style="flex:1">
-<h2 style="margin-top:0">툴팁 정보 플로우</h2>
-<div class="flow" style="margin-top:20px">
-  <div class="node node-tooltip">ℹ️ 툴팁 아이콘 탭</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-action-purple">Bottom-up 팝업 노출</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-process" style="font-size:12px; max-width:240px">
-    <b>AI 방송커버가 뭐예요?</b><br><br>
-    AI 커버 적용 샘플 이미지 3장<br><br>
-    <span style="font-size:11px;color:#777">방송 제목과 커버 이미지를 기반으로<br>텍스트 오버레이를 자동 생성합니다.</span>
+  <!-- 결과 -->
+  <div class="hflow-col" style="gap:12px;">
+    <div class="n n-lightgreen n-wrap">커버 썸네일에<br>결과물 즉시 렌더링</div>
+    <div class="n n-proc" style="font-size:11px;">버튼 변경:<br>[✦ AI 커버 제거]</div>
   </div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-  <div class="node node-end">팝업 닫기 → 메인 화면</div>
-</div>
-</div>
 
-</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
 
-<!-- ===== FLOW 4: Phase 2 데이터 변경 동기화 ===== -->
-<h2><span class="phase-badge" style="background:#a78bca">Phase 2</span> 데이터 변경 시 동기화 플로우 (B안 - 권장)</h2>
-<div class="flow-container">
-<div class="flow">
-
-  <div class="node node-start">AI 커버 적용 상태</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-decision">셀러가 방송 정보 변경<br><span style="font-size:11px">(제목 / 상품 / 혜택)</span></div>
-  <div class="arrow"><div class="label">변경 감지</div><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-error" style="max-width:260px">기존 AI 커버 자동 해제<br>(원본 이미지로 롤백)</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-action-orange" style="max-width:300px; font-size:12px">
-    토스트 메시지 노출<br>
-    "방송 정보가 변경되어 AI 커버가<br>초기화되었습니다. 다시 생성해주세요."
-  </div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="node node-process">[✦ AI 커버 생성] 버튼 재노출</div>
-  <div class="arrow"><div class="line"></div><div class="head"></div></div>
-
-  <div class="branch">
-    <div class="branch-path">
-      <span class="branch-label label-yes">재생성</span>
-      <div class="node node-action">[✦ AI 커버 생성] 탭<br>→ 새로 생성</div>
-    </div>
-    <div class="branch-path">
-      <span class="branch-label label-no">유지</span>
-      <div class="node node-process">원본 이미지로<br>방송 진행</div>
-    </div>
+  <!-- 최종 -->
+  <div class="n n-end n-wrap" style="max-width:180px;">
+    AI 커버<br>적용 완료<br><br>
+    <span style="font-size:11px; opacity:0.7;">방송 시작 가능</span>
   </div>
 
 </div>
 </div>
 
-<p class="flow-note">* Phase 2 확장 기능은 필수가 아니며, Phase 1 출시 후 검토 예정입니다.</p>
+<!-- ===== FLOW 2 ===== -->
+<h2><span class="section-num">Phase 1</span> AI 커버 제거 플로우</h2>
+<ul class="desc"><li>적용된 AI 커버를 제거하고 원본으로 복귀하는 흐름</li></ul>
+
+<div class="flow-wrap">
+<div class="hflow">
+
+  <div class="n n-start">AI 커버<br>적용 상태</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-blue">✦ AI 커버 제거<br>버튼 탭</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-proc">원본 이미지<br>상태로 복구</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-proc" style="font-size:12px;">버튼 변경:<br>[✦ AI 커버 생성]</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-end">원본 커버로<br>복귀 완료</div>
+
+</div>
+</div>
+
+<!-- ===== FLOW 3 ===== -->
+<h2><span class="section-num">Phase 1</span> 이미지 미업로드 시 대체 플로우</h2>
+<ul class="desc"><li>커버 이미지가 없을 때 판매 상품 이미지를 자동 적용하는 흐름</li></ul>
+
+<div class="flow-wrap">
+<div class="hflow">
+
+  <div class="n n-start">AI 커버 생성<br>버튼 탭</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="diamond-wrap">
+    <div class="diamond"></div>
+    <div class="diamond-text">커버 이미지<br>업로드<br>여부</div>
+  </div>
+
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="hflow-col" style="gap:16px;">
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-yes">Yes</span>
+      <div class="n n-lightgreen n-wrap">업로드된<br>이미지 사용</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-no">No</span>
+      <div class="diamond-wrap" style="width:110px; height:110px;">
+        <div class="diamond diamond-red" style="width:80px; height:80px;"></div>
+        <div class="diamond-text" style="font-size:11px;">판매 상품<br>등록<br>여부</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="hflow-col" style="gap:16px;">
+    <div style="display:flex; align-items:center; gap:6px; visibility:hidden;">
+      <span class="branch-label bl-yes">-</span>
+      <div class="n n-proc" style="visibility:hidden;">-</div>
+    </div>
+    <div class="hflow-col" style="gap:12px;">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="branch-label bl-yes">Yes</span>
+        <div class="n n-lightgreen n-wrap" style="font-size:11px;">판매 상품 첫 번째<br>제품 이미지를<br>썸네일로 불러오기</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="branch-label bl-no">No</span>
+        <div class="n n-red n-wrap" style="font-size:11px;">AI 커버 생성 불가<br>토스트 메시지 노출</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-end n-wrap">AI 커버<br>생성 진행<br>또는 중단</div>
+
+</div>
+</div>
+
+<!-- ===== FLOW 4 ===== -->
+<h2><span class="section-num">Phase 1</span> 툴팁 안내 플로우</h2>
+<ul class="desc"><li>유저에게 AI 방송커버 기능을 안내하는 흐름</li></ul>
+
+<div class="flow-wrap">
+<div class="hflow">
+
+  <div class="n n-start">방송 설정<br>메인 화면</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-lightpurple">ℹ️ 툴팁<br>아이콘 탭</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-purple n-wrap" style="max-width:200px;">
+    Bottom-up 팝업 노출<br><br>
+    <span style="font-size:11px; opacity:0.9;">
+      <b>"AI 방송커버가 뭐예요?"</b><br><br>
+      샘플 이미지 3장 제공<br><br>
+      방송 제목과 커버 이미지 기반<br>
+      텍스트 오버레이 자동 생성
+    </span>
+  </div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-proc">팝업 닫기</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-end">메인 화면<br>복귀</div>
+
+</div>
+</div>
+
+<!-- ===== FLOW 5: Phase 2 ===== -->
+<h2><span class="section-num phase2">Phase 2</span> 데이터 변경 시 동기화 플로우 (B안 - 권장)</h2>
+<ul class="desc"><li>AI 커버 적용 후 방송 정보(제목/상품/혜택)가 변경되었을 때의 처리 흐름</li></ul>
+
+<div class="flow-wrap">
+<div class="hflow">
+
+  <div class="n n-start">AI 커버<br>적용 상태</div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-proc n-wrap">셀러가 방송 정보 변경<br><span style="font-size:11px; color:#888;">(제목/상품/혜택)</span></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="diamond-wrap">
+    <div class="diamond diamond-red"></div>
+    <div class="diamond-text">변경<br>감지</div>
+  </div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-red n-wrap" style="max-width:160px;">기존 AI 커버<br>자동 해제<br><span style="font-size:11px;">(원본 이미지로 롤백)</span></div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-lightorange n-wrap" style="max-width:200px; font-size:11px;">
+    토스트 메시지 노출<br><br>
+    "방송 정보가 변경되어<br>AI 커버가 초기화되었습니다.<br>다시 생성해주세요."
+  </div>
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="hflow-col" style="gap:16px;">
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-yes">재생성</span>
+      <div class="n n-lightgreen n-wrap">[✦ AI 커버 생성]<br>다시 탭</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span class="branch-label bl-gray">유지</span>
+      <div class="n n-proc n-wrap">원본 이미지로<br>방송 진행</div>
+    </div>
+  </div>
+
+  <div class="arrow-r"><div class="shaft"></div><div class="head"></div></div>
+
+  <div class="n n-end n-wrap">방송 시작</div>
+
+</div>
+</div>
+
+<p class="phase-note">* Phase 2 확장 기능은 필수가 아니며, Phase 1 출시 후 검토 예정입니다.</p>
 
 </body>
 </html>
