@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Grip - 방송 설정</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/Cafe24Ohsquare.woff" rel="preload" as="font" type="font/woff" crossorigin>
+<style>@font-face{font-family:'Cafe24 Ohsquare';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/Cafe24Ohsquare.woff') format('woff');font-weight:normal;font-style:normal;font-display:swap}</style>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;background:#000;color:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.phone{width:375px;height:812px;position:relative;overflow:hidden;background:#111;border-radius:40px;border:3px solid #333;box-shadow:0 0 40px rgba(0,0,0,.8)}
+.sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:15px;font-weight:700}
+.hd{height:48px;display:flex;align-items:center;justify-content:center;position:relative}
+.hd .cb{position:absolute;left:16px;font-size:24px;cursor:pointer;color:#fff;background:none;border:none;line-height:1}
+.hd h1{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:8px;padding:10px 16px}
+.tabs button{flex:1;height:38px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer}
+.tabs button.on{background:#fff;color:#000;border:none}
+.tabs button:not(.on){background:#333;color:#888;border:none}
+.sc{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 20px}
+.sc::-webkit-scrollbar{display:none}
+.st{font-size:15px;font-weight:600;margin:20px 0 6px;display:flex;align-items:center;gap:4px}
+.sd{font-size:12px;color:#888;margin-bottom:12px;line-height:1.5}
+.req{color:#ff4757}
+/* Cover area */
+.cov{display:flex;gap:16px;margin:16px 0 12px;align-items:flex-start}
+.cov-box{width:140px;min-height:170px;border:2px dashed #444;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;flex-shrink:0;position:relative;overflow:hidden}
+.cov-box .cm{font-size:28px;color:#666}.cov-box .ct{font-size:13px;color:#888;text-align:center;line-height:1.4}.cov-box .cs{font-size:11px;color:#555;text-align:center}
+.cov-box img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:10px}
+.ti{width:100%;background:transparent;border:none;color:#fff;font-size:15px;outline:none;padding:4px 0;border-bottom:1px solid #333;font-family:inherit}
+.ai-sec{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+.ai-sec .hl{width:18px;height:18px;border-radius:50%;border:1px solid #666;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#666;cursor:pointer}
+.ai-btn{background:#ff4757;color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}.ai-btn.rm{background:#333;color:#ccc}
+.mi{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-top:1px solid #222;cursor:pointer}.mi span{font-size:15px}.mi .ar{color:#555;font-size:18px}
+.mi .val{color:#888;font-size:14px;display:flex;align-items:center;gap:4px}
+.tg-sec{padding:12px 0;border-top:1px solid #222}
+.tg-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tg-h{font-size:18px;color:#888;font-weight:700}.tg-i{background:transparent;border:none;color:#888;font-size:14px;outline:none;flex:1;font-family:inherit}
+.tg-d{font-size:11px;color:#555;line-height:1.6}
+.not-sec{border-top:1px solid #222}
+.not-h{display:flex;align-items:center;justify-content:space-between;padding:16px 0;cursor:pointer}.not-h span{font-size:15px}
+.not-lbl{font-size:13px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between}
+.not-lbl .c{color:#888;font-weight:400;font-size:12px}
+.not-ta{width:100%;height:80px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#888;font-size:13px;padding:12px;outline:none;resize:none;margin-bottom:12px;font-family:inherit}
+.bbtn{position:absolute;bottom:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:center;cursor:pointer}.bbtn span{font-size:17px;font-weight:600;color:#fff}
+.bn-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}.bn-scroll::-webkit-scrollbar{display:none}
+.bn-item{flex-shrink:0;cursor:pointer;text-align:center}
+.bn-ic{background:#333;border-radius:12px;width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:4px}
+.bn-ic.sel{border:2px solid #ff4757}
+
+/* Screens */
+.scr{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#111;z-index:10}.scr.on{display:block}
+#sAI{transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,.32,1);display:block!important;pointer-events:none;opacity:0}
+#sAI.on{transform:translateY(0);pointer-events:auto;opacity:1}
+
+/* AI Input */
+.ftags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.ftag{display:flex;align-items:center;gap:4px;padding:8px 14px;border:1px solid #333;border-radius:20px;font-size:13px;color:#ccc;cursor:pointer;transition:all .2s}
+.ftag.sel{border-color:#6c5ce7;background:#6c5ce7;color:#fff}
+.din{width:100%;height:40px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px;padding:0 12px;outline:none;margin-bottom:16px;font-family:inherit}
+.igrid{display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ibox{width:100px;height:100px;border:2px dashed #444;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden}
+.ibox .plus{font-size:24px;color:#666}.ibox .lb{font-size:11px;color:#666}
+.ibox img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:8px}
+.ibox .rm{position:absolute;top:4px;right:4px;width:20px;height:20px;background:rgba(0,0,0,.7);border-radius:50%;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
+.tcard{border-radius:12px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:all .2s;position:relative;background:#1a1a1a}
+.tcard.sel{border-color:#6c5ce7}
+.tcard .timg{width:100%;height:90px;object-fit:cover}
+.tcard .tn{font-size:12px;padding:8px 10px}
+.tcard .ck{position:absolute;top:6px;right:6px;width:22px;height:22px;background:#6c5ce7;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;color:#fff}
+.tcard.sel .ck{display:flex}
+
+/* Loading */
+#sLoad{z-index:30}
+.lw{width:100%;height:calc(100% - 92px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px}
+.pr{width:100px;height:100px;position:relative;margin-bottom:24px}
+.pr svg{transform:rotate(-90deg)}
+.pr .bg{stroke:#333}.pr .fg{stroke:#6c5ce7;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.pt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:700;color:#6c5ce7}
+.lm{font-size:16px;font-weight:500;margin-bottom:8px;text-align:center}
+.ls{font-size:13px;color:#888;margin-bottom:30px}
+.sl{width:100%;max-width:280px}
+.si{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin-bottom:8px;border-radius:10px;background:#1a1a1a}
+.sic{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.sic.dn{background:#00b894;color:#fff}.sic.ac{border:2px solid #6c5ce7;color:#6c5ce7}.sic.pn{background:#333;color:#666}
+.sn{flex:1;margin-left:12px;font-size:14px}
+.ss{font-size:12px;color:#888}.ss.dn{color:#00b894}.ss.ac{color:#6c5ce7}
+
+/* ===== RESULT: Overview ===== */
+#sRes{z-index:25}
+.res-tabs{display:flex;align-items:center;padding:8px 16px;gap:0;border-bottom:1px solid #222}
+.res-tab{padding:8px 14px;font-size:13px;color:#888;cursor:pointer;border-radius:20px;font-weight:500;white-space:nowrap}
+.res-tab.on{background:#fff;color:#000;font-weight:600}
+.res-acts{display:flex;gap:8px;margin-left:auto}
+.res-act{padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;border:none;font-weight:500;font-family:inherit}
+.res-act.regen{background:#222;color:#ccc}.res-act.apply{background:#6c5ce7;color:#fff}
+.res-body{height:calc(812px - 92px - 50px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+.res-body::-webkit-scrollbar{display:none}
+/* Overview grid */
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ov-card{border-radius:12px;overflow:hidden;cursor:pointer;position:relative;background:#1a1a1a;aspect-ratio:9/16}
+.ov-card .badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px}
+.ov-card canvas,.ov-card .thumb-wrap{width:100%;height:100%}
+.thumb-wrap{position:relative;overflow:hidden}
+.thumb-wrap .bg-layer{position:absolute;top:0;left:0;width:100%;height:100%}
+.thumb-wrap .txt-layer{position:absolute;width:100%;padding:12px;z-index:2}
+
+/* ===== RESULT: Detail Edit ===== */
+.det-preview{width:100%;aspect-ratio:9/16;max-height:340px;border-radius:12px;overflow:hidden;position:relative;margin-bottom:12px;background:#1a1a1a}
+.det-preview canvas{width:100%;height:100%}
+/* Layout selector */
+.layout-row{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px}
+.layout-row::-webkit-scrollbar{display:none}
+.lo-item{flex-shrink:0;width:56px;text-align:center;cursor:pointer}
+.lo-item .lo-thumb{width:56px;height:56px;border-radius:8px;border:2px solid transparent;overflow:hidden;margin-bottom:3px;background:#222}
+.lo-item.sel .lo-thumb{border-color:#6c5ce7}
+.lo-item .lo-name{font-size:9px;color:#888}
+.lo-item.sel .lo-name{color:#6c5ce7}
+/* Control sections */
+.ctrl-sec{margin-bottom:16px}
+.ctrl-label{font-size:13px;font-weight:600;margin-bottom:8px;color:#ccc}
+.ctrl-sub{font-size:11px;color:#666;margin-bottom:6px}
+/* Toggle tabs */
+.tog{display:flex;border:1px solid #333;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.tog button{flex:1;padding:8px;font-size:13px;border:none;background:#1a1a1a;color:#888;cursor:pointer;font-family:inherit;font-weight:500}
+.tog button.on{background:#333;color:#fff}
+/* Slider */
+.sld-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sld-wrap .sld-val{font-size:12px;color:#6c5ce7;min-width:36px;text-align:right}
+.sld{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#333;outline:none;touch-action:none}
+.sld::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#6c5ce7;cursor:pointer}
+/* Select */
+.sel-box{width:100%;height:40px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px;padding:0 12px;outline:none;font-family:inherit;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%23888' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+/* Color picker row */
+.clr-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.clr-row .clr-label{font-size:12px;color:#888;width:60px;flex-shrink:0}
+.clr-row .clr-box{width:28px;height:28px;border-radius:6px;border:1px solid #444;cursor:pointer;flex-shrink:0}
+.clr-row .clr-val{flex:1;height:32px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#fff;font-size:12px;padding:0 8px;outline:none;font-family:inherit}
+/* AI promo inputs */
+.promo-row{margin-bottom:10px}
+.promo-label{font-size:12px;color:#888;margin-bottom:4px;display:flex;justify-content:space-between}
+.promo-label .lim{color:#555}
+.promo-inp{width:100%;height:38px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px;padding:0 12px;outline:none;font-family:inherit}
+.promo-inp:focus{border-color:#6c5ce7}
+
+/* Bottom Sheet */
+.ov{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:50}.ov.on{display:block}
+.bs{position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-radius:16px 16px 0 0;padding:24px 20px 40px;z-index:51;transform:translateY(100%);transition:transform .3s ease}
+.bs.on{transform:translateY(0)}
+.bs .cls{position:absolute;top:16px;right:16px;font-size:22px;color:#888;cursor:pointer;background:none;border:none}
+.bs h3{font-size:17px;font-weight:600;text-align:center;margin-bottom:20px}
+.bs .exs{display:flex;gap:10px;margin-bottom:16px}
+.bs .exi{flex:1;height:120px;border-radius:8px;overflow:hidden;position:relative;display:flex;align-items:flex-end}
+.bs .exl{width:100%;padding:8px;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:10px;color:#fff;font-weight:600;text-align:center;line-height:1.4}
+.bs .dsc{font-size:13px;color:#aaa;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="phone" id="app">
+
+<!-- ===== MAIN ===== -->
+<div id="sMain">
+<div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+<div class="hd"><button class="cb">&times;</button><h1>방송설정</h1></div>
+<div class="tabs"><button class="on" onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">라이브</button><button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">녹화</button><button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">연습하기</button></div>
+<div class="sc" id="mainSc" style="height:calc(812px - 44px - 48px - 58px - 60px)">
+<div class="cov">
+<div class="cov-box" id="covBox" onclick="document.getElementById('covF').click()">
+<div class="cm" id="covCam">📷</div><div class="ct" id="covTxt">방송 커버<br>이미지 등록 <span class="req">*</span></div><div class="cs" id="covSub">이미지를 그립이<br>변경할 수도 있습니다</div>
+<img id="covImg" style="display:none"><input type="file" id="covF" accept="image/*" style="display:none" onchange="handleCov(event)">
+</div>
+<div style="flex:1;padding-top:4px"><input class="ti" id="bTitle" placeholder="제목을 입력해 주세요 *"></div>
+</div>
+<div class="ai-sec"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px">AI 방송 커버 사용</span><div class="hl" onclick="showHelp()">?</div></div><button class="ai-btn" id="aiBtn" onclick="openAI()">✦ AI 커버 생성</button></div>
+<div class="mi"><span>판매 상품 선택</span><span class="ar">›</span></div>
+<div class="tg-sec"><div class="tg-row"><span class="tg-h">#</span><input class="tg-i" placeholder="태그입력"></div><div class="tg-d">띄어쓰기로 구분할 수 있어요. (최대 10개)<br>태그 추가 시 키워드 알림을 설정한 사용자에게 알림이 가요.</div></div>
+<div class="mi"><span>현재 위치 설정</span><div class="val">상태값 <span class="ar">›</span></div></div>
+<div class="not-sec">
+<div class="not-h" onclick="toggleNot()"><span>공지 작성</span><span class="ar" id="notAr">∨</span></div>
+<div id="notBody" style="display:none">
+<div class="not-lbl">라이브 소개 <span class="c">0 / 500</span></div><textarea class="not-ta" placeholder="방송에 대한 소개나 구매 방법 등을 알려주세요."></textarea>
+<div class="not-lbl">혜택 <span class="c">0 / 300</span></div><textarea class="not-ta" placeholder="예) 사은품, 이벤트 등" style="height:60px"></textarea>
+<div class="not-lbl">배송 정보 <span class="c">0 / 300</span></div><textarea class="not-ta" placeholder="예) 무료배송 조건, 출고 날짜 등" style="height:60px"></textarea>
+<div class="not-lbl">사이즈 정보 <span class="c">0 / 300</span></div><textarea class="not-ta" placeholder="예) 모델 신체 정보, 사이즈 가이드" style="height:60px"></textarea>
+<div style="margin-top:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-size:13px;font-weight:600">방송에서 강조할 혜택</span><span style="color:#ff4757;font-size:12px;font-weight:600">(추천)</span></div><div style="font-size:11px;color:#888;line-height:1.5;margin-bottom:12px">방송 화면 우측 상단에 아이콘이 표시돼요 (최대 1개)<br>혜택 내용을 공지에 꼭 작성해 주세요.</div>
+<div class="bn-scroll">
+<div class="bn-item" onclick="selBen(this)"><div class="bn-ic sel">🚫</div><div style="font-size:11px;color:#ccc">없음</div></div>
+<div class="bn-item" onclick="selBen(this)"><div class="bn-ic">🚚</div><div style="font-size:11px;color:#ccc">무료배송</div></div>
+<div class="bn-item" onclick="selBen(this)"><div class="bn-ic">❗</div><div style="font-size:11px;color:#ccc">구매전 필독</div></div>
+<div class="bn-item" onclick="selBen(this)"><div class="bn-ic">📍</div><div style="font-size:11px;color:#ccc">팔로우<br>이벤트</div></div>
+<div class="bn-item" onclick="selBen(this)"><div class="bn-ic">🎟️</div><div style="font-size:11px;color:#ccc">구매 이벤트</div></div>
+</div></div>
+</div>
+</div>
+</div>
+<div class="bbtn" style="background:#ff4757"><span>다음</span></div>
+</div>
+
+<!-- ===== AI INPUT ===== -->
+<div class="scr" id="sAI">
+<div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+<div class="hd"><button class="cb" onclick="closeAI()">←</button><h1>AI 커버 생성</h1></div>
+<div class="sc" style="height:calc(812px - 92px - 60px)">
+<div class="st">방송 제목</div>
+<input class="din" id="aiT" placeholder="예) MGC 아이스커피 여름 특가 라이브">
+<div class="st">방송 특징</div>
+<div class="ftags">
+<div class="ftag" onclick="togTag(this)" data-t="할인">🏷️ 할인</div>
+<div class="ftag" onclick="togTag(this)" data-t="타임어택">⏰ 타임어택</div>
+<div class="ftag" onclick="togTag(this)" data-t="무료배송">🚚 무료배송</div>
+<div class="ftag" onclick="togTag(this)" data-t="한정수량">🔥 한정수량</div>
+<div class="ftag" onclick="togTag(this)" data-t="신상품">✨ 신상품</div>
+<div class="ftag" onclick="togTag(this)" data-t="세트구성">🎁 세트구성</div>
+</div>
+<div id="dinps"></div>
+<div class="st" style="justify-content:space-between">상품 이미지 <span style="color:#888;font-size:12px;font-weight:400" id="imgCnt">0 / 5</span></div>
+<div class="igrid" id="imgGrid"><div class="ibox" onclick="document.getElementById('pF').click()"><span class="plus">+</span><span class="lb">업로드</span></div></div>
+<input type="file" id="pF" accept="image/*" multiple style="display:none" onchange="handleProd(event)">
+<div style="font-size:11px;color:#555;margin-bottom:20px">추가 버튼 선택하여 업로드 (최대 5장)</div>
+<div class="st">테마 선택</div>
+<div class="tgrid">
+<div class="tcard sel" onclick="selThm(this,0)"><img class="timg" src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop" onerror="this.style.background='linear-gradient(135deg,#f5e6e0,#f0d0c4)';this.style.height='90px'"><div class="tn">🔥 긴급 타임특가</div><div class="ck">✓</div></div>
+<div class="tcard" onclick="selThm(this,1)"><img class="timg" src="https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&h=200&fit=crop" onerror="this.style.background='linear-gradient(135deg,#f5efe0,#e8dcc8)';this.style.height='90px'"><div class="tn">💎 프리미엄 런칭</div><div class="ck">✓</div></div>
+<div class="tcard" onclick="selThm(this,2)"><img class="timg" src="https://images.unsplash.com/photo-1610970881699-44a5587cabec?w=300&h=200&fit=crop" onerror="this.style.background='linear-gradient(135deg,#e0f5e8,#c4f0d0)';this.style.height='90px'"><div class="tn">🌿 프레시 & 네이처</div><div class="ck">✓</div></div>
+<div class="tcard" onclick="selThm(this,3)"><img class="timg" src="https://images.unsplash.com/photo-1602028915047-37269d1a73f7?w=300&h=200&fit=crop" onerror="this.style.background='linear-gradient(135deg,#f5f0e8,#e8e0d0)';this.style.height='90px'"><div class="tn">☕ 모던 라이프스타일</div><div class="ck">✓</div></div>
+</div>
+</div>
+<div class="bbtn" style="background:#6c5ce7" onclick="startGen()"><span>✦ AI 썸네일 생성하기</span></div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div class="scr" id="sLoad">
+<div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+<div class="hd"><h1>AI 커버 생성 중</h1></div>
+<div class="lw">
+<div class="pr"><svg width="100" height="100"><circle class="bg" cx="50" cy="50" r="42" fill="none" stroke-width="6"/><circle class="fg" id="pC" cx="50" cy="50" r="42" fill="none" stroke-width="6" stroke-dasharray="264" stroke-dashoffset="264"/></svg><div class="pt" id="pP">0%</div></div>
+<div class="lm" id="lM">상품을 분석하고 있습니다...</div><div class="ls" id="lS">Step 1 / 4</div>
+<div class="sl">
+<div class="si"><div class="sic ac" id="si1">1</div><div class="sn">상품 분석</div><div class="ss ac" id="ss1">진행 중...</div></div>
+<div class="si"><div class="sic pn" id="si2">2</div><div class="sn">이미지/카피 생성</div><div class="ss" id="ss2">대기</div></div>
+<div class="si"><div class="sic pn" id="si3">3</div><div class="sn">S3 업로드</div><div class="ss" id="ss3">대기</div></div>
+<div class="si"><div class="sic pn" id="si4">4</div><div class="sn">완료</div><div class="ss" id="ss4">대기</div></div>
+</div>
+</div>
+</div>
+
+<!-- ===== RESULT ===== -->
+<div class="scr" id="sRes">
+<div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+<div class="hd"><button class="cb" onclick="closeRes()">←</button><h1>AI 커버 결과</h1></div>
+<div class="res-tabs" id="resTabs">
+<div class="res-tab on" onclick="switchResTab(this,'all')">전체 보기</div>
+<div class="res-tab" onclick="switchResTab(this,'A')">시안 A</div>
+<div class="res-tab" onclick="switchResTab(this,'B')">시안 B</div>
+<div class="res-tab" onclick="switchResTab(this,'C')">시안 C</div>
+<div class="res-tab" onclick="switchResTab(this,'D')">시안 D</div>
+</div>
+<div class="res-body" id="resBody"></div>
+<div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:8px;padding:10px 16px;background:linear-gradient(transparent,#111 30%);padding-top:30px;z-index:5">
+<button onclick="regenAll()" style="flex:1;height:44px;background:#222;color:#ccc;border:1px solid #444;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit">↻ 다시 생성</button>
+<button onclick="applyFromRes()" style="flex:1;height:44px;background:#6c5ce7;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">✦ 적용하기</button>
+</div>
+</div>
+
+<!-- ===== HELP SHEET ===== -->
+<div class="ov" id="hOv" onclick="closeHelp()"></div>
+<div class="bs" id="hBs">
+<button class="cls" onclick="closeHelp()">&times;</button>
+<h3>✦ AI 방송커버가 뭐예요?</h3>
+<div class="exs">
+<div class="exi" style="background:#c4a882;position:relative;overflow:hidden">
+<img src="https://images.unsplash.com/photo-1570526383810-4f16b26e3711?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.85" onerror="this.style.display='none'">
+<div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+<div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">하루종일 안 녹는</div>
+<div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">텀블러 블렌더 <span style="color:#F9DF34">35%</span></div>
+</div>
+</div>
+<div class="exi" style="background:#5a3a20;position:relative;overflow:hidden">
+<img src="https://images.unsplash.com/photo-1623653387945-2fd25214f8fc?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.9" onerror="this.style.display='none'">
+<div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+<div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">앞다리 순살 족발</div>
+<div style="display:inline-block;background:#FF2D55;color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:2px;margin-top:2px">6,900원!</div>
+</div>
+</div>
+<div class="exi" style="background:#7ec8e3;position:relative;overflow:hidden">
+<img src="https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.9" onerror="this.style.display='none'">
+<div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+<div style="display:inline-block;background:#FF2D55;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:2px;line-height:1.4">키즈 S/S 세일</div>
+<div style="display:inline-block;background:#FF2D55;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:2px;margin-top:2px;line-height:1.4">7만원 이상 무배</div>
+</div>
+</div>
+</div>
+<div class="dsc">채널 정보와 방송 제목 기반으로 방송 커버 이미지를<br>자동으로 생성해 방송 유입을 돕습니다.</div>
+</div>
+</div>
+
+<script>
+// ===== State =====
+let selTags=[],imgs=[],thm=0,variants=[],curVariant='all',curLayout=1;
+const themeBgs=[
+  ['#fdf6f0','#f0e0d0'],['#f0e8f0','#e0d0e8'],['#1a2030','#0a1020'],['#f5efe0','#e8dcc8']
+];
+const layoutNames=['텍스트 없음','기본형','기본+하이라이트','강조형','기본+강조','강조+기본'];
+
+// ===== Helpers =====
+function toggleNot(){const b=document.getElementById('notBody'),a=document.getElementById('notAr');b.style.display=b.style.display==='none'?'block':'none';a.textContent=b.style.display==='none'?'∨':'∧'}
+function showHelp(){document.getElementById('hOv').classList.add('on');document.getElementById('hBs').classList.add('on')}
+function closeHelp(){document.getElementById('hOv').classList.remove('on');document.getElementById('hBs').classList.remove('on')}
+function selBen(el){document.querySelectorAll('.bn-ic').forEach(b=>b.classList.remove('sel'));el.querySelector('.bn-ic').classList.add('sel')}
+function handleCov(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('covImg').src=ev.target.result;document.getElementById('covImg').style.display='block';document.getElementById('covCam').style.display='none';document.getElementById('covTxt').style.display='none';document.getElementById('covSub').style.display='none'};r.readAsDataURL(f)}
+
+// ===== AI Screen =====
+function openAI(){document.getElementById('aiT').value=document.getElementById('bTitle').value;document.getElementById('sAI').classList.add('on')}
+function closeAI(){document.getElementById('sAI').classList.remove('on')}
+function togTag(el){el.classList.toggle('sel');const t=el.dataset.t;if(el.classList.contains('sel'))selTags.push(t);else selTags=selTags.filter(x=>x!==t);updDin()}
+function updDin(){const c=document.getElementById('dinps');c.innerHTML='';const m={'할인':{l:'🏷️ 할인율',p:'50%'},'타임어택':{l:'⏰ 제한시간',p:'30분'},'무료배송':{l:'🚚 무료배송 조건',p:'3만원 이상'},'한정수량':{l:'🔥 한정수량',p:'100개'}};selTags.forEach(t=>{if(m[t])c.innerHTML+=`<div style="font-size:13px;color:#aaa;margin-bottom:8px">${m[t].l}</div><input class="din" placeholder="${m[t].p}">`})}
+function handleProd(e){Array.from(e.target.files).forEach(f=>{if(imgs.length>=5)return;const r=new FileReader();r.onload=ev=>{imgs.push(ev.target.result);renImg()};r.readAsDataURL(f)})}
+function renImg(){const g=document.getElementById('imgGrid');document.getElementById('imgCnt').textContent=imgs.length+' / 5';g.innerHTML='';imgs.forEach((s,i)=>g.innerHTML+=`<div class="ibox"><img src="${s}"><div class="rm" onclick="rmImg(${i})">✕</div></div>`);if(imgs.length<5)g.innerHTML+=`<div class="ibox" onclick="document.getElementById('pF').click()"><span class="plus">+</span><span class="lb">추가</span></div>`}
+function rmImg(i){imgs.splice(i,1);renImg()}
+function selThm(el,i){document.querySelectorAll('.tcard').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');thm=i}
+
+// ===== Generation =====
+function startGen(){
+  const t=document.getElementById('aiT').value;if(!t){alert('방송 제목을 입력해주세요.');return}
+  document.getElementById('sLoad').classList.add('on');
+  const steps=[{p:25,m:'상품을 분석하고 있습니다...',s:'Step 1 / 4'},{p:50,m:'이미지와 카피를 생성하고 있습니다...',s:'Step 2 / 4'},{p:75,m:'업로드 중입니다...',s:'Step 3 / 4'},{p:100,m:'완료되었습니다!',s:'Step 4 / 4'}];
+  let cur=0;const circ=document.getElementById('pC');
+  // More images = longer wait
+  const delay = 1000 + (imgs.length * 400);
+  function adv(){
+    if(cur>=steps.length){setTimeout(()=>{document.getElementById('sLoad').classList.remove('on');buildVariants();showRes()},500);return}
+    const s=steps[cur],off=264-(s.p/100)*264;circ.style.strokeDashoffset=off;
+    document.getElementById('pP').textContent=s.p+'%';document.getElementById('lM').textContent=s.m;document.getElementById('lS').textContent=s.s;
+    for(let i=0;i<4;i++){const ic=document.getElementById('si'+(i+1)),st=document.getElementById('ss'+(i+1));
+    if(i<cur){ic.className='sic dn';ic.textContent='✓';st.className='ss dn';st.textContent='완료'}
+    else if(i===cur){ic.className='sic ac';ic.textContent=(i+1);st.className='ss ac';st.textContent='진행 중...'}
+    else{ic.className='sic pn';ic.textContent=(i+1);st.className='ss';st.textContent='대기'}}
+    cur++;setTimeout(adv,delay)}
+  adv()
+}
+
+// ===== AI Copy Generator =====
+function generateAICopy(inputTitle){
+  const t=inputTitle.trim();
+  // Extract keywords from title
+  const words=t.replace(/[^가-힣a-zA-Z0-9\s]/g,'').split(/\s+/).filter(w=>w.length>1);
+  // Detect tags
+  const hasDiscount=selTags.includes('할인');
+  const hasFree=selTags.includes('무료배송');
+  const hasLimit=selTags.includes('한정수량');
+  const hasNew=selTags.includes('신상품');
+  const hasTime=selTags.includes('타임어택');
+  const hasSet=selTags.includes('세트구성');
+
+  // Extract key product name (longest meaningful word or first 2-3 words)
+  const product=words.slice(0,Math.min(3,words.length)).join(' ').substring(0,9);
+  const shortProduct=words[0]||'특가상품';
+
+  // Generate 4 different creative variations based on the title
+  const variations=[
+    // A: Direct product highlight + promo
+    {
+      title:(product).substring(0,9),
+      promo:hasDiscount?'최대 할인 특가':hasLimit?'한정수량 판매':hasFree?'무료배송 혜택':hasTime?'타임어택 특가':hasNew?'신상품 출시':hasSet?'세트 구성 특가':'라이브 특가',
+      accent:hasDiscount?'초특가':hasLimit?'한정':hasFree?'무배':'HOT'
+    },
+    // B: Emotional/benefit angle
+    {
+      title:hasDiscount?'지금이 기회!':(shortProduct+' 득템').substring(0,9),
+      promo:hasLimit?'선착순 마감임박':hasDiscount?'파격 세일 중':hasFree?'배송비 걱정NO':hasTime?'지금 아니면 없다':'놓치면 후회',
+      accent:hasLimit?'선착순':hasDiscount?'파격':'BEST'
+    },
+    // C: Urgency/scarcity angle
+    {
+      title:hasTime?'⏰ 긴급 타임딜':(shortProduct+' 특가').substring(0,9),
+      promo:hasLimit?'소량 한정 판매':hasDiscount?'역대급 할인가':hasFree?'전 상품 무배':hasNew?'최초 공개':'단독 라이브',
+      accent:hasTime?'긴급':hasLimit?'품절임박':'단독'
+    },
+    // D: Trust/value angle
+    {
+      title:('인기 '+shortProduct).substring(0,9),
+      promo:hasFree?'무료배송 진행중':hasDiscount?'가성비 최고':hasSet?'알뜰 세트 구성':hasNew?'트렌드 신상':'실시간 라이브',
+      accent:hasFree?'무배':hasSet?'세트':'인기'
+    }
+  ];
+  return variations;
+}
+
+// ===== Build 4 Variants =====
+function buildVariants(){
+  const inputTitle=document.getElementById('aiT').value;
+  const copies=generateAICopy(inputTitle);
+  const titles=copies.map(c=>c.title);
+  const promos=copies.map(c=>c.promo);
+  const accents=copies.map(c=>c.accent);
+  // Each variant has unique bg + image layout style
+  const bgStyles=[
+    {bg:'linear-gradient(160deg,#fdf6f0 0%,#f5e6d0 100%)',txtC:'#2d1b00',accentC:'#FF2D55',blockBg:'#FF2D55'},
+    {bg:'linear-gradient(135deg,#e8c8b8 0%,#f0a898 40%,#88ccdd 60%,#f0b0c0 100%)',txtC:'#3a1500',accentC:'#0066FF',blockBg:'#0066FF'},
+    {bg:'linear-gradient(160deg,#0a1525 0%,#1a2540 100%)',txtC:'#ffffff',accentC:'#FFAB91',blockBg:'#333'},
+    {bg:'linear-gradient(135deg,#e8d5c0 0%,#d4b896 100%)',txtC:'#3a2a10',accentC:'#FF2D55',blockBg:'#FF2D55'}
+  ];
+  // Image placement per variant: FULL coverage like real AI thumbnails
+  const imgLayouts=[
+    // A: side by side, filling bottom 70%
+    [{left:'-5%',bottom:'-2%',width:'55%',height:'80%',transform:'none'},{right:'-5%',bottom:'-2%',width:'55%',height:'75%',transform:'none'}],
+    // B: tilted, overlapping, large
+    [{left:'-5%',bottom:'-5%',width:'60%',height:'85%',transform:'rotate(-10deg) scale(1.15)'},{right:'-8%',bottom:'-3%',width:'58%',height:'80%',transform:'rotate(8deg) scale(1.1)'}],
+    // C: one dominant large, one medium
+    [{left:'-3%',bottom:'-3%',width:'65%',height:'88%',transform:'none'},{right:'0',bottom:'-2%',width:'48%',height:'65%',transform:'none'}],
+    // D: both large, overlapping center
+    [{left:'0',bottom:'-3%',width:'55%',height:'78%',transform:'none'},{right:'0',bottom:'-3%',width:'55%',height:'78%',transform:'none'}]
+  ];
+  variants=[];
+  for(let i=0;i<4;i++){
+    variants.push({
+      id:String.fromCharCode(65+i),title:titles[i],promo:promos[i],accent:accents[i],
+      style:bgStyles[i],layout:1,imgLayout:imgLayouts[i],
+      textStyle:'title',
+      // Title style props
+      tVPos:20,tHPos:0,tFont:'Pretendard',tFontSize:100,tColor:bgStyles[i].txtC,
+      // Promo style props
+      pVPos:32,pHPos:0,pFont:'Pretendard',pFontSize:90,pColor:bgStyles[i].txtC,
+      // Shared
+      accentColor:bgStyles[i].accentC,blockBg:bgStyles[i].blockBg,blockTxt:'#FFFFFF',
+      highlightColor:'#F9DF34'
+    })
+  }
+}
+
+// ===== Render Result =====
+function showRes(){curVariant='all';renderResBody();document.getElementById('sRes').classList.add('on')}
+function closeRes(){document.getElementById('sRes').classList.remove('on')}
+
+function switchResTab(el,tab){
+  document.querySelectorAll('.res-tab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
+  curVariant=tab;renderResBody()
+}
+
+function renderResBody(){
+  const body=document.getElementById('resBody');
+  if(curVariant==='all'){renderOverview(body)}
+  else{renderDetail(body,curVariant)}
+}
+
+function renderImgHtml(v,size){
+  let html='';
+  if(imgs.length===0) return html;
+  const n=imgs.length;
+  const isDark=v.style.bg.includes('#0a')||v.style.bg.includes('#1a2');
+  const blend=isDark?'':'mix-blend-mode:multiply;';
+  // Layout configs for 1~5 images
+  if(n===1){
+    html+=`<img src="${imgs[0]}" style="position:absolute;left:0;bottom:0;width:100%;height:90%;object-fit:contain;object-position:center bottom;z-index:1;${blend}">`;
+  } else if(n===2){
+    const il=v.imgLayout;
+    imgs.forEach((im,j)=>{
+      const p=il[Math.min(j,il.length-1)];
+      html+=`<img src="${im}" style="position:absolute;${Object.entries(p).map(([k,val])=>k+':'+val).join(';')};object-fit:contain;z-index:${j+1};${blend}">`;
+    });
+  } else if(n===3){
+    const layouts=[
+      {left:'-3%',bottom:'0',width:'40%',height:'70%',transform:'none'},
+      {left:'28%',bottom:'5%',width:'40%',height:'65%',transform:'none'},
+      {right:'-3%',bottom:'0',width:'40%',height:'68%',transform:'none'}
+    ];
+    imgs.slice(0,3).forEach((im,j)=>{
+      const p=layouts[j];
+      html+=`<img src="${im}" style="position:absolute;${Object.entries(p).map(([k,val])=>k+':'+val).join(';')};object-fit:contain;z-index:${j+1};${blend}">`;
+    });
+  } else if(n===4){
+    const layouts=[
+      {left:'-2%',bottom:'0',width:'35%',height:'65%',transform:'none'},
+      {left:'22%',bottom:'5%',width:'32%',height:'58%',transform:'none'},
+      {right:'20%',bottom:'3%',width:'32%',height:'60%',transform:'none'},
+      {right:'-2%',bottom:'0',width:'35%',height:'63%',transform:'none'}
+    ];
+    imgs.slice(0,4).forEach((im,j)=>{
+      const p=layouts[j];
+      html+=`<img src="${im}" style="position:absolute;${Object.entries(p).map(([k,val])=>k+':'+val).join(';')};object-fit:contain;z-index:${j+1};${blend}">`;
+    });
+  } else {
+    const layouts=[
+      {left:'-2%',bottom:'0',width:'30%',height:'60%',transform:'none'},
+      {left:'16%',bottom:'8%',width:'28%',height:'52%',transform:'none'},
+      {left:'35%',bottom:'3%',width:'30%',height:'58%',transform:'none'},
+      {right:'14%',bottom:'6%',width:'28%',height:'54%',transform:'none'},
+      {right:'-2%',bottom:'0',width:'30%',height:'60%',transform:'none'}
+    ];
+    imgs.slice(0,5).forEach((im,j)=>{
+      const p=layouts[j];
+      html+=`<img src="${im}" style="position:absolute;${Object.entries(p).map(([k,val])=>k+':'+val).join(';')};object-fit:contain;z-index:${j+1};${blend}">`;
+    });
+  }
+  return html;
+}
+
+function renderTxtHtml(v,fs){
+  let html='';
+  if(v.layout===0) return html;
+  const stroke=v.tColor==='#ffffff'?'rgba(255,255,255,.3)':'rgba(0,0,0,.2)';
+  const stk=`-webkit-text-stroke:${fs>12?'1.5':'0.5'}px ${stroke}`;
+  const shadow='text-shadow:0 1px 3px rgba(0,0,0,.15)';
+  const pad=fs>12?'3px 10px':'2px 6px';
+  const mt=fs>12?3:1;
+
+  // Layout 1: 기본형 = title(기본) + promo(기본)
+  if(v.layout===1){
+    html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${fs}px;font-weight:800;color:${v.tColor};${shadow};${stk}">${v.title}</div>`;
+    html+=`<div style="font-family:'${v.pFont}',sans-serif;font-size:${fs*0.85}px;font-weight:700;color:${v.pColor};margin-top:${mt}px">${v.promo}</div>`;
+  }
+  // Layout 2: 기본+하이라이트 = title(기본) + promo(텍스트 색상만 변경=하이라이트)
+  else if(v.layout===2){
+    html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${fs}px;font-weight:800;color:${v.tColor};${shadow};${stk}">${v.title}</div>`;
+    html+=`<div style="font-family:'${v.pFont}',sans-serif;font-size:${fs*0.85}px;font-weight:800;color:${v.highlightColor};margin-top:${mt}px;${shadow}">${v.promo}</div>`;
+  }
+  // Layout 3: 강조형 = title(배경블록+텍스트=강조) + promo(배경블록+텍스트=강조)
+  else if(v.layout===3){
+    html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.tFont}',sans-serif;font-size:${fs}px;font-weight:800;padding:${pad};border-radius:3px">${v.title}</div>`;
+    html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${fs*0.85}px;font-weight:800;padding:${pad};border-radius:3px;margin-top:${mt}px">${v.promo}</div>`;
+  }
+  // Layout 4: 기본+강조 = title(기본) + promo(배경블록+텍스트=강조)
+  else if(v.layout===4){
+    html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${fs}px;font-weight:800;color:${v.tColor};${shadow};${stk}">${v.title}</div>`;
+    html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${fs*0.85}px;font-weight:800;padding:${pad};border-radius:3px;margin-top:${mt}px">${v.promo}</div>`;
+  }
+  // Layout 5: 강조+기본 = title(배경블록+텍스트=강조) + promo(기본) → 순서 반전
+  else if(v.layout===5){
+    html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.tFont}',sans-serif;font-size:${fs}px;font-weight:800;padding:${pad};border-radius:3px">${v.title}</div>`;
+    html+=`<div style="font-family:'${v.pFont}',sans-serif;font-size:${fs*0.85}px;font-weight:700;color:${v.pColor};margin-top:${mt}px">${v.promo}</div>`;
+  }
+  return html;
+}
+
+function renderOverview(body){
+  let html='<div class="ov-grid" style="padding-bottom:70px">';
+  variants.forEach((v,i)=>{
+    html+=`<div class="ov-card" onclick="switchResTab(document.querySelectorAll('.res-tab')[${i+1}],'${v.id}')">
+      <div class="badge">시안 ${v.id}</div>
+      <div class="thumb-wrap"><div class="bg-layer" style="background:${v.style.bg}"></div>`;
+    html+=renderImgHtml(v,'sm');
+    // Text overlay - top area so images don't cover
+    if(v.layout>0){
+      html+=`<div class="txt-layer" style="top:12%;left:50%;transform:translateX(-50%);text-align:center;width:90%;z-index:3">`;
+      html+=renderTxtHtml(v,11);
+      html+=`</div>`;
+    }
+    html+=`</div></div>`;
+  });
+  html+='</div>';
+  body.innerHTML=html;
+}
+
+function renderDetail(body,id){
+  const v=variants.find(x=>x.id===id);if(!v)return;
+  // Current editing target
+  const isT=v.textStyle==='title';
+  const curVPos=isT?v.tVPos:v.pVPos;
+  const curHPos=isT?v.tHPos:v.pHPos;
+  const curFont=isT?v.tFont:v.pFont;
+  const curFSize=isT?v.tFontSize:v.pFontSize;
+  const curColor=isT?v.tColor:v.pColor;
+
+  let html=`<div style="padding-bottom:80px">
+  <div class="det-preview" id="detPrev">
+    <div class="thumb-wrap" style="width:100%;height:100%">
+      <div class="bg-layer" style="background:${v.style.bg}"></div>`;
+  html+=renderImgHtml(v,'lg');
+  // Text layers
+  if(v.layout>0){
+    const tAlign=v.tHPos<-15?'left':v.tHPos>15?'right':'center';
+    const pAlign=v.pHPos<-15?'left':v.pHPos>15?'right':'center';
+    const tFs=16*(v.tFontSize/100);
+    const pFs=16*(v.pFontSize/100);
+    const tStroke=v.tColor==='#ffffff'?'rgba(255,255,255,.3)':'rgba(0,0,0,.2)';
+    const shadow='text-shadow:0 2px 4px rgba(0,0,0,.15)';
+
+    // Layout 1: 기본형 = title(기본) + promo(기본)
+    if(v.layout===1){
+      html+=`<div class="txt-layer" id="titleLayer" style="top:${v.tVPos}%;text-align:center;left:${50+v.tHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow};-webkit-text-stroke:1.5px ${tStroke}">${v.title}</div>
+      </div>`;
+      html+=`<div class="txt-layer" id="promoLayer" style="top:${v.pVPos}%;text-align:center;left:${50+v.pHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:700;color:${v.pColor}">${v.promo}</div>
+      </div>`;
+    }
+    // Layout 2: 기본+하이라이트 = title(기본) + promo(텍스트 색상만 변경=하이라이트)
+    else if(v.layout===2){
+      html+=`<div class="txt-layer" id="titleLayer" style="top:${v.tVPos}%;text-align:center;left:${50+v.tHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow};-webkit-text-stroke:1.5px ${tStroke}">${v.title}</div>
+      </div>`;
+      html+=`<div class="txt-layer" id="promoLayer" style="top:${v.pVPos}%;text-align:center;left:${50+v.pHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;color:${v.highlightColor};${shadow}">${v.promo}</div>
+      </div>`;
+    }
+    // Layout 3: 강조형 = title(배경블록+텍스트=강조) + promo(배경블록+텍스트=강조)
+    else if(v.layout===3){
+      html+=`<div class="txt-layer" id="titleLayer" style="top:${v.tVPos}%;text-align:center;left:${50+v.tHPos}%;transform:translateX(-50%)">
+        <div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.title}</div>
+      </div>`;
+      html+=`<div class="txt-layer" id="promoLayer" style="top:${v.pVPos}%;text-align:center;left:${50+v.pHPos}%;transform:translateX(-50%)">
+        <div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.promo}</div>
+      </div>`;
+    }
+    // Layout 4: 기본+강조 = title(기본) + promo(배경블록+텍스트=강조)
+    else if(v.layout===4){
+      html+=`<div class="txt-layer" id="titleLayer" style="top:${v.tVPos}%;text-align:center;left:${50+v.tHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow};-webkit-text-stroke:1.5px ${tStroke}">${v.title}</div>
+      </div>`;
+      html+=`<div class="txt-layer" id="promoLayer" style="top:${v.pVPos}%;text-align:center;left:${50+v.pHPos}%;transform:translateX(-50%)">
+        <div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.promo}</div>
+      </div>`;
+    }
+    // Layout 5: 강조+기본 = title(배경블록=강조) + promo(기본) → 강조가 위, 기본이 아래
+    else if(v.layout===5){
+      html+=`<div class="txt-layer" id="titleLayer" style="top:${v.tVPos}%;text-align:center;left:${50+v.tHPos}%;transform:translateX(-50%)">
+        <div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.title}</div>
+      </div>`;
+      html+=`<div class="txt-layer" id="promoLayer" style="top:${v.pVPos}%;text-align:center;left:${50+v.pHPos}%;transform:translateX(-50%)">
+        <div style="font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:700;color:${v.pColor}">${v.promo}</div>
+      </div>`;
+    }
+  }
+  html+=`</div></div>`;
+
+  // Layout selector
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">레이아웃</div><div class="layout-row">`;
+  layoutNames.forEach((n,i)=>{
+    html+=`<div class="lo-item ${v.layout===i?'sel':''}" onclick="setLayout('${id}',${i})"><div class="lo-thumb" style="display:flex;align-items:center;justify-content:center;font-size:8px;color:#888;padding:4px;text-align:center">${n}</div><div class="lo-name">${n}</div></div>`;
+  });
+  html+=`</div></div>`;
+
+  // Text style toggle
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">텍스트 스타일</div><div class="tog"><button class="${isT?'on':''}" onclick="setTxtStyle('${id}','title')">타이틀</button><button class="${!isT?'on':''}" onclick="setTxtStyle('${id}','promo')">프로모션</button></div>`;
+  html+=`<div style="font-size:11px;color:#6c5ce7;margin-top:4px">현재 편집 대상: ${isT?'타이틀':'프로모션'} 텍스트</div></div>`;
+
+  // Vertical position (for current target)
+  const vSliderVal=90-curVPos;
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">수직 위치</div><div class="sld-wrap"><input type="range" class="sld" min="5" max="85" value="${vSliderVal}" oninput="setCurVPos('${id}',this.value)"><div class="sld-val">${curVPos}%</div></div></div>`;
+
+  // Horizontal alignment (for current target)
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">수평 정렬</div><div class="sld-wrap"><input type="range" class="sld" min="-50" max="50" value="${curHPos}" oninput="setCurHPos('${id}',this.value)"><div class="sld-val">${curHPos}%</div></div></div>`;
+
+  // Font (for current target)
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">폰트</div><select class="sel-box" onchange="setCurFont('${id}',this.value)"><option value="Pretendard" ${curFont==='Pretendard'?'selected':''}>Pretendard</option><option value="Cafe24 Ohsquare" ${curFont==='Cafe24 Ohsquare'?'selected':''}>Cafe24 Ohsquare OTF</option></select></div>`;
+
+  // Font size (for current target)
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">폰트 크기</div><div class="sld-wrap"><input type="range" class="sld" min="60" max="150" value="${curFSize}" oninput="setCurFontSize('${id}',this.value)"><div class="sld-val">${curFSize}%</div></div></div>`;
+
+  // Color (for current target)
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">색상</div>
+    <div class="clr-row"><span class="clr-label">텍스트</span><input type="color" class="clr-box" value="${curColor}" onchange="setCurColor('${id}',this.value)"><input class="clr-val" value="${curColor}" onchange="setCurColor('${id}',this.value)"></div>
+  </div>`;
+
+  // Accent/Block colors (shared)
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">강조/블록 색상</div>
+    <div class="clr-row"><span class="clr-label">강조 문구</span><input type="color" class="clr-box" value="${v.accentColor}" onchange="setAccColor('${id}',this.value)"><input class="clr-val" value="${v.accentColor}" onchange="setAccColor('${id}',this.value)"></div>
+    <div class="clr-row"><span class="clr-label">블록 배경</span><input type="color" class="clr-box" value="${v.blockBg}" onchange="setBlockBg('${id}',this.value)"><input class="clr-val" value="${v.blockBg}" onchange="setBlockBg('${id}',this.value)"></div>
+    <div class="clr-row"><span class="clr-label">블록 글자</span><input type="color" class="clr-box" value="${v.blockTxt}" onchange="setBlockTxt('${id}',this.value)"><input class="clr-val" value="${v.blockTxt}" onchange="setBlockTxt('${id}',this.value)"></div>
+  </div>`;
+
+  // Highlight color
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">하이라이트 색상</div>
+    <div class="clr-row"><span class="clr-label">하이라이트 문구</span><input type="color" class="clr-box" value="${v.highlightColor}" onchange="setHighlight('${id}',this.value)"><input class="clr-val" value="${v.highlightColor}" onchange="setHighlight('${id}',this.value)"></div>
+  </div>`;
+
+  // AI Promo text
+  html+=`<div class="ctrl-sec"><div class="ctrl-label">AI 프로모션 문구 <span style="font-size:11px;color:#6c5ce7;cursor:pointer" onclick="regenText('${id}')">재생성</span></div>
+    <div class="promo-row"><div class="promo-label">타이틀 <span class="lim">최대 9자</span></div><input class="promo-inp" maxlength="9" value="${v.title}" oninput="setTitle('${id}',this.value)"></div>
+    <div class="promo-row"><div class="promo-label">프로모션 <span class="lim">최대 9자</span></div><input class="promo-inp" maxlength="9" value="${v.promo}" oninput="setPromo('${id}',this.value)"></div>
+    <div class="promo-row"><div class="promo-label">강조문구 <span class="lim">최대 6자</span></div><input class="promo-inp" maxlength="6" value="${v.accent}" oninput="setAccent('${id}',this.value)"></div>
+  </div>`;
+  html+=`</div>`;
+  const prevScroll=body.scrollTop;
+  body.innerHTML=html;
+  // Only scroll to top on first open, not on edits
+  if(prevScroll===0) body.scrollTop=0;
+  else body.scrollTop=prevScroll;
+}
+
+// ===== Edit Handlers =====
+function getV(id){return variants.find(x=>x.id===id)}
+// Re-render preserving scroll
+function rerender(keepScroll){
+  const body=document.getElementById('resBody');
+  const st=body.scrollTop;
+  renderResBody();
+  if(keepScroll) body.scrollTop=st;
+}
+function setLayout(id,l){getV(id).layout=l;rerender(true)}
+function setTxtStyle(id,s){getV(id).textStyle=s;rerender(true)}
+// Title/Promo-aware setters - preserve scroll
+function setCurVPos(id,val){const v=getV(id);const inverted=90-parseInt(val);if(v.textStyle==='title')v.tVPos=inverted;else v.pVPos=inverted;updatePreviewOnly(id)}
+function setCurHPos(id,val){const v=getV(id);const n=parseInt(val);if(v.textStyle==='title')v.tHPos=n;else v.pHPos=n;updatePreviewOnly(id)}
+function setCurFont(id,f){const v=getV(id);if(v.textStyle==='title')v.tFont=f;else v.pFont=f;rerender(true)}
+function setCurFontSize(id,val){const v=getV(id);if(v.textStyle==='title')v.tFontSize=parseInt(val);else v.pFontSize=parseInt(val);updatePreviewOnly(id)}
+function setCurColor(id,c){const v=getV(id);if(v.textStyle==='title')v.tColor=c;else v.pColor=c;rerender(true)}
+
+// Live update preview without full re-render (for sliders)
+function updatePreviewOnly(id){
+  const v=getV(id);if(!v)return;
+  const tLayer=document.getElementById('titleLayer');
+  const pLayer=document.getElementById('promoLayer');
+  if(tLayer){
+    tLayer.style.top=v.tVPos+'%';
+    tLayer.style.left=(50+v.tHPos)+'%';
+    tLayer.style.transform='translateX(-50%)';
+    tLayer.style.textAlign='center';
+    const tEl=tLayer.querySelector('div');
+    if(tEl){tEl.style.fontSize=(16*v.tFontSize/100)+'px';tEl.style.fontFamily="'"+v.tFont+"',sans-serif"}
+  }
+  if(pLayer){
+    pLayer.style.top=v.pVPos+'%';
+    pLayer.style.left=(50+v.pHPos)+'%';
+    pLayer.style.transform='translateX(-50%)';
+    pLayer.style.textAlign='center';
+    const pEl=pLayer.querySelector('div');
+    if(pEl){pEl.style.fontSize=(16*v.pFontSize/100)+'px';pEl.style.fontFamily="'"+v.pFont+"',sans-serif"}
+  }
+  // Update slider value display
+  const valEls=document.querySelectorAll('.sld-val');
+  const isT=v.textStyle==='title';
+  if(valEls[0])valEls[0].textContent=(isT?v.tVPos:v.pVPos)+'%';
+  if(valEls[1])valEls[1].textContent=(isT?v.tHPos:v.pHPos)+'%';
+  if(valEls[3])valEls[3].textContent=(isT?v.tFontSize:v.pFontSize)+'%';
+}
+function setAccColor(id,c){getV(id).accentColor=c;rerender(true)}
+function setHighlight(id,c){getV(id).highlightColor=c;rerender(true)}
+function setBlockBg(id,c){getV(id).blockBg=c;rerender(true)}
+function setBlockTxt(id,c){getV(id).blockTxt=c;rerender(true)}
+function setTitle(id,t){getV(id).title=t;}
+function setPromo(id,t){getV(id).promo=t;}
+function setAccent(id,t){getV(id).accent=t;}
+function regenText(id){
+  const v=getV(id);
+  const inputTitle=document.getElementById('aiT').value;
+  const copies=generateAICopy(inputTitle);
+  const r=Math.floor(Math.random()*copies.length);
+  v.title=copies[r].title;v.promo=copies[r].promo;v.accent=copies[r].accent;
+  renderResBody()
+}
+function regenAll(){
+  document.getElementById('sRes').classList.remove('on');startGen()
+}
+
+function buildCoverHtml(v,w,h){
+  // Generate full cover HTML from variant data at given dimensions
+  let html=`<div class="bg-layer" style="background:${v.style.bg};position:absolute;top:0;left:0;width:100%;height:100%"></div>`;
+  html+=renderImgHtml(v,'lg');
+  if(v.layout>0){
+    const tFs=16*(v.tFontSize/100);
+    const pFs=16*(v.pFontSize/100);
+    const tStroke=v.tColor==='#ffffff'?'rgba(255,255,255,.3)':'rgba(0,0,0,.2)';
+    const shadow='text-shadow:0 2px 4px rgba(0,0,0,.15)';
+    html+=`<div style="position:absolute;width:90%;top:${v.tVPos}%;left:${50+v.tHPos}%;transform:translateX(-50%);text-align:center;z-index:3">`;
+    if(v.layout===1){
+      html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow}">${v.title}</div>`;
+    } else if(v.layout===2){
+      html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow}">${v.title}</div>`;
+    } else if(v.layout===3||v.layout===5){
+      html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.title}</div>`;
+    } else if(v.layout===4){
+      html+=`<div style="font-family:'${v.tFont}',sans-serif;font-size:${tFs}px;font-weight:800;color:${v.tColor};${shadow}">${v.title}</div>`;
+    }
+    html+=`</div>`;
+    html+=`<div style="position:absolute;width:90%;top:${v.pVPos}%;left:${50+v.pHPos}%;transform:translateX(-50%);text-align:center;z-index:3">`;
+    if(v.layout===1||v.layout===5){
+      html+=`<div style="font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:700;color:${v.pColor}">${v.promo}</div>`;
+    } else if(v.layout===2){
+      html+=`<div style="font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;color:${v.highlightColor};${shadow}">${v.promo}</div>`;
+    } else if(v.layout===3){
+      html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.promo}</div>`;
+    } else if(v.layout===4){
+      html+=`<div style="display:inline-block;background:${v.blockBg};color:${v.blockTxt};font-family:'${v.pFont}',sans-serif;font-size:${pFs}px;font-weight:800;padding:3px 10px;border-radius:3px">${v.promo}</div>`;
+    }
+    html+=`</div>`;
+  }
+  return html;
+}
+
+function applyFromRes(){
+  const v=variants.find(x=>x.id===(curVariant==='all'?'A':curVariant));
+  // Sync title back to main screen
+  const aiTitle=document.getElementById('aiT').value;
+  if(aiTitle) document.getElementById('bTitle').value=aiTitle;
+
+  // Generate cover HTML from variant data
+  const previewW=343, previewH=610;
+  const coverHtml=buildCoverHtml(v,previewW,previewH);
+
+  document.getElementById('sRes').classList.remove('on');
+  document.getElementById('sAI').classList.remove('on');
+  document.getElementById('sLoad').classList.remove('on');
+  closeHelp();
+  const btn=document.getElementById('aiBtn');btn.textContent='✦ AI 커버 제거';btn.className='ai-btn rm';btn.onclick=removeAI;
+  const box=document.getElementById('covBox');
+  box.style.width='140px';box.style.minHeight='0';box.style.height='auto';box.style.aspectRatio='9/16';box.style.border='none';
+
+  const scale=140/previewW;
+  const scaledH=Math.round(previewH*scale);
+
+  // Structure: outer clip box > absolute-positioned scaled container > relative inner (containing block for children)
+  box.innerHTML=`<div style="width:140px;height:${scaledH}px;border-radius:10px;overflow:hidden;position:relative">
+    <div style="position:absolute;top:3px;left:3px;background:rgba(0,0,0,.5);border-radius:3px;padding:1px 4px;font-size:7px;display:flex;align-items:center;gap:2px;z-index:10;color:#fff">🤖 AI</div>
+    <div style="position:absolute;top:0;left:0;width:${previewW}px;height:${previewH}px;transform:scale(${scale.toFixed(4)});transform-origin:top left">
+      <div style="position:relative;width:100%;height:100%;overflow:hidden">
+        ${coverHtml}
+      </div>
+    </div>
+  </div>`;
+  box.onclick=null;
+}
+function removeAI(){
+  const btn=document.getElementById('aiBtn');btn.textContent='✦ AI 커버 생성';btn.className='ai-btn';btn.onclick=openAI;
+  const box=document.getElementById('covBox');
+  box.style.width='140px';box.style.minHeight='170px';box.style.height='auto';box.style.aspectRatio='';box.style.border='2px dashed #444';
+  box.innerHTML=`<div class="cm" id="covCam">📷</div><div class="ct" id="covTxt">방송 커버<br>이미지 등록 <span class="req">*</span></div><div class="cs" id="covSub">이미지를 그립이<br>변경할 수도 있습니다</div><img id="covImg" style="display:none"><input type="file" id="covF" accept="image/*" style="display:none" onchange="handleCov(event)">`;
+  box.onclick=()=>document.getElementById('covF').click()
+}
+</script>
+</body>
+</html>

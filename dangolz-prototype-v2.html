@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단골즈 뱃지/노출 기능 프로토타입 v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+  :root {
+    --grip-red: #FF3B3B;
+    --grip-red-dim: rgba(255,59,59,0.15);
+    --dangolz-gold: #FFB800;
+    --dangolz-gold-dim: rgba(255,184,0,0.15);
+    --dangolz-gold-border: rgba(255,184,0,0.35);
+    --soop-blue: #1a6cff;
+    --fan-green: #22c55e;
+    --hotfan-pink: #f472b6;
+    --chat-bg: rgba(255,255,255,0.07);
+    --chat-border: rgba(255,255,255,0.1);
+    --overlay-dark: rgba(10,12,20,0.85);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', -apple-system, sans-serif;
+    background: #0e0f16;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 20px 40px;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .logo-area { display: flex; align-items: center; gap: 10px; }
+
+  .grip-logo {
+    width: 36px; height: 36px;
+    background: var(--grip-red);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .grip-logo svg { width: 22px; height: 22px; }
+
+  .page-title { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .page-sub { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+
+  .version-tag {
+    font-size: 11px;
+    background: rgba(255,184,0,0.15);
+    color: var(--dangolz-gold);
+    border: 1px solid var(--dangolz-gold-border);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  /* ── Layout ── */
+  .main-layout {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* ── Phone mockup ── */
+  .phone-col { flex: 0 0 auto; }
+
+  .phone-frame {
+    width: 330px;
+    height: 620px;
+    background: #111318;
+    border-radius: 40px;
+    border: 2px solid #2a2b35;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 0 1px #0a0b10, 0 32px 64px rgba(0,0,0,0.7);
+  }
+
+  /* notch */
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    width: 100px; height: 6px;
+    background: #2a2b35;
+    border-radius: 10px;
+    z-index: 20;
+  }
+
+  .live-screen {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    background: #0a0c14;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Video area mockup */
+  .video-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg,
+        rgba(15,18,30,0.3) 0%,
+        transparent 30%,
+        transparent 55%,
+        rgba(10,12,20,0.95) 100%);
+    z-index: 1;
+  }
+
+  .video-placeholder {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #12172a 0%, #1a1f3a 40%, #0f1525 100%);
+  }
+
+  /* Animated "video" shimmer */
+  .video-shimmer {
+    position: absolute;
+    top: 30%; left: 20%;
+    width: 60%; height: 40%;
+    background: radial-gradient(ellipse, rgba(26,108,255,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: shimmerPulse 4s ease-in-out infinite;
+  }
+
+  @keyframes shimmerPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* Product display */
+  .product-overlay {
+    position: absolute;
+    top: 26px; left: 0; right: 0;
+    z-index: 2;
+    padding: 18px 14px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .live-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .live-left { display: flex; align-items: center; gap: 7px; }
+
+  .live-pill {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--grip-red);
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.8px;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    animation: blink 1.4s ease infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .viewer-chip {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .live-right { display: flex; align-items: center; gap: 8px; }
+
+  .icon-btn {
+    width: 28px; height: 28px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+
+  /* Seller strip */
+  .seller-strip {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .seller-av {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f43f5e, #be123c);
+    border: 2px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+
+  .seller-info .seller-name { font-size: 13px; font-weight: 700; }
+  .seller-info .seller-sub { font-size: 10px; color: rgba(255,255,255,0.5); }
+
+  .follow-pill {
+    margin-left: auto;
+    background: rgba(255,59,59,0.25);
+    border: 1px solid rgba(255,59,59,0.5);
+    color: #ff7a7a;
+    font-size: 11px; font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* Product card */
+  .product-strip {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 9px 11px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .product-thumb {
+    width: 42px; height: 42px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #fde68a, #fbbf24);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .pinfo { flex: 1; min-width: 0; }
+  .pname { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pprice-row { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; }
+  .pprice { color: #ff5e5e; font-size: 14px; font-weight: 700; }
+  .porig { color: rgba(255,255,255,0.35); font-size: 10px; text-decoration: line-through; }
+  .pdiscount { color: var(--dangolz-gold); font-size: 10px; font-weight: 700; }
+
+  .buy-btn {
+    background: var(--grip-red);
+    color: #fff;
+    font-size: 12px; font-weight: 700;
+    padding: 7px 13px;
+    border-radius: 9px;
+    border: none; cursor: pointer;
+    flex-shrink: 0;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+
+  /* ── Chat area ── */
+  .chat-col {
+    position: absolute;
+    bottom: 58px; left: 0; right: 0;
+    z-index: 3;
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 210px;
+    overflow: hidden;
+    justify-content: flex-end;
+  }
+
+  .chat-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    animation: slideUp 0.25s ease;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-av {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff;
+    margin-top: 2px;
+  }
+
+  .chat-body {
+    background: var(--chat-bg);
+    border: 1px solid var(--chat-border);
+    border-radius: 10px;
+    padding: 5px 9px;
+    max-width: 240px;
+    backdrop-filter: blur(4px);
+  }
+
+  .chat-name-row {
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 2px;
+  }
+
+  .chat-nick { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.55); }
+  .chat-text { font-size: 12px; color: rgba(255,255,255,0.92); line-height: 1.4; }
+
+  /* ── Tier badges (SOOP-inspired) ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .badge-dangolz {
+    background: linear-gradient(90deg, #c97b00, #ffd000, #c97b00);
+    background-size: 200% 100%;
+    animation: shimmerGold 2.5s linear infinite;
+    color: #5a3500;
+    border: none;
+  }
+
+  @keyframes shimmerGold {
+    0% { background-position: 200% center; }
+    100% { background-position: -200% center; }
+  }
+
+  .badge-fan {
+    background: rgba(34,197,94,0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34,197,94,0.35);
+  }
+
+  .badge-hotfan {
+    background: rgba(244,114,182,0.2);
+    color: #f9a8d4;
+    border: 1px solid rgba(244,114,182,0.35);
+  }
+
+  .badge-sub {
+    background: rgba(99,102,241,0.25);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.35);
+  }
+
+  /* Dangolz chat highlight */
+  .chat-row.is-dangolz .chat-body {
+    background: rgba(255,184,0,0.09);
+    border-color: rgba(255,184,0,0.28);
+  }
+
+  .chat-row.is-dangolz .chat-text { color: #fff; }
+
+  /* System message */
+  .system-row {
+    display: flex; justify-content: center;
+    animation: slideUp 0.3s ease;
+  }
+
+  .system-inner {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,184,0,0.12);
+    border: 1px solid rgba(255,184,0,0.3);
+    border-radius: 20px;
+    padding: 5px 13px;
+  }
+
+  .system-text { font-size: 11px; color: #ffd000; font-weight: 500; }
+
+  /* ── Gem donation overlay ── */
+  .gem-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+    background: rgba(10,12,20,0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .gem-overlay.active { display: flex; animation: overlayIn 0.3s ease; }
+
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Star balloon-style donation card (SOOP reference) */
+  .donation-card {
+    background: linear-gradient(135deg, #1a0a3a, #0d1a40);
+    border: 1.5px solid rgba(255,184,0,0.5);
+    border-radius: 16px;
+    padding: 16px 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    animation: cardPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 220px;
+  }
+
+  @keyframes cardPop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .donation-card::before {
+    content: '';
+    position: absolute;
+    top: -30px; left: 50%; transform: translateX(-50%);
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(255,184,0,0.25) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .gem-gems {
+    display: flex; justify-content: center; gap: 6px; margin-bottom: 8px;
+  }
+
+  .gem-icon {
+    width: 26px; height: 26px;
+    animation: gemFloat 0.6s ease forwards;
+    opacity: 0;
+  }
+
+  .gem-icon:nth-child(1) { animation-delay: 0s; }
+  .gem-icon:nth-child(2) { animation-delay: 0.1s; }
+  .gem-icon:nth-child(3) { animation-delay: 0.2s; }
+  .gem-icon:nth-child(4) { animation-delay: 0.3s; }
+  .gem-icon:nth-child(5) { animation-delay: 0.4s; }
+
+  @keyframes gemFloat {
+    0% { transform: translateY(12px) scale(0.6); opacity: 0; }
+    60% { transform: translateY(-4px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .donation-user {
+    font-size: 13px; font-weight: 700;
+    color: var(--dangolz-gold);
+    margin-bottom: 3px;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+
+  .donation-amount {
+    font-size: 22px; font-weight: 700;
+    background: linear-gradient(90deg, #ffd000, #ff9500);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .donation-msg {
+    font-size: 11px;
+    color: rgba(255,255,255,0.65);
+  }
+
+  /* Sparkle particles */
+  .sparkle-wrap {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .sparkle {
+    position: absolute;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--dangolz-gold);
+    animation: sparkleFly 1.2s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes sparkleFly {
+    0% { transform: translate(0,0) scale(0); opacity: 1; }
+    100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+  }
+
+  /* Special reaction float */
+  .reaction-layer {
+    position: absolute;
+    right: 14px; bottom: 170px;
+    z-index: 4;
+    pointer-events: none;
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 2px;
+    width: 40px;
+  }
+
+  .r-item {
+    animation: rFloat 1.6s ease forwards;
+    opacity: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  @keyframes rFloat {
+    0% { transform: translateY(0) scale(0.7); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-90px) scale(1.05); opacity: 0; }
+  }
+
+  /* ── Bottom bar ── */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    z-index: 5;
+    padding: 8px 12px 14px;
+    background: linear-gradient(0deg, rgba(10,12,20,0.98) 0%, rgba(10,12,20,0.85) 100%);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 20px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    font-family: inherit;
+  }
+
+  .action-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .btn-gem {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    box-shadow: 0 2px 10px rgba(124,58,237,0.4);
+  }
+
+  .btn-react {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15) !important;
+  }
+
+  /* ── Right panel ── */
+  .right-panel { flex: 1; min-width: 270px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Control card */
+  .ctrl-card {
+    background: #13151f;
+    border: 1px solid #22253a;
+    border-radius: 16px;
+    padding: 18px 18px 14px;
+  }
+
+  .card-title {
+    font-size: 13px; font-weight: 700;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 7px;
+  }
+
+  .card-title-icon {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .ctrl-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #22253a;
+  }
+
+  .ctrl-section { margin-bottom: 16px; }
+  .ctrl-section:last-child { margin-bottom: 0; }
+
+  .ctrl-btn {
+    width: 100%;
+    background: #1c1f2e;
+    border: 1px solid #2a2e45;
+    border-radius: 10px;
+    padding: 10px 13px;
+    display: flex; align-items: center; gap: 9px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+    font-family: inherit;
+    color: #fff;
+    text-align: left;
+  }
+
+  .ctrl-btn:last-child { margin-bottom: 0; }
+
+  .ctrl-btn:hover {
+    background: #232742;
+    border-color: #3a3f5c;
+    transform: translateY(-1px);
+  }
+
+  .ctrl-btn:active { transform: translateY(0); }
+
+  .btn-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .btn-label { font-size: 13px; font-weight: 500; flex: 1; }
+
+  .tier-tag {
+    font-size: 9px; font-weight: 700;
+    padding: 3px 7px; border-radius: 4px;
+    letter-spacing: 0.4px;
+  }
+
+  .tier-essential {
+    background: rgba(255,59,59,0.2);
+    color: #ff7a7a;
+    border: 1px solid rgba(255,59,59,0.3);
+  }
+
+  .tier-option {
+    background: rgba(99,102,241,0.2);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+  }
+
+  /* Legend / reference card */
+  .legend-card {
+    background: #13151f;
+    border: 1px solid #22253a;
+    border-radius: 16px;
+    padding: 16px 18px;
+  }
+
+  .legend-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 0;
+    border-bottom: 1px solid #1c1f2e;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .legend-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .legend-row:first-child { padding-top: 0; }
+
+  /* SOOP reference note */
+  .ref-card {
+    background: rgba(26,108,255,0.08);
+    border: 1px solid rgba(26,108,255,0.2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; gap: 9px; align-items: flex-start;
+  }
+
+  .ref-icon {
+    width: 20px; height: 20px;
+    flex-shrink: 0; margin-top: 1px;
+  }
+
+  .ref-text { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.6; }
+  .ref-text strong { color: rgba(100,150,255,0.9); }
+
+  /* Tooltip on phone */
+  .feature-tooltip {
+    position: absolute;
+    z-index: 15;
+    background: rgba(255,184,0,0.95);
+    color: #3a2a00;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+    transform: translateX(-50%);
+  }
+
+  .feature-tooltip.show { opacity: 1; }
+  .feature-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(255,184,0,0.95);
+    border-bottom: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="page-header">
+  <div class="logo-area">
+    <div class="grip-logo">
+      <svg viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="9" stroke="#fff" stroke-width="2"/>
+        <path d="M7 11h8M11 7v8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="page-title">단골즈 뱃지/노출 기능</div>
+      <div class="page-sub">그립 라이브커머스 · 프로덕트 협의용 프로토타입</div>
+    </div>
+  </div>
+  <div class="version-tag">v2 · SOOP 참조</div>
+</div>
+
+<!-- Main -->
+<div class="main-layout">
+
+  <!-- Phone -->
+  <div class="phone-col">
+    <div class="phone-frame">
+      <div class="live-screen" id="liveScreen">
+        <div class="video-placeholder"></div>
+        <div class="video-shimmer"></div>
+        <div class="video-bg"></div>
+
+        <!-- Top overlay -->
+        <div class="product-overlay" style="z-index:2;">
+          <div class="live-topbar">
+            <div class="live-left">
+              <div class="live-pill">
+                <div class="live-dot"></div>
+                LIVE
+              </div>
+              <div class="viewer-chip">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <circle cx="5.5" cy="3.5" r="2" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>
+                  <path d="M1 9.5c0-2.5 2-3.8 4.5-3.8S10 7 10 9.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.2" fill="none"/>
+                </svg>
+                3,241
+              </div>
+            </div>
+            <div class="live-right">
+              <div class="icon-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <circle cx="7" cy="7" r="2.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.3"/>
+                  <circle cx="7" cy="7" r="5.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.3"/>
+                </svg>
+              </div>
+              <div class="icon-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <line x1="2" y1="7" x2="12" y2="7" stroke="rgba(255,255,255,0.7)" stroke-width="1.3"/>
+                  <line x1="2" y1="4" x2="12" y2="4" stroke="rgba(255,255,255,0.7)" stroke-width="1.3"/>
+                  <line x1="2" y1="10" x2="12" y2="10" stroke="rgba(255,255,255,0.7)" stroke-width="1.3"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="seller-strip">
+            <div class="seller-av">그</div>
+            <div class="seller-info">
+              <div class="seller-name">그리퍼_뷰티마켓</div>
+              <div class="seller-sub">팔로워 128,400 · 라이브 중</div>
+            </div>
+            <div class="follow-pill">+ 팔로우</div>
+          </div>
+
+          <div class="product-strip">
+            <div class="product-thumb">🌿</div>
+            <div class="pinfo">
+              <div class="pname">리얼 수분 세럼 프리미엄 50ml</div>
+              <div class="pprice-row">
+                <div class="pprice">38,900원</div>
+                <div class="porig">52,000원</div>
+                <div class="pdiscount">25%↓</div>
+              </div>
+            </div>
+            <div class="buy-btn">구매</div>
+          </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-col" id="chatArea">
+          <!-- pre-populated chats -->
+          <div class="chat-row">
+            <div class="chat-av" style="background:#6366f1;">민</div>
+            <div class="chat-body">
+              <div class="chat-name-row">
+                <span class="badge badge-fan">F</span>
+                <span class="chat-nick">민트초코맛</span>
+              </div>
+              <div class="chat-text">오늘 이거 사러왔어요 ㅎㅎ</div>
+            </div>
+          </div>
+          <div class="chat-row">
+            <div class="chat-av" style="background:#ec4899;">별</div>
+            <div class="chat-body">
+              <div class="chat-name-row">
+                <span class="chat-nick">별빛구름</span>
+              </div>
+              <div class="chat-text">가격 대박이다 진짜로</div>
+            </div>
+          </div>
+          <div class="chat-row is-dangolz">
+            <div class="chat-av" style="background:#f59e0b; border: 1.5px solid rgba(255,184,0,0.6);">김</div>
+            <div class="chat-body">
+              <div class="chat-name-row">
+                <span class="badge badge-dangolz">
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                    <path d="M4 1L4.9 3H7L5.5 4.5L6.1 6.5L4 5.3L1.9 6.5L2.5 4.5L1 3H3.1L4 1Z" fill="#5a3500"/>
+                  </svg>
+                  단골즈
+                </span>
+                <span class="chat-nick" style="color:rgba(255,184,0,0.7);">김민지</span>
+              </div>
+              <div class="chat-text">이 세럼 6개월째 쓰는데 진짜 좋아요 💛</div>
+            </div>
+          </div>
+          <div class="chat-row">
+            <div class="chat-av" style="background:#14b8a6;">수</div>
+            <div class="chat-body">
+              <div class="chat-name-row">
+                <span class="badge badge-hotfan">열</span>
+                <span class="chat-nick" style="color:rgba(244,114,182,0.7);">수달좋아요</span>
+              </div>
+              <div class="chat-text">3개 묶음 살까요 고민중 ㅋㅋ</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reaction layer -->
+        <div class="reaction-layer" id="reactionLayer"></div>
+
+        <!-- Gem donation overlay -->
+        <div class="gem-overlay" id="gemOverlay">
+          <div class="sparkle-wrap" id="sparkleWrap"></div>
+          <div class="donation-card">
+            <div class="gem-gems" id="gemIcons"></div>
+            <div class="donation-user">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M6 1L7.2 4H11L8.1 6L9.2 9.5L6 7.5L2.8 9.5L3.9 6L1 4H4.8L6 1Z" fill="#FFB800"/>
+              </svg>
+              <span id="donationUser">단골즈 김민지</span>
+            </div>
+            <div class="donation-amount" id="donationAmount">💎 젬 100개 후원</div>
+            <div class="donation-msg" id="donationMsg">응원합니다! 항상 최고예요 🌿</div>
+          </div>
+        </div>
+
+        <!-- Feature tooltip -->
+        <div class="feature-tooltip" id="featureTooltip"></div>
+
+        <!-- Bottom bar -->
+        <div class="bottom-bar">
+          <div class="chat-input">채팅을 입력하세요...</div>
+          <button class="action-btn btn-react" onclick="addReaction()">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6.5" stroke="rgba(255,255,255,0.6)" stroke-width="1.2"/>
+              <circle cx="5.5" cy="7" r="1" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="10.5" cy="7" r="1" fill="rgba(255,255,255,0.6)"/>
+              <path d="M5 10c.8 1.3 2 1.8 3 1.8s2.2-.5 3-1.8" stroke="rgba(255,255,255,0.6)" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="action-btn btn-gem" onclick="triggerGemMotion()">
+            <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
+              <path d="M8.5 2L11 6H14.5L12 9.5L13.5 14L8.5 11.5L3.5 14L5 9.5L2.5 6H6L8.5 2Z" fill="white" opacity="0.9"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top:10px; font-size:11px; color:rgba(255,255,255,0.3);">Grip 라이브 모바일 화면 · 330 × 620px</div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+
+    <!-- Controls -->
+    <div class="ctrl-card">
+      <div class="card-title">
+        <div class="card-title-icon" style="background:rgba(255,184,0,0.15);">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1.5L8.5 5H12.5L9.5 7.2L10.7 11L7 8.8L3.3 11L4.5 7.2L1.5 5H5.5L7 1.5Z" fill="#FFB800"/>
+          </svg>
+        </div>
+        단골즈 기능 데모
+      </div>
+
+      <div class="ctrl-section">
+        <div class="ctrl-section-label">필수 기능 · Phase 1</div>
+        <button class="ctrl-btn" onclick="addDangolzChat()">
+          <div class="btn-icon" style="background:rgba(255,184,0,0.15);">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="2.5" width="11" height="8" rx="2" stroke="#FFB800" stroke-width="1.2"/>
+              <path d="M4.5 11L7 13l2.5-2" stroke="#FFB800" stroke-width="1.2" stroke-linecap="round"/>
+              <line x1="4" y1="6" x2="10" y2="6" stroke="#FFB800" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="btn-label">단골즈 채팅 + 뱃지 노출</span>
+          <span class="tier-tag tier-essential">필수</span>
+        </button>
+        <button class="ctrl-btn" onclick="addEntryAlert()">
+          <div class="btn-icon" style="background:rgba(34,197,94,0.15);">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 7L4 4v6l5-3Z" fill="#22c55e"/>
+              <circle cx="7" cy="7" r="5.5" stroke="#22c55e" stroke-width="1.2"/>
+            </svg>
+          </div>
+          <span class="btn-label">단골즈 입장 알림</span>
+          <span class="tier-tag tier-essential">필수</span>
+        </button>
+      </div>
+
+      <div class="ctrl-section">
+        <div class="ctrl-section-label">확장 기능 · Phase 2 (옵션)</div>
+        <button class="ctrl-btn" onclick="addReaction()">
+          <div class="btn-icon" style="background:rgba(244,114,182,0.15);">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 12S2 8.5 2 5.5a2.5 2.5 0 015 0 2.5 2.5 0 015 0C12 8.5 7 12 7 12Z" fill="#f472b6"/>
+            </svg>
+          </div>
+          <span class="btn-label">단골즈 전용 리액션</span>
+          <span class="tier-tag tier-option">옵션</span>
+        </button>
+        <button class="ctrl-btn" onclick="triggerGemMotion()">
+          <div class="btn-icon" style="background:rgba(124,58,237,0.15);">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1.5L8.5 5H12L9.5 7L10.5 10.5L7 8.5L3.5 10.5L4.5 7L2 5H5.5L7 1.5Z" fill="#a78bfa"/>
+            </svg>
+          </div>
+          <span class="btn-label">후원하기 젬 모션</span>
+          <span class="tier-tag tier-option">옵션</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend-card">
+      <div class="card-title" style="margin-bottom:8px;">
+        <div class="card-title-icon" style="background:rgba(255,255,255,0.06);">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1.5" y="2.5" width="11" height="9" rx="2" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+            <line x1="4" y1="6" x2="10" y2="6" stroke="rgba(255,255,255,0.4)" stroke-width="1.2" stroke-linecap="round"/>
+            <line x1="4" y1="8.5" x2="7.5" y2="8.5" stroke="rgba(255,255,255,0.4)" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        뱃지 등급 체계
+      </div>
+
+      <div class="legend-row">
+        <span class="badge badge-dangolz" style="font-size:10px; padding:3px 8px;">
+          <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style="margin-right:2px;">
+            <path d="M4.5 1L5.4 3.2H7.8L5.9 4.6L6.6 6.8L4.5 5.5L2.4 6.8L3.1 4.6L1.2 3.2H3.6L4.5 1Z" fill="#5a3500"/>
+          </svg>
+          단골즈
+        </span>
+        <span>선발된 서포터즈 20인 · 금색 뱃지</span>
+      </div>
+      <div class="legend-row">
+        <span class="badge badge-hotfan" style="font-size:10px; padding:3px 8px;">열</span>
+        <span>후원 TOP 20 · 열혈팬 (SOOP 참조)</span>
+      </div>
+      <div class="legend-row">
+        <span class="badge badge-fan" style="font-size:10px; padding:3px 8px;">F</span>
+        <span>팬클럽 · 1회 이상 후원자</span>
+      </div>
+      <div class="legend-row">
+        <span class="badge badge-sub" style="font-size:10px; padding:3px 8px;">구독</span>
+        <span>구독 유저</span>
+      </div>
+      <div class="legend-row">
+        <span style="font-size:11px; color:rgba(255,255,255,0.3);">없음</span>
+        <span>일반 시청자</span>
+      </div>
+    </div>
+
+    <!-- SOOP reference note -->
+    <div class="ref-card">
+      <svg class="ref-icon" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="9" stroke="rgba(26,108,255,0.6)" stroke-width="1.5"/>
+        <line x1="10" y1="9" x2="10" y2="14" stroke="rgba(26,108,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="10" cy="6.5" r="1" fill="rgba(26,108,255,0.6)"/>
+      </svg>
+      <div class="ref-text">
+        <strong>SOOP 참조 포인트</strong><br>
+        · 채팅 등급별 뱃지 (F/열/구독) → 단골즈 뱃지 계층 설계에 반영<br>
+        · 별풍선 입장 오버레이 스타일 → 젬 후원 모션에 응용<br>
+        · 입장 시스템 메시지 → 단골즈 입장 알림 포맷 참조
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const chatArea = document.getElementById('chatArea');
+const gemOverlay = document.getElementById('gemOverlay');
+const reactionLayer = document.getElementById('reactionLayer');
+const tooltip = document.getElementById('featureTooltip');
+
+const dangolzUsers = [
+  { name: '김민지', color: '#f59e0b', initial: '김', msg: ['세럼 피부가 달라졌어요 진심으로!! 💛', '여기 그리퍼 믿고 사도 됩니다', '재구매 3번째 왔어요 ㅎㅎ'] },
+  { name: '박서연', color: '#8b5cf6', initial: '박', msg: ['촉촉함이 진짜 다르더라고요 🌿', '이미 주변에 다 추천했어요', '결 정말 좋아졌어요!'] },
+  { name: '이다솜', color: '#06b6d4', initial: '이', msg: ['4개월 단골입니다 절대 안 빠짐', '오늘 묶음세트로 살 예정 💙', '믿고 사세요 저 피부증거 있음'] },
+];
+
+const normalBadges = [
+  { badge: 'badge-hotfan', label: '열', color: '#e879f9' },
+  { badge: 'badge-fan', label: 'F', color: '#4ade80' },
+  { badge: 'badge-sub', label: '구독', color: '#818cf8' },
+  { badge: null, label: null, color: '#94a3b8' },
+];
+
+const normalUsers = [
+  { name: '해바라기맘', initial: '해', color: '#ef4444', text: '배송 얼마나 걸려요?', badgeIdx: 1 },
+  { name: '눈꽃이슬', initial: '눈', color: '#3b82f6', text: '민감성도 괜찮나요?', badgeIdx: 3 },
+  { name: '초코파이킹', initial: '초', color: '#10b981', text: '증정품 아직 있나요?', badgeIdx: 0 },
+  { name: '달빛여행자', initial: '달', color: '#a78bfa', text: '3개 묶음으로 사야겠다', badgeIdx: 2 },
+];
+
+const gemMsgs = [
+  '항상 응원합니다 ✨',
+  '최고의 그리퍼! 화이팅 💪',
+  '오늘도 잘 보고 갑니다 🙏',
+  '세럼 최고예요 감사해요',
+];
+
+let counter = 0;
+
+function showTooltip(text, x, y) {
+  tooltip.textContent = text;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+  tooltip.classList.add('show');
+  setTimeout(() => tooltip.classList.remove('show'), 1600);
+}
+
+function buildBadge(cls, label) {
+  if (!cls) return '';
+  if (cls === 'badge-dangolz') {
+    return `<span class="badge badge-dangolz">
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+        <path d="M4 1L4.9 3H7L5.5 4.5L6.1 6.5L4 5.3L1.9 6.5L2.5 4.5L1 3H3.1L4 1Z" fill="#5a3500"/>
+      </svg>${label}</span>`;
+  }
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function trimChat() {
+  while (chatArea.children.length > 9) chatArea.removeChild(chatArea.firstChild);
+}
+
+function addDangolzChat() {
+  const u = dangolzUsers[counter % dangolzUsers.length];
+  const msg = u.msg[Math.floor(Math.random() * u.msg.length)];
+  counter++;
+
+  const el = document.createElement('div');
+  el.className = 'chat-row is-dangolz';
+  el.innerHTML = `
+    <div class="chat-av" style="background:${u.color}; border:1.5px solid rgba(255,184,0,0.5);">${u.initial}</div>
+    <div class="chat-body">
+      <div class="chat-name-row">
+        ${buildBadge('badge-dangolz', '단골즈')}
+        <span class="chat-nick" style="color:rgba(255,184,0,0.75);">${u.name}</span>
+      </div>
+      <div class="chat-text">${msg}</div>
+    </div>`;
+  chatArea.appendChild(el);
+  trimChat();
+
+  setTimeout(() => {
+    const nu = normalUsers[counter % normalUsers.length];
+    const nb = normalBadges[nu.badgeIdx];
+    const nel = document.createElement('div');
+    nel.className = 'chat-row';
+    nel.innerHTML = `
+      <div class="chat-av" style="background:${nu.color};">${nu.initial}</div>
+      <div class="chat-body">
+        <div class="chat-name-row">
+          ${nb.badge ? buildBadge(nb.badge, nb.label) : ''}
+          <span class="chat-nick" style="${nb.badge && nb.badge !== 'badge-fan' && nb.badge !== 'badge-hotfan' ? '' : ''}">${nu.name}</span>
+        </div>
+        <div class="chat-text">${nu.text}</div>
+      </div>`;
+    chatArea.appendChild(nel);
+    trimChat();
+  }, 700);
+}
+
+function addEntryAlert() {
+  const u = dangolzUsers[counter % dangolzUsers.length];
+  counter++;
+
+  const el = document.createElement('div');
+  el.className = 'system-row';
+  el.innerHTML = `
+    <div class="system-inner">
+      ${buildBadge('badge-dangolz', '단골즈')}
+      <span class="system-text">${u.name}님이 입장하셨습니다 👋</span>
+    </div>`;
+  chatArea.appendChild(el);
+  trimChat();
+
+  setTimeout(() => addDangolzChat(), 800);
+}
+
+function addReaction() {
+  const emojis = ['💛','✨','🌟','⭐','💫','🔥'];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      const r = document.createElement('div');
+      r.className = 'r-item';
+      r.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      r.style.animationDelay = (i * 0.1) + 's';
+      r.style.marginLeft = (Math.random() * 14 - 7) + 'px';
+      reactionLayer.appendChild(r);
+      setTimeout(() => r.remove(), 2000);
+    }, i * 90);
+  }
+
+  const u = dangolzUsers[counter % dangolzUsers.length];
+  const el = document.createElement('div');
+  el.className = 'chat-row is-dangolz';
+  el.innerHTML = `
+    <div class="chat-av" style="background:${u.color}; border:1.5px solid rgba(255,184,0,0.5);">${u.initial}</div>
+    <div class="chat-body">
+      <div class="chat-name-row">
+        ${buildBadge('badge-dangolz', '단골즈')}
+        <span class="chat-nick" style="color:rgba(255,184,0,0.75);">${u.name}</span>
+      </div>
+      <div class="chat-text">💛 💛 💛 응원해요!!</div>
+    </div>`;
+  chatArea.appendChild(el);
+  trimChat();
+  counter++;
+}
+
+function triggerGemMotion() {
+  const u = dangolzUsers[counter % dangolzUsers.length];
+  const amounts = [30, 50, 100, 200];
+  const amount = amounts[counter % amounts.length];
+  const msg = gemMsgs[counter % gemMsgs.length];
+  counter++;
+
+  document.getElementById('donationUser').textContent = '단골즈 ' + u.name;
+  document.getElementById('donationAmount').textContent = '💎 젬 ' + amount + '개 후원';
+  document.getElementById('donationMsg').textContent = msg;
+
+  // build gem icons
+  const gemIcons = document.getElementById('gemIcons');
+  const gemSVG = `<svg class="gem-icon" viewBox="0 0 26 26" fill="none">
+    <path d="M13 3L17 9H23L19 14L21 21L13 17L5 21L7 14L3 9H9L13 3Z" fill="url(#ggrad)"/>
+    <defs><linearGradient id="ggrad" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD700"/><stop offset="1" stop-color="#FF8C00"/>
+    </linearGradient></defs>
+  </svg>`;
+  gemIcons.innerHTML = Array(Math.min(5, Math.ceil(amount / 20))).fill(gemSVG).join('');
+
+  // sparkles
+  const wrap = document.getElementById('sparkleWrap');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 18; i++) {
+    const s = document.createElement('div');
+    s.className = 'sparkle';
+    const angle = (i / 18) * Math.PI * 2;
+    const dist = 60 + Math.random() * 80;
+    s.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+    s.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+    s.style.left = '50%';
+    s.style.top = '50%';
+    s.style.animationDelay = (Math.random() * 0.3) + 's';
+    s.style.width = (3 + Math.random() * 3) + 'px';
+    s.style.height = s.style.width;
+    wrap.appendChild(s);
+  }
+
+  gemOverlay.classList.remove('active');
+  void gemOverlay.offsetWidth;
+  gemOverlay.classList.add('active');
+
+  const chatEl = document.createElement('div');
+  chatEl.className = 'chat-row is-dangolz';
+  chatEl.innerHTML = `
+    <div class="chat-av" style="background:${u.color}; border:1.5px solid rgba(255,184,0,0.5);">${u.initial}</div>
+    <div class="chat-body">
+      <div class="chat-name-row">
+        ${buildBadge('badge-dangolz', '단골즈')}
+        <span class="chat-nick" style="color:rgba(255,184,0,0.75);">${u.name}</span>
+      </div>
+      <div class="chat-text">💎 젬 ${amount}개 후원합니다!</div>
+    </div>`;
+  chatArea.appendChild(chatEl);
+  trimChat();
+
+  setTimeout(() => gemOverlay.classList.remove('active'), 3000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grip Admin - 배지 관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+
+  /* === SIDEBAR === */
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 200px; background: #1a1a2e; color: #fff; overflow-y: auto; z-index: 100; }
+  .sidebar-profile { padding: 16px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; gap: 10px; }
+  .sidebar-profile .avatar { width: 36px; height: 36px; border-radius: 50%; background: #e74c3c; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; }
+  .sidebar-profile .info { flex: 1; }
+  .sidebar-profile .name { font-size: 13px; font-weight: 600; }
+  .sidebar-profile .id { font-size: 11px; color: #8e9eab; }
+  .sidebar-btns { display: flex; gap: 4px; padding: 8px 16px; }
+  .sidebar-btns button { flex: 1; padding: 4px 8px; font-size: 10px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15); color: #ccc; border-radius: 3px; cursor: pointer; }
+  .nav-item { display: flex; align-items: center; padding: 11px 16px; color: #adb5bd; cursor: pointer; transition: all .12s; font-size: 13px; border-left: 3px solid transparent; }
+  .nav-item:hover { background: rgba(255,255,255,.05); color: #fff; }
+  .nav-item.active { background: rgba(231,76,60,.15); color: #fff; border-left-color: #e74c3c; font-weight: 600; }
+  .nav-item .icon { width: 20px; margin-right: 10px; font-size: 14px; text-align: center; }
+  .nav-item .arrow { margin-left: auto; font-size: 10px; color: #666; }
+  .nav-sub { display: none; background: rgba(0,0,0,.15); }
+  .nav-sub.open { display: block; }
+  .nav-sub .nav-item { padding: 9px 16px 9px 46px; font-size: 12px; border-left: none; }
+  .nav-sub .nav-item::before { content: '- '; color: #555; margin-right: 4px; }
+  .nav-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
+
+  /* === HEADER === */
+  .main { margin-left: 200px; min-height: 100vh; }
+  .topbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 24px; height: 48px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; font-size: 12px; color: #888; }
+
+  /* === CONTENT === */
+  .page-header-bar { padding: 16px 24px; background: #fff; border-bottom: 1px solid #eee; }
+  .breadcrumb { font-size: 13px; color: #666; }
+  .breadcrumb b { color: #333; }
+  .page-title-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .page-title { font-size: 20px; font-weight: 700; color: #111; }
+  .content-body { padding: 20px 24px; }
+
+  /* === BUTTONS === */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .1s; white-space: nowrap; }
+  .btn-teal { background: #2ec4b6; color: #fff; }
+  .btn-teal:hover { background: #26a69a; }
+  .btn-action { font-size: 11px; padding: 3px 10px; border-radius: 3px; border: none; cursor: pointer; font-weight: 600; white-space: nowrap; }
+  .btn-action.grant { background: #2ec4b6; color: #fff; }
+  .btn-action.grant:hover { background: #26a69a; }
+  .btn-action.revoke { background: #ef5350; color: #fff; }
+  .btn-action.revoke:hover { background: #e53935; }
+  .btn-action.delete { background: #ef5350; color: #fff; }
+  .btn-action.delete:hover { background: #e53935; }
+  .btn-action.dim { opacity: .35; cursor: default; pointer-events: none; }
+  .btn-save { background: #2ec4b6; color: #fff; padding: 6px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-back { background: transparent; color: #666; padding: 6px 12px; border: none; cursor: pointer; font-size: 13px; }
+  .btn-back:hover { color: #333; }
+
+  /* === TABLE === */
+  .table-container { background: #fff; border: 1px solid #e0e0e0; overflow-x: auto; }
+  .table-top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; }
+  .search-input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; width: 220px; outline: none; }
+  .search-input:focus { border-color: #1976d2; }
+  table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+  thead th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-size: 12px; color: #555; font-weight: 600; border-bottom: 2px solid #ddd; white-space: nowrap; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; vertical-align: middle; }
+  tbody tr:hover { background: #f9fafb; }
+  tbody tr.clickable { cursor: pointer; }
+  .status-text { font-size: 12px; font-weight: 500; }
+  .status-complete { color: #2e7d32; }
+  .status-revoked { color: #c62828; }
+  .status-ready { color: #1565c0; }
+  .status-partial { color: #e65100; }
+
+  /* Pagination */
+  .table-footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-top: 1px solid #eee; background: #fff; }
+  .table-footer select { padding: 4px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; }
+  .page-info { font-size: 12px; color: #888; }
+  .pagination { display: flex; align-items: center; gap: 2px; }
+  .page-btn { width: 28px; height: 28px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; color: #666; border-radius: 2px; }
+  .page-btn:hover { background: #f0f0f0; }
+  .page-btn.active { background: #1976d2; color: #fff; border-color: #1976d2; }
+
+  /* === PAGE VIEWS === */
+  .page-view { display: none; }
+  .page-view.active { display: block; }
+
+  /* === CREATE FORM === */
+  .create-form { background: #fff; border: 1px solid #e0e0e0; }
+  .form-notice { padding: 12px 20px; font-size: 13px; color: #1976d2; border-bottom: 1px solid #eee; font-weight: 500; }
+  .form-row { display: flex; align-items: flex-start; padding: 16px 20px; border-bottom: 1px solid #f5f5f5; }
+  .form-row:last-child { border-bottom: none; }
+  .form-label { width: 160px; font-size: 13px; font-weight: 600; color: #333; padding-top: 8px; flex-shrink: 0; }
+  .form-field { flex: 1; }
+  .form-input { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 3px; font-size: 14px; outline: none; }
+  .form-input:focus { border-color: #1976d2; }
+  .form-input.sm { width: 300px; }
+  textarea.form-input { min-height: 80px; resize: vertical; }
+  .form-hint { font-size: 12px; color: #e91e63; margin-top: 4px; }
+  .char-count { font-size: 11px; color: #999; margin-top: 3px; text-align: right; }
+  .char-count.over { color: #e91e63; }
+  .file-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .file-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 3px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+  .file-btn-select { background: #e91e63; color: #fff; }
+  .file-btn-select:hover { background: #c2185b; }
+  .file-selected { font-size: 13px; color: #333; font-weight: 500; }
+  .file-none { font-size: 13px; color: #999; }
+  .file-actions { margin-left: auto; display: flex; gap: 4px; }
+  .file-reset { background: #26a69a; color: #fff; padding: 5px 12px; border: none; border-radius: 3px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .file-template { background: #7b1fa2; color: #fff; padding: 5px 12px; border: none; border-radius: 3px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .send-count { font-size: 13px; color: #333; margin-top: 8px; }
+
+  /* === DETAIL PAGE === */
+  .detail-section { background: #fff; border: 1px solid #e0e0e0; margin-bottom: 16px; }
+  .detail-header { padding: 12px 20px; border-bottom: 1px solid #eee; background: #fafafa; font-size: 14px; font-weight: 700; }
+  .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #eee; }
+  .detail-cell { padding: 12px 20px; border-right: 1px solid #f0f0f0; }
+  .detail-cell:nth-child(3n) { border-right: none; }
+  .detail-cell .dl { font-size: 11px; color: #999; margin-bottom: 3px; }
+  .detail-cell .dv { font-size: 14px; font-weight: 600; color: #222; }
+  .detail-users { padding: 12px 20px 20px; }
+  .detail-users-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .detail-users table { border: 1px solid #eee; width: 100%; border-collapse: collapse; }
+  .detail-users thead th { background: #f8f9fa; font-size: 11px; padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; }
+  .detail-users tbody td { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #f5f5f5; }
+
+  /* === MODAL === */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; justify-content: center; align-items: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-box { background: #fff; border-radius: 8px; padding: 32px 36px; min-width: 380px; max-width: 460px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+  .modal-text { font-size: 16px; color: #333; line-height: 1.7; margin-bottom: 20px; }
+  .modal-text .highlight { color: #e53935; font-weight: 700; }
+  .modal-input { width: 100%; padding: 12px 14px; border: 2px solid #1976d2; border-radius: 6px; font-size: 16px; outline: none; margin-bottom: 20px; }
+  .modal-input::placeholder { color: #bbb; }
+  .modal-input:focus { border-color: #1565c0; box-shadow: 0 0 0 3px rgba(25,118,210,.1); }
+  .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+  .modal-btn { padding: 8px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  .modal-btn-cancel { background: #e0e0e0; color: #555; }
+  .modal-btn-cancel:hover { background: #ccc; }
+  .modal-btn-confirm { background: #1976d2; color: #fff; }
+  .modal-btn-confirm:hover { background: #1565c0; }
+  .modal-btn-danger { background: #e53935; color: #fff; }
+  .modal-btn-danger:hover { background: #c62828; }
+
+  /* === TOAST === */
+  .toast { position: fixed; top: 16px; right: 16px; background: #323232; color: #fff; padding: 12px 20px; border-radius: 4px; font-size: 13px; z-index: 99999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.3); max-width: 420px; }
+  .toast.show { display: block; animation: fadeIn .2s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-profile">
+    <div class="avatar">G</div>
+    <div class="info"><div class="name">그립 관리자</div><div class="id">admin_grip</div></div>
+  </div>
+  <div class="sidebar-btns"><button>정보수정</button><button>비밀번호/보안</button><button>로그아웃</button></div>
+  <div style="padding-top:8px">
+    <div class="nav-item"><span class="icon">👤</span> 이용자 관리 <span class="arrow">›</span></div>
+    <div class="nav-sub open">
+      <div class="nav-item">이용자 조회</div>
+      <div class="nav-item active">배지 관리</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-item"><span class="icon">✉️</span> 문의 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">📋</span> 신청 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">💰</span> 수수료/계약관리 <span class="arrow">›</span></div>
+    <div class="nav-divider"></div>
+    <div class="nav-item"><span class="icon">📺</span> 방송 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">🛒</span> 쇼핑 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">📦</span> 주문 관리 <span class="arrow">›</span></div>
+    <div class="nav-divider"></div>
+    <div class="nav-item"><span class="icon">🎁</span> 혜택 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">🏠</span> 후원 관리 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">✏️</span> 콘텐츠 운영 <span class="arrow">›</span></div>
+    <div class="nav-item"><span class="icon">📱</span> 이용자 콘텐츠 관리 <span class="arrow">›</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div><span style="color:#e74c3c;font-weight:800;font-size:18px;font-style:italic;">Grip</span> <span style="color:#666;font-size:14px;">관리자 센터</span></div>
+    <div class="topbar-right"><span>다운로드 센터</span><span>가이드</span></div>
+  </div>
+
+  <!-- ===== PAGE 1: LIST ===== -->
+  <div class="page-view active" id="pageList">
+    <div class="page-header-bar">
+      <div class="breadcrumb">이용자 관리 &gt; <b>배지 관리</b></div>
+      <div class="page-title-row">
+        <span class="page-title">배지 관리</span>
+        <button class="btn btn-teal" onclick="goPage('pageCreate')">배지 부여</button>
+      </div>
+    </div>
+    <div class="content-body">
+      <div class="table-container">
+        <div class="table-top-bar">
+          <input type="text" placeholder="프로모션 명 검색" class="search-input" id="searchInput" oninput="renderList()">
+          <div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px;text-align:center">부여</th>
+              <th style="width:50px;text-align:center">회수</th>
+              <th style="width:50px;text-align:center">삭제</th>
+              <th style="width:50px">번호</th>
+              <th>등록자</th>
+              <th>프로모션 명</th>
+              <th>설명</th>
+              <th style="width:80px">대상자 수</th>
+              <th style="width:80px">부여 상태</th>
+              <th style="width:150px">등록일시</th>
+              <th style="width:150px">부여 완료일시</th>
+              <th style="width:150px">회수일시</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="table-footer">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <select><option>20개씩 보기</option><option>50개씩 보기</option></select>
+            <span class="page-info" id="pageInfo">0개 중 0~0</span>
+          </div>
+          <div class="pagination">
+            <button class="page-btn">|&lt;</button><button class="page-btn">&lt;</button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">&gt;</button><button class="page-btn">&gt;|</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE 2: CREATE ===== -->
+  <div class="page-view" id="pageCreate">
+    <div class="page-header-bar">
+      <div class="breadcrumb">이용자 관리 &gt; 배지 관리 &gt; <b>배지 부여</b></div>
+      <div class="page-title-row">
+        <span class="page-title">배지 부여</span>
+        <button class="btn-save" onclick="savePromotion()">저장</button>
+        <span class="btn-back" onclick="goPage('pageList')">뒤로</span>
+      </div>
+    </div>
+    <div class="content-body">
+      <div class="create-form">
+        <div class="form-notice">최대 1만명까지 배지 부여할 수 있습니다.</div>
+        <div class="form-row">
+          <div class="form-label">프로모션 명</div>
+          <div class="form-field">
+            <input type="text" class="form-input sm" id="promoName" placeholder="프로모션 명 입력" maxlength="15" oninput="updateCount('promoName','promoNameCnt',15)">
+            <div class="form-hint">최대 15글자</div>
+            <div class="char-count" id="promoNameCnt">0 / 15</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-label">설명</div>
+          <div class="form-field">
+            <textarea class="form-input" id="promoDesc" placeholder="배지 부여에 대한 설명을 입력하세요" maxlength="60" oninput="updateCount('promoDesc','promoDescCnt',60)"></textarea>
+            <div class="form-hint">최대 60글자</div>
+            <div class="char-count" id="promoDescCnt">0 / 60</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-label">배지 식별 키</div>
+          <div class="form-field">
+            <input type="text" class="form-input sm" id="badgeKey" placeholder="예: dangolz, vip_supporter" maxlength="30" oninput="updateCount('badgeKey','badgeKeyCnt',30)">
+            <div class="form-hint">서버 연동 시 클라이언트 소켓과 매핑되는 고유 키 (최대 30자)</div>
+            <div class="char-count" id="badgeKeyCnt">0 / 30</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-label">배지 부여 대상자</div>
+          <div class="form-field">
+            <div class="file-row">
+              <button class="file-btn file-btn-select" onclick="document.getElementById('fileInput').click()">파일 선택</button>
+              <span class="file-none" id="fileLabel">선택된 파일이 없습니다.</span>
+              <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this)">
+              <div class="file-actions">
+                <button class="file-reset" onclick="resetFile()">리셋</button>
+                <button class="file-template" onclick="downloadTemplate()">템플릿</button>
+              </div>
+            </div>
+            <div class="send-count" id="sendCount">발송 예상자 수 : 0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE 3: DETAIL ===== -->
+  <div class="page-view" id="pageDetail">
+    <div class="page-header-bar">
+      <div class="breadcrumb">이용자 관리 &gt; 배지 관리 &gt; <b>프로모션 상세</b></div>
+      <div class="page-title-row">
+        <span class="page-title" id="detailPageTitle">프로모션 상세</span>
+        <span class="btn-back" onclick="goPage('pageList')">뒤로</span>
+      </div>
+    </div>
+    <div class="content-body">
+      <div class="detail-section">
+        <div class="detail-header">프로모션 정보</div>
+        <div class="detail-grid" id="detailGrid"></div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-header">배지 부여 대상자 목록</div>
+        <div class="detail-users">
+          <table>
+            <thead><tr><th style="width:50px">No.</th><th>이용자 코드</th><th style="width:100px">상태</th><th style="width:80px">관리</th></tr></thead>
+            <tbody id="detailUsersBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 부여 (전체) -->
+<div class="modal-overlay" id="grantModal">
+  <div class="modal-box">
+    <div class="modal-text" id="grantModalText"></div>
+    <input type="text" class="modal-input" id="grantInput" placeholder="">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('grantModal')">취소</button>
+      <button class="modal-btn modal-btn-confirm" onclick="executeGrant()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 회수 (전체) -->
+<div class="modal-overlay" id="revokeModal">
+  <div class="modal-box">
+    <div class="modal-text" id="revokeModalText"></div>
+    <input type="text" class="modal-input" id="revokeInput" placeholder="">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('revokeModal')">취소</button>
+      <button class="modal-btn modal-btn-confirm" onclick="executeRevoke()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 삭제 -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal-box">
+    <div class="modal-text">삭제하려면 <span class="highlight">"DELETE"</span>를 입력하세요.<br>복구는 불가능합니다.</div>
+    <input type="text" class="modal-input" id="deleteInput" placeholder="DELETE">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="modal-btn modal-btn-danger" onclick="executeDelete()">Ok</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 개별 유저 회수 -->
+<div class="modal-overlay" id="userRevokeModal">
+  <div class="modal-box">
+    <div class="modal-text" id="userRevokeText"></div>
+    <input type="text" class="modal-input" id="userRevokeInput" placeholder="">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('userRevokeModal')">취소</button>
+      <button class="modal-btn modal-btn-confirm" onclick="executeUserRevoke()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 개별 유저 부여 -->
+<div class="modal-overlay" id="userGrantModal">
+  <div class="modal-box">
+    <div class="modal-text" id="userGrantText"></div>
+    <input type="text" class="modal-input" id="userGrantInput" placeholder="">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('userGrantModal')">취소</button>
+      <button class="modal-btn modal-btn-confirm" onclick="executeUserGrant()">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== DATA ====================
+// user status: 'granted' | 'revoked' | 'ready'
+let promotions = [
+  { id: 1, name: '4월 단골즈 1차', desc: '상위 셀러 단골 유저 20인 배지 부여',
+    badgeKey: 'dangolz', badgeDisplayName: '단골즈', customAttrs: [{key:'icon_type', value:'dangolz_badge_v1'},{key:'color_theme', value:'gold'}],
+    users: ['6ry5koye','ab3kd9we','zt8mq2px','hj4nl7cv','wf6pr1ub','qm9xs5ta','dk2go8yb','rn7lu4ez','vi5aw3hc','xp1ft6jq','oe8hk2mg','bs4yn9wd','uc7ri3lf','gw2ej6ka','tn5ox8pb','lz9cq1md','fh3sv7ue','yj6bt4wi','am8dk2no','pk1wg5rx'].map(u => ({code: u, status: 'granted'})),
+    status: 'granted', regDate: '2025-12-12 14:37:09', grantDate: '2025-12-12 14:37:09', revokeDate: '', admin: '김은지' },
+  { id: 2, name: '3월 단골즈 선발', desc: '3월 셀러 매칭 단골 유저 배지 부여 건',
+    badgeKey: 'dangolz', badgeDisplayName: '단골즈', customAttrs: [{key:'icon_type', value:'dangolz_badge_v1'}],
+    users: ['kp4mt7nb','sx2oe9la','dh6qr3uf','wn8yj1vc','bg5lk4te','rm7ai2xp','fj3uw9hd','zt1cn6ok','ve8gs5qb','xy4lm7wa','hi9pu2cj','ao6tk3re','nw1bf8sd'].map(u => ({code: u, status: 'revoked'})),
+    status: 'revoked', regDate: '2025-12-11 14:21:29', grantDate: '2025-12-11 14:25:00', revokeDate: '2025-12-15 09:30:00', admin: '김은지' },
+  { id: 3, name: '신규 셀러 프로모션', desc: '신규 인기 셀러 대상 단골 유저 선정',
+    badgeKey: 'dangolz', badgeDisplayName: '단골즈', customAttrs: [{key:'icon_type', value:'dangolz_badge_v1'},{key:'socket_event', value:'badge_granted'}],
+    users: ['qr7wd2lp','uj3fm8na','bk9xt1oe','hv5cy6gi','lz4as7pw','dn8mr2tf','we1ko5xj','gi6bu3yh','sq9nl4mc','ox2et7vd','pa5jk8rb','uf3hw1nc','ty7lg9ae','bi2ms6xo','kd4qp8vw'].map(u => ({code: u, status: 'ready'})),
+    status: 'ready', regDate: '2025-12-10 20:15:00', grantDate: '', revokeDate: '', admin: '김은지' },
+  { id: 4, name: '리텐션 배지 부여', desc: '60일 이상 재방문 유저 배지 부여 프로모션',
+    badgeKey: 'retention_60d', badgeDisplayName: '리텐션', customAttrs: [{key:'icon_type', value:'retention_badge_v1'},{key:'color_theme', value:'blue'}],
+    users: ['mc8qx3jp','fv1nt6wb','ak5gy2oe','dl7ri9su','ho4wm8pc','ze3bk1tf','xn6js5la','ui9go2hd','rw7et4mb'].map(u => ({code: u, status: 'ready'})),
+    status: 'ready', regDate: '2025-12-09 16:45:00', grantDate: '', revokeDate: '', admin: '김은지' },
+  { id: 5, name: 'VIP 단골 배지', desc: 'VIP 등급 유저 중 단골즈 선정 건',
+    badgeKey: 'vip_supporter', badgeDisplayName: 'VIP', customAttrs: [{key:'icon_type', value:'vip_badge_v1'},{key:'color_theme', value:'purple'},{key:'tier', value:'premium'}],
+    users: ['pq2wd8km','sj5lr3ua','bn1of7xt','hg9ey4ci','vk6am2pw','dt8ns1re','wl3bp5oj','fa7gu9xh','mi4ck6zy','qe2tn8lb','xu5hi3ov','jd1ws7gp','rk9af4nc','yo6bm2le','ti8xq5wg','uc3dj7va','bh1km9os','ez4np6ft'].map(u => ({code: u, status: 'granted'})),
+    status: 'granted', regDate: '2025-12-08 11:20:00', grantDate: '2025-12-08 11:22:00', revokeDate: '', admin: '김은지' },
+];
+
+let currentActionId = null;
+let currentUserAction = { promoId: null, userCode: null };
+let parsedUserCodes = [];
+
+// ==================== NAVIGATION ====================
+function goPage(pageId) {
+  document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  if (pageId === 'pageCreate') resetCreateForm();
+  if (pageId === 'pageList') renderList();
+}
+
+// ==================== HELPERS ====================
+function getPromoStatus(p) {
+  const grantedCount = p.users.filter(u => u.status === 'granted').length;
+  const revokedCount = p.users.filter(u => u.status === 'revoked').length;
+  const readyCount = p.users.filter(u => u.status === 'ready').length;
+  const total = p.users.length;
+  if (readyCount === total) return 'ready';
+  if (grantedCount === total) return 'granted';
+  if (revokedCount === total) return 'revoked';
+  if (revokedCount > 0 && grantedCount > 0) return 'partial';
+  if (grantedCount > 0) return 'granted';
+  return 'ready';
+}
+
+function getStatusLabel(s) {
+  return { ready: '대기', granted: '완료', revoked: '회수', partial: '일부회수' }[s] || s;
+}
+function getStatusClass(s) {
+  return { ready: 'status-ready', granted: 'status-complete', revoked: 'status-revoked', partial: 'status-partial' }[s] || '';
+}
+
+function now() { return new Date().toISOString().replace('T', ' ').substring(0, 19); }
+
+// ==================== LIST PAGE ====================
+function renderList() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = promotions.filter(p => p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q));
+  document.getElementById('pageInfo').textContent = `${filtered.length}개 중 1~${filtered.length}`;
+  const tbody = document.getElementById('tableBody');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:#999;">등록된 배지 부여 내역이 없습니다.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => {
+    const st = getPromoStatus(p);
+    const hasAnyGranted = p.users.some(u => u.status === 'granted');
+    const allGranted = p.users.every(u => u.status === 'granted');
+    const allRevoked = p.users.every(u => u.status === 'revoked');
+    const allReady = p.users.every(u => u.status === 'ready');
+    const neverGranted = !p.grantDate; // 한 번도 부여한 적이 없음
+
+    // 부여 버튼: 대기 or 전체회수 상태일 때 활성, 부여완료/일부회수 시 딤
+    const grantActive = allReady || allRevoked;
+    // 회수 버튼: 부여완료(전체 or 일부)일 때 활성, 그 외 딤
+    const revokeActive = hasAnyGranted;
+    // 삭제 버튼: 한 번도 부여 안한 대기 상태 OR 전체회수 상태 일 때 활성
+    const deleteActive = allReady || allRevoked;
+
+    return `<tr class="clickable" onclick="showDetail(${p.id})">
+      <td style="text-align:center" onclick="event.stopPropagation()"><button class="btn-action grant${grantActive ? '' : ' dim'}" ${grantActive ? `onclick="openGrant(${p.id})"` : ''}>부여</button></td>
+      <td style="text-align:center" onclick="event.stopPropagation()"><button class="btn-action revoke${revokeActive ? '' : ' dim'}" ${revokeActive ? `onclick="openRevoke(${p.id})"` : ''}>회수</button></td>
+      <td style="text-align:center" onclick="event.stopPropagation()"><button class="btn-action delete${deleteActive ? '' : ' dim'}" ${deleteActive ? `onclick="openDelete(${p.id})"` : ''}>삭제</button></td>
+      <td>${p.id}</td>
+      <td>${p.admin}</td>
+      <td style="font-weight:600">${p.name}</td>
+      <td style="color:#666">${p.desc}</td>
+      <td style="font-weight:600">${p.users.length}</td>
+      <td><span class="status-text ${getStatusClass(st)}">${getStatusLabel(st)}</span></td>
+      <td style="font-size:12px;color:#888">${p.regDate}</td>
+      <td style="font-size:12px;color:#888">${p.grantDate || '-'}</td>
+      <td style="font-size:12px;color:#888">${p.revokeDate || '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ==================== DETAIL PAGE ====================
+function showDetail(id) {
+  const p = promotions.find(x => x.id === id);
+  if (!p) return;
+  const st = getPromoStatus(p);
+  document.getElementById('detailPageTitle').textContent = p.name;
+  document.getElementById('detailGrid').innerHTML = `
+    <div class="detail-cell"><div class="dl">프로모션 명</div><div class="dv">${p.name}</div></div>
+    <div class="detail-cell"><div class="dl">부여 상태</div><div class="dv"><span class="status-text ${getStatusClass(st)}">${getStatusLabel(st)}</span></div></div>
+    <div class="detail-cell"><div class="dl">등록일시</div><div class="dv">${p.regDate}</div></div>
+    <div class="detail-cell"><div class="dl">설명</div><div class="dv">${p.desc}</div></div>
+    <div class="detail-cell"><div class="dl">대상자 수</div><div class="dv">${p.users.length}명</div></div>
+    <div class="detail-cell"><div class="dl">등록자</div><div class="dv">${p.admin}</div></div>
+    <div class="detail-cell"><div class="dl">배지 식별 키</div><div class="dv" style="font-family:monospace;">${p.badgeKey || '-'}</div></div>`;
+
+  const usersHtml = p.users.map((u, i) => {
+    const userStatusLabel = { ready: '대기', granted: '완료', revoked: '회수' }[u.status];
+    const userStatusClass = getStatusClass(u.status);
+    let actionHtml = '';
+    if (u.status === 'granted') {
+      actionHtml = `<button class="btn-action revoke" style="font-size:10px;padding:2px 8px;" onclick="openUserRevoke(${p.id},'${u.code}')">회수</button>`;
+    } else if (u.status === 'revoked') {
+      actionHtml = `<button class="btn-action grant" style="font-size:10px;padding:2px 8px;" onclick="openUserGrant(${p.id},'${u.code}')">부여</button>`;
+    }
+    return `<tr>
+      <td style="color:#999">${i + 1}</td>
+      <td style="font-family:monospace">${u.code}</td>
+      <td><span class="status-text ${userStatusClass}">${userStatusLabel}</span></td>
+      <td>${actionHtml}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('detailUsersBody').innerHTML = usersHtml;
+  goPage('pageDetail');
+}
+
+// ==================== CREATE PAGE ====================
+function resetCreateForm() {
+  document.getElementById('promoName').value = '';
+  document.getElementById('promoDesc').value = '';
+  document.getElementById('promoNameCnt').textContent = '0 / 15';
+  document.getElementById('promoDescCnt').textContent = '0 / 60';
+  document.getElementById('badgeKey').value = '';
+  document.getElementById('badgeKeyCnt').textContent = '0 / 30';
+  parsedUserCodes = [];
+  resetFile();
+}
+
+function updateCount(inputId, cntId, max) {
+  const len = document.getElementById(inputId).value.length;
+  const el = document.getElementById(cntId);
+  el.textContent = `${len} / ${max}`;
+  el.classList.toggle('over', len >= max);
+}
+
+function handleFile(input) {
+  if (!input.files.length) return;
+  const f = input.files[0];
+  if (!f.name.match(/\.xlsx?$/i)) { showToast('엑셀 파일(.xlsx)만 업로드 가능합니다.'); return; }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      // First row is header (이용자코드), rest are data
+      parsedUserCodes = [];
+      for (let i = 1; i < data.length; i++) {
+        const val = data[i] && data[i][0];
+        if (val && String(val).trim()) {
+          parsedUserCodes.push(String(val).trim());
+        }
+      }
+      document.getElementById('fileLabel').textContent = f.name;
+      document.getElementById('fileLabel').className = 'file-selected';
+      document.getElementById('sendCount').textContent = `발송 예상자 수 : ${parsedUserCodes.length}`;
+    } catch (err) {
+      showToast('엑셀 파일을 읽는 중 오류가 발생했습니다.');
+      parsedUserCodes = [];
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+function resetFile() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileLabel').textContent = '선택된 파일이 없습니다.';
+  document.getElementById('fileLabel').className = 'file-none';
+  document.getElementById('sendCount').textContent = '발송 예상자 수 : 0';
+  parsedUserCodes = [];
+}
+
+function downloadTemplate() { showToast('이용자코드 템플릿 파일 다운로드'); }
+
+function savePromotion() {
+  const name = document.getElementById('promoName').value.trim();
+  const desc = document.getElementById('promoDesc').value.trim();
+  const badgeKey = document.getElementById('badgeKey').value.trim();
+  if (!name) { showToast('프로모션 명을 입력하세요.'); return; }
+  if (!desc) { showToast('설명을 입력하세요.'); return; }
+  if (!badgeKey) { showToast('배지 식별 키를 입력하세요.'); return; }
+  if (parsedUserCodes.length === 0) { showToast('배지 부여 대상자 엑셀 파일을 첨부하세요.'); return; }
+
+  const newId = promotions.length > 0 ? Math.max(...promotions.map(p => p.id)) + 1 : 1;
+  promotions.unshift({
+    id: newId, name, desc, badgeKey,
+    users: parsedUserCodes.map(c => ({ code: c, status: 'ready' })),
+    status: 'ready', regDate: now(), grantDate: '', revokeDate: '', admin: '그립 관리자'
+  });
+  goPage('pageList');
+  showToast(`"${name}" 저장 완료. [부여] 버튼을 눌러 최종 부여하세요.`);
+}
+
+// ==================== MODALS (전체) ====================
+function openGrant(id) {
+  currentActionId = id;
+  const p = promotions.find(x => x.id === id);
+  const targets = p.users.filter(u => u.status !== 'granted').length;
+  document.getElementById('grantModalText').innerHTML = `${targets}명에게 [단골즈] 배지를 부여하시겠습니까?<br>최종 부여하려면 <span class="highlight">'CONFIRM'</span>을 입력하세요.`;
+  document.getElementById('grantInput').value = '';
+  document.getElementById('grantModal').classList.add('show');
+}
+
+function openRevoke(id) {
+  currentActionId = id;
+  const p = promotions.find(x => x.id === id);
+  const targets = p.users.filter(u => u.status === 'granted').length;
+  document.getElementById('revokeModalText').innerHTML = `${targets}명의 [단골즈] 배지를 회수하시겠습니까?<br>최종 회수하려면 <span class="highlight">'CONFIRM'</span>을 입력하세요.`;
+  document.getElementById('revokeInput').value = '';
+  document.getElementById('revokeModal').classList.add('show');
+}
+
+function openDelete(id) {
+  currentActionId = id;
+  document.getElementById('deleteInput').value = '';
+  document.getElementById('deleteModal').classList.add('show');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  currentActionId = null;
+}
+
+function executeGrant() {
+  if (document.getElementById('grantInput').value.trim().toLowerCase() !== 'confirm') { showToast('CONFIRM을 입력하세요.'); return; }
+  const p = promotions.find(x => x.id === currentActionId);
+  p.users.forEach(u => { if (u.status !== 'granted') u.status = 'granted'; });
+  p.grantDate = now();
+  closeModal('grantModal');
+  renderList();
+  showToast(`"${p.name}" - 배지 부여 완료`);
+}
+
+function executeRevoke() {
+  if (document.getElementById('revokeInput').value.trim().toLowerCase() !== 'confirm') { showToast('CONFIRM을 입력하세요.'); return; }
+  const p = promotions.find(x => x.id === currentActionId);
+  p.users.forEach(u => { if (u.status === 'granted') u.status = 'revoked'; });
+  p.revokeDate = now();
+  closeModal('revokeModal');
+  renderList();
+  showToast(`"${p.name}" - 배지 회수 완료`);
+}
+
+function executeDelete() {
+  if (document.getElementById('deleteInput').value.trim().toLowerCase() !== 'delete') { showToast('DELETE를 입력하세요.'); return; }
+  const p = promotions.find(x => x.id === currentActionId);
+  promotions = promotions.filter(x => x.id !== currentActionId);
+  closeModal('deleteModal');
+  renderList();
+  showToast(`"${p.name}" 삭제 완료`);
+}
+
+// ==================== MODALS (개별 유저) ====================
+function openUserRevoke(promoId, userCode) {
+  currentUserAction = { promoId, userCode };
+  document.getElementById('userRevokeText').innerHTML = `이용자 <span class="highlight">${userCode}</span>의 [단골즈] 배지를 회수하시겠습니까?<br>최종 회수하려면 <span class="highlight">'CONFIRM'</span>을 입력하세요.`;
+  document.getElementById('userRevokeInput').value = '';
+  document.getElementById('userRevokeModal').classList.add('show');
+}
+
+function executeUserRevoke() {
+  if (document.getElementById('userRevokeInput').value.trim().toLowerCase() !== 'confirm') { showToast('CONFIRM을 입력하세요.'); return; }
+  const p = promotions.find(x => x.id === currentUserAction.promoId);
+  const u = p.users.find(x => x.code === currentUserAction.userCode);
+  if (u) u.status = 'revoked';
+  closeModal('userRevokeModal');
+  showDetail(currentUserAction.promoId);
+  showToast(`${currentUserAction.userCode} 배지 회수 완료`);
+}
+
+function openUserGrant(promoId, userCode) {
+  currentUserAction = { promoId, userCode };
+  document.getElementById('userGrantText').innerHTML = `이용자 <span class="highlight">${userCode}</span>에게 [단골즈] 배지를 부여하시겠습니까?<br>최종 부여하려면 <span class="highlight">'CONFIRM'</span>을 입력하세요.`;
+  document.getElementById('userGrantInput').value = '';
+  document.getElementById('userGrantModal').classList.add('show');
+}
+
+function executeUserGrant() {
+  if (document.getElementById('userGrantInput').value.trim().toLowerCase() !== 'confirm') { showToast('CONFIRM을 입력하세요.'); return; }
+  const p = promotions.find(x => x.id === currentUserAction.promoId);
+  const u = p.users.find(x => x.code === currentUserAction.userCode);
+  if (u) u.status = 'granted';
+  closeModal('userGrantModal');
+  showDetail(currentUserAction.promoId);
+  showToast(`${currentUserAction.userCode} 배지 부여 완료`);
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ==================== INIT ====================
+renderList();
+</script>
+</body>
+</html>
