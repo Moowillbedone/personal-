@@ -69,6 +69,7 @@ export default function HomeClient({ initialCoins, stocks }: { initialCoins: Coi
     id: string;
     title: string;
     titleOriginal: string;
+    summary: string;
     source: string;
     sourceCategory: "reuters" | "investing" | "financialjuice";
     time: string;
@@ -299,26 +300,26 @@ export default function HomeClient({ initialCoins, stocks }: { initialCoins: Coi
           ) : displayedNews.length === 0 ? (
             <div className="text-center py-8 text-dark-muted text-xs">뉴스를 불러오지 못했습니다</div>
           ) : (
-            displayedNews.map((n) => (
-              <a key={n.id} href={n.link} target="_blank" rel="noopener noreferrer"
-                className="block bg-dark-card rounded-2xl p-4 border border-dark-border mb-3 active:bg-dark-border/50 transition"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${
-                    n.sourceCategory === "reuters" ? "bg-orange-500/20 text-orange-400" :
-                    n.sourceCategory === "investing" ? "bg-cyan-500/20 text-cyan-400" :
-                    "bg-accent/20 text-indigo-400"
-                  }`}>
-                    {n.source}
-                  </span>
-                  <span className="text-[10px] text-dark-muted truncate">{n.time}</span>
-                </div>
-                <h4 className="font-semibold text-sm leading-snug">{n.title}</h4>
-                {n.titleOriginal !== n.title && (
-                  <p className="text-[10px] text-dark-muted mt-1 line-clamp-1">{n.titleOriginal}</p>
-                )}
-              </a>
-            ))
+            displayedNews.map((n) => {
+              const newsUrl = `/news-view?title=${encodeURIComponent(n.title)}&titleOriginal=${encodeURIComponent(n.titleOriginal)}&source=${encodeURIComponent(n.source)}&time=${encodeURIComponent(n.time)}&link=${encodeURIComponent(n.link)}&summary=${encodeURIComponent(n.summary || "")}`;
+              return (
+                <Link key={n.id} href={newsUrl}
+                  className="block bg-dark-card rounded-2xl p-4 border border-dark-border mb-3 active:bg-dark-border/50 transition"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+                      n.sourceCategory === "reuters" ? "bg-orange-500/20 text-orange-400" :
+                      n.sourceCategory === "investing" ? "bg-cyan-500/20 text-cyan-400" :
+                      "bg-accent/20 text-indigo-400"
+                    }`}>
+                      {n.source}
+                    </span>
+                    <span className="text-[10px] text-dark-muted truncate">{n.time}</span>
+                  </div>
+                  <h4 className="font-semibold text-sm leading-snug">{n.title}</h4>
+                </Link>
+              );
+            })
           )}
 
           {/* Infinite scroll loader */}
