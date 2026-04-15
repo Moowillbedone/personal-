@@ -54,7 +54,7 @@ async function translateToKorean(text: string): Promise<string> {
   try {
     const encoded = encodeURIComponent(text.slice(0, 1000)); // 1000자 제한
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${encoded}`;
-    const res = await fetch(url, { next: { revalidate: 3600 } }); // 1시간 캐시
+    const res = await fetch(url, { next: { revalidate: 300 } }); // 5분 캐시
     if (!res.ok) return text;
     const data = await res.json();
     if (!data?.[0]) return text;

@@ -91,7 +91,7 @@ export default function HomeClient({ initialCoins, stocks }: { initialCoins: Coi
       setLiveNewsLoading(false);
     }
     loadNews();
-    const interval = setInterval(loadNews, 60000); // 1분마다 갱신
+    const interval = setInterval(loadNews, 30000); // 30초마다 갱신
     return () => clearInterval(interval);
   }, []);
 
