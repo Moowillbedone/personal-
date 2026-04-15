@@ -301,7 +301,7 @@ export default function HomeClient({ initialCoins, stocks }: { initialCoins: Coi
             <div className="text-center py-8 text-dark-muted text-xs">뉴스를 불러오지 못했습니다</div>
           ) : (
             displayedNews.map((n) => {
-              const newsUrl = `/news-view?title=${encodeURIComponent(n.title)}&titleOriginal=${encodeURIComponent(n.titleOriginal)}&source=${encodeURIComponent(n.source)}&time=${encodeURIComponent(n.time)}&link=${encodeURIComponent(n.link)}&summary=${encodeURIComponent(n.summary || "")}`;
+              const newsUrl = `/news-view?title=${encodeURIComponent(n.title)}&titleOriginal=${encodeURIComponent(n.titleOriginal)}&source=${encodeURIComponent(n.source)}&time=${encodeURIComponent(n.time)}&link=${encodeURIComponent(n.link)}`;
               return (
                 <Link key={n.id} href={newsUrl}
                   className="block bg-dark-card rounded-2xl p-4 border border-dark-border mb-3 active:bg-dark-border/50 transition"

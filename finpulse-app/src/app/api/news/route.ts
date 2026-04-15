@@ -122,12 +122,17 @@ function parseRssItems(xml: string): RssRawItem[] {
     const descRe = /<description[^>]*>([\s\S]*?)<\/description>/;
     const descMatch = block.match(descRe);
     if (descMatch) {
-      description = descMatch[1]
-        .replace(/<!\[CDATA\[/g, "").replace(/\]\]>/g, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'")
-        .replace(/\s+/g, " ").trim();
+      let raw = descMatch[1];
+      // CDATA 제거
+      raw = raw.replace(/<!\[CDATA\[/g, "").replace(/\]\]>/g, "");
+      // 먼저 HTML 엔티티를 디코딩 (이중 인코딩 처리)
+      raw = raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+      // 이제 모든 HTML 태그 제거
+      raw = raw.replace(/<[^>]*>/g, " ");
+      // 나머지 엔티티 정리
+      raw = raw.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&nbsp;/g, " ");
+      // 공백 정리
+      description = raw.replace(/\s+/g, " ").trim();
     }
 
     let imageUrl: string | null = null;
