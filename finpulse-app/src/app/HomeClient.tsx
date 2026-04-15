@@ -25,8 +25,8 @@ function formatPrice(price: number, currency: string = "$") {
 
 const NEWS_PER_PAGE = 5;
 
-export default function HomeClient({ initialCoins, stocks, initialNews }: { initialCoins: CoinData[]; stocks: StockData[]; initialNews: NewsItem[] }) {
-  const [filter, setFilter] = useState<"all" | "stock" | "coin" | "macro">("all");
+export default function HomeClient({ initialCoins, stocks }: { initialCoins: CoinData[]; stocks: StockData[]; initialNews?: NewsItem[] }) {
+  const [filter, setFilter] = useState<"all" | "reuters" | "investing" | "financialjuice">("all");
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [newsCount, setNewsCount] = useState(NEWS_PER_PAGE);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -64,13 +64,44 @@ export default function HomeClient({ initialCoins, stocks, initialNews }: { init
     return () => clearInterval(interval);
   }, []);
 
-  // All news for infinite scroll
-  const allNews = initialNews;
+  // 실시간 뉴스 (새 API에서 가져옴)
+  interface LiveNewsItem {
+    id: string;
+    title: string;
+    titleOriginal: string;
+    source: string;
+    sourceCategory: "reuters" | "investing" | "financialjuice";
+    time: string;
+    pubDate: string;
+    link: string;
+    imageUrl: string | null;
+  }
+  const [liveNews, setLiveNews] = useState<LiveNewsItem[]>([]);
+  const [liveNewsLoading, setLiveNewsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadNews() {
+      try {
+        const res = await fetch("/api/news");
+        if (!res.ok) throw new Error("fail");
+        const data = await res.json();
+        setLiveNews(data.news || []);
+      } catch { /* ignore */ }
+      setLiveNewsLoading(false);
+    }
+    loadNews();
+    const interval = setInterval(loadNews, 60000); // 1분마다 갱신
+    return () => clearInterval(interval);
+  }, []);
+
+  // 뉴스 필터
   const filteredNews = filter === "all"
-    ? allNews
-    : filter === "stock"
-    ? allNews.filter((n) => n.category === "stock")
-    : allNews.filter((n) => n.category === filter);
+    ? liveNews
+    : filter === "reuters"
+    ? liveNews.filter(n => n.sourceCategory === "reuters")
+    : filter === "investing"
+    ? liveNews.filter(n => n.sourceCategory === "investing")
+    : liveNews.filter(n => n.sourceCategory === "financialjuice");
   const displayedNews = filteredNews.slice(0, newsCount);
   const hasMore = newsCount < filteredNews.length;
 
@@ -241,29 +272,54 @@ export default function HomeClient({ initialCoins, stocks, initialNews }: { init
           </div>
         </div>
 
-        {/* AI News */}
+        {/* Global News */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-sm">증권 뉴스</h3>
-            <div className="flex gap-1.5">
-              {(["all", "stock", "macro", "coin"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)} className={`text-[10px] px-2.5 py-1 rounded-full font-semibold transition ${filter === f ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}>
-                  {f === "all" ? "전체" : f === "stock" ? "주식" : f === "macro" ? "경제" : "코인"}
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm">글로벌 뉴스</h3>
+              <div className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 live-dot" />
+                <span className="text-[9px] text-dark-muted">실시간</span>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              {(["all", "reuters", "investing", "financialjuice"] as const).map((f) => (
+                <button key={f} onClick={() => setFilter(f)} className={`text-[10px] px-2 py-1 rounded-full font-semibold transition ${filter === f ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}>
+                  {f === "all" ? "전체" : f === "reuters" ? "로이터" : f === "investing" ? "Investing" : "글로벌"}
                 </button>
               ))}
             </div>
           </div>
-          {displayedNews.map((n) => (
-            <Link key={n.id} href={`/news/${n.id}`} className="block bg-dark-card rounded-2xl p-4 border border-dark-border mb-3 active:bg-dark-border/50 transition">
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${n.isBreaking ? "bg-amber-500/20 text-amber-400" : n.category === "coin" ? "bg-orange-500/20 text-orange-400" : n.category === "macro" ? "bg-cyan-500/20 text-cyan-400" : "bg-accent/20 text-indigo-400"}`}>
-                  {n.isBreaking ? "속보" : n.category === "stock" ? "주식" : n.category === "coin" ? "코인" : "경제"}
-                </span>
-                <span className="text-[10px] text-dark-muted truncate">{n.source} · {n.time}</span>
-              </div>
-              <h4 className="font-semibold text-sm leading-snug">{n.title}</h4>
-            </Link>
-          ))}
+
+          {liveNewsLoading ? (
+            <div className="flex items-center justify-center py-8 gap-2">
+              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-dark-muted">뉴스 불러오는 중...</span>
+            </div>
+          ) : displayedNews.length === 0 ? (
+            <div className="text-center py-8 text-dark-muted text-xs">뉴스를 불러오지 못했습니다</div>
+          ) : (
+            displayedNews.map((n) => (
+              <a key={n.id} href={n.link} target="_blank" rel="noopener noreferrer"
+                className="block bg-dark-card rounded-2xl p-4 border border-dark-border mb-3 active:bg-dark-border/50 transition"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${
+                    n.sourceCategory === "reuters" ? "bg-orange-500/20 text-orange-400" :
+                    n.sourceCategory === "investing" ? "bg-cyan-500/20 text-cyan-400" :
+                    "bg-accent/20 text-indigo-400"
+                  }`}>
+                    {n.source}
+                  </span>
+                  <span className="text-[10px] text-dark-muted truncate">{n.time}</span>
+                </div>
+                <h4 className="font-semibold text-sm leading-snug">{n.title}</h4>
+                {n.titleOriginal !== n.title && (
+                  <p className="text-[10px] text-dark-muted mt-1 line-clamp-1">{n.titleOriginal}</p>
+                )}
+              </a>
+            ))
+          )}
 
           {/* Infinite scroll loader */}
           {hasMore && (
