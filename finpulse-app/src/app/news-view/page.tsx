@@ -4,15 +4,12 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 
-// HTML 태그 완전 제거 유틸
 function stripHtml(text: string): string {
   return text
     .replace(/<[^>]*>/g, " ")
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function NewsViewContent() {
@@ -24,7 +21,6 @@ function NewsViewContent() {
   const link = searchParams.get("link") || "";
   const rawSummary = searchParams.get("summary") || "";
 
-  // HTML 태그 제거
   const title = stripHtml(rawTitle);
   const titleOriginal = stripHtml(rawTitleOriginal);
   const summary = stripHtml(rawSummary);
@@ -33,6 +29,7 @@ function NewsViewContent() {
   const [translated, setTranslated] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [showWebView, setShowWebView] = useState(true); // 기본: 원문 웹뷰로 시작
 
   useEffect(() => {
     if (!link) { setLoading(false); return; }
@@ -48,7 +45,7 @@ function NewsViewContent() {
       .catch(() => setLoading(false));
   }, [link]);
 
-  const hasContent = translated.length > 0;
+  const hasScrapedContent = translated.length > 0;
   const contentToShow = showOriginal ? paragraphs : translated;
 
   return (
@@ -62,76 +59,107 @@ function NewsViewContent() {
           <p className="text-xs font-semibold truncate">{source}</p>
           <p className="text-[10px] text-dark-muted">{time}</p>
         </div>
+        {!showWebView && link && (
+          <button onClick={() => setShowWebView(true)} className="text-[10px] px-3 py-1.5 rounded-full bg-accent text-white font-semibold shrink-0">
+            전문 보기
+          </button>
+        )}
+        {showWebView && (
+          <button onClick={() => setShowWebView(false)} className="text-[10px] px-3 py-1.5 rounded-full bg-dark-border text-white font-semibold shrink-0">
+            요약 보기
+          </button>
+        )}
       </div>
 
-      <div className="px-5 mt-4 fade-in">
-        {/* 제목 */}
-        <h1 className="text-lg font-bold leading-snug mb-2">{title}</h1>
-        {titleOriginal && titleOriginal !== title && (
-          <p className="text-xs text-dark-muted mb-3 leading-relaxed">{titleOriginal}</p>
-        )}
-
-        {/* 소스 + 시간 */}
-        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-dark-border">
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-accent/20 text-accent">{source}</span>
-          <span className="text-[10px] text-dark-muted">{time}</span>
+      {/* 웹뷰 모드: 프록시를 통해 원문 기사를 앱 내에서 직접 로드 */}
+      {showWebView && link ? (
+        <div className="w-full" style={{ height: "calc(100vh - 80px)" }}>
+          <iframe
+            src={`/api/news-proxy?url=${encodeURIComponent(link)}`}
+            className="w-full h-full border-none bg-dark-bg"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            title="기사 원문"
+          />
         </div>
+      ) : (
+        <div className="px-5 mt-4 fade-in">
+          {/* 제목 */}
+          <h1 className="text-lg font-bold leading-snug mb-2">{title}</h1>
+          {titleOriginal && titleOriginal !== title && (
+            <p className="text-xs text-dark-muted mb-3 leading-relaxed">{titleOriginal}</p>
+          )}
 
-        {/* 요약 */}
-        {summary && summary.length > 10 && (
-          <div className="bg-accent/10 rounded-xl p-4 mb-4">
-            <p className="text-[10px] text-accent font-semibold mb-1">요약</p>
-            <p className="text-sm leading-relaxed">{summary}</p>
+          {/* 소스 + 시간 */}
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-dark-border">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-accent/20 text-accent">{source}</span>
+            <span className="text-[10px] text-dark-muted">{time}</span>
           </div>
-        )}
 
-        {/* 본문 로딩 */}
-        {loading ? (
-          <div className="flex items-center justify-center py-8 gap-2">
-            <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-dark-muted">기사 본문 로딩 중...</span>
-          </div>
-        ) : hasContent ? (
-          <>
-            {/* 원문/번역 토글 */}
-            <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => setShowOriginal(false)}
-                className={`text-[10px] px-3 py-1 rounded-full font-semibold transition ${!showOriginal ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}
-              >한글 번역</button>
-              <button onClick={() => setShowOriginal(true)}
-                className={`text-[10px] px-3 py-1 rounded-full font-semibold transition ${showOriginal ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}
-              >영어 원문</button>
+          {/* 본문 */}
+          {loading ? (
+            <div className="flex items-center justify-center py-8 gap-2">
+              <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-dark-muted">기사 로딩 중...</span>
             </div>
-            <div className="space-y-4">
-              {contentToShow.map((p, i) => (
-                <p key={i} className="text-sm leading-relaxed text-gray-300">{p}</p>
-              ))}
-            </div>
-          </>
-        ) : (
-          /* 본문 스크래핑 실패 시: 요약만 보여주고 원문 링크 안내 */
-          <div className="space-y-4">
-            {summary && summary.length > 10 ? (
-              <p className="text-sm leading-relaxed text-gray-300">{summary}</p>
-            ) : (
-              <p className="text-sm text-dark-muted text-center py-4">
-                기사 본문을 불러오지 못했습니다
-              </p>
-            )}
-          </div>
-        )}
+          ) : hasScrapedContent ? (
+            <>
+              {/* 원문/번역 토글 */}
+              <div className="flex items-center gap-2 mb-4">
+                <button onClick={() => setShowOriginal(false)}
+                  className={`text-[10px] px-3 py-1 rounded-full font-semibold transition ${!showOriginal ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}
+                >한글 번역</button>
+                <button onClick={() => setShowOriginal(true)}
+                  className={`text-[10px] px-3 py-1 rounded-full font-semibold transition ${showOriginal ? "bg-accent text-white" : "bg-dark-card text-dark-muted"}`}
+                >영어 원문</button>
+              </div>
+              <div className="space-y-4">
+                {contentToShow.map((p, i) => (
+                  <p key={i} className="text-sm leading-relaxed text-gray-300">{p}</p>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* 스크래핑 실패 시: 요약 내용을 본문처럼 표시 */}
+              {summary && summary.length > 5 ? (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed text-gray-200">{summary}</p>
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed text-gray-200">{title}</p>
+              )}
 
-        {/* 하단 원문 링크 */}
-        {link && (
-          <div className="mt-6 pt-4 border-t border-dark-border">
-            <a href={link} target="_blank" rel="noopener noreferrer"
-              className="block text-center text-[11px] text-accent font-semibold py-3 bg-accent/10 rounded-xl"
-            >
-              {source} 원문에서 전체 기사 읽기 →
-            </a>
-          </div>
-        )}
-      </div>
+              {/* 전문 보기 안내 */}
+              <div className="mt-6 bg-dark-card rounded-xl p-4 border border-dark-border">
+                <p className="text-xs text-dark-muted mb-3">
+                  이 기사의 전체 본문은 원문 사이트에서 확인할 수 있습니다.
+                </p>
+                <button onClick={() => setShowWebView(true)}
+                  className="w-full py-2.5 rounded-xl bg-accent text-white text-sm font-semibold"
+                >
+                  앱에서 전문 보기
+                </button>
+                <a href={link} target="_blank" rel="noopener noreferrer"
+                  className="block mt-2 text-center text-[10px] text-dark-muted"
+                >
+                  외부 브라우저에서 열기 →
+                </a>
+              </div>
+            </>
+          )}
+
+          {/* 하단 원문 링크 (스크래핑 성공 시에도 표시) */}
+          {hasScrapedContent && link && (
+            <div className="mt-6 pt-4 border-t border-dark-border">
+              <a href={link} target="_blank" rel="noopener noreferrer"
+                className="block text-center text-[11px] text-accent font-semibold py-3 bg-accent/10 rounded-xl"
+              >
+                {source} 원문에서 전체 기사 읽기 →
+              </a>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
