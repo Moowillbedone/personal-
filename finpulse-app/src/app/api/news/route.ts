@@ -183,17 +183,53 @@ async function fetchGlobalNews(): Promise<RssRawItem[]> {
 }
 
 // ──────────────────────────────────────
+// 4) 한국 금융 뉴스 RSS (본문 스크래핑 가능!)
+// ──────────────────────────────────────
+async function fetchKoreanNews(): Promise<RssRawItem[]> {
+  try {
+    const feeds = [
+      { url: "https://www.mk.co.kr/rss/40300001/", source: "매일경제" },
+      { url: "https://www.hankyung.com/feed/all-news", source: "한국경제" },
+    ];
+    const results = await Promise.all(
+      feeds.map(async (feed) => {
+        try {
+          const res = await fetch(feed.url, {
+            headers: { "User-Agent": "Mozilla/5.0" },
+            next: { revalidate: 60 },
+          });
+          if (!res.ok) return [];
+          const xml = await res.text();
+          const items = parseRssItems(xml);
+          return items.map(i => ({ ...i, source: i.source || feed.source }));
+        } catch { return []; }
+      })
+    );
+    // 금융 키워드 필터
+    const FINANCE_KW = ["주식","증시","코스피","코스닥","반도체","삼성","SK","현대","LG",
+      "금리","환율","달러","원화","금값","ETF","IPO","실적","매출","영업이익",
+      "투자","펀드","배당","경제","GDP","인플레","채권","나스닥","다우","S&P",
+      "AI","반도체","GPU","NVIDIA","테슬라","애플","아마존","메타",
+      "비트코인","코인","이더리움","암호화폐","관세","수출","수입"];
+    const all = results.flat();
+    const filtered = all.filter(item => FINANCE_KW.some(kw => item.title.includes(kw)));
+    return filtered.slice(0, 15);
+  } catch { return []; }
+}
+
+// ──────────────────────────────────────
 // API Handler
 // ──────────────────────────────────────
 export async function GET() {
   try {
-    // 1) RSS 수집
-    const [reuters, investing, global] = await Promise.all([
-      fetchReuters(), fetchInvesting(), fetchGlobalNews(),
+    // 1) RSS 수집 (병렬)
+    const [reuters, investing, global, korean] = await Promise.all([
+      fetchReuters(), fetchInvesting(), fetchGlobalNews(), fetchKoreanNews(),
     ]);
 
-    // 소스 태깅
+    // 소스 태깅 (한국 뉴스를 "financialjuice" 대신 별도 카테고리로)
     const tagged = [
+      ...korean.map(i => ({ ...i, cat: "financialjuice" as const })),  // 한국 뉴스 = 상단
       ...reuters.map(i => ({ ...i, cat: "reuters" as const })),
       ...investing.map(i => ({ ...i, cat: "investing" as const })),
       ...global.map(i => ({ ...i, cat: "financialjuice" as const })),
