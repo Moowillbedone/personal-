@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { -webkit-tap-highlight-color: transparent; }
+body { background: #0a0a1a; color: white; font-family: 'Inter', system-ui, sans-serif; overscroll-behavior: none; }
+::-webkit-scrollbar { display: none; }
+
+@keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.live-dot { animation: pulse-live 2s infinite; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fade-in 0.3s ease; }
