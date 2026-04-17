@@ -22,13 +22,21 @@ interface EarningsEntry {
   noOfEstimates: number;
 }
 
+// 유럽 기업 리스트 (Nasdaq/NYSE 상장이지만 실적 발표는 유럽 시간 기준)
+const EUROPEAN_STOCKS = new Set([
+  "ASML", "NVO", "SAP", "TM", "UL", "AZN", "NVS", "HSBC", "GSK", "DEO",
+  "BP", "SHEL", "RIO", "BHP", "BTI", "LULU", "SHOP", "STM", "ING", "ERIC",
+  "NOK", "PHG", "SPOT", "GRAB", "SE", "BIDU", "WBD", "SONY", "HMC", "MUFG",
+  "SMFG", "MFG", "KB", "SHG", "LPL", "WIT", "INFY", "HDB", "IBN",
+]);
+
 // Nasdaq API에서 특정 날짜의 실적 발표 목록 가져오기
 async function fetchNasdaqEarnings(date: string): Promise<EarningsEntry[]> {
   try {
     const url = `https://api.nasdaq.com/api/calendar/earnings?date=${date}`;
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 3600 },
+      next: { revalidate: 1800 }, // 30분 캐시
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -36,22 +44,30 @@ async function fetchNasdaqEarnings(date: string): Promise<EarningsEntry[]> {
 
     return rows.map((r: Record<string, string>) => {
       const timeRaw = r.time || "time-not-supplied";
+      const symbol = r.symbol || "";
+      const isEU = EUROPEAN_STOCKS.has(symbol);
+
       let timeLabel = "미정";
       let kstDateTime = `${formatDateKr(date)} 미정`;
 
       if (timeRaw === "time-pre-market") {
-        timeLabel = "장전";
-        // US 장전 = ET 7:00~9:30 → KST 다음날 오전 (ET+14h summer, ET+13h winter)
-        // 대략 KST 당일 밤 ~22:00 전후
-        kstDateTime = `${formatDateKr(date)} 밤 ~22:00 KST`;
+        if (isEU) {
+          // 유럽 기업: CET 7:00~8:00 → KST 당일 오후 2:00~4:00
+          timeLabel = "장전 (유럽)";
+          kstDateTime = `${formatDateKr(date)} 오후 ~3:00 KST`;
+        } else {
+          // US 기업 장전: ET 6:00~9:30 → KST 당일 밤 8:00~11:30
+          timeLabel = "장전";
+          kstDateTime = `${formatDateKr(date)} 밤 ~21:30 KST`;
+        }
       } else if (timeRaw === "time-after-hours") {
         timeLabel = "장후";
-        // US 장후 = ET 16:00 이후 → KST 다음날 새벽 ~06:00
-        kstDateTime = `${formatNextDateKr(date)} 새벽 ~06:00 KST`;
+        // US 장후 = ET 16:05~17:00 → KST 다음날 새벽 6:05~7:00
+        kstDateTime = `${formatNextDateKr(date)} 새벽 ~6:00 KST`;
       }
 
       return {
-        symbol: r.symbol || "",
+        symbol,
         name: (r.name || "").substring(0, 40),
         date,
         timeLabel,

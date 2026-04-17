@@ -70,53 +70,6 @@ export default function CalendarPage() {
     return () => observer.disconnect();
   }, []);
 
-  // 모든 표시 종목 자동 프리로드 (배치: 4개씩)
-  useEffect(() => {
-    if (entries.length === 0) return;
-    const seen = new Set<string>();
-    const uniqueSymbols = entries.filter(e => {
-      if (seen.has(e.symbol)) return false;
-      seen.add(e.symbol);
-      return true;
-    });
-    const toLoad = uniqueSymbols.filter(e => !quarterlyData[e.symbol]);
-    if (toLoad.length === 0) return;
-
-    let idx = 0;
-    const BATCH = 4;
-    function loadBatch() {
-      const batch = toLoad.slice(idx, idx + BATCH);
-      if (batch.length === 0) return;
-      idx += BATCH;
-      Promise.all(
-        batch.map(e =>
-          fetch(`/api/stock-info/${encodeURIComponent(e.symbol)}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => {
-              if (data?.quarterlyFinancials) {
-                return { symbol: e.symbol, qf: data.quarterlyFinancials };
-              }
-              return null;
-            })
-            .catch(() => null)
-        )
-      ).then(results => {
-        const update: Record<string, QuarterlyFinancialRow[]> = {};
-        for (const r of results) {
-          if (r) update[r.symbol] = r.qf;
-        }
-        if (Object.keys(update).length > 0) {
-          setQuarterlyData(prev => ({ ...prev, ...update }));
-        }
-        if (idx < toLoad.length) {
-          setTimeout(loadBatch, 400);
-        }
-      });
-    }
-    loadBatch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries]);
-
   // 종목 클릭 → 확장
   const handleExpand = useCallback((symbol: string) => {
     if (expandedSymbol === symbol) { setExpandedSymbol(null); return; }
@@ -141,6 +94,34 @@ export default function CalendarPage() {
     : entries.filter(e => e.market === filter);
   const displayed = filtered.slice(0, displayCount);
   const hasMore = displayCount < filtered.length;
+
+  // 화면에 보이는 종목만 프리로드 (displayed 기준, 최대 10개)
+  useEffect(() => {
+    if (displayed.length === 0) return;
+    const seen = new Set<string>();
+    const toLoad = displayed.filter(e => {
+      if (seen.has(e.symbol) || quarterlyData[e.symbol]) return false;
+      seen.add(e.symbol);
+      return true;
+    }).slice(0, 10);
+    if (toLoad.length === 0) return;
+
+    Promise.all(
+      toLoad.map(e =>
+        fetch(`/api/stock-info/${encodeURIComponent(e.symbol)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => data?.quarterlyFinancials ? { symbol: e.symbol, qf: data.quarterlyFinancials } : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const update: Record<string, QuarterlyFinancialRow[]> = {};
+      for (const r of results) { if (r) update[r.symbol] = r.qf; }
+      if (Object.keys(update).length > 0) {
+        setQuarterlyData(prev => ({ ...prev, ...update }));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayCount, entries.length, filter]);
 
   // 날짜별 그룹핑
   const groups: { date: string; label: string; entries: EarningsEntry[] }[] = [];
