@@ -1,0 +1,3318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Grip · 네이버 간편가입 프로토타입</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --grip: #FF2D55;
+    --grip-dark: #E91E4F;
+    --kakao: #FEE500;
+    --naver: #03C75A;
+    --naver-dark: #02a048;
+    --apple: #000;
+    --fb: #1877F2;
+    --bg: #F4F5F7;
+    --text: #111;
+    --sub: #6B7280;
+    --sub2: #9CA3AF;
+    --line: #E5E7EB;
+    --line2: #F3F4F6;
+    --danger: #EF4444;
+    --success: #16A34A;
+  }
+  html, body {
+    height: 100%;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #1a1a1a;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    gap: 24px;
+    transition: all .3s ease;
+  }
+  body.prd-mode {
+    justify-content: flex-start;
+    padding: 24px;
+    gap: 28px;
+    background: #0F1014;
+  }
+  body.prd-mode .device-col {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+  }
+  .device-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 390px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 430px) {
+    .device-col { width: 100%; }
+  }
+
+  /* Device frame (desktop view) — on mobile, fullscreen */
+  .device {
+    width: 100%;
+    max-width: 390px;
+    height: 100%;
+    max-height: 844px;
+    background: #fff;
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+    border: 6px solid #1a1a1a;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 430px) {
+    body { padding: 0; }
+    .device { max-width: 100%; max-height: 100%; border-radius: 0; border: 0; height: 100vh; box-shadow: none; }
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 22px 0;
+    font-size: 14px;
+    font-weight: 600;
+    background: #fff;
+    position: relative;
+    z-index: 10;
+  }
+  .status-bar .notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 22px;
+    background: #1a1a1a;
+    border-radius: 0 0 16px 16px;
+  }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; font-size: 12px; }
+
+  /* App bar */
+  .app-bar {
+    height: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+    position: relative;
+  }
+  .app-bar .back {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background .15s;
+  }
+  .app-bar .back:active { background: var(--line2); }
+  .app-bar .back.hidden { visibility: hidden; pointer-events: none; }
+  .app-bar .title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .app-bar .close {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    color: var(--sub);
+    cursor: pointer;
+  }
+
+  /* Screen wrapper */
+  .screen-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+  .screen {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    display: none;
+    flex-direction: column;
+  }
+  .screen.active { display: flex; }
+
+  /* Toast */
+  .toast-wrap {
+    position: absolute;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: calc(100% - 40px);
+    max-width: 350px;
+  }
+  .toast {
+    background: rgba(17, 17, 17, 0.92);
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+    animation: toastIn .25s ease-out;
+    backdrop-filter: blur(6px);
+  }
+  .toast.err { background: rgba(239, 68, 68, 0.95); }
+  .toast.ok { background: rgba(22, 163, 74, 0.95); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Modal */
+  .modal-bg {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 24px;
+  }
+  .modal-bg.active { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px 20px 16px;
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+  }
+  .modal h3 { font-size: 16px; margin-bottom: 8px; }
+  .modal p { font-size: 13px; color: var(--sub); line-height: 1.5; margin-bottom: 18px; }
+  .modal-btns { display: flex; gap: 8px; }
+  .modal-btns button {
+    flex: 1;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .modal-btns .cancel { background: var(--line2); color: var(--text); }
+  .modal-btns .confirm { background: var(--grip); color: #fff; }
+  .modal-btns .danger { background: var(--danger); color: #fff; }
+
+  /* ==================== LOGIN SCREEN ==================== */
+  .login-hero {
+    height: 260px;
+    background: linear-gradient(135deg, #FFE5EC 0%, #FFC4D6 100%);
+    padding: 30px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .login-hero .brand {
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--grip);
+    letter-spacing: -0.04em;
+    margin-bottom: 12px;
+  }
+  .login-hero .promo-tag {
+    background: #fff;
+    color: var(--grip);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .login-hero .promo {
+    font-size: 15px;
+    font-weight: 700;
+    color: #111;
+    line-height: 1.4;
+  }
+  .login-hero .promo b { color: var(--grip); display: block; font-size: 22px; margin-bottom: 4px; }
+  .login-body {
+    padding: 24px 20px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .sns-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 52px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+    font-family: inherit;
+    transition: opacity .15s, transform .1s;
+  }
+  .sns-btn:active { transform: scale(0.98); }
+  .sns-btn.kakao { background: var(--kakao); color: #191919; }
+  .sns-btn.naver { background: var(--naver); color: #fff; }
+  .sns-btn.naver .n-box {
+    background: #fff; color: var(--naver);
+    width: 22px; height: 22px; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    margin: 20px 0 16px;
+    color: var(--sub);
+    font-size: 12px;
+    gap: 12px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .icon-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .icon-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: transform .1s;
+    font-family: inherit;
+  }
+  .icon-btn:active { transform: scale(0.92); }
+  .icon-btn.apple { background: #000; color: #fff; }
+  .icon-btn.fb { background: var(--fb); color: #fff; }
+  .icon-btn.gmail {
+    background: #fff;
+    border: 1px solid var(--line);
+    background-image: linear-gradient(to right, #4285F4, #EA4335);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .icon-btn.email { background: var(--line2); color: #555; }
+
+  .login-foot {
+    margin-top: auto;
+    text-align: center;
+    font-size: 12px;
+    color: var(--sub);
+    padding-top: 14px;
+  }
+  .login-foot a { color: var(--sub); text-decoration: underline; margin: 0 8px; cursor: pointer; }
+
+  /* ==================== NAVER LOGIN ==================== */
+  .naver-screen { background: #fff; }
+  .naver-top {
+    text-align: center;
+    padding: 40px 24px 20px;
+  }
+  .naver-logo {
+    font-size: 42px;
+    font-weight: 800;
+    color: var(--naver);
+    letter-spacing: -0.05em;
+    margin-bottom: 14px;
+  }
+  .naver-desc {
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.6;
+  }
+  .naver-desc b { color: var(--grip); }
+  .naver-body { padding: 20px; flex: 1; }
+  .naver-id-item {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all .15s;
+    background: #fff;
+  }
+  .naver-id-item:active { transform: scale(0.99); }
+  .naver-id-item:hover { border-color: var(--naver); }
+  .naver-id-item.selected { border-color: var(--naver); background: #F0FDF4; }
+  .naver-id-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--naver), #059669);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    margin-right: 12px;
+  }
+  .naver-id-info { flex: 1; }
+  .naver-id-info .id { font-size: 14px; font-weight: 600; }
+  .naver-id-info .mail { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .naver-id-check {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--naver);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    opacity: 0;
+  }
+  .naver-id-item.selected .naver-id-check { opacity: 1; }
+  .naver-add {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 16px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--sub);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .naver-submit {
+    width: 100%;
+    height: 52px;
+    background: var(--naver);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 16px;
+    font-family: inherit;
+    transition: background .15s;
+  }
+  .naver-submit:disabled { background: #D1D5DB; cursor: not-allowed; }
+  .naver-submit:not(:disabled):active { background: var(--naver-dark); }
+
+  /* ==================== NAVER CONSENT v2 (image-matched) ==================== */
+  #screen-naver-consent {
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+  }
+  .naver-consent-header {
+    height: 44px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--line2);
+  }
+  .nch-left { display: flex; align-items: center; gap: 8px; }
+  .nch-nlogo {
+    background: var(--naver);
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+  }
+  .nch-title { font-size: 14px; font-weight: 600; color: #333; }
+  .nch-right { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555; }
+  .nch-avatar {
+    width: 22px; height: 22px;
+    background: #F3F4F6;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .nch-caret { font-size: 10px; color: var(--sub); }
+
+  .consent-modal-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px 16px;
+    overflow-y: auto;
+  }
+  .consent-modal {
+    width: 100%;
+    max-width: 340px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 18px 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+  .consent-modal-brand {
+    margin-bottom: 14px;
+  }
+  .consent-brand-logo {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--grip);
+    letter-spacing: -0.03em;
+  }
+
+  .chk-ring {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid #D1D5DB;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #D1D5DB;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: all .15s;
+  }
+  .chk-ring.on, .consent-all-v2.on .chk-ring, .consent-sec-v2 .sec-head.on .chk-ring {
+    background: var(--naver);
+    border-color: var(--naver);
+    color: #fff;
+  }
+
+  .consent-all-v2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line2);
+    margin-bottom: 12px;
+  }
+  .all-txt { font-size: 14px; }
+  .all-txt b { font-weight: 700; }
+  .all-txt .sub { color: var(--sub); font-size: 12px; margin-left: 6px; font-weight: 400; }
+
+  .consent-user-v2 {
+    font-size: 12px;
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .consent-user-v2 b { color: #111; }
+
+  .consent-sec-v2 { margin-bottom: 10px; }
+  .consent-sec-v2 .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    cursor: pointer;
+  }
+  .sec-title { font-size: 13px; font-weight: 600; color: #222; flex: 1; }
+  .sec-title .req-mark { color: #111; font-weight: 600; }
+  .sec-title .opt-mark { color: var(--sub); font-weight: 500; }
+  .consent-sec-v2 .arrow {
+    color: #9CA3AF;
+    font-size: 16px;
+    font-weight: 300;
+  }
+  .consent-sec-v2 .sec-items {
+    padding: 4px 0 8px 32px;
+    font-size: 12px;
+    color: #444;
+  }
+  .consent-sec-v2 .sec-items.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+  }
+  .consent-sec-v2 .sec-items .item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.6;
+  }
+  .consent-sec-v2 .sec-items .item .tick {
+    color: var(--naver);
+    font-size: 11px;
+  }
+
+  .consent-notice-v2 {
+    font-size: 10px;
+    color: var(--sub);
+    line-height: 1.6;
+    margin: 14px 0 16px;
+  }
+
+  .consent-modal-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .consent-modal-btns button {
+    flex: 1;
+    height: 44px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .consent-modal-btns .cancel { background: #F3F4F6; color: #555; }
+  .consent-modal-btns .confirm { background: var(--naver); color: #fff; }
+
+  .consent-home-bar {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .home-indicator {
+    width: 110px;
+    height: 4px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 2px;
+  }
+  .close-x {
+    position: absolute;
+    right: 16px;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    font-weight: 300;
+  }
+
+  /* ==================== NAVER CONSENT (legacy, unused) ==================== */
+  .consent-top {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--line2);
+    flex-shrink: 0;
+  }
+  .consent-brand-tag {
+    background: var(--grip);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-right: 8px;
+  }
+  .consent-top span.ttl { font-size: 14px; font-weight: 700; }
+  .consent-top .x {
+    margin-left: auto;
+    font-size: 20px;
+    color: var(--sub);
+    cursor: pointer;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .consent-body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .consent-user {
+    font-size: 12px;
+    color: var(--sub);
+    line-height: 1.6;
+    margin-bottom: 14px;
+    padding: 12px;
+    background: #F9FAFB;
+    border-radius: 8px;
+  }
+  .consent-user b { color: var(--text); }
+
+  .consent-all {
+    display: flex;
+    align-items: center;
+    padding: 14px;
+    background: #F0FDF4;
+    border: 1px solid #86EFAC;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .consent-all .chk {
+    width: 24px; height: 24px;
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    background: #fff;
+    color: #fff;
+    font-size: 12px;
+    transition: all .15s;
+  }
+  .consent-all.on .chk {
+    background: var(--naver);
+    border-color: var(--naver);
+  }
+  .consent-all .sub { font-size: 11px; color: var(--sub); font-weight: 400; margin-left: 6px; }
+
+  .consent-section {
+    padding: 14px 0;
+    border-top: 1px solid var(--line2);
+  }
+  .consent-section:first-of-type { border-top: none; padding-top: 0; }
+  .consent-sec-head {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .consent-sec-head .chk {
+    width: 20px; height: 20px;
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    font-size: 11px;
+    color: #fff;
+    flex-shrink: 0;
+    transition: all .15s;
+  }
+  .consent-sec-head.on .chk {
+    background: var(--naver);
+    border-color: var(--naver);
+  }
+  .consent-sec-head .tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 8px;
+    font-weight: 700;
+  }
+  .consent-sec-head .tag.req { background: #FFF1F2; color: var(--grip); }
+  .consent-sec-head .tag.opt { background: #F3F4F6; color: var(--sub); }
+  .consent-sec-head .ttl { font-size: 13px; font-weight: 600; }
+  .consent-sec-head .arrow { margin-left: auto; color: var(--sub); font-size: 14px; }
+  .consent-items {
+    font-size: 12px;
+    color: #444;
+    line-height: 1.8;
+    padding-left: 30px;
+  }
+  .consent-items .item { display: flex; align-items: center; gap: 6px; }
+  .consent-items .item::before { content: '·'; color: var(--sub); }
+
+  .consent-notice {
+    font-size: 10px;
+    color: var(--sub);
+    line-height: 1.6;
+    margin: 16px 0;
+    padding: 12px;
+    background: #F9FAFB;
+    border-radius: 8px;
+  }
+  .consent-btns {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--line2);
+    flex-shrink: 0;
+  }
+  .consent-btns button {
+    flex: 1;
+    height: 50px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .consent-btns .cancel { background: var(--line2); color: var(--sub); }
+  .consent-btns .confirm { background: var(--naver); color: #fff; }
+  .consent-btns .confirm:disabled { background: #D1D5DB; cursor: not-allowed; }
+
+  /* ==================== SIGNUP ==================== */
+  .signup-body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .signup-welcome {
+    background: linear-gradient(135deg, #F0FDF4, #E0F2FE);
+    border: 1px solid #86EFAC;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .signup-welcome .icon {
+    width: 36px; height: 36px;
+    background: var(--naver);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .signup-welcome .txt { font-size: 12px; line-height: 1.5; }
+  .signup-welcome .txt b { color: var(--naver); }
+
+  .form-field { margin-bottom: 16px; }
+  .form-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .form-field label .req { color: var(--grip); }
+  .form-field label .prefilled {
+    font-size: 10px;
+    background: #DBEAFE;
+    color: #1E40AF;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    font-weight: 500;
+  }
+  .form-field input, .form-field select {
+    width: 100%;
+    height: 46px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    font-family: inherit;
+    transition: border-color .15s;
+  }
+  .form-field input:focus, .form-field select:focus {
+    outline: none;
+    border-color: var(--grip);
+  }
+  .form-field input[readonly] { background: #F9FAFB; color: #555; }
+  .form-field .help {
+    font-size: 11px;
+    color: var(--sub);
+    margin-top: 6px;
+  }
+  .form-field .help.err { color: var(--danger); }
+  .form-row { display: flex; gap: 8px; align-items: stretch; }
+  .form-row > input { flex: 1; }
+  .mini-btn {
+    padding: 0 14px;
+    height: 46px;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text);
+    transition: all .15s;
+  }
+  .mini-btn:disabled {
+    color: var(--sub2); cursor: not-allowed; background: #F9FAFB;
+  }
+  .mini-btn.sent { background: #F0FDF4; border-color: #86EFAC; color: var(--success); }
+
+  .gender-row { display: flex; gap: 6px; }
+  .gender-row button {
+    flex: 1; height: 44px; border: 1px solid var(--line);
+    background: #fff; border-radius: 10px; font-size: 13px; cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+  }
+  .gender-row button.active { border-color: var(--grip); color: var(--grip); font-weight: 700; background: #FFF1F2; }
+
+  .birth-row { display: flex; gap: 6px; }
+  .birth-row input { flex: 1; text-align: center; }
+  .birth-row input:nth-child(1) { flex: 1.4; }
+
+  .agree-block {
+    background: #F9FAFB;
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 20px;
+  }
+  .agree-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .agree-row.all {
+    font-weight: 700;
+    font-size: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+  .agree-row .chk {
+    width: 22px; height: 22px;
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    margin-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    background: #fff;
+    flex-shrink: 0;
+    transition: all .15s;
+  }
+  .agree-row.on .chk { background: var(--grip); border-color: var(--grip); }
+  .agree-row .tag-req {
+    font-size: 11px;
+    color: var(--grip);
+    margin-right: 6px;
+  }
+  .agree-row .tag-opt {
+    font-size: 11px;
+    color: var(--sub);
+    margin-right: 6px;
+  }
+  .agree-row .view {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--sub);
+    text-decoration: underline;
+  }
+
+  .submit-btn {
+    width: 100%;
+    height: 52px;
+    background: var(--grip);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-top: 24px;
+    font-family: inherit;
+    transition: background .15s;
+  }
+  .submit-btn:disabled { background: #FDA4AF; cursor: not-allowed; }
+  .submit-btn:not(:disabled):active { background: var(--grip-dark); }
+
+  /* ==================== HOME ==================== */
+  .home-top {
+    padding: 20px;
+    background: linear-gradient(135deg, var(--grip), #FF6B8B);
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .home-top .greet {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .home-top .sub {
+    font-size: 13px;
+    opacity: 0.9;
+    line-height: 1.5;
+  }
+  .home-content { padding: 20px; flex: 1; overflow-y: auto; }
+  .home-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .home-card h4 { font-size: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .home-card .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 12px;
+  }
+  .home-card .row .k { color: var(--sub); }
+  .home-card .row .v { color: var(--text); font-weight: 600; }
+
+  .home-menu {
+    margin-top: 12px;
+  }
+  .home-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .home-menu-item .arrow { margin-left: auto; color: var(--sub); }
+
+  /* ==================== LOGIN MGMT ==================== */
+  .mgmt-head {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: var(--sub);
+    line-height: 1.5;
+    background: #F9FAFB;
+    flex-shrink: 0;
+  }
+  .connect-list { padding: 0 0 20px; }
+  .connect-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line2);
+  }
+  .connect-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+  .connect-icon.kakao { background: var(--kakao); color: #191919; }
+  .connect-icon.naver { background: var(--naver); color: #fff; }
+  .connect-icon.apple { background: #000; color: #fff; }
+  .connect-icon.fb { background: var(--fb); color: #fff; }
+  .connect-icon.email { background: var(--line2); color: #555; }
+  .connect-info { flex: 1; min-width: 0; }
+  .connect-info .name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .connect-info .name .new {
+    background: var(--grip);
+    color: #fff;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-weight: 800;
+  }
+  .connect-info .val {
+    font-size: 12px;
+    color: var(--sub);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .connect-btn {
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: all .15s;
+  }
+  .connect-btn.connect { background: var(--grip); color: #fff; }
+  .connect-btn.disconnect { background: var(--line2); color: var(--sub); }
+  .connect-btn.disconnect:hover { background: #FEE2E2; color: var(--danger); }
+  .connect-btn:active { transform: scale(0.96); }
+
+  /* Debug panel */
+  .debug {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    z-index: 9999;
+    cursor: pointer;
+    max-width: 200px;
+  }
+  .debug.expanded { max-width: 320px; }
+  .debug-title { font-weight: 700; margin-bottom: 4px; }
+  .debug pre { font-size: 10px; line-height: 1.4; max-height: 200px; overflow-y: auto; display: none; }
+  .debug.expanded pre { display: block; }
+
+  /* Loading spinner */
+  .spin {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    vertical-align: -3px;
+    margin-right: 4px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fade-enter {
+    animation: fadeIn .2s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ==================== PRD MODE ==================== */
+  .prd-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 500;
+    background: linear-gradient(135deg, var(--grip), #FF6B8B);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 8px 24px rgba(255, 45, 85, 0.35);
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .prd-toggle:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(255, 45, 85, 0.45); }
+  .prd-toggle .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0.5;
+    transition: all .2s;
+  }
+  body.prd-mode .prd-toggle .dot {
+    background: #4ade80; opacity: 1;
+    box-shadow: 0 0 8px #4ade80;
+  }
+
+  .prd-panel {
+    display: none;
+    flex: 1 1 auto;
+    width: auto;
+    max-width: 1400px;
+    height: calc(100vh - 48px);
+    background: #fff;
+    border-radius: 16px;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  }
+  body.prd-mode .prd-panel { display: block; }
+
+  .prd-sticky {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 10;
+  }
+  .prd-header {
+    background: #fff;
+    padding: 24px 28px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .prd-header .kicker {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--grip);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .prd-header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+  .prd-header .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .prd-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #F3F4F6;
+    color: #555;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+  .prd-chip b { color: var(--grip); margin-right: 4px; }
+  .prd-chip.chip-select { padding: 2px 4px 2px 10px; }
+  .prd-chip.chip-select select {
+    border: none;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 700;
+    color: #111;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 2px 20px 2px 4px;
+    border-radius: 999px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+  }
+  .prd-chip.chip-select select:hover { background-color: #fff; }
+  .prd-chip.chip-link {
+    background: #FFF1F2;
+    color: var(--grip);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .prd-chip.chip-link:hover {
+    background: var(--grip);
+    color: #fff;
+  }
+  .prd-chip.chip-link:hover b { color: #fff; }
+
+  .prd-toc {
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--line);
+    background: #FAFAFA;
+    font-size: 12px;
+    color: var(--sub);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .prd-toc a {
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #fff;
+    border: 1px solid var(--line);
+    transition: all .15s;
+  }
+  .prd-toc a:hover { border-color: var(--grip); color: var(--grip); }
+
+  .prd-body {
+    padding: 24px 28px 60px;
+  }
+  .prd-section {
+    margin-bottom: 36px;
+  }
+  .prd-section h2 {
+    font-size: 17px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--grip);
+    display: inline-block;
+    letter-spacing: -0.01em;
+  }
+  .prd-section h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 18px 0 8px;
+    color: #333;
+  }
+  .prd-section p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #333;
+    margin-bottom: 10px;
+  }
+  .prd-section ul, .prd-section ol {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #333;
+    padding-left: 20px;
+    margin-bottom: 12px;
+  }
+  .prd-section li { margin-bottom: 4px; }
+  .prd-section li b { color: var(--grip); }
+
+  .prd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 10px 0;
+  }
+  .prd-table th, .prd-table td {
+    border: 1px solid var(--line);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .prd-table th {
+    background: #F9FAFB;
+    font-weight: 700;
+    font-size: 11px;
+    color: #444;
+  }
+
+  .prd-box {
+    background: #FAFAFA;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--grip);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .prd-box.info { border-left-color: #3B82F6; }
+  .prd-box.warn { border-left-color: #F59E0B; background: #FFFBEB; }
+  .prd-box.success { border-left-color: var(--success); background: #F0FDF4; }
+  .prd-box.danger { border-left-color: var(--danger); background: #FEF2F2; }
+
+  /* Feature cards */
+  .prd-feat {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    scroll-margin-top: var(--prd-sticky-h, 260px);
+    transition: all .2s;
+    background: #fff;
+  }
+  .prd-section { scroll-margin-top: var(--prd-sticky-h, 260px); }
+  .prd-feat.highlight {
+    border-color: var(--grip);
+    box-shadow: 0 0 0 3px rgba(255, 45, 85, 0.1);
+  }
+  .prd-feat-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .prd-num {
+    width: 26px; height: 26px;
+    background: var(--grip);
+    color: #fff;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .prd-feat-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    padding-top: 2px;
+  }
+  .prd-feat-title .loc {
+    display: block;
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .prd-feat-body h4 {
+    font-size: 11px;
+    font-weight: 800;
+    color: #666;
+    letter-spacing: 0.05em;
+    margin: 10px 0 4px;
+    text-transform: uppercase;
+  }
+  .prd-feat-body p, .prd-feat-body ul {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #333;
+  }
+  .prd-feat-body ul { padding-left: 16px; margin-bottom: 6px; }
+
+  /* Number badges on prototype elements */
+  [data-prd] {
+    position: relative;
+  }
+  body.prd-mode [data-prd]::after {
+    content: attr(data-prd);
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 22px;
+    height: 22px;
+    background: var(--grip);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 2px #fff;
+    animation: badgePulse 2s ease-in-out infinite;
+    font-family: 'Pretendard', sans-serif;
+  }
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  body.prd-mode .prd-click {
+    cursor: help;
+  }
+  body.prd-mode .prd-flash {
+    animation: flashHighlight 1.2s ease-out;
+  }
+  @keyframes flashHighlight {
+    0% { box-shadow: 0 0 0 0 rgba(255, 45, 85, 0.6); }
+    100% { box-shadow: 0 0 0 16px rgba(255, 45, 85, 0); }
+  }
+
+  /* Flow diagram */
+  .flow-diagram {
+    width: 100%;
+    background: #FAFAFA;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 12px 0;
+  }
+  .flow-diagram svg { width: 100%; height: auto; }
+
+  /* Narrow viewport — stack PRD panel below device */
+  @media (max-width: 900px) {
+    body.prd-mode {
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow-y: auto;
+      height: auto;
+      min-height: 100vh;
+    }
+    html { overflow-y: auto; }
+    body.prd-mode .device-col { position: relative; width: 100%; max-width: 400px; }
+    body.prd-mode .prd-panel { max-width: 100%; height: auto; min-height: 400px; max-height: none; }
+    body.prd-mode .prd-header { position: relative; }
+  }
+</style>
+</head>
+<body>
+
+<button class="prd-toggle" id="prdToggle" onclick="togglePrdMode()">
+  <span class="dot"></span>
+  <span id="prdToggleLabel">PRD 모드</span>
+</button>
+
+<div class="device-col"><div class="device">
+  <div class="status-bar">
+    <span>9:41</span>
+    <span class="notch"></span>
+    <span class="icons">●●●● 5G ◉</span>
+  </div>
+
+  <div class="screen-wrap" id="screenWrap">
+    <!-- ============== LOGIN ============== -->
+    <div class="screen active" id="screen-login">
+      <div class="login-hero">
+        <div class="brand">Grip</div>
+        <div class="promo-tag">🎉 LIVE COMMERCE</div>
+        <div class="promo"><b>그립 첫 구매라면</b>인기 상품이 500원!</div>
+      </div>
+      <div class="login-body">
+        <button class="sns-btn kakao prd-click" data-prd="1" onclick="handleLogin('kakao')">
+          <span>💬</span> 카카오로 로그인
+        </button>
+        <button class="sns-btn naver prd-click" data-prd="2" onclick="handleLogin('naver')">
+          <span class="n-box">N</span> 네이버로 로그인
+        </button>
+        <div class="divider">다른 방법</div>
+        <div class="icon-row prd-click" data-prd="3">
+          <button class="icon-btn apple" onclick="handleLogin('apple')">🍎</button>
+          <button class="icon-btn fb" onclick="handleLogin('facebook')">f</button>
+          <button class="icon-btn gmail" onclick="handleLogin('gmail')">G</button>
+          <button class="icon-btn email" onclick="handleLogin('email')">✉</button>
+        </div>
+        <div class="login-foot">
+          <a onclick="toast('준비 중이에요')">아이디/비밀번호 찾기</a>
+          ·
+          <a onclick="toast('준비 중이에요')">회원가입</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============== NAVER LOGIN (ID SELECT) ============== -->
+    <div class="screen" id="screen-naver-login">
+      <div class="app-bar">
+        <div class="back" onclick="nav('login')">‹</div>
+        <div class="title" style="color: var(--naver); font-weight: 800;">NAVER</div>
+      </div>
+      <div class="naver-screen" style="display:flex; flex-direction:column; flex:1;">
+        <div class="naver-top">
+          <div class="naver-logo">NAVER</div>
+          <div class="naver-desc">
+            네이버 아이디로 <b>Grip</b> 서비스를<br>
+            이용할 수 있습니다.
+          </div>
+        </div>
+        <div class="naver-body">
+          <div id="naverIdList" class="prd-click" data-prd="4"></div>
+          <button class="naver-add prd-click" data-prd="5" onclick="openCustomLogin()">+ 다른 아이디로 로그인</button>
+          <button class="naver-submit prd-click" data-prd="6" id="naverSubmit" onclick="naverLoginConfirm()" disabled>선택한 아이디로 로그인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============== NAVER CONSENT ============== -->
+    <div class="screen" id="screen-naver-consent">
+      <div class="naver-consent-header">
+        <div class="nch-left">
+          <span class="nch-nlogo">N</span>
+          <span class="nch-title">네이버 로그인</span>
+        </div>
+        <div class="nch-right">
+          <span class="nch-avatar">🦊</span>
+          <span class="nch-user">토토로</span>
+          <span class="nch-caret">▾</span>
+        </div>
+      </div>
+      <div class="consent-modal-wrap">
+        <div class="consent-modal">
+          <div class="consent-modal-brand">
+            <span class="consent-brand-logo">Grip</span>
+          </div>
+
+          <div class="consent-all-v2" id="consentAll" onclick="toggleConsentAll()">
+            <div class="chk-ring"><span>✓</span></div>
+            <div class="all-txt"><b>전체 동의하기</b><span class="sub">선택 동의 포함</span></div>
+          </div>
+
+          <div class="consent-user-v2">
+            <b>네이버닉네임</b> 회원님의 이용자 식별자 정보와 함께 개인정보가 제공됩니다.
+          </div>
+
+          <div class="consent-sec-v2 prd-click" data-prd="7">
+            <div class="sec-head" id="consentReq" onclick="event.stopPropagation()">
+              <div class="chk-ring on"><span>✓</span></div>
+              <div class="sec-title">개인정보 제 3자 제공 동의 <span class="req-mark">(필수)</span></div>
+              <span class="arrow">›</span>
+            </div>
+            <div class="sec-items">
+              <div class="item">이메일 주소</div>
+            </div>
+          </div>
+
+          <div class="consent-sec-v2 prd-click" data-prd="8">
+            <div class="sec-head" id="consentOpt" onclick="toggleConsentOpt()">
+              <div class="chk-ring"><span>✓</span></div>
+              <div class="sec-title">개인정보 제 3자 제공 동의 <span class="opt-mark">(선택)</span></div>
+              <span class="arrow">›</span>
+            </div>
+            <div class="sec-items grid">
+              <div class="item"><span class="tick">✓</span>별명</div>
+              <div class="item"><span class="tick">✓</span>프로필사진</div>
+              <div class="item"><span class="tick">✓</span>성별</div>
+              <div class="item"><span class="tick">✓</span>생일</div>
+              <div class="item"><span class="tick">✓</span>연령대</div>
+            </div>
+          </div>
+
+          <div class="consent-notice-v2">
+            네이버는 회원가입/로그인 기능 제공자이며, Grip 서비스 제공자가 아닙니다. Grip 서비스 및 이용약관에 대한 의무와 책임은 Grip 에 있습니다. 동의 후에는 Grip 의 개인정보처리방침에 따라 개인정보가 관리됩니다.
+          </div>
+
+          <div class="consent-modal-btns">
+            <button class="cancel" onclick="nav('naver-login')">취소</button>
+            <button class="confirm" id="consentConfirm" onclick="naverConsent()">동의하기</button>
+          </div>
+        </div>
+      </div>
+      <div class="consent-home-bar">
+        <div class="home-indicator"></div>
+        <span class="close-x" onclick="nav('naver-login')">×</span>
+      </div>
+    </div>
+
+    <!-- ============== GRIP SIGNUP (TO-BE with back button) ============== -->
+    <div class="screen" id="screen-signup">
+      <div class="app-bar prd-click" data-prd="9">
+        <div class="back" onclick="confirmCancelSignup()">‹</div>
+        <div class="title">회원가입</div>
+      </div>
+      <div class="signup-body">
+        <div class="signup-welcome prd-click" data-prd="10">
+          <div class="icon">N</div>
+          <div class="txt">
+            <b>네이버 계정</b>으로 가입을 진행해요.<br>
+            추가 정보만 입력하면 가입이 완료돼요.
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>이름 <span class="req">*</span></label>
+          <input id="fName" readonly />
+        </div>
+
+        <div class="form-field">
+          <label>이메일 <span class="req">*</span></label>
+          <input id="fEmail" readonly />
+        </div>
+
+        <div class="form-field prd-click" data-prd="11">
+          <label>닉네임 <span class="req">*</span></label>
+          <input id="fNick" placeholder="닉네임을 입력해주세요" maxlength="12" />
+          <div class="help">2~12자 · 한글/영문/숫자</div>
+        </div>
+
+        <div class="form-field prd-click" data-prd="12">
+          <label>휴대폰 번호 <span class="req">*</span></label>
+          <div class="form-row">
+            <input id="fPhone" type="tel" placeholder="-없이 숫자만 입력" maxlength="11" oninput="onPhoneInput()" />
+            <button class="mini-btn" id="btnSendCode" onclick="sendAuthCode()" disabled>인증 요청</button>
+          </div>
+          <div id="phoneHelp" class="help" style="display:none;"></div>
+        </div>
+
+        <div class="form-field" id="authCodeField" style="display:none;">
+          <label>인증번호 <span class="req">*</span></label>
+          <div class="form-row">
+            <input id="fAuthCode" type="tel" placeholder="6자리 인증번호" maxlength="6" oninput="onAuthCodeInput()" />
+            <button class="mini-btn" id="btnVerifyCode" onclick="verifyAuthCode()">확인</button>
+          </div>
+          <div id="authHelp" class="help">
+            <span id="authTimer">03:00</span> 남음 · 테스트용 인증번호: <b>123456</b>
+          </div>
+        </div>
+
+        <div class="form-field prd-click" data-prd="13">
+          <label>성별</label>
+          <div class="gender-row">
+            <button data-g="M" onclick="setGender('M')">남성</button>
+            <button data-g="F" onclick="setGender('F')">여성</button>
+            <button data-g="N" onclick="setGender('N')">선택안함</button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>생년월일</label>
+          <div class="birth-row">
+            <input id="fYear" type="tel" placeholder="YYYY" maxlength="4" />
+            <input id="fMonth" type="tel" placeholder="MM" maxlength="2" />
+            <input id="fDay" type="tel" placeholder="DD" maxlength="2" />
+          </div>
+        </div>
+
+        <div class="form-field prd-click" data-prd="14">
+          <label>초대코드</label>
+          <input id="fInvite" placeholder="초대코드 입력 시 3,000원 쿠폰 지급" />
+        </div>
+
+        <div class="agree-block prd-click" data-prd="15">
+          <div class="agree-row all" id="agrAll" onclick="toggleAgreeAll()">
+            <span class="chk">✓</span>전체동의
+          </div>
+          <div class="agree-row on" data-req="1" onclick="toggleAgree(this)">
+            <span class="chk">✓</span>
+            <span class="tag-req">[필수]</span>이용약관 동의
+            <span class="view">보기</span>
+          </div>
+          <div class="agree-row on" data-req="1" onclick="toggleAgree(this)">
+            <span class="chk">✓</span>
+            <span class="tag-req">[필수]</span>개인정보 수집·이용 동의
+            <span class="view">보기</span>
+          </div>
+          <div class="agree-row" onclick="toggleAgree(this)">
+            <span class="chk">✓</span>
+            <span class="tag-opt">[선택]</span>마케팅 정보 수신 동의
+            <span class="view">보기</span>
+          </div>
+        </div>
+
+        <button class="submit-btn prd-click" data-prd="16" id="btnSubmitSignup" onclick="completeSignup()" disabled>가입하기</button>
+      </div>
+    </div>
+
+    <!-- ============== HOME ============== -->
+    <div class="screen" id="screen-home">
+      <div class="home-top prd-click" data-prd="17">
+        <div class="greet">👋 그리퍼 <span id="homeGreet">OO</span>님 환영해요!</div>
+        <div class="sub">지금 그립에서 500원 첫 구매 상품을 만나보세요.</div>
+      </div>
+      <div class="home-content">
+        <div class="home-card">
+          <h4>📋 내 계정 정보</h4>
+          <div class="row"><span class="k">로그인 타입</span><span class="v" id="infoLoginType">naver</span></div>
+          <div class="row"><span class="k">이메일</span><span class="v" id="infoEmail">-</span></div>
+          <div class="row"><span class="k">이름</span><span class="v" id="infoName">-</span></div>
+          <div class="row"><span class="k">닉네임</span><span class="v" id="infoNick">-</span></div>
+          <div class="row"><span class="k">연결된 계정</span><span class="v" id="infoConnected">-</span></div>
+        </div>
+
+        <div class="home-menu">
+          <div class="home-menu-item" onclick="nav('login-mgmt')">
+            🔐 로그인 관리 <span class="arrow">›</span>
+          </div>
+          <div class="home-menu-item" onclick="logout()">
+            🚪 로그아웃 <span class="arrow">›</span>
+          </div>
+          <div class="home-menu-item" onclick="resetAll()" style="color: var(--danger); border-color: #FECACA;">
+            🗑 전체 초기화 (프로토타입용) <span class="arrow">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============== LOGIN MANAGEMENT ============== -->
+    <div class="screen" id="screen-login-mgmt">
+      <div class="app-bar">
+        <div class="back" onclick="nav('home')">‹</div>
+        <div class="title">로그인 관리</div>
+      </div>
+      <div class="mgmt-head">
+        연결된 계정을 확인하고 관리할 수 있어요.<br>
+        · 최소 1개 이상의 로그인 수단이 연결되어 있어야 해요.
+      </div>
+      <div class="connect-list prd-click" data-prd="18" id="connectList"></div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h3 id="modalTitle"></h3>
+      <p id="modalBody"></p>
+      <div class="modal-btns" id="modalBtns"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /device-col -->
+
+<aside class="prd-panel" id="prdPanel">
+  <div class="prd-sticky">
+  <div class="prd-header">
+    <span class="kicker">PRODUCT REQUIREMENT DOCUMENT · v0.2</span>
+    <h1>네이버 간편가입 도입</h1>
+    <div class="meta-row">
+      <span class="prd-chip"><b>영역</b>커머스코어 · 로그인/가입</span>
+      <span class="prd-chip"><b>PM</b>이건무</span>
+      <span class="prd-chip"><b>요청일(BRD)</b>2025-05-20</span>
+      <span class="prd-chip chip-select"><b>목표일정</b>
+        <select id="prdTargetDate" onchange="savePrdTargetDate()">
+          <option value="미정">미정</option>
+          <option value="26년 7월 중">26년 7월 중</option>
+          <option value="26년 8월 중">26년 8월 중</option>
+        </select>
+      </span>
+      <a class="prd-chip chip-link" href="https://gripcorp.atlassian.net/browse/GRIPPGM-2022" target="_blank" rel="noopener"><b>JIRA</b>GRIPPGM-2022 ↗</a>
+      <span class="prd-chip"><b>검토</b>검토중</span>
+    </div>
+  </div>
+  <nav class="prd-toc">
+    <a href="#sec-overview">개요</a>
+    <a href="#sec-kpi">KPI</a>
+    <a href="#sec-ia">IA</a>
+    <a href="#sec-flow">User Flow</a>
+    <a href="#sec-func">기능 명세</a>
+    <a href="#sec-policy">핵심 정책</a>
+    <a href="#sec-scope">영향 범위</a>
+    <a href="#sec-effort">공수</a>
+    <a href="#sec-milestone">마일스톤</a>
+  </nav>
+  </div><!-- /prd-sticky -->
+  <div class="prd-body">
+
+    <!-- 1. 개요 -->
+    <section class="prd-section" id="sec-overview">
+      <h2>1. 배경 및 목적 (Background & Objectives)</h2>
+      <h3>배경</h3>
+      <p>Grip 서비스의 로그인 채널은 현재 <b>카카오(62.53%)</b> 단일 의존도가 매우 높은 구조이며, 그 뒤로 email(17.20%, 셀러 인입 추정) · facebook(8.20%) · id_pw(6.30%) · apple(5.77%, iOS only) 순으로 분포합니다. 이메일 가입은 그리퍼(셀러) 인입이 포함되어 있어 순수 소비자 기준으로 보면 <b>카카오 편중</b>이 더 심각한 상황입니다. 경쟁 커머스(배민·컬리 등)는 이미 네이버 간편로그인을 주요 채널로 운영 중이거나 도입 예정으로, 네이버 생태계 유저 확보를 위한 도입이 필요한 시점입니다.</p>
+      <h3>목적</h3>
+      <ul>
+        <li><b>가입 채널 확대</b>로 카카오 편중을 완화하고 로그인 실패/피로도 감소</li>
+        <li><b>네이버 생태계 유저</b> 유입으로 신규 가입 전환 모수 확대</li>
+        <li><b>운영 효율화</b> — 이메일 가입 경로에 섞여 있는 소비자 인입을 별도 SNS로 분리</li>
+      </ul>
+      <h3>기대 효과</h3>
+      <ul>
+        <li>첫 로그인 화면에서의 이탈률 개선 (특히 비(非)카카오 유저)</li>
+        <li>중장기적으로 <b>Google 간편가입</b> 도입 시 Android 비중 대응 기반 마련</li>
+      </ul>
+    </section>
+
+    <!-- 2. KPI -->
+    <section class="prd-section" id="sec-kpi">
+      <h2>2. 핵심 지표 (KPIs)</h2>
+      <p>정성적 목표인 "가입 전환 기대" 를 정량적으로 측정하기 위해 아래 지표를 추적합니다.</p>
+      <table class="prd-table">
+        <thead><tr><th>구분</th><th>지표</th><th>측정 방법</th><th>목표</th></tr></thead>
+        <tbody>
+          <tr><td>획득</td><td>네이버 로그인 타입 가입 비중</td><td>login_type = 'naver' / 전체 신규 가입</td><td>3개월 내 10% 이상</td></tr>
+          <tr><td>전환</td><td>로그인 페이지 → 가입 완료 전환율</td><td>login 페이지 view → 가입 완료 이벤트</td><td>전 분기 대비 +5%p</td></tr>
+          <tr><td>이탈</td><td>회원가입 페이지 중도 이탈률</td><td>signup 페이지 진입 → 이탈 (뒤로가기 포함)</td><td>다크패턴 개선으로 유지 또는 개선</td></tr>
+          <tr><td>분리</td><td>email 가입 비중 변화</td><td>login_type = 'email' 비중</td><td>소비자 인입 분리 효과 관찰</td></tr>
+        </tbody>
+      </table>
+      <div class="prd-box info"><b>참고 지표 대시보드:</b> Metabase #5175 (최근 3개월 로그인 타입 분포), Metabase #5185 (login_type 네이버 추가 필요)</div>
+    </section>
+
+    <!-- 3. IA -->
+    <section class="prd-section" id="sec-ia">
+      <h2>3. IA 구조</h2>
+      <div class="flow-diagram">
+        <svg viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF2D55"/>
+            </marker>
+          </defs>
+          <rect x="10" y="80" width="110" height="60" rx="10" fill="#FFE5EC" stroke="#FF2D55"/>
+          <text x="65" y="108" text-anchor="middle" font-size="12" font-weight="700" fill="#111">로그인 페이지</text>
+          <text x="65" y="126" text-anchor="middle" font-size="10" fill="#666">(P1)</text>
+
+          <rect x="150" y="20" width="110" height="60" rx="10" fill="#F0FDF4" stroke="#03C75A"/>
+          <text x="205" y="46" text-anchor="middle" font-size="12" font-weight="700" fill="#111">네이버 인증</text>
+          <text x="205" y="62" text-anchor="middle" font-size="10" fill="#666">(P2) OAuth</text>
+
+          <rect x="150" y="140" width="110" height="60" rx="10" fill="#FFF7ED" stroke="#F59E0B"/>
+          <text x="205" y="166" text-anchor="middle" font-size="12" font-weight="700" fill="#111">기타 SNS</text>
+          <text x="205" y="182" text-anchor="middle" font-size="10" fill="#666">(out of scope)</text>
+
+          <rect x="290" y="20" width="110" height="60" rx="10" fill="#F0FDF4" stroke="#03C75A"/>
+          <text x="345" y="46" text-anchor="middle" font-size="12" font-weight="700" fill="#111">동의 화면</text>
+          <text x="345" y="62" text-anchor="middle" font-size="10" fill="#666">(P3)</text>
+
+          <rect x="430" y="20" width="110" height="60" rx="10" fill="#FFE5EC" stroke="#FF2D55"/>
+          <text x="485" y="46" text-anchor="middle" font-size="12" font-weight="700" fill="#111">Grip 회원가입</text>
+          <text x="485" y="62" text-anchor="middle" font-size="10" fill="#666">(P4)</text>
+
+          <rect x="570" y="20" width="100" height="60" rx="10" fill="#FFE5EC" stroke="#FF2D55"/>
+          <text x="620" y="46" text-anchor="middle" font-size="12" font-weight="700" fill="#111">홈 (P5)</text>
+
+          <rect x="570" y="140" width="100" height="60" rx="10" fill="#F3F4F6" stroke="#6B7280"/>
+          <text x="620" y="166" text-anchor="middle" font-size="12" font-weight="700" fill="#111">로그인 관리</text>
+          <text x="620" y="182" text-anchor="middle" font-size="10" fill="#666">(P6)</text>
+
+          <line x1="120" y1="100" x2="150" y2="50" stroke="#FF2D55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="120" y1="120" x2="150" y2="170" stroke="#FF2D55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="260" y1="50" x2="290" y2="50" stroke="#FF2D55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="400" y1="50" x2="430" y2="50" stroke="#FF2D55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="540" y1="50" x2="570" y2="50" stroke="#FF2D55" stroke-width="1.5" marker-end="url(#arr)"/>
+          <line x1="620" y1="80" x2="620" y2="140" stroke="#6B7280" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+        </svg>
+      </div>
+      <ul>
+        <li><b>P1 로그인 페이지</b> — 카카오/네이버 2-top 버튼 + 기타 아이콘</li>
+        <li><b>P2 네이버 인증</b> — 네이버 OAuth 2.0 로그인 (외부 네이버 페이지)</li>
+        <li><b>P3 동의 화면</b> — 개인정보 제 3자 제공 동의 (필수/선택 분리)</li>
+        <li><b>P4 Grip 회원가입</b> — 네이버 Prefill + 추가 입력 + 약관 동의</li>
+        <li><b>P5 홈</b> — 가입 완료 직후 랜딩</li>
+        <li><b>P6 로그인 관리</b> — 마이페이지 &gt; 설정 내 연결 계정 CRUD</li>
+      </ul>
+    </section>
+
+    <!-- 4. User Flow -->
+    <section class="prd-section" id="sec-flow">
+      <h2>4. User Flow</h2>
+      <div class="flow-diagram">
+        <svg viewBox="0 0 680 360" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#6B7280"/>
+            </marker>
+          </defs>
+          <rect x="270" y="10" width="140" height="40" rx="20" fill="#111"/>
+          <text x="340" y="35" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">START · 로그인 진입</text>
+
+          <rect x="240" y="80" width="200" height="40" rx="6" fill="#fff" stroke="#111"/>
+          <text x="340" y="104" text-anchor="middle" font-size="12" fill="#111">네이버 로그인 버튼 탭</text>
+
+          <polygon points="340,150 410,180 340,210 270,180" fill="#FEF3C7" stroke="#F59E0B"/>
+          <text x="340" y="184" text-anchor="middle" font-size="11" font-weight="700" fill="#111">기존 회원?</text>
+
+          <rect x="30" y="230" width="180" height="40" rx="6" fill="#fff" stroke="#6B7280"/>
+          <text x="120" y="254" text-anchor="middle" font-size="11" fill="#111">동의 화면 (P3) 스킵</text>
+
+          <rect x="250" y="230" width="180" height="40" rx="6" fill="#fff" stroke="#6B7280"/>
+          <text x="340" y="248" text-anchor="middle" font-size="11" fill="#111">동의 화면 (P3)</text>
+          <text x="340" y="262" text-anchor="middle" font-size="10" fill="#666">필수+선택</text>
+
+          <polygon points="340,290 410,320 340,350 270,320" fill="#FEF3C7" stroke="#F59E0B"/>
+          <text x="340" y="318" text-anchor="middle" font-size="11" font-weight="700" fill="#111">이메일 충돌?</text>
+          <text x="340" y="331" text-anchor="middle" font-size="10" fill="#666">(他 SNS 선가입)</text>
+
+          <rect x="460" y="230" width="200" height="40" rx="6" fill="#FEE2E2" stroke="#EF4444"/>
+          <text x="560" y="254" text-anchor="middle" font-size="11" fill="#111">계정 연결 제안 모달</text>
+
+          <rect x="30" y="290" width="180" height="40" rx="6" fill="#D1FAE5" stroke="#16A34A"/>
+          <text x="120" y="314" text-anchor="middle" font-size="11" fill="#111">홈 (P5) — 자동 로그인</text>
+
+          <line x1="340" y1="50" x2="340" y2="80" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <line x1="340" y1="120" x2="340" y2="150" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <line x1="270" y1="180" x2="120" y2="230" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <text x="170" y="200" font-size="10" fill="#16A34A">YES</text>
+          <line x1="340" y1="210" x2="340" y2="230" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <text x="345" y="224" font-size="10" fill="#EF4444">NO</text>
+          <line x1="340" y1="270" x2="340" y2="290" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <line x1="410" y1="320" x2="460" y2="250" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <text x="420" y="300" font-size="10" fill="#EF4444">YES</text>
+          <line x1="120" y1="270" x2="120" y2="290" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+        </svg>
+      </div>
+      <div class="prd-box">
+        <b>핵심 분기:</b>
+        <ul style="margin:6px 0 0;">
+          <li><b>기존 회원(naver 연결)</b> → P3·P4 스킵, P5 홈 직행</li>
+          <li><b>이메일 충돌(他 SNS 선가입)</b> → 계정 연결 제안 모달 → 연결 시 홈, 취소 시 로그인</li>
+          <li><b>신규</b> → P3(동의) → P4(가입) → P5(홈)</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 5. 기능 명세 -->
+    <section class="prd-section" id="sec-func">
+      <h2>5. 기능 요구사항 (Functional Requirements)</h2>
+      <p>좌측 프로토타입에서 <b>PRD 모드</b>가 활성화된 상태이며, 각 번호 뱃지를 탭하면 해당 항목이 강조됩니다. 반대로 우측 번호 카드를 탭하면 프로토타입의 해당 요소가 하이라이트됩니다.</p>
+
+      <!-- [P1] 로그인 페이지 -->
+      <h3 style="margin-top:20px;">P1. 로그인 페이지</h3>
+
+      <article class="prd-feat" id="prd-1" data-prd-ref="1">
+        <div class="prd-feat-head" onclick="highlightBadge(1)">
+          <div class="prd-num">1</div>
+          <div class="prd-feat-title">카카오 메인 CTA<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 로그인 페이지 최상단 버튼</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>현행 1차 메인 CTA 유지. 카카오 SDK 기반 간편 로그인 플로우. 로그인 타입 비중 62.53%로 단일 최대 채널.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>버튼 탭 → 카카오 SDK 호출 → 동의 화면 → 콜백 수신 → Grip 서버 로그인 / 신규 가입 분기</li>
+            <li>버튼 스타일: 배경 #FEE500 (카카오 브랜드 옐로우) 유지, 2TOP 구조로 네이버 버튼과 동일 width</li>
+            <li>기존 A11y 라벨 · 이벤트 로깅 스키마 변경 없음</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>버튼 순서는 <b>카카오 &gt; 네이버</b> 고정 (비중 우선순위 기준)</li>
+            <li>네이버 도입 이후 비중 재조정 단계에서 A/B 테스트로 순서 재검토 가능</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>기존 플로우 변경 없음 · UI 폭만 네이버와 정렬(동일 높이 52px)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-2" data-prd-ref="2">
+        <div class="prd-feat-head" onclick="highlightBadge(2)">
+          <div class="prd-num">2</div>
+          <div class="prd-feat-title">네이버 메인 CTA (신규)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 카카오 버튼 하단 2차 CTA</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>이번 과제의 핵심. 네이버 로그인 SDK(OAuth 2.0) 연동을 통한 간편 로그인/가입 진입점.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>버튼 탭 → 네이버 로그인 페이지 진입 (네이버 공식 로그인 UI)</li>
+            <li>네이버 로그인 성공 → 동의 화면(P3) 진입 → 필수/선택 동의 수집</li>
+            <li>동의 완료 → 서버 회원 조회 → 기존 네이버 연결 회원이면 즉시 로그인 / 신규면 회원가입(P4) 진행</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>버튼 스타일: 네이버 공식 가이드 #03C75A 배경, 흰색 N 박스 아이콘 + "네이버로 로그인" 텍스트</li>
+            <li>버튼 위치: 카카오 바로 아래 (2차 CTA 톤)</li>
+            <li><b>login_type = 'naver'</b> 로그 이벤트 신규 추가 (Data/Web 협조)</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>네이버 개발자 센터 앱 등록 · Client ID / Secret 발급 (Dev/Stg/Prod 분리)</li>
+            <li>iOS/Android 네이티브 SDK 사용 여부 결정 (네이티브 앱 설치 유무 분기)</li>
+            <li>웹뷰 fallback 플로우 필수 (네이버 앱 미설치 기기)</li>
+            <li>연동 문서: <a href="https://developers.naver.com/docs/login/devguide/devguide.md" target="_blank">네이버 로그인 개발가이드 - LOGIN</a></li>
+          </ul>
+          <h4>엣지 케이스</h4>
+          <ul>
+            <li>네이버 로그인 중 취소 시 → 로그인 페이지 복귀, 에러 토스트 없음 (사용자 의도적 취소)</li>
+            <li>네이버 SDK 호출 실패 시 → "잠시 후 다시 시도해주세요" 에러 토스트</li>
+            <li>네트워크 단절 → 재시도 안내 토스트</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-3" data-prd-ref="3">
+        <div class="prd-feat-head" onclick="highlightBadge(3)">
+          <div class="prd-num">3</div>
+          <div class="prd-feat-title">기타 로그인 아이콘 그룹<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: "다른 방법" 구분선 하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>비중이 낮은 로그인 방식(apple · facebook · gmail · email)을 아이콘 레벨로 톤다운. 지표 기반 중요도 계층화.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>Apple: iOS에서만 노출 (기존 정책 유지)</li>
+            <li>Facebook · Gmail · Email: 아이콘 원형 버튼 (48x48)</li>
+            <li>아이콘 탭 → 기존 각 SNS 플로우로 이동 (변경 없음)</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>아이콘 순서: Apple(iOS) · Facebook · Gmail · Email</li>
+            <li>이메일 가입 원인(셀러 인입) 분석 완료 후, 이메일 아이콘 제거 여부 재검토 (Next Step)</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>아이콘 자산 디자인팀 전달 필요 (48px · 2x 에셋)</li>
+            <li>Apple 로그인은 iOS 네이티브에만 노출 · Android는 해당 아이콘 숨김</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- [P2] 네이버 인증 -->
+      <h3 style="margin-top:28px;">P2. 네이버 인증 (외부 페이지)</h3>
+
+      <article class="prd-feat" id="prd-4" data-prd-ref="4">
+        <div class="prd-feat-head" onclick="highlightBadge(4)">
+          <div class="prd-num">4</div>
+          <div class="prd-feat-title">네이버 계정 선택 / 로그인<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 네이버 로그인 호출 후 네이버 도메인</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>네이버 로그인 페이지에서 사용자가 이미 네이버 세션을 보유한 경우 계정 선택 UI 노출. 미로그인 상태면 ID/PW 입력 화면.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>네이버 세션 O → 가입된 ID 리스트 노출 + "다른 아이디로 로그인" 옵션</li>
+            <li>네이버 세션 X → ID/PW 입력 폼</li>
+            <li>선택/로그인 완료 → OAuth 2.0 Authorization Code 발급 → Grip 서버 콜백</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>이 화면은 <b>네이버 소유 UI</b> — Grip 에서 수정 불가</li>
+            <li>네이버 공식 UI 가이드를 따르며, Grip 은 "state" 파라미터로 CSRF 방지 처리만 담당</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>Authorization Code → Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
+            <li>Token 을 사용해 네이버 프로필 API 호출 → 이름/이메일/옵션 정보 수신</li>
+            <li>redirect_uri 화이트리스트 관리 (Dev/Stg/Prod)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-5" data-prd-ref="5">
+        <div class="prd-feat-head" onclick="highlightBadge(5)">
+          <div class="prd-num">5</div>
+          <div class="prd-feat-title">다른 아이디로 로그인<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 계정 리스트 하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>기존 세션이 아닌 다른 네이버 계정으로 로그인하려는 유저를 위한 진입점. (네이버 소유 UI)</p>
+          <h4>정책</h4>
+          <ul>
+            <li>Grip 은 별도 처리 없음 — 네이버에서 ID/PW 재입력 후 토큰 재발급</li>
+            <li>계정이 바뀐 경우 Grip 서버는 수신된 네이버 고유 ID(naverSub) 기준으로 회원 식별</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-6" data-prd-ref="6">
+        <div class="prd-feat-head" onclick="highlightBadge(6)">
+          <div class="prd-num">6</div>
+          <div class="prd-feat-title">선택한 아이디로 로그인 (확정 CTA)<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 네이버 계정 선택 화면 하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>사용자가 네이버 아이디를 선택(탭)했을 때만 활성화되는 확정 버튼. 탭 시 네이버에 OAuth Authorization Code 발급을 요청하고, 콜백을 통해 Grip 서버로 리다이렉트됩니다.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li><b>초기 상태:</b> disabled · 회색 배경 (#D1D5DB) · 클릭 불가</li>
+            <li><b>활성 조건:</b> 네이버 계정 리스트에서 1개 선택 시 즉시 활성 (#03C75A 배경)</li>
+            <li><b>탭 동작:</b>
+              <ul>
+                <li>기존 Grip 회원(naver 연결)이면 동의 화면(P3) 스킵 → 즉시 홈(P5)</li>
+                <li>신규면 동의 화면(P3) 진입</li>
+              </ul>
+            </li>
+            <li>로딩 상태: 버튼 내부에 스피너 노출 + 버튼 중복 탭 방지 (debounce)</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>버튼은 선택 전까지 반드시 <b>비활성</b> — 사용자 실수 클릭 방지</li>
+            <li>선택 후 다른 아이디로 재선택하면 선택값이 갱신되며 버튼은 활성 유지</li>
+            <li>네이버 OAuth 요청에는 CSRF 방지를 위한 <code>state</code> 파라미터 필수</li>
+            <li>redirect_uri 는 환경별(Dev/Stg/Prod) 다르게 등록된 화이트리스트 사용</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
+            <li>네이버 응답 지연 시 최대 10초 타임아웃 → 실패 시 "잠시 후 다시 시도해주세요" 에러 토스트</li>
+            <li>이벤트 로깅: <code>naver_login_attempt { selected_idx: N }</code></li>
+          </ul>
+          <h4>엣지 케이스</h4>
+          <ul>
+            <li>네이버 응답 실패(5xx) → 로딩 해제 + 에러 토스트 + 재시도 가능</li>
+            <li>네트워크 오프라인 → "인터넷 연결을 확인해주세요" 토스트</li>
+            <li>동시에 여러 번 탭 → debounce 로 첫 요청만 처리, 이후 무시</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- [P3] 동의 화면 -->
+      <h3 style="margin-top:28px;">P3. 개인정보 제공 동의</h3>
+
+      <article class="prd-feat" id="prd-7" data-prd-ref="7">
+        <div class="prd-feat-head" onclick="highlightBadge(7)">
+          <div class="prd-num">7</div>
+          <div class="prd-feat-title">필수 동의 · 이메일 주소<span class="loc">영역: 네이버 동의 모달 내부 &nbsp;|&nbsp; 위치: 동의 화면 상단 블록</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>Grip 서비스 가입/로그인을 위한 최소 필수 정보. 사용자 식별자 역할.</p>
+          <h4>수집 항목</h4>
+          <ul>
+            <li><b>이메일 주소</b> — 회원 식별 Primary Key · 계정 충돌 체크 기준</li>
+            <li>(서비스상 필요하면 "이름" 도 필수에 포함 검토 — BRD 문서 기준 이름+이메일 필수)</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>필수 동의는 체크 해제 불가. UI 상 항상 체크 상태 + 체크박스 비활성</li>
+            <li>미동의 시 "동의하기" 버튼 비활성 (실제로는 필수가 고정 체크라 불가능)</li>
+            <li>취소 버튼은 항상 활성 → 취소 시 로그인 페이지로 복귀</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>네이버 개발자 센터에서 앱 등록 시 <b>"필수 동의 항목"</b> 으로 이메일 설정 필요</li>
+            <li>이메일 미제공 네이버 계정이 존재할 수 있음 (국외 계정 일부) → 서버 단에서 빈 이메일 예외 처리</li>
+            <li>수집 이메일은 Grip DB user.email 컬럼에 저장 · 기존 email 가입자와 충돌 체크</li>
+          </ul>
+          <h4>엣지 케이스</h4>
+          <ul>
+            <li>네이버에서 이메일 필드가 비어 있을 경우 → 가입 중단 & "이메일 정보를 받을 수 없어요" 안내</li>
+            <li>개인정보보호법 대응: 수집 근거 · 이용 목적 · 보유 기간 동의 화면에 명시</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-8" data-prd-ref="8">
+        <div class="prd-feat-head" onclick="highlightBadge(8)">
+          <div class="prd-num">8</div>
+          <div class="prd-feat-title">선택 동의 · 부가 정보 5종<span class="loc">영역: 네이버 동의 모달 내부 &nbsp;|&nbsp; 위치: 필수 동의 바로 아래</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>Grip 가입폼 prefill · 개인화 추천 · 마케팅 타겟팅 목적의 선택 정보.</p>
+          <h4>수집 항목 (선택)</h4>
+          <ul>
+            <li><b>별명 (닉네임)</b> · <b>프로필사진</b> · <b>성별</b> · <b>생일</b> · <b>연령대</b></li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>선택 동의는 <b>전체 동의하기</b> 와 개별 섹션 토글 두 가지 방법 제공</li>
+            <li>미동의 시 → 해당 항목은 Grip 가입폼에서 빈 값으로 노출, 사용자가 직접 입력</li>
+            <li>동의 시 → Grip 가입폼에 자동 입력(prefill), 편집 가능</li>
+            <li>선택 동의 상태는 user_consent 테이블에 개별 저장 → 추후 재동의 요청 시 참조</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>네이버 개발자 센터에 각 항목을 "선택 동의" 로 등록</li>
+            <li>API 응답에서 미동의 필드는 null/undefined 로 올 수 있음 → Null-safe 처리 필수</li>
+            <li>향후 선택 항목 변경 시 사용자에게 재동의 요청 필요 (법적 요건)</li>
+          </ul>
+          <h4>엣지 케이스</h4>
+          <ul>
+            <li>선택 전체 미동의 → 가입폼의 닉네임/성별/생년월일 필드는 빈 상태로 유저가 직접 입력</li>
+            <li>선택 동의 후 네이버에서 수신한 별명 길이 &gt; 12자 → 클라이언트에서 앞 12자만 prefill, 유저 편집 유도</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- [P4] 회원가입 -->
+      <h3 style="margin-top:28px;">P4. Grip 회원가입</h3>
+
+      <article class="prd-feat" id="prd-9" data-prd-ref="9">
+        <div class="prd-feat-head" onclick="highlightBadge(9)">
+          <div class="prd-num">9</div>
+          <div class="prd-feat-title">뒤로가기 버튼 — 다크패턴 해소<span class="loc">영역: APP &nbsp;|&nbsp; 위치: 회원가입 페이지 상단 앱바</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p><b>AS-IS:</b> 간편 로그인 성공 후 가입 페이지 진입 시 뒤로가기 비활성 → 유저가 가입을 중단하고 싶어도 이탈 경로가 없는 <b>다크패턴</b>. <b>TO-BE:</b> 뒤로가기 버튼 활성화 + 탭 시 "가입 취소" 확인 모달.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>앱바 좌측 ← 아이콘 상시 활성</li>
+            <li>탭 시 Confirm 모달: "가입을 취소할까요? 입력한 정보는 저장되지 않아요."</li>
+            <li>[가입 취소] → 로그인 페이지(P1) 복귀, 네이버 토큰/프로필 폐기</li>
+            <li>[계속 진행] → 모달 닫고 가입폼 유지</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>OS 뒤로가기 제스처/버튼(Android)도 동일 Confirm 모달 트리거</li>
+            <li>가입 취소 시 수집한 네이버 프로필 데이터는 <b>즉시 메모리에서 파기</b> (서버 저장 X)</li>
+            <li>재로그인 시 다시 P2→P3 플로우 진행</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>Android hardware back button · iOS swipe back 제스처 모두 핸들링</li>
+            <li>취소 이벤트 로깅: <code>signup_cancelled { from: 'naver', step: 'signup_form' }</code></li>
+          </ul>
+          <div class="prd-box warn"><b>KPI 영향:</b> 뒤로가기 허용으로 단기 이탈률은 소폭 상승 가능. 다만 유저 신뢰/재가입 유도 관점에서 장기적으로 가입 전환에 + 효과 기대.</div>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-10" data-prd-ref="10">
+        <div class="prd-feat-head" onclick="highlightBadge(10)">
+          <div class="prd-num">10</div>
+          <div class="prd-feat-title">네이버 Prefill 필드 (이름/이메일)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 상단 안내 배너 + 자동입력 필드</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>네이버에서 수신한 필수 정보(이름·이메일)를 가입폼에 자동 입력. readonly 로 설정해 오입력 방지.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>안내 배너: "네이버 계정으로 가입을 진행해요. 추가 정보만 입력하면 가입이 완료돼요."</li>
+            <li>이름/이메일 필드: 자동 입력 + readonly</li>
+            <li>편집이 꼭 필요하면 "이메일이 올바르지 않나요?" 링크로 CS 안내 (향후 검토)</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>이메일은 회원 식별 키 → 유저 임의 편집 금지</li>
+            <li>이름 필드는 기본 readonly, 단 네이버에서 이름이 비어 오면 활성화(edge case)</li>
+            <li>"네이버 제공" 배지는 제거 (리뷰 피드백 반영)</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>prefill 실패(네이버 응답 지연/에러) 시 에러 화면 대신 필드 활성화 + "다시 시도" 옵션</li>
+            <li>이메일 중복 체크는 서버 API 에서 진행 (<code>POST /signup/check-email</code>)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-11" data-prd-ref="11">
+        <div class="prd-feat-head" onclick="highlightBadge(11)">
+          <div class="prd-num">11</div>
+          <div class="prd-feat-title">닉네임 입력 (필수 · 편집 가능)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 중단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>Grip 내 표시명. 선택 동의 시 네이버 별명으로 prefill, 미동의 시 빈 상태에서 직접 입력.</p>
+          <h4>정책</h4>
+          <ul>
+            <li>길이: 2~12자</li>
+            <li>허용 문자: 한글 · 영문 · 숫자 (특수문자 불가)</li>
+            <li>금칙어 필터: 욕설 · 유해어 · 플랫폼 예약어(관리자/운영자/Grip공식 등) 차단</li>
+            <li>중복 허용 여부: <b>중복 허용</b> (현재 Grip 정책 유지) — 채팅 방에서는 uid 로 식별</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>클라이언트 1차 유효성 체크 + 서버 2차 검증</li>
+            <li>금칙어 API 재사용 (기존 닉네임 필터 모듈)</li>
+            <li>maxlength=12 로 입력 차단, onInput 시 실시간 에러 메시지 노출</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-12" data-prd-ref="12">
+        <div class="prd-feat-head" onclick="highlightBadge(12)">
+          <div class="prd-num">12</div>
+          <div class="prd-feat-title">휴대폰 본인 확인<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 가입폼 중단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>실명 인증 + 중복 가입 방지를 위한 SMS 인증. 네이버 제공 정보에는 휴대폰이 없으므로 별도 인증 단계 필요.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>번호 입력(010XXXXXXXX) → [인증 요청] → SMS 발송</li>
+            <li>인증번호 입력 필드 노출 + 3분 카운트다운</li>
+            <li>[확인] → 서버 검증 → 성공 시 번호 readonly 전환, 완료 토스트</li>
+            <li>재요청 버튼: 시간 초과 또는 SMS 미수신 시</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>번호 포맷: 01[016789]XXXXXXX (통신 3사 + 알뜰폰 커버)</li>
+            <li>타이머: 3분 · 초과 시 인증번호 만료, 재요청 필요</li>
+            <li>재요청 제한: 1분당 1회 · 1일 10회 (어뷰징 방지)</li>
+            <li>이미 가입된 번호인 경우 → "이미 가입된 번호예요. 계정 찾기를 이용해주세요" 에러</li>
+            <li>테스트용 고정 코드 <b>123456</b> — 프로토타입 전용, 프로덕션 비활성</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>SMS 게이트웨이 비용 고려 → 서버 단 throttle 필수</li>
+            <li>국제 번호 지원 여부 결정 (현재 한국 한정)</li>
+            <li>인증 세션 TTL 3분 · Redis 저장</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-13" data-prd-ref="13">
+        <div class="prd-feat-head" onclick="highlightBadge(13)">
+          <div class="prd-num">13</div>
+          <div class="prd-feat-title">성별 · 생년월일 (선택/prefill)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 중단 이하</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>선택 정보. 네이버 동의 시 자동 입력, 미동의 시 빈 상태로 유저 선택.</p>
+          <h4>정책</h4>
+          <ul>
+            <li>성별: 남성/여성/선택안함 (3-way)</li>
+            <li>생년월일: YYYY/MM/DD 3개 필드 · 만 14세 미만 차단</li>
+            <li>모두 선택 · 미입력 가능 (필수 아님)</li>
+            <li>마케팅 타겟팅/개인화 추천에 활용 예정</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>만 14세 미만 입력 시 "만 14세 이상만 가입 가능해요" 안내 + 가입 차단</li>
+            <li>연도 유효 범위: 1900 ~ (현재 연도 - 14)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-14" data-prd-ref="14">
+        <div class="prd-feat-head" onclick="highlightBadge(14)">
+          <div class="prd-num">14</div>
+          <div class="prd-feat-title">초대코드 (선택)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>기존 유저의 추천 코드 입력 시 신규 가입자에게 쿠폰/혜택 지급. 기존 플로우 재사용.</p>
+          <h4>정책</h4>
+          <ul>
+            <li>현재 Grip 초대코드 정책 그대로 (3,000원 쿠폰)</li>
+            <li>네이버 도입으로 인한 정책 변경 없음</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-15" data-prd-ref="15">
+        <div class="prd-feat-head" onclick="highlightBadge(15)">
+          <div class="prd-num">15</div>
+          <div class="prd-feat-title">약관 동의<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>Grip 서비스 이용에 필요한 약관 동의. 네이버의 개인정보 제공 동의(P3)와 별도.</p>
+          <h4>수집 항목</h4>
+          <ul>
+            <li><b>[필수]</b> 이용약관 동의</li>
+            <li><b>[필수]</b> 개인정보 수집·이용 동의</li>
+            <li><b>[선택]</b> 마케팅 정보 수신 동의</li>
+          </ul>
+          <h4>정책</h4>
+          <ul>
+            <li>필수 미동의 시 [가입하기] 버튼 비활성</li>
+            <li>"전체 동의" 토글은 선택까지 포함</li>
+            <li>각 항목 "보기" 탭 시 약관 전문 바텀시트 노출</li>
+            <li>마케팅 수신 동의는 동의 일시/철회 일시 기록 → 마이페이지에서 철회 가능</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="prd-feat" id="prd-16" data-prd-ref="16">
+        <div class="prd-feat-head" onclick="highlightBadge(16)">
+          <div class="prd-num">16</div>
+          <div class="prd-feat-title">가입하기 CTA<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 가입폼 최하단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>활성 조건</h4>
+          <ul>
+            <li>닉네임 유효성 통과</li>
+            <li>휴대폰 본인 확인 완료</li>
+            <li>필수 약관 2종 동의</li>
+          </ul>
+          <h4>서버 처리</h4>
+          <ul>
+            <li><code>POST /api/v2/signup/naver</code> — naverSub · email · name · profile · phone · nickname · gender · birth · invite · agreements</li>
+            <li>서버에서 user 생성 + linked_accounts=['naver'] 저장 + login_type='naver' 로그</li>
+            <li>응답: access_token · refresh_token 발급 → 클라이언트 세션 저장</li>
+          </ul>
+          <h4>엣지 케이스</h4>
+          <ul>
+            <li>이메일 중복(他 SNS) → <b>계정 연결 제안 모달</b> 로 분기 (P3 단계 처리 권장, 늦게 감지 시 여기서도 가드)</li>
+            <li>휴대폰 중복 → 409 에러 · "이미 가입된 번호예요" 토스트</li>
+            <li>서버 5xx → "잠시 후 다시 시도해주세요" · 유저 입력값은 유지</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- [P5] 홈 -->
+      <h3 style="margin-top:28px;">P5. 홈 (가입 완료 직후)</h3>
+
+      <article class="prd-feat" id="prd-17" data-prd-ref="17">
+        <div class="prd-feat-head" onclick="highlightBadge(17)">
+          <div class="prd-num">17</div>
+          <div class="prd-feat-title">가입 완료 UX · 환영 헤더<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 홈 최상단</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>가입 완료 직후 환영 메시지와 함께 첫 구매 유도. 본 과제에서는 구현 범위 축소(기존 홈 그대로 유지 + 환영 토스트만).</p>
+          <h4>정책</h4>
+          <ul>
+            <li>현재 프로토타입: "그리퍼 {이름}님 환영해요!" 헤더 노출 (PRD 설명용)</li>
+            <li>실제 릴리즈: 기존 홈 레이아웃 유지 · 진입 시 <b>환영 토스트 1회</b> 노출 ("가입이 완료되었어요! 🎉")</li>
+            <li>첫 구매 혜택 배너는 기존 로직 재사용</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>first_login_after_signup 플래그로 토스트 1회성 보장</li>
+            <li>이벤트 로깅: <code>signup_completed { login_type: 'naver' }</code></li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- [P6] 로그인 관리 -->
+      <h3 style="margin-top:28px;">P6. 로그인 관리 (마이페이지 &gt; 설정)</h3>
+
+      <article class="prd-feat" id="prd-18" data-prd-ref="18">
+        <div class="prd-feat-head" onclick="highlightBadge(18)">
+          <div class="prd-num">18</div>
+          <div class="prd-feat-title">연결 계정 리스트 · CRUD<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 마이페이지 &gt; 설정 &gt; 로그인 관리</span></div>
+        </div>
+        <div class="prd-feat-body">
+          <h4>기능 구분</h4>
+          <p>한 유저가 보유한 로그인 수단(SNS)을 조회/연결/해제. 기존 화면에 <b>네이버</b> 항목 추가.</p>
+          <h4>상세 동작</h4>
+          <ul>
+            <li>리스트 항목: 카카오 · 네이버(NEW) · Apple · Facebook · 이메일</li>
+            <li>각 항목 우측 [연결] / [연결해제] 버튼</li>
+            <li>[연결] → 해당 SNS OAuth 플로우 진입 → 동의 → 계정 연결 완료 토스트</li>
+            <li>[연결해제] → Confirm 모달 → 서버 DELETE → 리스트 갱신</li>
+          </ul>
+          <h4>정책 (핵심)</h4>
+          <ul>
+            <li><b>최소 1개 보호:</b> 마지막 남은 연결 계정은 해제 불가. 해제 시도 시 "최소 1개의 로그인 수단이 필요해요" 토스트</li>
+            <li><b>현재 로그인 수단 해제 시:</b> Confirm 모달에 "이 수단을 해제하면 다음 로그인부터 다른 수단을 이용해야 해요" 강조 문구</li>
+            <li><b>NEW 뱃지:</b> 네이버 도입 후 3개월간 노출 → 자동 회수</li>
+            <li><b>계정 연결 제안(P3 충돌 분기):</b> 기존 카카오 이메일과 동일 이메일 네이버 가입 시도 → 즉시 로그인 관리에 네이버 추가 연결 플로우로 전환</li>
+          </ul>
+          <h4>개발 고려사항</h4>
+          <ul>
+            <li>linked_accounts 는 user 테이블의 array 컬럼 or별도 user_oauth 테이블</li>
+            <li>해제 시 토큰/리프레시 토큰 revoke 처리 (네이버 Unlink API 호출)</li>
+            <li>본 과제 UI 변경: 항목 5종 → 네이버 1종 추가</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <!-- 6. 핵심 정책 -->
+    <section class="prd-section" id="sec-policy">
+      <h2>6. 핵심 정책 (Critical Policies)</h2>
+
+      <h3>6.1 기존 회원 재로그인 감지</h3>
+      <div class="prd-box success">
+        <b>정책:</b> 네이버 로그인 성공 후 Grip 서버가 naverSub(고유 식별자) 또는 이메일로 user 조회 → 매칭되면 <b>P3 동의 화면 및 P4 가입 화면을 건너뛰고 즉시 로그인</b>.
+        <br><b>이유:</b> 이미 동의한 유저에게 재동의를 요구하면 경험 저해. 단, 네이버에서 수집 항목이 <b>변경</b>된 경우는 재동의 요청 필수 (법적 요건).
+      </div>
+
+      <h3>6.2 계정 충돌 처리 (이메일 중복)</h3>
+      <div class="prd-box warn">
+        <b>시나리오:</b> 유저 A가 과거 <b>카카오</b>로 <code>foo@naver.com</code> 이메일로 가입. 이후 같은 이메일 네이버로 간편가입 시도.
+        <br><b>정책:</b>
+        <ul style="margin:6px 0 0;">
+          <li>P3 동의 완료 후 서버에서 이메일 중복 탐지 → <b>계정 연결 제안 모달</b> 노출</li>
+          <li>"이미 카카오로 가입된 이메일이에요. 네이버 계정을 연결할까요?" + [연결하기] / [취소]</li>
+          <li>[연결하기] → 기존 카카오 유저의 linked_accounts 에 'naver' 추가 → 자동 로그인</li>
+          <li>[취소] → 로그인 페이지 복귀</li>
+        </ul>
+      </div>
+
+      <h3>6.3 동의 데이터 재사용</h3>
+      <ul>
+        <li>네이버 선택 동의 상태는 user_consent 테이블에 개별 저장 (consent_naver_nickname, consent_naver_gender, ...)</li>
+        <li>추후 해당 필드를 추가로 활용해야 할 때 재동의 요청 플로우 필요</li>
+      </ul>
+
+      <h3>6.4 로그아웃 / 탈퇴 시 네이버 연동</h3>
+      <ul>
+        <li>로그아웃: 네이버 토큰은 그대로 유지 (다음 로그인 UX 개선)</li>
+        <li>탈퇴: 네이버 Unlink API 호출 + 네이버에서 받은 개인정보 <b>즉시 파기</b> (개인정보보호법)</li>
+      </ul>
+
+      <h3>6.5 데이터 연동 (Data/Analytics)</h3>
+      <ul>
+        <li>이벤트 스키마에 <code>login_type = 'naver'</code> 값 추가</li>
+        <li>Metabase 질의 <a href="https://metabase.grip.studio/question/5185">#5185</a> 업데이트 필요</li>
+        <li>기존 분포 질의 <a href="https://metabase.grip.studio/question/5175">#5175</a> 에 네이버 시리즈 자동 포함 여부 확인</li>
+      </ul>
+    </section>
+
+    <!-- 7. 영향 범위 -->
+    <section class="prd-section" id="sec-scope">
+      <h2>7. 파트별 영향 범위 및 요구사항</h2>
+      <table class="prd-table">
+        <thead><tr><th>담당 파트</th><th>주요 작업 범위 (Scope of Work)</th><th>세부 구현 및 영향도</th><th>리뷰 시 확인/협의 사항</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>서버 (Backend)</b></td>
+            <td>네이버 OAuth 연동 · 회원 조회/생성 API · 계정 연결 API · 연동 해제 API</td>
+            <td>
+              · 네이버 Auth Code → Token 교환 엔드포인트 (<code>/auth/naver/callback</code>)<br>
+              · 프로필 조회 + Grip user 생성/연결 로직<br>
+              · linked_accounts 관리 테이블 또는 컬럼<br>
+              · login_type='naver' 로그 이벤트 발행<br>
+              · 휴대폰 인증 API 재사용
+            </td>
+            <td>
+              · 이메일 중복 시 계정 연결 정책 합의<br>
+              · naverSub(고유 ID) vs email 기반 식별 우선순위<br>
+              · 토큰 저장 방식 (encrypted column)
+            </td>
+          </tr>
+          <tr>
+            <td><b>클라이언트 (iOS · Android)</b></td>
+            <td>네이버 SDK 연동 · 로그인 UI · 가입폼 Prefill · 다크패턴 해소</td>
+            <td>
+              · 네이버 네이티브 SDK 설치 + 웹뷰 fallback<br>
+              · 로그인 페이지 버튼 재배치 (카카오+네이버 2top)<br>
+              · 가입폼 prefill 로직 (readonly 처리)<br>
+              · 뒤로가기 활성 + Confirm 모달<br>
+              · 인증번호 타이머 UI
+            </td>
+            <td>
+              · iOS / Android SDK 버전 싱크<br>
+              · 웹뷰 fallback 시 쿠키 처리<br>
+              · 뒤로가기 Confirm UX 문구 합의
+            </td>
+          </tr>
+          <tr>
+            <td><b>Mobile Web</b></td>
+            <td>네이버 OAuth (web flow) · 동일 UI 반영</td>
+            <td>
+              · window.open or redirect 방식 결정<br>
+              · redirect_uri 등록<br>
+              · 로그인 성공 후 세션 처리
+            </td>
+            <td>
+              · 인앱브라우저(카톡 내 링크) 대응 검토
+            </td>
+          </tr>
+          <tr>
+            <td><b>디자인 (UI/UX)</b></td>
+            <td>로그인 페이지 UI · 가입폼 UI · 로그인 관리 UI · 아이콘 자산</td>
+            <td>
+              · 네이버 버튼 디자인 (공식 가이드 준수)<br>
+              · 아이콘 48px 4종 (Apple/FB/Gmail/Email) 자산 전달<br>
+              · 로그인 관리 NEW 뱃지 컴포넌트
+            </td>
+            <td>
+              · 네이버 공식 가이드와 Grip 톤 조정 (둥근 모서리 등)<br>
+              · NEW 뱃지 노출 기간 규칙
+            </td>
+          </tr>
+          <tr>
+            <td><b>Data/Analytics</b></td>
+            <td>login_type 지표 스키마 업데이트</td>
+            <td>
+              · login_type enum 에 'naver' 추가<br>
+              · Metabase 질의 업데이트
+            </td>
+            <td>
+              · 대시보드 영향 확인
+            </td>
+          </tr>
+          <tr>
+            <td><b>QA</b></td>
+            <td>가입/로그인 전체 플로우 · 엣지 케이스 · 크로스 디바이스</td>
+            <td>
+              · 신규 가입 / 기존 회원 재로그인 / 계정 충돌 3대 시나리오<br>
+              · 휴대폰 인증 타임아웃 · 재요청<br>
+              · 뒤로가기 / 앱 종료 등 이탈 시나리오<br>
+              · iOS/Android 네이티브 SDK vs 웹뷰 fallback
+            </td>
+            <td>
+              · 네이버 계정 테스트 계정 확보<br>
+              · 스테이징 환경 네이버 앱 등록
+            </td>
+          </tr>
+          <tr>
+            <td colspan="4" style="background:#F9FAFB; font-size:11px; color:#666;">
+              <b>적용 제외:</b> PC Web · Admin1/Admin2 · 비즈센터 — 본 과제 영향 없음
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 8. 예상 공수 -->
+    <section class="prd-section" id="sec-effort">
+      <h2>8. 예상 일정 공수</h2>
+      <table class="prd-table">
+        <thead><tr><th>담당부서</th><th>추정 (MD)</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>기획</td><td>2</td><td>PRD · 정책 문서 · QA 시나리오 정리</td></tr>
+          <tr><td>디자인</td><td>2</td><td>UI 수정 · 아이콘 자산 · 가이드</td></tr>
+          <tr><td>개발 (Backend)</td><td>5</td><td>OAuth 연동 · 회원 로직 · 연결/해제 API</td></tr>
+          <tr><td>개발 (Web Front)</td><td>2</td><td>Mobile Web 로그인 · 가입폼</td></tr>
+          <tr><td>개발 (iOS)</td><td>4</td><td>SDK · UI · 다크패턴 해소 · 인증</td></tr>
+          <tr><td>개발 (Android)</td><td>4</td><td>SDK · UI · 다크패턴 해소 · 인증</td></tr>
+          <tr><td>QA</td><td>3</td><td>3대 시나리오 · 엣지 케이스</td></tr>
+          <tr><td><b>SUM (최대 병렬)</b></td><td><b>22 MD</b></td><td>Backend · Client 병렬 작업 기준</td></tr>
+        </tbody>
+      </table>
+      <div class="prd-box info">공수는 초안이며, 킥오프 후 각 파트별 확정 필요. 네이버 개발자 앱 등록/심사 일정(1~2주)은 외부 의존성으로 별도 관리.</div>
+    </section>
+
+    <!-- 9. 마일스톤 -->
+    <section class="prd-section" id="sec-milestone">
+      <h2>9. 마일스톤 (Milestones)</h2>
+      <ul>
+        <li><b>W1 (5월 4주)</b> — PRD 확정 · 킥오프 · 네이버 개발자 앱 신청</li>
+        <li><b>W2 (6월 1주)</b> — 디자인 · API 설계 · SDK 연동 리서치</li>
+        <li><b>W3~4 (6월 2~3주)</b> — 개발 (Backend / Web / iOS / Android 병렬)</li>
+        <li><b>W5 (6월 4주)</b> — 통합 QA · 수정</li>
+        <li><b>W6 (7월 1주)</b> — 스테이징 QA · 릴리즈 검증</li>
+        <li><b>🚀 W7 (7월 2주)</b> — 릴리즈 (목표일정 2025.07)</li>
+        <li><b>Post-release</b> — 3개월 KPI 추적 → Google 간편가입 도입 검토 (Next Step)</li>
+      </ul>
+    </section>
+
+    <div style="margin-top:40px; padding:18px; background:#F9FAFB; border-radius:10px; font-size:12px; color:#666; line-height:1.7;">
+      <b>문서 이력</b><br>
+      · v0.1 (2026-04-23) — 초안 작성 (건무)<br>
+      · v0.2 (2026-04-23) — 네이버 동의 UI · 계정 표기 피드백 반영 · PRD 모드 추가
+    </div>
+  </div>
+</aside>
+
+<div class="debug" id="debug" onclick="this.classList.toggle('expanded')">
+  <div class="debug-title">📦 state (tap)</div>
+  <pre id="debugPre"></pre>
+</div>
+
+<script>
+/* ============================================================
+ * State management
+ * ============================================================ */
+const STORAGE_KEY = 'grip_proto_v2';
+
+const MOCK_NAVER_ACCOUNTS = [
+  {
+    id: 'naver_acc_1',
+    displayName: '네이버닉네임',
+    email: 'dlrjsan90@naver.com',
+    name: '이건무',
+    nickname: '네이버닉네임',
+    gender: 'M',
+    birthYear: '1990',
+    birthMonth: '04',
+    birthDay: '02',
+    profileImg: null
+  },
+  {
+    id: 'naver_acc_2',
+    displayName: '네이버닉네임2',
+    email: 'dlrjsan90_sub@naver.com',
+    name: '이건무',
+    nickname: '네이버닉네임2',
+    gender: 'M',
+    birthYear: '1990',
+    birthMonth: '06',
+    birthDay: '15',
+    profileImg: null
+  }
+];
+
+let state = {
+  currentScreen: 'login',
+  users: [], // [{loginType, email, name, nickname, ...linkedAccounts: []}]
+  currentUser: null,
+  selectedNaverId: null,
+  consent: { all: false, required: true, optional: false }, // 필수는 고정 true
+  naverProfile: null, // 네이버에서 가져온 프로필 (동의 옵션 반영)
+  phoneVerified: false,
+  authSent: false,
+  authTimer: null,
+  agreements: { terms: true, privacy: true, marketing: false }
+};
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (saved.users) state.users = saved.users;
+    if (saved.currentUser) state.currentUser = saved.currentUser;
+  } catch(e) { console.warn(e); }
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    users: state.users,
+    currentUser: state.currentUser
+  }));
+  updateDebug();
+}
+function updateDebug() {
+  document.getElementById('debugPre').textContent = JSON.stringify({
+    users: state.users.map(u => ({ email: u.email, loginType: u.loginType, linked: u.linkedAccounts })),
+    currentUser: state.currentUser ? state.currentUser.email : null
+  }, null, 2);
+}
+
+/* ============================================================
+ * Navigation
+ * ============================================================ */
+function nav(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + screen);
+  if (el) {
+    el.classList.add('active', 'fade-enter');
+    setTimeout(() => el.classList.remove('fade-enter'), 250);
+  }
+  state.currentScreen = screen;
+
+  if (screen === 'home') renderHome();
+  if (screen === 'login-mgmt') renderLoginMgmt();
+  if (screen === 'naver-login') renderNaverIds();
+  if (screen === 'signup') renderSignupForm();
+}
+
+/* ============================================================
+ * Toast / Modal
+ * ============================================================ */
+function toast(msg, type='') {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 2400);
+}
+function modal(title, body, btns) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').textContent = body;
+  const bw = document.getElementById('modalBtns');
+  bw.innerHTML = '';
+  btns.forEach(b => {
+    const el = document.createElement('button');
+    el.className = b.class || 'confirm';
+    el.textContent = b.label;
+    el.onclick = () => {
+      closeModal();
+      if (b.onClick) b.onClick();
+    };
+    bw.appendChild(el);
+  });
+  document.getElementById('modalBg').classList.add('active');
+}
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('active');
+}
+
+/* ============================================================
+ * Login handlers
+ * ============================================================ */
+function handleLogin(type) {
+  if (type === 'naver') {
+    nav('naver-login');
+  } else if (type === 'kakao') {
+    toast('(데모) 카카오 로그인은 별도 플로우', '');
+  } else {
+    toast(`(데모) ${type} 로그인은 별도 플로우`, '');
+  }
+}
+
+/* ============================================================
+ * Naver ID select
+ * ============================================================ */
+function renderNaverIds() {
+  state.selectedNaverId = null;
+  const list = document.getElementById('naverIdList');
+  list.innerHTML = MOCK_NAVER_ACCOUNTS.map((acc, i) => `
+    <div class="naver-id-item" data-id="${acc.id}" onclick="selectNaverId('${acc.id}')">
+      <div class="naver-id-avatar">N</div>
+      <div class="naver-id-info">
+        <div class="id">${acc.displayName}</div>
+        <div class="mail">네이버 아이디 ${i + 1}</div>
+      </div>
+      <div class="naver-id-check">✓</div>
+    </div>
+  `).join('');
+  document.getElementById('naverSubmit').disabled = true;
+}
+function selectNaverId(id) {
+  state.selectedNaverId = id;
+  document.querySelectorAll('#naverIdList .naver-id-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  document.getElementById('naverSubmit').disabled = false;
+}
+function naverLoginConfirm() {
+  if (!state.selectedNaverId) return;
+  const acc = MOCK_NAVER_ACCOUNTS.find(a => a.id === state.selectedNaverId);
+
+  // 기존 회원 체크 (이메일 기준) — 같은 네이버 계정으로 이미 가입한 사용자면 바로 로그인
+  const existing = state.users.find(u => u.email === acc.email && u.linkedAccounts.includes('naver'));
+  if (existing) {
+    state.currentUser = existing;
+    saveState();
+    toast('네이버로 로그인 되었어요', 'ok');
+    nav('home');
+    return;
+  }
+
+  // 동의 상태 초기화
+  state.consent = { all: false, required: true, optional: false };
+  updateConsentUI();
+  nav('naver-consent');
+}
+function openCustomLogin() {
+  toast('(데모) 새 네이버 계정 로그인은 생략', '');
+}
+
+/* ============================================================
+ * Consent
+ * ============================================================ */
+function updateConsentUI() {
+  const allOn = state.consent.required && state.consent.optional;
+  document.getElementById('consentAll').classList.toggle('on', allOn);
+  const optEl = document.getElementById('consentOpt');
+  optEl.classList.toggle('on', state.consent.optional);
+  // sec-head 내부 chk-ring에도 on 반영
+  const optChk = optEl.querySelector('.chk-ring');
+  if (optChk) optChk.classList.toggle('on', state.consent.optional);
+  // 필수는 항상 on (해제 불가)
+}
+function toggleConsentAll() {
+  const allOn = state.consent.required && state.consent.optional;
+  if (allOn) {
+    state.consent.optional = false;
+  } else {
+    state.consent.optional = true;
+  }
+  updateConsentUI();
+}
+function toggleConsentOpt() {
+  state.consent.optional = !state.consent.optional;
+  updateConsentUI();
+}
+function naverConsent() {
+  if (!state.consent.required) {
+    toast('필수 동의가 필요해요', 'err');
+    return;
+  }
+  // 네이버 프로필 동의 항목 기반으로 저장
+  const acc = MOCK_NAVER_ACCOUNTS.find(a => a.id === state.selectedNaverId);
+  state.naverProfile = {
+    id: acc.id,
+    name: acc.name,
+    email: acc.email,
+    // 옵션 동의 시에만 추가 정보 포함
+    nickname: state.consent.optional ? acc.nickname : null,
+    gender: state.consent.optional ? acc.gender : null,
+    birthYear: state.consent.optional ? acc.birthYear : null,
+    birthMonth: state.consent.optional ? acc.birthMonth : null,
+    birthDay: state.consent.optional ? acc.birthDay : null
+  };
+
+  // 계정 충돌 체크 — 같은 이메일이 다른 SNS로 이미 가입되어 있는지
+  const conflict = state.users.find(u => u.email === acc.email);
+  if (conflict && !conflict.linkedAccounts.includes('naver')) {
+    modal(
+      '기존 계정이 있어요',
+      `${conflict.email} 은(는) 이미 ${conflict.loginType.toUpperCase()} 로 가입된 계정이에요. 네이버 계정을 연결할까요?`,
+      [
+        { label: '취소', class: 'cancel', onClick: () => nav('login') },
+        { label: '연결하기', class: 'confirm', onClick: () => linkNaverToExisting(conflict) }
+      ]
+    );
+    return;
+  }
+
+  nav('signup');
+}
+
+function linkNaverToExisting(user) {
+  user.linkedAccounts.push('naver');
+  user.naverId = state.selectedNaverId;
+  state.currentUser = user;
+  saveState();
+  toast('네이버 계정이 연결되었어요', 'ok');
+  nav('home');
+}
+
+/* ============================================================
+ * Signup form
+ * ============================================================ */
+function renderSignupForm() {
+  const p = state.naverProfile;
+  if (!p) return;
+  document.getElementById('fName').value = p.name || '';
+  document.getElementById('fEmail').value = p.email || '';
+
+  // 닉네임: 옵션 동의 시 prefill, 아니면 비워둠
+  document.getElementById('fNick').value = p.nickname || '';
+
+  // 성별
+  document.querySelectorAll('.gender-row button').forEach(b => b.classList.remove('active'));
+  if (p.gender) {
+    const btn = document.querySelector(`.gender-row button[data-g="${p.gender}"]`);
+    if (btn) btn.classList.add('active');
+  }
+
+  // 생년월일
+  document.getElementById('fYear').value = p.birthYear || '';
+  document.getElementById('fMonth').value = p.birthMonth || '';
+  document.getElementById('fDay').value = p.birthDay || '';
+
+  // Reset phone/agree state
+  document.getElementById('fPhone').value = '';
+  document.getElementById('fAuthCode').value = '';
+  document.getElementById('authCodeField').style.display = 'none';
+  document.getElementById('btnSendCode').disabled = true;
+  document.getElementById('btnSendCode').classList.remove('sent');
+  document.getElementById('btnSendCode').textContent = '인증 요청';
+  state.phoneVerified = false;
+  state.authSent = false;
+  if (state.authTimer) clearInterval(state.authTimer);
+
+  state.agreements = { terms: true, privacy: true, marketing: false };
+  updateAgreeUI();
+  updateSubmitBtn();
+
+  // 닉네임 input 리스너
+  document.getElementById('fNick').oninput = updateSubmitBtn;
+}
+
+function setGender(g) {
+  document.querySelectorAll('.gender-row button').forEach(b => {
+    b.classList.toggle('active', b.dataset.g === g);
+  });
+  state.selectedGender = g;
+}
+
+function onPhoneInput() {
+  const v = document.getElementById('fPhone').value.replace(/[^0-9]/g, '');
+  document.getElementById('fPhone').value = v;
+  const valid = /^01[016789][0-9]{7,8}$/.test(v);
+  document.getElementById('btnSendCode').disabled = !valid || state.phoneVerified;
+  const help = document.getElementById('phoneHelp');
+  if (v.length >= 10 && !valid) {
+    help.textContent = '올바른 휴대폰 번호가 아니에요';
+    help.className = 'help err';
+    help.style.display = '';
+  } else {
+    help.style.display = 'none';
+  }
+}
+
+function sendAuthCode() {
+  document.getElementById('authCodeField').style.display = '';
+  document.getElementById('btnSendCode').textContent = '재요청';
+  state.authSent = true;
+
+  // 3분 타이머
+  let remaining = 180;
+  const timerEl = document.getElementById('authTimer');
+  if (state.authTimer) clearInterval(state.authTimer);
+  state.authTimer = setInterval(() => {
+    remaining--;
+    const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+    const s = (remaining % 60).toString().padStart(2, '0');
+    timerEl.textContent = `${m}:${s}`;
+    if (remaining <= 0) {
+      clearInterval(state.authTimer);
+      timerEl.textContent = '만료됨';
+      document.getElementById('btnVerifyCode').disabled = true;
+    }
+  }, 1000);
+
+  toast('인증번호가 전송되었어요 (테스트용: 123456)', 'ok');
+}
+
+function onAuthCodeInput() {
+  const v = document.getElementById('fAuthCode').value.replace(/[^0-9]/g, '');
+  document.getElementById('fAuthCode').value = v;
+}
+
+function verifyAuthCode() {
+  const code = document.getElementById('fAuthCode').value;
+  if (code === '123456') {
+    state.phoneVerified = true;
+    if (state.authTimer) clearInterval(state.authTimer);
+    document.getElementById('btnSendCode').classList.add('sent');
+    document.getElementById('btnSendCode').textContent = '인증완료';
+    document.getElementById('btnSendCode').disabled = true;
+    document.getElementById('btnVerifyCode').textContent = '확인됨';
+    document.getElementById('btnVerifyCode').disabled = true;
+    document.getElementById('fPhone').readOnly = true;
+    document.getElementById('fAuthCode').readOnly = true;
+    document.getElementById('authHelp').innerHTML = '<span style="color:var(--success)">✓ 인증되었어요</span>';
+    toast('휴대폰 인증 완료', 'ok');
+    updateSubmitBtn();
+  } else {
+    toast('인증번호가 올바르지 않아요', 'err');
+  }
+}
+
+function toggleAgree(el) {
+  el.classList.toggle('on');
+  const idx = Array.from(el.parentElement.querySelectorAll('.agree-row:not(.all)')).indexOf(el);
+  const keys = ['terms', 'privacy', 'marketing'];
+  state.agreements[keys[idx]] = el.classList.contains('on');
+  updateAgreeUI();
+  updateSubmitBtn();
+}
+
+function toggleAgreeAll() {
+  const all = document.getElementById('agrAll');
+  const willOn = !all.classList.contains('on');
+  state.agreements = { terms: willOn, privacy: willOn, marketing: willOn };
+  updateAgreeUI();
+  updateSubmitBtn();
+}
+
+function updateAgreeUI() {
+  const rows = document.querySelectorAll('#screen-signup .agree-row:not(.all)');
+  const keys = ['terms', 'privacy', 'marketing'];
+  rows.forEach((row, i) => {
+    row.classList.toggle('on', state.agreements[keys[i]]);
+  });
+  const allOn = state.agreements.terms && state.agreements.privacy && state.agreements.marketing;
+  document.getElementById('agrAll').classList.toggle('on', allOn);
+}
+
+function updateSubmitBtn() {
+  const nick = document.getElementById('fNick').value.trim();
+  const nickValid = nick.length >= 2 && nick.length <= 12;
+  const okAgree = state.agreements.terms && state.agreements.privacy;
+  const enabled = nickValid && state.phoneVerified && okAgree;
+  document.getElementById('btnSubmitSignup').disabled = !enabled;
+}
+
+function completeSignup() {
+  const p = state.naverProfile;
+  const nick = document.getElementById('fNick').value.trim();
+  if (nick.length < 2) { toast('닉네임을 입력해주세요', 'err'); return; }
+  if (!state.phoneVerified) { toast('휴대폰 인증이 필요해요', 'err'); return; }
+  if (!state.agreements.terms || !state.agreements.privacy) {
+    toast('필수 약관에 동의해주세요', 'err');
+    return;
+  }
+
+  const newUser = {
+    loginType: 'naver',
+    email: p.email,
+    name: p.name,
+    nickname: nick,
+    phone: document.getElementById('fPhone').value,
+    gender: state.selectedGender || p.gender || null,
+    birthYear: document.getElementById('fYear').value,
+    birthMonth: document.getElementById('fMonth').value,
+    birthDay: document.getElementById('fDay').value,
+    invite: document.getElementById('fInvite').value,
+    marketing: state.agreements.marketing,
+    linkedAccounts: ['naver'],
+    naverId: state.selectedNaverId,
+    createdAt: new Date().toISOString()
+  };
+  state.users.push(newUser);
+  state.currentUser = newUser;
+  saveState();
+  toast('가입이 완료되었어요! 🎉', 'ok');
+  nav('home');
+}
+
+function confirmCancelSignup() {
+  modal(
+    '가입을 취소할까요?',
+    '입력한 정보는 저장되지 않아요.',
+    [
+      { label: '계속 진행', class: 'cancel' },
+      { label: '가입 취소', class: 'danger', onClick: () => nav('login') }
+    ]
+  );
+}
+
+/* ============================================================
+ * Home
+ * ============================================================ */
+function renderHome() {
+  const u = state.currentUser;
+  if (!u) { nav('login'); return; }
+  document.getElementById('homeGreet').textContent = u.name || u.nickname || '고객';
+  document.getElementById('infoLoginType').textContent = u.loginType;
+  document.getElementById('infoEmail').textContent = u.email;
+  document.getElementById('infoName').textContent = u.name;
+  document.getElementById('infoNick').textContent = u.nickname;
+  document.getElementById('infoConnected').textContent = u.linkedAccounts.join(', ');
+}
+
+function logout() {
+  state.currentUser = null;
+  saveState();
+  toast('로그아웃 되었어요');
+  nav('login');
+}
+
+function resetAll() {
+  modal(
+    '전체 초기화',
+    '모든 가입 데이터를 삭제합니다 (프로토타입 테스트용).',
+    [
+      { label: '취소', class: 'cancel' },
+      { label: '초기화', class: 'danger', onClick: () => {
+        localStorage.removeItem(STORAGE_KEY);
+        state.users = [];
+        state.currentUser = null;
+        updateDebug();
+        toast('초기화 완료');
+        nav('login');
+      } }
+    ]
+  );
+}
+
+/* ============================================================
+ * Login Management
+ * ============================================================ */
+const CONNECT_TYPES = [
+  { key: 'kakao', name: '카카오', cls: 'kakao', letter: 'K', sample: '****@kakao.com' },
+  { key: 'naver', name: '네이버', cls: 'naver', letter: 'N', sample: '' },
+  { key: 'apple', name: 'Apple', cls: 'apple', letter: '🍎', sample: 'Apple ID' },
+  { key: 'facebook', name: 'Facebook', cls: 'fb', letter: 'f', sample: '' },
+  { key: 'email', name: '이메일', cls: 'email', letter: '✉', sample: '' }
+];
+
+function renderLoginMgmt() {
+  const u = state.currentUser;
+  if (!u) { nav('login'); return; }
+  const list = document.getElementById('connectList');
+  list.innerHTML = CONNECT_TYPES.map(t => {
+    const connected = u.linkedAccounts.includes(t.key);
+    const isNew = t.key === 'naver';
+    let val = '연결되지 않음';
+    if (connected) {
+      if (t.key === 'naver') val = u.email;
+      else if (t.key === 'email') val = u.email;
+      else val = t.sample || u.email;
+    }
+    return `
+      <div class="connect-item">
+        <div class="connect-icon ${t.cls}">${t.letter}</div>
+        <div class="connect-info">
+          <div class="name">${t.name}${isNew ? ' <span class="new">NEW</span>' : ''}</div>
+          <div class="val">${val}</div>
+        </div>
+        <button class="connect-btn ${connected ? 'disconnect' : 'connect'}"
+          onclick="toggleConnect('${t.key}')">${connected ? '연결해제' : '연결'}</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleConnect(type) {
+  const u = state.currentUser;
+  const connected = u.linkedAccounts.includes(type);
+  if (connected) {
+    // 마지막 1개 보호
+    if (u.linkedAccounts.length <= 1) {
+      toast('최소 1개의 로그인 수단이 필요해요', 'err');
+      return;
+    }
+    // 현재 로그인 수단 해제 경고
+    if (u.loginType === type) {
+      modal(
+        '현재 로그인 수단이에요',
+        '이 수단을 해제하면 다음 로그인부터 다른 수단을 이용해야 해요.',
+        [
+          { label: '취소', class: 'cancel' },
+          { label: '해제', class: 'danger', onClick: () => doDisconnect(type) }
+        ]
+      );
+      return;
+    }
+    modal(`${typeName(type)} 연결 해제`, '해제하시겠어요?', [
+      { label: '취소', class: 'cancel' },
+      { label: '해제', class: 'danger', onClick: () => doDisconnect(type) }
+    ]);
+  } else {
+    if (type === 'naver') {
+      // 네이버 연결 — ID 선택 화면으로
+      toast('네이버 계정 연결을 진행해요');
+      state.linkingMode = true;
+      nav('naver-login');
+    } else {
+      toast(`(데모) ${typeName(type)} 연결은 생략`);
+    }
+  }
+}
+
+function typeName(t) {
+  return CONNECT_TYPES.find(x => x.key === t)?.name || t;
+}
+
+function doDisconnect(type) {
+  const u = state.currentUser;
+  u.linkedAccounts = u.linkedAccounts.filter(x => x !== type);
+  // 로그인 타입이 해제되면 대체
+  if (u.loginType === type) {
+    u.loginType = u.linkedAccounts[0];
+  }
+  saveState();
+  renderLoginMgmt();
+  toast(`${typeName(type)} 연결이 해제되었어요`);
+}
+
+/* ============================================================
+ * PRD Mode
+ * ============================================================ */
+function togglePrdMode() {
+  document.body.classList.toggle('prd-mode');
+  const on = document.body.classList.contains('prd-mode');
+  document.getElementById('prdToggleLabel').textContent = on ? 'PRD 모드 ON' : 'PRD 모드';
+  try { localStorage.setItem('grip_prd_mode', on ? '1' : '0'); } catch(e) {}
+}
+
+const PRD_META_KEY = 'grip_prd_meta';
+function loadPrdMeta() {
+  try {
+    const m = JSON.parse(localStorage.getItem(PRD_META_KEY) || '{}');
+    if (m.targetDate) {
+      const sel = document.getElementById('prdTargetDate');
+      if (sel) sel.value = m.targetDate;
+    }
+  } catch(e) {}
+}
+function savePrdTargetDate() {
+  const sel = document.getElementById('prdTargetDate');
+  if (!sel) return;
+  try {
+    const m = JSON.parse(localStorage.getItem(PRD_META_KEY) || '{}');
+    m.targetDate = sel.value;
+    m.updatedAt = new Date().toISOString();
+    localStorage.setItem(PRD_META_KEY, JSON.stringify(m));
+    toast(`목표일정: ${sel.value} (저장됨)`, 'ok');
+  } catch(e) {}
+}
+
+function highlightBadge(n) {
+  const target = document.querySelector(`[data-prd="${n}"]`);
+  if (!target) return;
+  // find containing screen, activate if hidden
+  const screen = target.closest('.screen');
+  if (screen && !screen.classList.contains('active')) {
+    const id = screen.id.replace('screen-', '');
+    nav(id);
+  }
+  setTimeout(() => {
+    target.classList.add('prd-flash');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => target.classList.remove('prd-flash'), 1200);
+  }, 50);
+
+  // highlight the PRD card as well
+  document.querySelectorAll('.prd-feat').forEach(el => el.classList.remove('highlight'));
+  const card = document.getElementById('prd-' + n);
+  if (card) {
+    card.classList.add('highlight');
+  }
+}
+
+// Badge click → scroll PRD panel to corresponding card
+document.addEventListener('click', (e) => {
+  if (!document.body.classList.contains('prd-mode')) return;
+  const badge = e.target.closest('[data-prd]');
+  if (!badge) return;
+  const n = badge.getAttribute('data-prd');
+  const card = document.getElementById('prd-' + n);
+  if (card) {
+    document.querySelectorAll('.prd-feat').forEach(el => el.classList.remove('highlight'));
+    card.classList.add('highlight');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}, true);
+
+/* ============================================================
+ * Init
+ * ============================================================ */
+loadState();
+updateDebug();
+if (state.currentUser) {
+  nav('home');
+}
+// PRD mode 초기 상태 복원
+try {
+  if (localStorage.getItem('grip_prd_mode') === '1') {
+    document.body.classList.add('prd-mode');
+    document.getElementById('prdToggleLabel').textContent = 'PRD 모드 ON';
+  }
+} catch(e) {}
+loadPrdMeta();
+
+// 실측 sticky 높이를 CSS 변수에 반영하여 scroll-margin 자동 동기화
+function updatePrdStickyHeight() {
+  const s = document.querySelector('.prd-sticky');
+  if (!s) return;
+  const h = s.getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--prd-sticky-h', `${h + 12}px`);
+}
+updatePrdStickyHeight();
+window.addEventListener('resize', updatePrdStickyHeight);
+setTimeout(updatePrdStickyHeight, 100);
+</script>
+
+</body>
+</html>
