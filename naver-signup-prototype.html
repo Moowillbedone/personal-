@@ -5,6 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Grip · 네이버 간편가입 프로토타입</title>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+  import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDJhrxHT89dlU9wvq1shsubGNAOEo4nkc8",
+    authDomain: "gripkmlee.firebaseapp.com",
+    projectId: "gripkmlee",
+    storageBucket: "gripkmlee.firebasestorage.app",
+    messagingSenderId: "918285809307",
+    appId: "1:918285809307:web:c24e44ba67108ff665f83e",
+    measurementId: "G-V42NW75LHG"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const COLLAB_DOC = doc(db, "prd", "naver-signup-prototype");
+  window.__FB__ = { app, db, COLLAB_DOC, doc, onSnapshot, setDoc };
+  window.__FB_READY__ = true;
+  document.dispatchEvent(new Event('fb:ready'));
+</script>
+<script>
+  // Slack Incoming Webhook URL (Phase 3)
+  // 채널: 건무 DM (Grip workspace)
+  window.SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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";
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -1448,6 +1472,367 @@
   }
   .flow-diagram svg { width: 100%; height: auto; }
 
+  /* ==================== COLLAB (comments · edits · history) ==================== */
+  .collab-tools {
+    position: fixed;
+    top: 16px;
+    right: 180px;
+    z-index: 500;
+    display: none;
+    gap: 10px;
+    align-items: center;
+  }
+  body.prd-mode .collab-tools { display: flex; }
+  .collab-btn {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.15);
+    position: relative;
+    transition: transform .1s;
+    font-family: inherit;
+  }
+  .collab-btn:active { transform: scale(.94); }
+  .collab-btn:hover { transform: translateY(-1px); }
+  .collab-btn .dot {
+    position: absolute; top: 3px; right: 3px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #EF4444;
+    border: 2px solid #fff;
+  }
+  .collab-btn.has-user .dot { background: #10B981; }
+
+  .collab-popup {
+    position: fixed;
+    top: 66px;
+    right: 24px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    width: 340px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.22);
+    z-index: 600;
+    display: none;
+  }
+  .collab-popup.active { display: block; animation: popIn .18s ease-out; }
+  @keyframes popIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .collab-popup h3 {
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .collab-popup h3 .x {
+    background: none; border: none; font-size: 20px; color: #888;
+    cursor: pointer; padding: 0;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  }
+  .collab-popup label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    margin: 12px 0 5px;
+    display: block;
+  }
+  .collab-popup input {
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .collab-popup input:focus { border-color: var(--grip); }
+  .collab-popup .primary {
+    background: var(--grip);
+    color: #fff;
+    border: none;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 14px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .collab-popup .danger {
+    background: #fff;
+    color: var(--danger);
+    border: 1px solid #FECACA;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 8px;
+    font-family: inherit;
+    font-weight: 600;
+  }
+  .collab-popup .current-user {
+    background: #F0FDF4;
+    border: 1px solid #86EFAC;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .collab-popup .current-user b { color: #16A34A; display: block; font-size: 12px; margin-bottom: 2px; }
+  .collab-popup .hint {
+    font-size: 11px;
+    color: var(--sub);
+    line-height: 1.5;
+    margin-top: 8px;
+    padding: 10px;
+    background: #F9FAFB;
+    border-radius: 6px;
+  }
+
+  /* History list */
+  .hist-item {
+    border-left: 3px solid var(--line);
+    padding: 8px 0 8px 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .hist-item.type-comment { border-left-color: #F59E0B; }
+  .hist-item.type-edit { border-left-color: #3B82F6; }
+  .hist-item.type-user_update { border-left-color: #10B981; }
+  .hist-item.type-reply { border-left-color: #EC4899; }
+  .hist-item .meta { color: #888; font-size: 10px; margin-bottom: 3px; }
+  .hist-item .author { color: var(--text); font-weight: 700; }
+  .hist-item .desc { color: #333; line-height: 1.5; word-break: break-word; }
+  .hist-empty { text-align: center; color: var(--sub); font-size: 12px; padding: 30px 0; }
+
+  /* Selection floating toolbar */
+  .selection-toolbar {
+    position: absolute;
+    background: #111827;
+    color: #fff;
+    border-radius: 10px;
+    padding: 4px;
+    display: none;
+    gap: 2px;
+    z-index: 700;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .selection-toolbar.active { display: flex; }
+  .selection-toolbar button {
+    background: transparent;
+    border: none;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 7px;
+    font-family: inherit;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .selection-toolbar button:hover { background: rgba(255,255,255,0.12); }
+  .selection-toolbar::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 10px; height: 10px;
+    background: #111827;
+  }
+
+  /* Comment highlights */
+  .comment-highlight {
+    background: #FEF3C7;
+    border-bottom: 2px solid #F59E0B;
+    cursor: pointer;
+    padding: 1px 0;
+    border-radius: 2px;
+    transition: background .15s;
+  }
+  .comment-highlight:hover { background: #FDE68A; }
+  .comment-highlight.active { background: #FCD34D; }
+  .comment-highlight .cnt {
+    background: #F59E0B;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 999px;
+    margin-left: 3px;
+    vertical-align: 2px;
+    line-height: 1.4;
+    display: inline-block;
+  }
+
+  /* Comment thread panel */
+  .comment-thread {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 380px;
+    max-height: calc(100vh - 32px);
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.28);
+    z-index: 800;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: popIn .2s ease-out;
+  }
+  .comment-thread.active { display: flex; }
+  .ct-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .ct-head h3 { font-size: 14px; font-weight: 800; }
+  .ct-head .close {
+    background: none; border: none; font-size: 20px; color: #888; cursor: pointer;
+    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  }
+  .ct-target {
+    background: #FEF3C7;
+    border-left: 3px solid #F59E0B;
+    padding: 10px 14px;
+    margin: 12px 16px 0;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #333;
+    max-height: 100px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .ct-list {
+    overflow-y: auto;
+    padding: 8px 16px;
+    flex: 1;
+    min-height: 60px;
+  }
+  .ct-msg {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line2);
+    font-size: 12px;
+  }
+  .ct-msg:last-child { border-bottom: none; }
+  .ct-msg .hd {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .ct-msg .avatar {
+    width: 26px; height: 26px;
+    background: linear-gradient(135deg, var(--grip), #FF6B8B);
+    color: #fff;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .ct-msg .author-line { flex: 1; min-width: 0; }
+  .ct-msg .author-line .author {
+    font-weight: 700; color: var(--text); font-size: 12px;
+    word-break: break-all;
+  }
+  .ct-msg .author-line .time {
+    color: #888; font-size: 10px;
+  }
+  .ct-msg .body {
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-left: 32px;
+  }
+  .ct-msg .delete {
+    background: none; border: none; color: #CBD5E1; cursor: pointer;
+    font-size: 12px; padding: 2px 6px;
+  }
+  .ct-msg .delete:hover { color: var(--danger); }
+
+  .ct-input-wrap {
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    background: #FAFAFA;
+    flex-shrink: 0;
+  }
+  .ct-input-wrap textarea {
+    width: 100%;
+    min-height: 62px;
+    max-height: 140px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 12px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s;
+    background: #fff;
+    line-height: 1.5;
+  }
+  .ct-input-wrap textarea:focus { border-color: var(--grip); }
+  .ct-input-wrap .btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+  }
+  .ct-input-wrap .btns button {
+    border-radius: 7px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .ct-input-wrap .btns .save { background: var(--grip); color: #fff; }
+  .ct-input-wrap .btns .save:disabled { background: #FDA4AF; cursor: not-allowed; }
+  .ct-input-wrap .btns .cancel { background: transparent; color: #666; border: 1px solid var(--line); }
+
+  /* Inline edit */
+  body.prd-mode .prd-editable { position: relative; transition: all .15s; }
+  body.prd-mode .prd-editable:hover:not([contenteditable="true"]) {
+    outline: 1px dashed #FF2D55;
+    outline-offset: 2px;
+    border-radius: 2px;
+    cursor: text;
+  }
+  body.prd-mode .prd-editable[contenteditable="true"] {
+    outline: 2px solid #FF2D55;
+    background: #FFFBEB;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: text;
+  }
+  .prd-editable[data-edited="1"] {
+    border-left: 2px solid #3B82F6;
+    padding-left: 8px;
+    margin-left: -10px;
+  }
+
   /* Narrow viewport — stack PRD panel below device */
   @media (max-width: 900px) {
     body.prd-mode {
@@ -1470,6 +1855,46 @@
   <span class="dot"></span>
   <span id="prdToggleLabel">PRD 모드</span>
 </button>
+
+<div class="collab-tools" id="collabTools">
+  <button class="collab-btn" id="userBtn" title="내 계정" onclick="toggleUserPopup()">
+    <span>👤</span>
+    <span class="dot"></span>
+  </button>
+  <button class="collab-btn" id="historyBtn" title="변경 이력" onclick="toggleHistoryPopup()">
+    🕐
+  </button>
+</div>
+
+<div class="collab-popup" id="userPopup">
+  <h3>내 계정 <button class="x" onclick="toggleUserPopup(false)">×</button></h3>
+  <div id="userPopupBody"></div>
+</div>
+
+<div class="collab-popup" id="historyPopup">
+  <h3>변경 이력 <button class="x" onclick="toggleHistoryPopup(false)">×</button></h3>
+  <div id="historyList"></div>
+</div>
+
+<div class="selection-toolbar" id="selectionToolbar">
+  <button onclick="onCommentIconClick()">💬 댓글</button>
+</div>
+
+<div class="comment-thread" id="commentThread">
+  <div class="ct-head">
+    <h3 id="ctTitle">댓글</h3>
+    <button class="close" onclick="closeCommentThread()">×</button>
+  </div>
+  <div class="ct-target" id="ctTarget"></div>
+  <div class="ct-list" id="ctList"></div>
+  <div class="ct-input-wrap">
+    <textarea id="ctInput" placeholder="댓글 또는 답글을 입력하세요..." oninput="onCtInput()"></textarea>
+    <div class="btns">
+      <button class="cancel" onclick="closeCommentThread()">닫기</button>
+      <button class="save" id="ctSaveBtn" onclick="saveCommentReply()" disabled>작성</button>
+    </div>
+  </div>
+</div>
 
 <div class="device-col"><div class="device">
   <div class="status-bar">
@@ -1793,25 +2218,25 @@
     <!-- 1. 개요 -->
     <section class="prd-section" id="sec-overview">
       <h2>1. 배경 및 목적 (Background & Objectives)</h2>
-      <h3>배경</h3>
-      <p>Grip 서비스의 로그인 채널은 현재 <b>카카오(62.53%)</b> 단일 의존도가 매우 높은 구조이며, 그 뒤로 email(17.20%, 셀러 인입 추정) · facebook(8.20%) · id_pw(6.30%) · apple(5.77%, iOS only) 순으로 분포합니다. 이메일 가입은 그리퍼(셀러) 인입이 포함되어 있어 순수 소비자 기준으로 보면 <b>카카오 편중</b>이 더 심각한 상황입니다. 경쟁 커머스(배민·컬리 등)는 이미 네이버 간편로그인을 주요 채널로 운영 중이거나 도입 예정으로, 네이버 생태계 유저 확보를 위한 도입이 필요한 시점입니다.</p>
-      <h3>목적</h3>
+      <h3 class="prd-editable" data-e-id="e1">배경</h3>
+      <p class="prd-editable" data-e-id="e2">Grip 서비스의 로그인 채널은 현재 <b>카카오(62.53%)</b> 단일 의존도가 매우 높은 구조이며, 그 뒤로 email(17.20%, 셀러 인입 추정) · facebook(8.20%) · id_pw(6.30%) · apple(5.77%, iOS only) 순으로 분포합니다. 이메일 가입은 그리퍼(셀러) 인입이 포함되어 있어 순수 소비자 기준으로 보면 <b>카카오 편중</b>이 더 심각한 상황입니다. 경쟁 커머스(배민·컬리 등)는 이미 네이버 간편로그인을 주요 채널로 운영 중이거나 도입 예정으로, 네이버 생태계 유저 확보를 위한 도입이 필요한 시점입니다.</p>
+      <h3 class="prd-editable" data-e-id="e3">목적</h3>
       <ul>
-        <li><b>가입 채널 확대</b>로 카카오 편중을 완화하고 로그인 실패/피로도 감소</li>
-        <li><b>네이버 생태계 유저</b> 유입으로 신규 가입 전환 모수 확대</li>
-        <li><b>운영 효율화</b> — 이메일 가입 경로에 섞여 있는 소비자 인입을 별도 SNS로 분리</li>
+        <li class="prd-editable" data-e-id="e4"><b>가입 채널 확대</b>로 카카오 편중을 완화하고 로그인 실패/피로도 감소</li>
+        <li class="prd-editable" data-e-id="e5"><b>네이버 생태계 유저</b> 유입으로 신규 가입 전환 모수 확대</li>
+        <li class="prd-editable" data-e-id="e6"><b>운영 효율화</b> — 이메일 가입 경로에 섞여 있는 소비자 인입을 별도 SNS로 분리</li>
       </ul>
-      <h3>기대 효과</h3>
+      <h3 class="prd-editable" data-e-id="e7">기대 효과</h3>
       <ul>
-        <li>첫 로그인 화면에서의 이탈률 개선 (특히 비(非)카카오 유저)</li>
-        <li>중장기적으로 <b>Google 간편가입</b> 도입 시 Android 비중 대응 기반 마련</li>
+        <li class="prd-editable" data-e-id="e8">첫 로그인 화면에서의 이탈률 개선 (특히 비(非)카카오 유저)</li>
+        <li class="prd-editable" data-e-id="e9">중장기적으로 <b>Google 간편가입</b> 도입 시 Android 비중 대응 기반 마련</li>
       </ul>
     </section>
 
     <!-- 2. KPI -->
     <section class="prd-section" id="sec-kpi">
       <h2>2. 핵심 지표 (KPIs)</h2>
-      <p>정성적 목표인 "가입 전환 기대" 를 정량적으로 측정하기 위해 아래 지표를 추적합니다.</p>
+      <p class="prd-editable" data-e-id="e10">정성적 목표인 "가입 전환 기대" 를 정량적으로 측정하기 위해 아래 지표를 추적합니다.</p>
       <table class="prd-table">
         <thead><tr><th>구분</th><th>지표</th><th>측정 방법</th><th>목표</th></tr></thead>
         <tbody>
@@ -1870,12 +2295,12 @@
         </svg>
       </div>
       <ul>
-        <li><b>P1 로그인 페이지</b> — 카카오/네이버 2-top 버튼 + 기타 아이콘</li>
-        <li><b>P2 네이버 인증</b> — 네이버 OAuth 2.0 로그인 (외부 네이버 페이지)</li>
-        <li><b>P3 동의 화면</b> — 개인정보 제 3자 제공 동의 (필수/선택 분리)</li>
-        <li><b>P4 Grip 회원가입</b> — 네이버 Prefill + 추가 입력 + 약관 동의</li>
-        <li><b>P5 홈</b> — 가입 완료 직후 랜딩</li>
-        <li><b>P6 로그인 관리</b> — 마이페이지 &gt; 설정 내 연결 계정 CRUD</li>
+        <li class="prd-editable" data-e-id="e11"><b>P1 로그인 페이지</b> — 카카오/네이버 2-top 버튼 + 기타 아이콘</li>
+        <li class="prd-editable" data-e-id="e12"><b>P2 네이버 인증</b> — 네이버 OAuth 2.0 로그인 (외부 네이버 페이지)</li>
+        <li class="prd-editable" data-e-id="e13"><b>P3 동의 화면</b> — 개인정보 제 3자 제공 동의 (필수/선택 분리)</li>
+        <li class="prd-editable" data-e-id="e14"><b>P4 Grip 회원가입</b> — 네이버 Prefill + 추가 입력 + 약관 동의</li>
+        <li class="prd-editable" data-e-id="e15"><b>P5 홈</b> — 가입 완료 직후 랜딩</li>
+        <li class="prd-editable" data-e-id="e16"><b>P6 로그인 관리</b> — 마이페이지 &gt; 설정 내 연결 계정 CRUD</li>
       </ul>
     </section>
 
@@ -1930,9 +2355,9 @@
       <div class="prd-box">
         <b>핵심 분기:</b>
         <ul style="margin:6px 0 0;">
-          <li><b>기존 회원(naver 연결)</b> → P3·P4 스킵, P5 홈 직행</li>
-          <li><b>이메일 충돌(他 SNS 선가입)</b> → 계정 연결 제안 모달 → 연결 시 홈, 취소 시 로그인</li>
-          <li><b>신규</b> → P3(동의) → P4(가입) → P5(홈)</li>
+          <li class="prd-editable" data-e-id="e17"><b>기존 회원(naver 연결)</b> → P3·P4 스킵, P5 홈 직행</li>
+          <li class="prd-editable" data-e-id="e18"><b>이메일 충돌(他 SNS 선가입)</b> → 계정 연결 제안 모달 → 연결 시 홈, 취소 시 로그인</li>
+          <li class="prd-editable" data-e-id="e19"><b>신규</b> → P3(동의) → P4(가입) → P5(홈)</li>
         </ul>
       </div>
     </section>
@@ -1940,10 +2365,10 @@
     <!-- 5. 기능 명세 -->
     <section class="prd-section" id="sec-func">
       <h2>5. 기능 요구사항 (Functional Requirements)</h2>
-      <p>좌측 프로토타입에서 <b>PRD 모드</b>가 활성화된 상태이며, 각 번호 뱃지를 탭하면 해당 항목이 강조됩니다. 반대로 우측 번호 카드를 탭하면 프로토타입의 해당 요소가 하이라이트됩니다.</p>
+      <p class="prd-editable" data-e-id="e20">좌측 프로토타입에서 <b>PRD 모드</b>가 활성화된 상태이며, 각 번호 뱃지를 탭하면 해당 항목이 강조됩니다. 반대로 우측 번호 카드를 탭하면 프로토타입의 해당 요소가 하이라이트됩니다.</p>
 
       <!-- [P1] 로그인 페이지 -->
-      <h3 style="margin-top:20px;">P1. 로그인 페이지</h3>
+      <h3 class="prd-editable" data-e-id="e21" style="margin-top:20px;">P1. 로그인 페이지</h3>
 
       <article class="prd-feat" id="prd-1" data-prd-ref="1">
         <div class="prd-feat-head" onclick="highlightBadge(1)">
@@ -1951,22 +2376,22 @@
           <div class="prd-feat-title">카카오 메인 CTA<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 로그인 페이지 최상단 버튼</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>현행 1차 메인 CTA 유지. 카카오 SDK 기반 간편 로그인 플로우. 로그인 타입 비중 62.53%로 단일 최대 채널.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e22">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e23">현행 1차 메인 CTA 유지. 카카오 SDK 기반 간편 로그인 플로우. 로그인 타입 비중 62.53%로 단일 최대 채널.</p>
+          <h4 class="prd-editable" data-e-id="e24">상세 동작</h4>
           <ul>
-            <li>버튼 탭 → 카카오 SDK 호출 → 동의 화면 → 콜백 수신 → Grip 서버 로그인 / 신규 가입 분기</li>
-            <li>버튼 스타일: 배경 #FEE500 (카카오 브랜드 옐로우) 유지, 2TOP 구조로 네이버 버튼과 동일 width</li>
-            <li>기존 A11y 라벨 · 이벤트 로깅 스키마 변경 없음</li>
+            <li class="prd-editable" data-e-id="e25">버튼 탭 → 카카오 SDK 호출 → 동의 화면 → 콜백 수신 → Grip 서버 로그인 / 신규 가입 분기</li>
+            <li class="prd-editable" data-e-id="e26">버튼 스타일: 배경 #FEE500 (카카오 브랜드 옐로우) 유지, 2TOP 구조로 네이버 버튼과 동일 width</li>
+            <li class="prd-editable" data-e-id="e27">기존 A11y 라벨 · 이벤트 로깅 스키마 변경 없음</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e28">정책</h4>
           <ul>
-            <li>버튼 순서는 <b>카카오 &gt; 네이버</b> 고정 (비중 우선순위 기준)</li>
-            <li>네이버 도입 이후 비중 재조정 단계에서 A/B 테스트로 순서 재검토 가능</li>
+            <li class="prd-editable" data-e-id="e29">버튼 순서는 <b>카카오 &gt; 네이버</b> 고정 (비중 우선순위 기준)</li>
+            <li class="prd-editable" data-e-id="e30">네이버 도입 이후 비중 재조정 단계에서 A/B 테스트로 순서 재검토 가능</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e31">개발 고려사항</h4>
           <ul>
-            <li>기존 플로우 변경 없음 · UI 폭만 네이버와 정렬(동일 높이 52px)</li>
+            <li class="prd-editable" data-e-id="e32">기존 플로우 변경 없음 · UI 폭만 네이버와 정렬(동일 높이 52px)</li>
           </ul>
         </div>
       </article>
@@ -1977,32 +2402,32 @@
           <div class="prd-feat-title">네이버 메인 CTA (신규)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 카카오 버튼 하단 2차 CTA</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>이번 과제의 핵심. 네이버 로그인 SDK(OAuth 2.0) 연동을 통한 간편 로그인/가입 진입점.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e33">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e34">이번 과제의 핵심. 네이버 로그인 SDK(OAuth 2.0) 연동을 통한 간편 로그인/가입 진입점.</p>
+          <h4 class="prd-editable" data-e-id="e35">상세 동작</h4>
           <ul>
-            <li>버튼 탭 → 네이버 로그인 페이지 진입 (네이버 공식 로그인 UI)</li>
-            <li>네이버 로그인 성공 → 동의 화면(P3) 진입 → 필수/선택 동의 수집</li>
-            <li>동의 완료 → 서버 회원 조회 → 기존 네이버 연결 회원이면 즉시 로그인 / 신규면 회원가입(P4) 진행</li>
+            <li class="prd-editable" data-e-id="e36">버튼 탭 → 네이버 로그인 페이지 진입 (네이버 공식 로그인 UI)</li>
+            <li class="prd-editable" data-e-id="e37">네이버 로그인 성공 → 동의 화면(P3) 진입 → 필수/선택 동의 수집</li>
+            <li class="prd-editable" data-e-id="e38">동의 완료 → 서버 회원 조회 → 기존 네이버 연결 회원이면 즉시 로그인 / 신규면 회원가입(P4) 진행</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e39">정책</h4>
           <ul>
-            <li>버튼 스타일: 네이버 공식 가이드 #03C75A 배경, 흰색 N 박스 아이콘 + "네이버로 로그인" 텍스트</li>
-            <li>버튼 위치: 카카오 바로 아래 (2차 CTA 톤)</li>
-            <li><b>login_type = 'naver'</b> 로그 이벤트 신규 추가 (Data/Web 협조)</li>
+            <li class="prd-editable" data-e-id="e40">버튼 스타일: 네이버 공식 가이드 #03C75A 배경, 흰색 N 박스 아이콘 + "네이버로 로그인" 텍스트</li>
+            <li class="prd-editable" data-e-id="e41">버튼 위치: 카카오 바로 아래 (2차 CTA 톤)</li>
+            <li class="prd-editable" data-e-id="e42"><b>login_type = 'naver'</b> 로그 이벤트 신규 추가 (Data/Web 협조)</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e43">개발 고려사항</h4>
           <ul>
-            <li>네이버 개발자 센터 앱 등록 · Client ID / Secret 발급 (Dev/Stg/Prod 분리)</li>
-            <li>iOS/Android 네이티브 SDK 사용 여부 결정 (네이티브 앱 설치 유무 분기)</li>
-            <li>웹뷰 fallback 플로우 필수 (네이버 앱 미설치 기기)</li>
-            <li>연동 문서: <a href="https://developers.naver.com/docs/login/devguide/devguide.md" target="_blank">네이버 로그인 개발가이드 - LOGIN</a></li>
+            <li class="prd-editable" data-e-id="e44">네이버 개발자 센터 앱 등록 · Client ID / Secret 발급 (Dev/Stg/Prod 분리)</li>
+            <li class="prd-editable" data-e-id="e45">iOS/Android 네이티브 SDK 사용 여부 결정 (네이티브 앱 설치 유무 분기)</li>
+            <li class="prd-editable" data-e-id="e46">웹뷰 fallback 플로우 필수 (네이버 앱 미설치 기기)</li>
+            <li class="prd-editable" data-e-id="e47">연동 문서: <a href="https://developers.naver.com/docs/login/devguide/devguide.md" target="_blank">네이버 로그인 개발가이드 - LOGIN</a></li>
           </ul>
-          <h4>엣지 케이스</h4>
+          <h4 class="prd-editable" data-e-id="e48">엣지 케이스</h4>
           <ul>
-            <li>네이버 로그인 중 취소 시 → 로그인 페이지 복귀, 에러 토스트 없음 (사용자 의도적 취소)</li>
-            <li>네이버 SDK 호출 실패 시 → "잠시 후 다시 시도해주세요" 에러 토스트</li>
-            <li>네트워크 단절 → 재시도 안내 토스트</li>
+            <li class="prd-editable" data-e-id="e49">네이버 로그인 중 취소 시 → 로그인 페이지 복귀, 에러 토스트 없음 (사용자 의도적 취소)</li>
+            <li class="prd-editable" data-e-id="e50">네이버 SDK 호출 실패 시 → "잠시 후 다시 시도해주세요" 에러 토스트</li>
+            <li class="prd-editable" data-e-id="e51">네트워크 단절 → 재시도 안내 토스트</li>
           </ul>
         </div>
       </article>
@@ -2013,29 +2438,29 @@
           <div class="prd-feat-title">기타 로그인 아이콘 그룹<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: "다른 방법" 구분선 하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>비중이 낮은 로그인 방식(apple · facebook · gmail · email)을 아이콘 레벨로 톤다운. 지표 기반 중요도 계층화.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e52">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e53">비중이 낮은 로그인 방식(apple · facebook · gmail · email)을 아이콘 레벨로 톤다운. 지표 기반 중요도 계층화.</p>
+          <h4 class="prd-editable" data-e-id="e54">상세 동작</h4>
           <ul>
-            <li>Apple: iOS에서만 노출 (기존 정책 유지)</li>
-            <li>Facebook · Gmail · Email: 아이콘 원형 버튼 (48x48)</li>
-            <li>아이콘 탭 → 기존 각 SNS 플로우로 이동 (변경 없음)</li>
+            <li class="prd-editable" data-e-id="e55">Apple: iOS에서만 노출 (기존 정책 유지)</li>
+            <li class="prd-editable" data-e-id="e56">Facebook · Gmail · Email: 아이콘 원형 버튼 (48x48)</li>
+            <li class="prd-editable" data-e-id="e57">아이콘 탭 → 기존 각 SNS 플로우로 이동 (변경 없음)</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e58">정책</h4>
           <ul>
-            <li>아이콘 순서: Apple(iOS) · Facebook · Gmail · Email</li>
-            <li>이메일 가입 원인(셀러 인입) 분석 완료 후, 이메일 아이콘 제거 여부 재검토 (Next Step)</li>
+            <li class="prd-editable" data-e-id="e59">아이콘 순서: Apple(iOS) · Facebook · Gmail · Email</li>
+            <li class="prd-editable" data-e-id="e60">이메일 가입 원인(셀러 인입) 분석 완료 후, 이메일 아이콘 제거 여부 재검토 (Next Step)</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e61">개발 고려사항</h4>
           <ul>
-            <li>아이콘 자산 디자인팀 전달 필요 (48px · 2x 에셋)</li>
-            <li>Apple 로그인은 iOS 네이티브에만 노출 · Android는 해당 아이콘 숨김</li>
+            <li class="prd-editable" data-e-id="e62">아이콘 자산 디자인팀 전달 필요 (48px · 2x 에셋)</li>
+            <li class="prd-editable" data-e-id="e63">Apple 로그인은 iOS 네이티브에만 노출 · Android는 해당 아이콘 숨김</li>
           </ul>
         </div>
       </article>
 
       <!-- [P2] 네이버 인증 -->
-      <h3 style="margin-top:28px;">P2. 네이버 인증 (외부 페이지)</h3>
+      <h3 class="prd-editable" data-e-id="e64" style="margin-top:28px;">P2. 네이버 인증 (외부 페이지)</h3>
 
       <article class="prd-feat" id="prd-4" data-prd-ref="4">
         <div class="prd-feat-head" onclick="highlightBadge(4)">
@@ -2043,24 +2468,24 @@
           <div class="prd-feat-title">네이버 계정 선택 / 로그인<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 네이버 로그인 호출 후 네이버 도메인</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>네이버 로그인 페이지에서 사용자가 이미 네이버 세션을 보유한 경우 계정 선택 UI 노출. 미로그인 상태면 ID/PW 입력 화면.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e65">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e66">네이버 로그인 페이지에서 사용자가 이미 네이버 세션을 보유한 경우 계정 선택 UI 노출. 미로그인 상태면 ID/PW 입력 화면.</p>
+          <h4 class="prd-editable" data-e-id="e67">상세 동작</h4>
           <ul>
-            <li>네이버 세션 O → 가입된 ID 리스트 노출 + "다른 아이디로 로그인" 옵션</li>
-            <li>네이버 세션 X → ID/PW 입력 폼</li>
-            <li>선택/로그인 완료 → OAuth 2.0 Authorization Code 발급 → Grip 서버 콜백</li>
+            <li class="prd-editable" data-e-id="e68">네이버 세션 O → 가입된 ID 리스트 노출 + "다른 아이디로 로그인" 옵션</li>
+            <li class="prd-editable" data-e-id="e69">네이버 세션 X → ID/PW 입력 폼</li>
+            <li class="prd-editable" data-e-id="e70">선택/로그인 완료 → OAuth 2.0 Authorization Code 발급 → Grip 서버 콜백</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e71">정책</h4>
           <ul>
-            <li>이 화면은 <b>네이버 소유 UI</b> — Grip 에서 수정 불가</li>
-            <li>네이버 공식 UI 가이드를 따르며, Grip 은 "state" 파라미터로 CSRF 방지 처리만 담당</li>
+            <li class="prd-editable" data-e-id="e72">이 화면은 <b>네이버 소유 UI</b> — Grip 에서 수정 불가</li>
+            <li class="prd-editable" data-e-id="e73">네이버 공식 UI 가이드를 따르며, Grip 은 "state" 파라미터로 CSRF 방지 처리만 담당</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e74">개발 고려사항</h4>
           <ul>
-            <li>Authorization Code → Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
-            <li>Token 을 사용해 네이버 프로필 API 호출 → 이름/이메일/옵션 정보 수신</li>
-            <li>redirect_uri 화이트리스트 관리 (Dev/Stg/Prod)</li>
+            <li class="prd-editable" data-e-id="e75">Authorization Code → Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
+            <li class="prd-editable" data-e-id="e76">Token 을 사용해 네이버 프로필 API 호출 → 이름/이메일/옵션 정보 수신</li>
+            <li class="prd-editable" data-e-id="e77">redirect_uri 화이트리스트 관리 (Dev/Stg/Prod)</li>
           </ul>
         </div>
       </article>
@@ -2071,12 +2496,12 @@
           <div class="prd-feat-title">다른 아이디로 로그인<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 계정 리스트 하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>기존 세션이 아닌 다른 네이버 계정으로 로그인하려는 유저를 위한 진입점. (네이버 소유 UI)</p>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e78">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e79">기존 세션이 아닌 다른 네이버 계정으로 로그인하려는 유저를 위한 진입점. (네이버 소유 UI)</p>
+          <h4 class="prd-editable" data-e-id="e80">정책</h4>
           <ul>
-            <li>Grip 은 별도 처리 없음 — 네이버에서 ID/PW 재입력 후 토큰 재발급</li>
-            <li>계정이 바뀐 경우 Grip 서버는 수신된 네이버 고유 ID(naverSub) 기준으로 회원 식별</li>
+            <li class="prd-editable" data-e-id="e81">Grip 은 별도 처리 없음 — 네이버에서 ID/PW 재입력 후 토큰 재발급</li>
+            <li class="prd-editable" data-e-id="e82">계정이 바뀐 경우 Grip 서버는 수신된 네이버 고유 ID(naverSub) 기준으로 회원 식별</li>
           </ul>
         </div>
       </article>
@@ -2087,44 +2512,44 @@
           <div class="prd-feat-title">선택한 아이디로 로그인 (확정 CTA)<span class="loc">영역: 네이버 외부 페이지 &nbsp;|&nbsp; 위치: 네이버 계정 선택 화면 하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>사용자가 네이버 아이디를 선택(탭)했을 때만 활성화되는 확정 버튼. 탭 시 네이버에 OAuth Authorization Code 발급을 요청하고, 콜백을 통해 Grip 서버로 리다이렉트됩니다.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e83">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e84">사용자가 네이버 아이디를 선택(탭)했을 때만 활성화되는 확정 버튼. 탭 시 네이버에 OAuth Authorization Code 발급을 요청하고, 콜백을 통해 Grip 서버로 리다이렉트됩니다.</p>
+          <h4 class="prd-editable" data-e-id="e85">상세 동작</h4>
           <ul>
-            <li><b>초기 상태:</b> disabled · 회색 배경 (#D1D5DB) · 클릭 불가</li>
-            <li><b>활성 조건:</b> 네이버 계정 리스트에서 1개 선택 시 즉시 활성 (#03C75A 배경)</li>
-            <li><b>탭 동작:</b>
+            <li class="prd-editable" data-e-id="e86"><b>초기 상태:</b> disabled · 회색 배경 (#D1D5DB) · 클릭 불가</li>
+            <li class="prd-editable" data-e-id="e87"><b>활성 조건:</b> 네이버 계정 리스트에서 1개 선택 시 즉시 활성 (#03C75A 배경)</li>
+            <li class="prd-editable" data-e-id="e88"><b>탭 동작:</b>
               <ul>
-                <li>기존 Grip 회원(naver 연결)이면 동의 화면(P3) 스킵 → 즉시 홈(P5)</li>
-                <li>신규면 동의 화면(P3) 진입</li>
+                <li class="prd-editable" data-e-id="e89">기존 Grip 회원(naver 연결)이면 동의 화면(P3) 스킵 → 즉시 홈(P5)</li>
+                <li class="prd-editable" data-e-id="e90">신규면 동의 화면(P3) 진입</li>
               </ul>
             </li>
-            <li>로딩 상태: 버튼 내부에 스피너 노출 + 버튼 중복 탭 방지 (debounce)</li>
+            <li class="prd-editable" data-e-id="e91">로딩 상태: 버튼 내부에 스피너 노출 + 버튼 중복 탭 방지 (debounce)</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e92">정책</h4>
           <ul>
-            <li>버튼은 선택 전까지 반드시 <b>비활성</b> — 사용자 실수 클릭 방지</li>
-            <li>선택 후 다른 아이디로 재선택하면 선택값이 갱신되며 버튼은 활성 유지</li>
-            <li>네이버 OAuth 요청에는 CSRF 방지를 위한 <code>state</code> 파라미터 필수</li>
-            <li>redirect_uri 는 환경별(Dev/Stg/Prod) 다르게 등록된 화이트리스트 사용</li>
+            <li class="prd-editable" data-e-id="e93">버튼은 선택 전까지 반드시 <b>비활성</b> — 사용자 실수 클릭 방지</li>
+            <li class="prd-editable" data-e-id="e94">선택 후 다른 아이디로 재선택하면 선택값이 갱신되며 버튼은 활성 유지</li>
+            <li class="prd-editable" data-e-id="e95">네이버 OAuth 요청에는 CSRF 방지를 위한 <code>state</code> 파라미터 필수</li>
+            <li class="prd-editable" data-e-id="e96">redirect_uri 는 환경별(Dev/Stg/Prod) 다르게 등록된 화이트리스트 사용</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e97">개발 고려사항</h4>
           <ul>
-            <li>Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
-            <li>네이버 응답 지연 시 최대 10초 타임아웃 → 실패 시 "잠시 후 다시 시도해주세요" 에러 토스트</li>
-            <li>이벤트 로깅: <code>naver_login_attempt { selected_idx: N }</code></li>
+            <li class="prd-editable" data-e-id="e98">Access Token 교환은 <b>서버 사이드</b>에서 처리 (Client Secret 노출 방지)</li>
+            <li class="prd-editable" data-e-id="e99">네이버 응답 지연 시 최대 10초 타임아웃 → 실패 시 "잠시 후 다시 시도해주세요" 에러 토스트</li>
+            <li class="prd-editable" data-e-id="e100">이벤트 로깅: <code>naver_login_attempt { selected_idx: N }</code></li>
           </ul>
-          <h4>엣지 케이스</h4>
+          <h4 class="prd-editable" data-e-id="e101">엣지 케이스</h4>
           <ul>
-            <li>네이버 응답 실패(5xx) → 로딩 해제 + 에러 토스트 + 재시도 가능</li>
-            <li>네트워크 오프라인 → "인터넷 연결을 확인해주세요" 토스트</li>
-            <li>동시에 여러 번 탭 → debounce 로 첫 요청만 처리, 이후 무시</li>
+            <li class="prd-editable" data-e-id="e102">네이버 응답 실패(5xx) → 로딩 해제 + 에러 토스트 + 재시도 가능</li>
+            <li class="prd-editable" data-e-id="e103">네트워크 오프라인 → "인터넷 연결을 확인해주세요" 토스트</li>
+            <li class="prd-editable" data-e-id="e104">동시에 여러 번 탭 → debounce 로 첫 요청만 처리, 이후 무시</li>
           </ul>
         </div>
       </article>
 
       <!-- [P3] 동의 화면 -->
-      <h3 style="margin-top:28px;">P3. 개인정보 제공 동의</h3>
+      <h3 class="prd-editable" data-e-id="e105" style="margin-top:28px;">P3. 개인정보 제공 동의</h3>
 
       <article class="prd-feat" id="prd-7" data-prd-ref="7">
         <div class="prd-feat-head" onclick="highlightBadge(7)">
@@ -2132,29 +2557,29 @@
           <div class="prd-feat-title">필수 동의 · 이메일 주소<span class="loc">영역: 네이버 동의 모달 내부 &nbsp;|&nbsp; 위치: 동의 화면 상단 블록</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>Grip 서비스 가입/로그인을 위한 최소 필수 정보. 사용자 식별자 역할.</p>
-          <h4>수집 항목</h4>
+          <h4 class="prd-editable" data-e-id="e106">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e107">Grip 서비스 가입/로그인을 위한 최소 필수 정보. 사용자 식별자 역할.</p>
+          <h4 class="prd-editable" data-e-id="e108">수집 항목</h4>
           <ul>
-            <li><b>이메일 주소</b> — 회원 식별 Primary Key · 계정 충돌 체크 기준</li>
-            <li>(서비스상 필요하면 "이름" 도 필수에 포함 검토 — BRD 문서 기준 이름+이메일 필수)</li>
+            <li class="prd-editable" data-e-id="e109"><b>이메일 주소</b> — 회원 식별 Primary Key · 계정 충돌 체크 기준</li>
+            <li class="prd-editable" data-e-id="e110">(서비스상 필요하면 "이름" 도 필수에 포함 검토 — BRD 문서 기준 이름+이메일 필수)</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e111">정책</h4>
           <ul>
-            <li>필수 동의는 체크 해제 불가. UI 상 항상 체크 상태 + 체크박스 비활성</li>
-            <li>미동의 시 "동의하기" 버튼 비활성 (실제로는 필수가 고정 체크라 불가능)</li>
-            <li>취소 버튼은 항상 활성 → 취소 시 로그인 페이지로 복귀</li>
+            <li class="prd-editable" data-e-id="e112">필수 동의는 체크 해제 불가. UI 상 항상 체크 상태 + 체크박스 비활성</li>
+            <li class="prd-editable" data-e-id="e113">미동의 시 "동의하기" 버튼 비활성 (실제로는 필수가 고정 체크라 불가능)</li>
+            <li class="prd-editable" data-e-id="e114">취소 버튼은 항상 활성 → 취소 시 로그인 페이지로 복귀</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e115">개발 고려사항</h4>
           <ul>
-            <li>네이버 개발자 센터에서 앱 등록 시 <b>"필수 동의 항목"</b> 으로 이메일 설정 필요</li>
-            <li>이메일 미제공 네이버 계정이 존재할 수 있음 (국외 계정 일부) → 서버 단에서 빈 이메일 예외 처리</li>
-            <li>수집 이메일은 Grip DB user.email 컬럼에 저장 · 기존 email 가입자와 충돌 체크</li>
+            <li class="prd-editable" data-e-id="e116">네이버 개발자 센터에서 앱 등록 시 <b>"필수 동의 항목"</b> 으로 이메일 설정 필요</li>
+            <li class="prd-editable" data-e-id="e117">이메일 미제공 네이버 계정이 존재할 수 있음 (국외 계정 일부) → 서버 단에서 빈 이메일 예외 처리</li>
+            <li class="prd-editable" data-e-id="e118">수집 이메일은 Grip DB user.email 컬럼에 저장 · 기존 email 가입자와 충돌 체크</li>
           </ul>
-          <h4>엣지 케이스</h4>
+          <h4 class="prd-editable" data-e-id="e119">엣지 케이스</h4>
           <ul>
-            <li>네이버에서 이메일 필드가 비어 있을 경우 → 가입 중단 & "이메일 정보를 받을 수 없어요" 안내</li>
-            <li>개인정보보호법 대응: 수집 근거 · 이용 목적 · 보유 기간 동의 화면에 명시</li>
+            <li class="prd-editable" data-e-id="e120">네이버에서 이메일 필드가 비어 있을 경우 → 가입 중단 & "이메일 정보를 받을 수 없어요" 안내</li>
+            <li class="prd-editable" data-e-id="e121">개인정보보호법 대응: 수집 근거 · 이용 목적 · 보유 기간 동의 화면에 명시</li>
           </ul>
         </div>
       </article>
@@ -2165,35 +2590,35 @@
           <div class="prd-feat-title">선택 동의 · 부가 정보 5종<span class="loc">영역: 네이버 동의 모달 내부 &nbsp;|&nbsp; 위치: 필수 동의 바로 아래</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>Grip 가입폼 prefill · 개인화 추천 · 마케팅 타겟팅 목적의 선택 정보.</p>
-          <h4>수집 항목 (선택)</h4>
+          <h4 class="prd-editable" data-e-id="e122">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e123">Grip 가입폼 prefill · 개인화 추천 · 마케팅 타겟팅 목적의 선택 정보.</p>
+          <h4 class="prd-editable" data-e-id="e124">수집 항목 (선택)</h4>
           <ul>
-            <li><b>별명 (닉네임)</b> · <b>프로필사진</b> · <b>성별</b> · <b>생일</b> · <b>연령대</b></li>
+            <li class="prd-editable" data-e-id="e125"><b>별명 (닉네임)</b> · <b>프로필사진</b> · <b>성별</b> · <b>생일</b> · <b>연령대</b></li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e126">정책</h4>
           <ul>
-            <li>선택 동의는 <b>전체 동의하기</b> 와 개별 섹션 토글 두 가지 방법 제공</li>
-            <li>미동의 시 → 해당 항목은 Grip 가입폼에서 빈 값으로 노출, 사용자가 직접 입력</li>
-            <li>동의 시 → Grip 가입폼에 자동 입력(prefill), 편집 가능</li>
-            <li>선택 동의 상태는 user_consent 테이블에 개별 저장 → 추후 재동의 요청 시 참조</li>
+            <li class="prd-editable" data-e-id="e127">선택 동의는 <b>전체 동의하기</b> 와 개별 섹션 토글 두 가지 방법 제공</li>
+            <li class="prd-editable" data-e-id="e128">미동의 시 → 해당 항목은 Grip 가입폼에서 빈 값으로 노출, 사용자가 직접 입력</li>
+            <li class="prd-editable" data-e-id="e129">동의 시 → Grip 가입폼에 자동 입력(prefill), 편집 가능</li>
+            <li class="prd-editable" data-e-id="e130">선택 동의 상태는 user_consent 테이블에 개별 저장 → 추후 재동의 요청 시 참조</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e131">개발 고려사항</h4>
           <ul>
-            <li>네이버 개발자 센터에 각 항목을 "선택 동의" 로 등록</li>
-            <li>API 응답에서 미동의 필드는 null/undefined 로 올 수 있음 → Null-safe 처리 필수</li>
-            <li>향후 선택 항목 변경 시 사용자에게 재동의 요청 필요 (법적 요건)</li>
+            <li class="prd-editable" data-e-id="e132">네이버 개발자 센터에 각 항목을 "선택 동의" 로 등록</li>
+            <li class="prd-editable" data-e-id="e133">API 응답에서 미동의 필드는 null/undefined 로 올 수 있음 → Null-safe 처리 필수</li>
+            <li class="prd-editable" data-e-id="e134">향후 선택 항목 변경 시 사용자에게 재동의 요청 필요 (법적 요건)</li>
           </ul>
-          <h4>엣지 케이스</h4>
+          <h4 class="prd-editable" data-e-id="e135">엣지 케이스</h4>
           <ul>
-            <li>선택 전체 미동의 → 가입폼의 닉네임/성별/생년월일 필드는 빈 상태로 유저가 직접 입력</li>
-            <li>선택 동의 후 네이버에서 수신한 별명 길이 &gt; 12자 → 클라이언트에서 앞 12자만 prefill, 유저 편집 유도</li>
+            <li class="prd-editable" data-e-id="e136">선택 전체 미동의 → 가입폼의 닉네임/성별/생년월일 필드는 빈 상태로 유저가 직접 입력</li>
+            <li class="prd-editable" data-e-id="e137">선택 동의 후 네이버에서 수신한 별명 길이 &gt; 12자 → 클라이언트에서 앞 12자만 prefill, 유저 편집 유도</li>
           </ul>
         </div>
       </article>
 
       <!-- [P4] 회원가입 -->
-      <h3 style="margin-top:28px;">P4. Grip 회원가입</h3>
+      <h3 class="prd-editable" data-e-id="e138" style="margin-top:28px;">P4. Grip 회원가입</h3>
 
       <article class="prd-feat" id="prd-9" data-prd-ref="9">
         <div class="prd-feat-head" onclick="highlightBadge(9)">
@@ -2201,25 +2626,25 @@
           <div class="prd-feat-title">뒤로가기 버튼 — 다크패턴 해소<span class="loc">영역: APP &nbsp;|&nbsp; 위치: 회원가입 페이지 상단 앱바</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p><b>AS-IS:</b> 간편 로그인 성공 후 가입 페이지 진입 시 뒤로가기 비활성 → 유저가 가입을 중단하고 싶어도 이탈 경로가 없는 <b>다크패턴</b>. <b>TO-BE:</b> 뒤로가기 버튼 활성화 + 탭 시 "가입 취소" 확인 모달.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e139">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e140"><b>AS-IS:</b> 간편 로그인 성공 후 가입 페이지 진입 시 뒤로가기 비활성 → 유저가 가입을 중단하고 싶어도 이탈 경로가 없는 <b>다크패턴</b>. <b>TO-BE:</b> 뒤로가기 버튼 활성화 + 탭 시 "가입 취소" 확인 모달.</p>
+          <h4 class="prd-editable" data-e-id="e141">상세 동작</h4>
           <ul>
-            <li>앱바 좌측 ← 아이콘 상시 활성</li>
-            <li>탭 시 Confirm 모달: "가입을 취소할까요? 입력한 정보는 저장되지 않아요."</li>
-            <li>[가입 취소] → 로그인 페이지(P1) 복귀, 네이버 토큰/프로필 폐기</li>
-            <li>[계속 진행] → 모달 닫고 가입폼 유지</li>
+            <li class="prd-editable" data-e-id="e142">앱바 좌측 ← 아이콘 상시 활성</li>
+            <li class="prd-editable" data-e-id="e143">탭 시 Confirm 모달: "가입을 취소할까요? 입력한 정보는 저장되지 않아요."</li>
+            <li class="prd-editable" data-e-id="e144">[가입 취소] → 로그인 페이지(P1) 복귀, 네이버 토큰/프로필 폐기</li>
+            <li class="prd-editable" data-e-id="e145">[계속 진행] → 모달 닫고 가입폼 유지</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e146">정책</h4>
           <ul>
-            <li>OS 뒤로가기 제스처/버튼(Android)도 동일 Confirm 모달 트리거</li>
-            <li>가입 취소 시 수집한 네이버 프로필 데이터는 <b>즉시 메모리에서 파기</b> (서버 저장 X)</li>
-            <li>재로그인 시 다시 P2→P3 플로우 진행</li>
+            <li class="prd-editable" data-e-id="e147">OS 뒤로가기 제스처/버튼(Android)도 동일 Confirm 모달 트리거</li>
+            <li class="prd-editable" data-e-id="e148">가입 취소 시 수집한 네이버 프로필 데이터는 <b>즉시 메모리에서 파기</b> (서버 저장 X)</li>
+            <li class="prd-editable" data-e-id="e149">재로그인 시 다시 P2→P3 플로우 진행</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e150">개발 고려사항</h4>
           <ul>
-            <li>Android hardware back button · iOS swipe back 제스처 모두 핸들링</li>
-            <li>취소 이벤트 로깅: <code>signup_cancelled { from: 'naver', step: 'signup_form' }</code></li>
+            <li class="prd-editable" data-e-id="e151">Android hardware back button · iOS swipe back 제스처 모두 핸들링</li>
+            <li class="prd-editable" data-e-id="e152">취소 이벤트 로깅: <code>signup_cancelled { from: 'naver', step: 'signup_form' }</code></li>
           </ul>
           <div class="prd-box warn"><b>KPI 영향:</b> 뒤로가기 허용으로 단기 이탈률은 소폭 상승 가능. 다만 유저 신뢰/재가입 유도 관점에서 장기적으로 가입 전환에 + 효과 기대.</div>
         </div>
@@ -2231,24 +2656,24 @@
           <div class="prd-feat-title">네이버 Prefill 필드 (이름/이메일)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 상단 안내 배너 + 자동입력 필드</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>네이버에서 수신한 필수 정보(이름·이메일)를 가입폼에 자동 입력. readonly 로 설정해 오입력 방지.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e153">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e154">네이버에서 수신한 필수 정보(이름·이메일)를 가입폼에 자동 입력. readonly 로 설정해 오입력 방지.</p>
+          <h4 class="prd-editable" data-e-id="e155">상세 동작</h4>
           <ul>
-            <li>안내 배너: "네이버 계정으로 가입을 진행해요. 추가 정보만 입력하면 가입이 완료돼요."</li>
-            <li>이름/이메일 필드: 자동 입력 + readonly</li>
-            <li>편집이 꼭 필요하면 "이메일이 올바르지 않나요?" 링크로 CS 안내 (향후 검토)</li>
+            <li class="prd-editable" data-e-id="e156">안내 배너: "네이버 계정으로 가입을 진행해요. 추가 정보만 입력하면 가입이 완료돼요."</li>
+            <li class="prd-editable" data-e-id="e157">이름/이메일 필드: 자동 입력 + readonly</li>
+            <li class="prd-editable" data-e-id="e158">편집이 꼭 필요하면 "이메일이 올바르지 않나요?" 링크로 CS 안내 (향후 검토)</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e159">정책</h4>
           <ul>
-            <li>이메일은 회원 식별 키 → 유저 임의 편집 금지</li>
-            <li>이름 필드는 기본 readonly, 단 네이버에서 이름이 비어 오면 활성화(edge case)</li>
-            <li>"네이버 제공" 배지는 제거 (리뷰 피드백 반영)</li>
+            <li class="prd-editable" data-e-id="e160">이메일은 회원 식별 키 → 유저 임의 편집 금지</li>
+            <li class="prd-editable" data-e-id="e161">이름 필드는 기본 readonly, 단 네이버에서 이름이 비어 오면 활성화(edge case)</li>
+            <li class="prd-editable" data-e-id="e162">"네이버 제공" 배지는 제거 (리뷰 피드백 반영)</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e163">개발 고려사항</h4>
           <ul>
-            <li>prefill 실패(네이버 응답 지연/에러) 시 에러 화면 대신 필드 활성화 + "다시 시도" 옵션</li>
-            <li>이메일 중복 체크는 서버 API 에서 진행 (<code>POST /signup/check-email</code>)</li>
+            <li class="prd-editable" data-e-id="e164">prefill 실패(네이버 응답 지연/에러) 시 에러 화면 대신 필드 활성화 + "다시 시도" 옵션</li>
+            <li class="prd-editable" data-e-id="e165">이메일 중복 체크는 서버 API 에서 진행 (<code>POST /signup/check-email</code>)</li>
           </ul>
         </div>
       </article>
@@ -2259,20 +2684,20 @@
           <div class="prd-feat-title">닉네임 입력 (필수 · 편집 가능)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 중단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>Grip 내 표시명. 선택 동의 시 네이버 별명으로 prefill, 미동의 시 빈 상태에서 직접 입력.</p>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e166">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e167">Grip 내 표시명. 선택 동의 시 네이버 별명으로 prefill, 미동의 시 빈 상태에서 직접 입력.</p>
+          <h4 class="prd-editable" data-e-id="e168">정책</h4>
           <ul>
-            <li>길이: 2~12자</li>
-            <li>허용 문자: 한글 · 영문 · 숫자 (특수문자 불가)</li>
-            <li>금칙어 필터: 욕설 · 유해어 · 플랫폼 예약어(관리자/운영자/Grip공식 등) 차단</li>
-            <li>중복 허용 여부: <b>중복 허용</b> (현재 Grip 정책 유지) — 채팅 방에서는 uid 로 식별</li>
+            <li class="prd-editable" data-e-id="e169">길이: 2~12자</li>
+            <li class="prd-editable" data-e-id="e170">허용 문자: 한글 · 영문 · 숫자 (특수문자 불가)</li>
+            <li class="prd-editable" data-e-id="e171">금칙어 필터: 욕설 · 유해어 · 플랫폼 예약어(관리자/운영자/Grip공식 등) 차단</li>
+            <li class="prd-editable" data-e-id="e172">중복 허용 여부: <b>중복 허용</b> (현재 Grip 정책 유지) — 채팅 방에서는 uid 로 식별</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e173">개발 고려사항</h4>
           <ul>
-            <li>클라이언트 1차 유효성 체크 + 서버 2차 검증</li>
-            <li>금칙어 API 재사용 (기존 닉네임 필터 모듈)</li>
-            <li>maxlength=12 로 입력 차단, onInput 시 실시간 에러 메시지 노출</li>
+            <li class="prd-editable" data-e-id="e174">클라이언트 1차 유효성 체크 + 서버 2차 검증</li>
+            <li class="prd-editable" data-e-id="e175">금칙어 API 재사용 (기존 닉네임 필터 모듈)</li>
+            <li class="prd-editable" data-e-id="e176">maxlength=12 로 입력 차단, onInput 시 실시간 에러 메시지 노출</li>
           </ul>
         </div>
       </article>
@@ -2283,28 +2708,28 @@
           <div class="prd-feat-title">휴대폰 본인 확인<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 가입폼 중단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>실명 인증 + 중복 가입 방지를 위한 SMS 인증. 네이버 제공 정보에는 휴대폰이 없으므로 별도 인증 단계 필요.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e177">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e178">실명 인증 + 중복 가입 방지를 위한 SMS 인증. 네이버 제공 정보에는 휴대폰이 없으므로 별도 인증 단계 필요.</p>
+          <h4 class="prd-editable" data-e-id="e179">상세 동작</h4>
           <ul>
-            <li>번호 입력(010XXXXXXXX) → [인증 요청] → SMS 발송</li>
-            <li>인증번호 입력 필드 노출 + 3분 카운트다운</li>
-            <li>[확인] → 서버 검증 → 성공 시 번호 readonly 전환, 완료 토스트</li>
-            <li>재요청 버튼: 시간 초과 또는 SMS 미수신 시</li>
+            <li class="prd-editable" data-e-id="e180">번호 입력(010XXXXXXXX) → [인증 요청] → SMS 발송</li>
+            <li class="prd-editable" data-e-id="e181">인증번호 입력 필드 노출 + 3분 카운트다운</li>
+            <li class="prd-editable" data-e-id="e182">[확인] → 서버 검증 → 성공 시 번호 readonly 전환, 완료 토스트</li>
+            <li class="prd-editable" data-e-id="e183">재요청 버튼: 시간 초과 또는 SMS 미수신 시</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e184">정책</h4>
           <ul>
-            <li>번호 포맷: 01[016789]XXXXXXX (통신 3사 + 알뜰폰 커버)</li>
-            <li>타이머: 3분 · 초과 시 인증번호 만료, 재요청 필요</li>
-            <li>재요청 제한: 1분당 1회 · 1일 10회 (어뷰징 방지)</li>
-            <li>이미 가입된 번호인 경우 → "이미 가입된 번호예요. 계정 찾기를 이용해주세요" 에러</li>
-            <li>테스트용 고정 코드 <b>123456</b> — 프로토타입 전용, 프로덕션 비활성</li>
+            <li class="prd-editable" data-e-id="e185">번호 포맷: 01[016789]XXXXXXX (통신 3사 + 알뜰폰 커버)</li>
+            <li class="prd-editable" data-e-id="e186">타이머: 3분 · 초과 시 인증번호 만료, 재요청 필요</li>
+            <li class="prd-editable" data-e-id="e187">재요청 제한: 1분당 1회 · 1일 10회 (어뷰징 방지)</li>
+            <li class="prd-editable" data-e-id="e188">이미 가입된 번호인 경우 → "이미 가입된 번호예요. 계정 찾기를 이용해주세요" 에러</li>
+            <li class="prd-editable" data-e-id="e189">테스트용 고정 코드 <b>123456</b> — 프로토타입 전용, 프로덕션 비활성</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e190">개발 고려사항</h4>
           <ul>
-            <li>SMS 게이트웨이 비용 고려 → 서버 단 throttle 필수</li>
-            <li>국제 번호 지원 여부 결정 (현재 한국 한정)</li>
-            <li>인증 세션 TTL 3분 · Redis 저장</li>
+            <li class="prd-editable" data-e-id="e191">SMS 게이트웨이 비용 고려 → 서버 단 throttle 필수</li>
+            <li class="prd-editable" data-e-id="e192">국제 번호 지원 여부 결정 (현재 한국 한정)</li>
+            <li class="prd-editable" data-e-id="e193">인증 세션 TTL 3분 · Redis 저장</li>
           </ul>
         </div>
       </article>
@@ -2315,19 +2740,19 @@
           <div class="prd-feat-title">성별 · 생년월일 (선택/prefill)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 중단 이하</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>선택 정보. 네이버 동의 시 자동 입력, 미동의 시 빈 상태로 유저 선택.</p>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e194">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e195">선택 정보. 네이버 동의 시 자동 입력, 미동의 시 빈 상태로 유저 선택.</p>
+          <h4 class="prd-editable" data-e-id="e196">정책</h4>
           <ul>
-            <li>성별: 남성/여성/선택안함 (3-way)</li>
-            <li>생년월일: YYYY/MM/DD 3개 필드 · 만 14세 미만 차단</li>
-            <li>모두 선택 · 미입력 가능 (필수 아님)</li>
-            <li>마케팅 타겟팅/개인화 추천에 활용 예정</li>
+            <li class="prd-editable" data-e-id="e197">성별: 남성/여성/선택안함 (3-way)</li>
+            <li class="prd-editable" data-e-id="e198">생년월일: YYYY/MM/DD 3개 필드 · 만 14세 미만 차단</li>
+            <li class="prd-editable" data-e-id="e199">모두 선택 · 미입력 가능 (필수 아님)</li>
+            <li class="prd-editable" data-e-id="e200">마케팅 타겟팅/개인화 추천에 활용 예정</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e201">개발 고려사항</h4>
           <ul>
-            <li>만 14세 미만 입력 시 "만 14세 이상만 가입 가능해요" 안내 + 가입 차단</li>
-            <li>연도 유효 범위: 1900 ~ (현재 연도 - 14)</li>
+            <li class="prd-editable" data-e-id="e202">만 14세 미만 입력 시 "만 14세 이상만 가입 가능해요" 안내 + 가입 차단</li>
+            <li class="prd-editable" data-e-id="e203">연도 유효 범위: 1900 ~ (현재 연도 - 14)</li>
           </ul>
         </div>
       </article>
@@ -2338,12 +2763,12 @@
           <div class="prd-feat-title">초대코드 (선택)<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>기존 유저의 추천 코드 입력 시 신규 가입자에게 쿠폰/혜택 지급. 기존 플로우 재사용.</p>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e204">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e205">기존 유저의 추천 코드 입력 시 신규 가입자에게 쿠폰/혜택 지급. 기존 플로우 재사용.</p>
+          <h4 class="prd-editable" data-e-id="e206">정책</h4>
           <ul>
-            <li>현재 Grip 초대코드 정책 그대로 (3,000원 쿠폰)</li>
-            <li>네이버 도입으로 인한 정책 변경 없음</li>
+            <li class="prd-editable" data-e-id="e207">현재 Grip 초대코드 정책 그대로 (3,000원 쿠폰)</li>
+            <li class="prd-editable" data-e-id="e208">네이버 도입으로 인한 정책 변경 없음</li>
           </ul>
         </div>
       </article>
@@ -2354,20 +2779,20 @@
           <div class="prd-feat-title">약관 동의<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 가입폼 하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>Grip 서비스 이용에 필요한 약관 동의. 네이버의 개인정보 제공 동의(P3)와 별도.</p>
-          <h4>수집 항목</h4>
+          <h4 class="prd-editable" data-e-id="e209">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e210">Grip 서비스 이용에 필요한 약관 동의. 네이버의 개인정보 제공 동의(P3)와 별도.</p>
+          <h4 class="prd-editable" data-e-id="e211">수집 항목</h4>
           <ul>
-            <li><b>[필수]</b> 이용약관 동의</li>
-            <li><b>[필수]</b> 개인정보 수집·이용 동의</li>
-            <li><b>[선택]</b> 마케팅 정보 수신 동의</li>
+            <li class="prd-editable" data-e-id="e212"><b>[필수]</b> 이용약관 동의</li>
+            <li class="prd-editable" data-e-id="e213"><b>[필수]</b> 개인정보 수집·이용 동의</li>
+            <li class="prd-editable" data-e-id="e214"><b>[선택]</b> 마케팅 정보 수신 동의</li>
           </ul>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e215">정책</h4>
           <ul>
-            <li>필수 미동의 시 [가입하기] 버튼 비활성</li>
-            <li>"전체 동의" 토글은 선택까지 포함</li>
-            <li>각 항목 "보기" 탭 시 약관 전문 바텀시트 노출</li>
-            <li>마케팅 수신 동의는 동의 일시/철회 일시 기록 → 마이페이지에서 철회 가능</li>
+            <li class="prd-editable" data-e-id="e216">필수 미동의 시 [가입하기] 버튼 비활성</li>
+            <li class="prd-editable" data-e-id="e217">"전체 동의" 토글은 선택까지 포함</li>
+            <li class="prd-editable" data-e-id="e218">각 항목 "보기" 탭 시 약관 전문 바텀시트 노출</li>
+            <li class="prd-editable" data-e-id="e219">마케팅 수신 동의는 동의 일시/철회 일시 기록 → 마이페이지에서 철회 가능</li>
           </ul>
         </div>
       </article>
@@ -2378,29 +2803,29 @@
           <div class="prd-feat-title">가입하기 CTA<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 가입폼 최하단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>활성 조건</h4>
+          <h4 class="prd-editable" data-e-id="e220">활성 조건</h4>
           <ul>
-            <li>닉네임 유효성 통과</li>
-            <li>휴대폰 본인 확인 완료</li>
-            <li>필수 약관 2종 동의</li>
+            <li class="prd-editable" data-e-id="e221">닉네임 유효성 통과</li>
+            <li class="prd-editable" data-e-id="e222">휴대폰 본인 확인 완료</li>
+            <li class="prd-editable" data-e-id="e223">필수 약관 2종 동의</li>
           </ul>
-          <h4>서버 처리</h4>
+          <h4 class="prd-editable" data-e-id="e224">서버 처리</h4>
           <ul>
-            <li><code>POST /api/v2/signup/naver</code> — naverSub · email · name · profile · phone · nickname · gender · birth · invite · agreements</li>
-            <li>서버에서 user 생성 + linked_accounts=['naver'] 저장 + login_type='naver' 로그</li>
-            <li>응답: access_token · refresh_token 발급 → 클라이언트 세션 저장</li>
+            <li class="prd-editable" data-e-id="e225"><code>POST /api/v2/signup/naver</code> — naverSub · email · name · profile · phone · nickname · gender · birth · invite · agreements</li>
+            <li class="prd-editable" data-e-id="e226">서버에서 user 생성 + linked_accounts=['naver'] 저장 + login_type='naver' 로그</li>
+            <li class="prd-editable" data-e-id="e227">응답: access_token · refresh_token 발급 → 클라이언트 세션 저장</li>
           </ul>
-          <h4>엣지 케이스</h4>
+          <h4 class="prd-editable" data-e-id="e228">엣지 케이스</h4>
           <ul>
-            <li>이메일 중복(他 SNS) → <b>계정 연결 제안 모달</b> 로 분기 (P3 단계 처리 권장, 늦게 감지 시 여기서도 가드)</li>
-            <li>휴대폰 중복 → 409 에러 · "이미 가입된 번호예요" 토스트</li>
-            <li>서버 5xx → "잠시 후 다시 시도해주세요" · 유저 입력값은 유지</li>
+            <li class="prd-editable" data-e-id="e229">이메일 중복(他 SNS) → <b>계정 연결 제안 모달</b> 로 분기 (P3 단계 처리 권장, 늦게 감지 시 여기서도 가드)</li>
+            <li class="prd-editable" data-e-id="e230">휴대폰 중복 → 409 에러 · "이미 가입된 번호예요" 토스트</li>
+            <li class="prd-editable" data-e-id="e231">서버 5xx → "잠시 후 다시 시도해주세요" · 유저 입력값은 유지</li>
           </ul>
         </div>
       </article>
 
       <!-- [P5] 홈 -->
-      <h3 style="margin-top:28px;">P5. 홈 (가입 완료 직후)</h3>
+      <h3 class="prd-editable" data-e-id="e232" style="margin-top:28px;">P5. 홈 (가입 완료 직후)</h3>
 
       <article class="prd-feat" id="prd-17" data-prd-ref="17">
         <div class="prd-feat-head" onclick="highlightBadge(17)">
@@ -2408,24 +2833,24 @@
           <div class="prd-feat-title">가입 완료 UX · 환영 헤더<span class="loc">영역: APP · Mobile Web &nbsp;|&nbsp; 위치: 홈 최상단</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>가입 완료 직후 환영 메시지와 함께 첫 구매 유도. 본 과제에서는 구현 범위 축소(기존 홈 그대로 유지 + 환영 토스트만).</p>
-          <h4>정책</h4>
+          <h4 class="prd-editable" data-e-id="e233">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e234">가입 완료 직후 환영 메시지와 함께 첫 구매 유도. 본 과제에서는 구현 범위 축소(기존 홈 그대로 유지 + 환영 토스트만).</p>
+          <h4 class="prd-editable" data-e-id="e235">정책</h4>
           <ul>
-            <li>현재 프로토타입: "그리퍼 {이름}님 환영해요!" 헤더 노출 (PRD 설명용)</li>
-            <li>실제 릴리즈: 기존 홈 레이아웃 유지 · 진입 시 <b>환영 토스트 1회</b> 노출 ("가입이 완료되었어요! 🎉")</li>
-            <li>첫 구매 혜택 배너는 기존 로직 재사용</li>
+            <li class="prd-editable" data-e-id="e236">현재 프로토타입: "그리퍼 {이름}님 환영해요!" 헤더 노출 (PRD 설명용)</li>
+            <li class="prd-editable" data-e-id="e237">실제 릴리즈: 기존 홈 레이아웃 유지 · 진입 시 <b>환영 토스트 1회</b> 노출 ("가입이 완료되었어요! 🎉")</li>
+            <li class="prd-editable" data-e-id="e238">첫 구매 혜택 배너는 기존 로직 재사용</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e239">개발 고려사항</h4>
           <ul>
-            <li>first_login_after_signup 플래그로 토스트 1회성 보장</li>
-            <li>이벤트 로깅: <code>signup_completed { login_type: 'naver' }</code></li>
+            <li class="prd-editable" data-e-id="e240">first_login_after_signup 플래그로 토스트 1회성 보장</li>
+            <li class="prd-editable" data-e-id="e241">이벤트 로깅: <code>signup_completed { login_type: 'naver' }</code></li>
           </ul>
         </div>
       </article>
 
       <!-- [P6] 로그인 관리 -->
-      <h3 style="margin-top:28px;">P6. 로그인 관리 (마이페이지 &gt; 설정)</h3>
+      <h3 class="prd-editable" data-e-id="e242" style="margin-top:28px;">P6. 로그인 관리 (마이페이지 &gt; 설정)</h3>
 
       <article class="prd-feat" id="prd-18" data-prd-ref="18">
         <div class="prd-feat-head" onclick="highlightBadge(18)">
@@ -2433,27 +2858,27 @@
           <div class="prd-feat-title">연결 계정 리스트 · CRUD<span class="loc">영역: APP · Mobile Web · Server &nbsp;|&nbsp; 위치: 마이페이지 &gt; 설정 &gt; 로그인 관리</span></div>
         </div>
         <div class="prd-feat-body">
-          <h4>기능 구분</h4>
-          <p>한 유저가 보유한 로그인 수단(SNS)을 조회/연결/해제. 기존 화면에 <b>네이버</b> 항목 추가.</p>
-          <h4>상세 동작</h4>
+          <h4 class="prd-editable" data-e-id="e243">기능 구분</h4>
+          <p class="prd-editable" data-e-id="e244">한 유저가 보유한 로그인 수단(SNS)을 조회/연결/해제. 기존 화면에 <b>네이버</b> 항목 추가.</p>
+          <h4 class="prd-editable" data-e-id="e245">상세 동작</h4>
           <ul>
-            <li>리스트 항목: 카카오 · 네이버(NEW) · Apple · Facebook · 이메일</li>
-            <li>각 항목 우측 [연결] / [연결해제] 버튼</li>
-            <li>[연결] → 해당 SNS OAuth 플로우 진입 → 동의 → 계정 연결 완료 토스트</li>
-            <li>[연결해제] → Confirm 모달 → 서버 DELETE → 리스트 갱신</li>
+            <li class="prd-editable" data-e-id="e246">리스트 항목: 카카오 · 네이버(NEW) · Apple · Facebook · 이메일</li>
+            <li class="prd-editable" data-e-id="e247">각 항목 우측 [연결] / [연결해제] 버튼</li>
+            <li class="prd-editable" data-e-id="e248">[연결] → 해당 SNS OAuth 플로우 진입 → 동의 → 계정 연결 완료 토스트</li>
+            <li class="prd-editable" data-e-id="e249">[연결해제] → Confirm 모달 → 서버 DELETE → 리스트 갱신</li>
           </ul>
-          <h4>정책 (핵심)</h4>
+          <h4 class="prd-editable" data-e-id="e250">정책 (핵심)</h4>
           <ul>
-            <li><b>최소 1개 보호:</b> 마지막 남은 연결 계정은 해제 불가. 해제 시도 시 "최소 1개의 로그인 수단이 필요해요" 토스트</li>
-            <li><b>현재 로그인 수단 해제 시:</b> Confirm 모달에 "이 수단을 해제하면 다음 로그인부터 다른 수단을 이용해야 해요" 강조 문구</li>
-            <li><b>NEW 뱃지:</b> 네이버 도입 후 3개월간 노출 → 자동 회수</li>
-            <li><b>계정 연결 제안(P3 충돌 분기):</b> 기존 카카오 이메일과 동일 이메일 네이버 가입 시도 → 즉시 로그인 관리에 네이버 추가 연결 플로우로 전환</li>
+            <li class="prd-editable" data-e-id="e251"><b>최소 1개 보호:</b> 마지막 남은 연결 계정은 해제 불가. 해제 시도 시 "최소 1개의 로그인 수단이 필요해요" 토스트</li>
+            <li class="prd-editable" data-e-id="e252"><b>현재 로그인 수단 해제 시:</b> Confirm 모달에 "이 수단을 해제하면 다음 로그인부터 다른 수단을 이용해야 해요" 강조 문구</li>
+            <li class="prd-editable" data-e-id="e253"><b>NEW 뱃지:</b> 네이버 도입 후 3개월간 노출 → 자동 회수</li>
+            <li class="prd-editable" data-e-id="e254"><b>계정 연결 제안(P3 충돌 분기):</b> 기존 카카오 이메일과 동일 이메일 네이버 가입 시도 → 즉시 로그인 관리에 네이버 추가 연결 플로우로 전환</li>
           </ul>
-          <h4>개발 고려사항</h4>
+          <h4 class="prd-editable" data-e-id="e255">개발 고려사항</h4>
           <ul>
-            <li>linked_accounts 는 user 테이블의 array 컬럼 or별도 user_oauth 테이블</li>
-            <li>해제 시 토큰/리프레시 토큰 revoke 처리 (네이버 Unlink API 호출)</li>
-            <li>본 과제 UI 변경: 항목 5종 → 네이버 1종 추가</li>
+            <li class="prd-editable" data-e-id="e256">linked_accounts 는 user 테이블의 array 컬럼 or별도 user_oauth 테이블</li>
+            <li class="prd-editable" data-e-id="e257">해제 시 토큰/리프레시 토큰 revoke 처리 (네이버 Unlink API 호출)</li>
+            <li class="prd-editable" data-e-id="e258">본 과제 UI 변경: 항목 5종 → 네이버 1종 추가</li>
           </ul>
         </div>
       </article>
@@ -2463,41 +2888,41 @@
     <section class="prd-section" id="sec-policy">
       <h2>6. 핵심 정책 (Critical Policies)</h2>
 
-      <h3>6.1 기존 회원 재로그인 감지</h3>
+      <h3 class="prd-editable" data-e-id="e259">6.1 기존 회원 재로그인 감지</h3>
       <div class="prd-box success">
         <b>정책:</b> 네이버 로그인 성공 후 Grip 서버가 naverSub(고유 식별자) 또는 이메일로 user 조회 → 매칭되면 <b>P3 동의 화면 및 P4 가입 화면을 건너뛰고 즉시 로그인</b>.
         <br><b>이유:</b> 이미 동의한 유저에게 재동의를 요구하면 경험 저해. 단, 네이버에서 수집 항목이 <b>변경</b>된 경우는 재동의 요청 필수 (법적 요건).
       </div>
 
-      <h3>6.2 계정 충돌 처리 (이메일 중복)</h3>
+      <h3 class="prd-editable" data-e-id="e260">6.2 계정 충돌 처리 (이메일 중복)</h3>
       <div class="prd-box warn">
         <b>시나리오:</b> 유저 A가 과거 <b>카카오</b>로 <code>foo@naver.com</code> 이메일로 가입. 이후 같은 이메일 네이버로 간편가입 시도.
         <br><b>정책:</b>
         <ul style="margin:6px 0 0;">
-          <li>P3 동의 완료 후 서버에서 이메일 중복 탐지 → <b>계정 연결 제안 모달</b> 노출</li>
-          <li>"이미 카카오로 가입된 이메일이에요. 네이버 계정을 연결할까요?" + [연결하기] / [취소]</li>
-          <li>[연결하기] → 기존 카카오 유저의 linked_accounts 에 'naver' 추가 → 자동 로그인</li>
-          <li>[취소] → 로그인 페이지 복귀</li>
+          <li class="prd-editable" data-e-id="e261">P3 동의 완료 후 서버에서 이메일 중복 탐지 → <b>계정 연결 제안 모달</b> 노출</li>
+          <li class="prd-editable" data-e-id="e262">"이미 카카오로 가입된 이메일이에요. 네이버 계정을 연결할까요?" + [연결하기] / [취소]</li>
+          <li class="prd-editable" data-e-id="e263">[연결하기] → 기존 카카오 유저의 linked_accounts 에 'naver' 추가 → 자동 로그인</li>
+          <li class="prd-editable" data-e-id="e264">[취소] → 로그인 페이지 복귀</li>
         </ul>
       </div>
 
-      <h3>6.3 동의 데이터 재사용</h3>
+      <h3 class="prd-editable" data-e-id="e265">6.3 동의 데이터 재사용</h3>
       <ul>
-        <li>네이버 선택 동의 상태는 user_consent 테이블에 개별 저장 (consent_naver_nickname, consent_naver_gender, ...)</li>
-        <li>추후 해당 필드를 추가로 활용해야 할 때 재동의 요청 플로우 필요</li>
+        <li class="prd-editable" data-e-id="e266">네이버 선택 동의 상태는 user_consent 테이블에 개별 저장 (consent_naver_nickname, consent_naver_gender, ...)</li>
+        <li class="prd-editable" data-e-id="e267">추후 해당 필드를 추가로 활용해야 할 때 재동의 요청 플로우 필요</li>
       </ul>
 
-      <h3>6.4 로그아웃 / 탈퇴 시 네이버 연동</h3>
+      <h3 class="prd-editable" data-e-id="e268">6.4 로그아웃 / 탈퇴 시 네이버 연동</h3>
       <ul>
-        <li>로그아웃: 네이버 토큰은 그대로 유지 (다음 로그인 UX 개선)</li>
-        <li>탈퇴: 네이버 Unlink API 호출 + 네이버에서 받은 개인정보 <b>즉시 파기</b> (개인정보보호법)</li>
+        <li class="prd-editable" data-e-id="e269">로그아웃: 네이버 토큰은 그대로 유지 (다음 로그인 UX 개선)</li>
+        <li class="prd-editable" data-e-id="e270">탈퇴: 네이버 Unlink API 호출 + 네이버에서 받은 개인정보 <b>즉시 파기</b> (개인정보보호법)</li>
       </ul>
 
-      <h3>6.5 데이터 연동 (Data/Analytics)</h3>
+      <h3 class="prd-editable" data-e-id="e271">6.5 데이터 연동 (Data/Analytics)</h3>
       <ul>
-        <li>이벤트 스키마에 <code>login_type = 'naver'</code> 값 추가</li>
-        <li>Metabase 질의 <a href="https://metabase.grip.studio/question/5185">#5185</a> 업데이트 필요</li>
-        <li>기존 분포 질의 <a href="https://metabase.grip.studio/question/5175">#5175</a> 에 네이버 시리즈 자동 포함 여부 확인</li>
+        <li class="prd-editable" data-e-id="e272">이벤트 스키마에 <code>login_type = 'naver'</code> 값 추가</li>
+        <li class="prd-editable" data-e-id="e273">Metabase 질의 <a href="https://metabase.grip.studio/question/5185">#5185</a> 업데이트 필요</li>
+        <li class="prd-editable" data-e-id="e274">기존 분포 질의 <a href="https://metabase.grip.studio/question/5175">#5175</a> 에 네이버 시리즈 자동 포함 여부 확인</li>
       </ul>
     </section>
 
@@ -2621,13 +3046,13 @@
     <section class="prd-section" id="sec-milestone">
       <h2>9. 마일스톤 (Milestones)</h2>
       <ul>
-        <li><b>W1 (5월 4주)</b> — PRD 확정 · 킥오프 · 네이버 개발자 앱 신청</li>
-        <li><b>W2 (6월 1주)</b> — 디자인 · API 설계 · SDK 연동 리서치</li>
-        <li><b>W3~4 (6월 2~3주)</b> — 개발 (Backend / Web / iOS / Android 병렬)</li>
-        <li><b>W5 (6월 4주)</b> — 통합 QA · 수정</li>
-        <li><b>W6 (7월 1주)</b> — 스테이징 QA · 릴리즈 검증</li>
-        <li><b>🚀 W7 (7월 2주)</b> — 릴리즈 (목표일정 2025.07)</li>
-        <li><b>Post-release</b> — 3개월 KPI 추적 → Google 간편가입 도입 검토 (Next Step)</li>
+        <li class="prd-editable" data-e-id="e275"><b>W1 (5월 4주)</b> — PRD 확정 · 킥오프 · 네이버 개발자 앱 신청</li>
+        <li class="prd-editable" data-e-id="e276"><b>W2 (6월 1주)</b> — 디자인 · API 설계 · SDK 연동 리서치</li>
+        <li class="prd-editable" data-e-id="e277"><b>W3~4 (6월 2~3주)</b> — 개발 (Backend / Web / iOS / Android 병렬)</li>
+        <li class="prd-editable" data-e-id="e278"><b>W5 (6월 4주)</b> — 통합 QA · 수정</li>
+        <li class="prd-editable" data-e-id="e279"><b>W6 (7월 1주)</b> — 스테이징 QA · 릴리즈 검증</li>
+        <li class="prd-editable" data-e-id="e280"><b>🚀 W7 (7월 2주)</b> — 릴리즈 (목표일정 2025.07)</li>
+        <li class="prd-editable" data-e-id="e281"><b>Post-release</b> — 3개월 KPI 추적 → Google 간편가입 도입 검토 (Next Step)</li>
       </ul>
     </section>
 
@@ -3286,6 +3711,536 @@ document.addEventListener('click', (e) => {
 }, true);
 
 /* ============================================================
+ * COLLAB: Comments + Edits + History + User
+ * ============================================================ */
+const COLLAB_KEY = 'grip_prd_collab_v1';
+const COLLAB_USER_KEY = 'grip_prd_user_v1'; // user 정보는 브라우저별 로컬 저장
+
+const CollabStore = {
+  // 공유 데이터(comments/edits/activity)는 Firestore + 캐시(localStorage)
+  // user는 항상 로컬 (브라우저별 본인 계정)
+  data: { user: null, comments: [], edits: [], activity: [] },
+  listeners: [],
+  _saving: false,
+  _pendingSave: false,
+  _unsub: null,
+  _suppressNextSnapshot: false,
+
+  async load() {
+    // 1) user 로컬 로드
+    try {
+      const u = JSON.parse(localStorage.getItem(COLLAB_USER_KEY) || 'null');
+      if (u) this.data.user = u;
+    } catch(e) {}
+    // 2) 공유 데이터 캐시 우선 (Firestore 응답 전 깜빡임 방지)
+    try {
+      const raw = localStorage.getItem(COLLAB_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.data.comments = parsed.comments || [];
+        this.data.edits = parsed.edits || [];
+        this.data.activity = parsed.activity || [];
+      }
+    } catch(e) {}
+    this.notify();
+    // 3) Firestore 실시간 구독
+    this._subscribeRemote();
+  },
+
+  _subscribeRemote() {
+    const start = () => {
+      const fb = window.__FB__;
+      if (!fb) return setTimeout(start, 100);
+      try {
+        if (this._unsub) this._unsub();
+        this._unsub = fb.onSnapshot(fb.COLLAB_DOC, (snap) => {
+          if (this._suppressNextSnapshot) { this._suppressNextSnapshot = false; return; }
+          if (!snap.exists()) return;
+          const remote = snap.data();
+          this.data.comments = remote.comments || [];
+          this.data.edits = remote.edits || [];
+          this.data.activity = remote.activity || [];
+          // 로컬 캐시
+          try { localStorage.setItem(COLLAB_KEY, JSON.stringify({
+            comments: this.data.comments,
+            edits: this.data.edits,
+            activity: this.data.activity
+          })); } catch(e) {}
+          this.notify();
+          // 화면 자동 재반영
+          try {
+            applyAllEdits();
+            applyAllHighlights();
+            if (typeof renderHistoryList === 'function' && document.getElementById('historyPopup').classList.contains('active')) renderHistoryList();
+            if (activeThreadId) {
+              const c = this.data.comments.find(x => x.id === activeThreadId);
+              if (c) { renderCommentList(c); document.getElementById('ctTitle').textContent = `댓글 (${c.thread.length})`; }
+            }
+          } catch(e) { console.warn(e); }
+        }, (err) => { console.warn('Firestore subscribe error', err); });
+      } catch(e) { console.warn('subscribe failed', e); }
+    };
+    if (window.__FB_READY__) start(); else document.addEventListener('fb:ready', start, { once: true });
+  },
+
+  async save() {
+    // user는 별도 로컬 저장
+    try { localStorage.setItem(COLLAB_USER_KEY, JSON.stringify(this.data.user)); } catch(e) {}
+    // 공유 데이터는 로컬 캐시 + Firestore 동시
+    try { localStorage.setItem(COLLAB_KEY, JSON.stringify({
+      comments: this.data.comments, edits: this.data.edits, activity: this.data.activity
+    })); } catch(e) {}
+    this.notify();
+    // 디바운스 + 큐
+    if (this._saving) { this._pendingSave = true; return; }
+    this._saving = true;
+    try {
+      const fb = window.__FB__;
+      if (fb) {
+        this._suppressNextSnapshot = true;
+        await fb.setDoc(fb.COLLAB_DOC, {
+          comments: this.data.comments,
+          edits: this.data.edits,
+          activity: this.data.activity,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.warn('Firestore save failed', e); }
+    finally {
+      this._saving = false;
+      if (this._pendingSave) { this._pendingSave = false; this.save(); }
+    }
+  },
+  subscribe(cb) { this.listeners.push(cb); },
+  notify() { this.listeners.forEach(cb => { try { cb(this.data); } catch(e){} }); }
+};
+
+function uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function nowIso() { return new Date().toISOString(); }
+function fmtTime(iso) {
+  try {
+    const d = new Date(iso);
+    return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  } catch(e) { return iso; }
+}
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function logActivity(type, description, extra) {
+  const user = CollabStore.data.user;
+  CollabStore.data.activity.unshift({
+    id: uuid(),
+    type,
+    author: user ? user.email : 'anonymous',
+    timestamp: nowIso(),
+    description,
+    extra: extra || null
+  });
+  if (CollabStore.data.activity.length > 200) CollabStore.data.activity.length = 200;
+}
+
+/* ---------------- User ---------------- */
+function renderUserPopup() {
+  const u = CollabStore.data.user;
+  const body = document.getElementById('userPopupBody');
+  if (u && u.email) {
+    body.innerHTML = `
+      <div class="current-user">
+        <b>현재 계정</b>
+        ${escapeHtml(u.name || '')} · ${escapeHtml(u.email)}
+      </div>
+      <label>이름</label>
+      <input type="text" id="uNameInput" value="${escapeHtml(u.name||'')}" placeholder="이름" />
+      <label>Slack / 이메일 계정</label>
+      <input type="email" id="uEmailInput" value="${escapeHtml(u.email)}" placeholder="kmlee@gripcorp.co" />
+      <button class="primary" onclick="saveUser()">저장</button>
+      <button class="danger" onclick="clearUser()">계정 제거</button>
+      <div class="hint">이 계정은 댓글/편집 이력의 작성자로 기록됩니다. Phase 3 설정이 끝나면 이 이름/이메일로 Slack 노티가 전송됩니다.</div>
+    `;
+  } else {
+    body.innerHTML = `
+      <div class="hint" style="background:#FEF3C7;border:1px solid #F59E0B;color:#78350F;">
+        댓글·편집을 하려면 먼저 계정을 저장해주세요.<br>작성자 식별과 Slack 알림에 사용됩니다.
+      </div>
+      <label>이름</label>
+      <input type="text" id="uNameInput" placeholder="이건무" />
+      <label>Slack / 이메일 계정 *</label>
+      <input type="email" id="uEmailInput" placeholder="kmlee@gripcorp.co" />
+      <button class="primary" onclick="saveUser()">저장</button>
+    `;
+  }
+}
+function saveUser() {
+  const email = (document.getElementById('uEmailInput').value || '').trim();
+  const name = (document.getElementById('uNameInput').value || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('유효한 이메일을 입력해주세요', 'err'); return; }
+  CollabStore.data.user = { email, name };
+  logActivity('user_update', `계정 저장: ${email}`);
+  CollabStore.save();
+  updateUserBtnState();
+  renderUserPopup();
+  toast('계정이 저장되었어요', 'ok');
+}
+function clearUser() {
+  if (!confirm('계정을 제거할까요?')) return;
+  CollabStore.data.user = null;
+  CollabStore.save();
+  updateUserBtnState();
+  renderUserPopup();
+  toast('계정이 제거되었어요');
+}
+function updateUserBtnState() {
+  const btn = document.getElementById('userBtn');
+  if (!btn) return;
+  btn.classList.toggle('has-user', !!(CollabStore.data.user && CollabStore.data.user.email));
+}
+function toggleUserPopup(forceState) {
+  const p = document.getElementById('userPopup');
+  const willOpen = forceState === undefined ? !p.classList.contains('active') : forceState;
+  document.querySelectorAll('.collab-popup').forEach(el => el.classList.remove('active'));
+  if (willOpen) { p.classList.add('active'); renderUserPopup(); }
+}
+function ensureUser() {
+  const u = CollabStore.data.user;
+  if (!u || !u.email) { toast('사용자 계정을 먼저 저장해주세요', 'err'); toggleUserPopup(true); return false; }
+  return true;
+}
+
+/* ---------------- History ---------------- */
+function renderHistoryList() {
+  const list = document.getElementById('historyList');
+  const items = CollabStore.data.activity || [];
+  if (!items.length) { list.innerHTML = '<div class="hist-empty">아직 변경 이력이 없어요.</div>'; return; }
+  list.innerHTML = items.map(a => `
+    <div class="hist-item type-${escapeHtml(a.type)}">
+      <div class="meta"><span class="author">${escapeHtml(a.author)}</span> · ${fmtTime(a.timestamp)}</div>
+      <div class="desc">${escapeHtml(a.description)}</div>
+    </div>
+  `).join('');
+}
+function toggleHistoryPopup(forceState) {
+  const p = document.getElementById('historyPopup');
+  const willOpen = forceState === undefined ? !p.classList.contains('active') : forceState;
+  document.querySelectorAll('.collab-popup').forEach(el => el.classList.remove('active'));
+  if (willOpen) { p.classList.add('active'); renderHistoryList(); }
+}
+
+/* ---------------- Selection → comment icon ---------------- */
+let currentSelection = null;
+function isInPrdPanel(node) {
+  const panel = document.getElementById('prdPanel');
+  if (!panel) return false;
+  while (node && node !== document.body) {
+    if (node === panel) return true;
+    node = node.parentNode;
+  }
+  return false;
+}
+function showSelectionToolbar(range) {
+  const tb = document.getElementById('selectionToolbar');
+  const rects = range.getClientRects();
+  if (!rects.length) { hideSelectionToolbar(); return; }
+  const r = rects[rects.length - 1];
+  tb.classList.add('active');
+  const tbRect = tb.getBoundingClientRect();
+  const top = r.top + window.scrollY - tbRect.height - 10;
+  const left = r.left + window.scrollX + (r.width / 2) - (tbRect.width / 2);
+  tb.style.top = Math.max(8, top) + 'px';
+  tb.style.left = Math.max(8, left) + 'px';
+}
+function hideSelectionToolbar() {
+  document.getElementById('selectionToolbar').classList.remove('active');
+}
+document.addEventListener('mouseup', () => {
+  setTimeout(() => {
+    if (!document.body.classList.contains('prd-mode')) { hideSelectionToolbar(); return; }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) { hideSelectionToolbar(); return; }
+    const text = sel.toString().trim();
+    if (!text || text.length < 2) { hideSelectionToolbar(); return; }
+    const range = sel.getRangeAt(0);
+    if (!isInPrdPanel(range.commonAncestorContainer)) { hideSelectionToolbar(); return; }
+    let n = range.commonAncestorContainer;
+    while (n && n !== document.body) {
+      if (n.classList && n.classList.contains('comment-highlight')) { hideSelectionToolbar(); return; }
+      n = n.parentNode;
+    }
+    currentSelection = { text, range: range.cloneRange() };
+    showSelectionToolbar(range);
+  }, 10);
+});
+document.addEventListener('mousedown', (e) => {
+  const tb = document.getElementById('selectionToolbar');
+  if (tb && !tb.contains(e.target)) hideSelectionToolbar();
+});
+
+function findStableParent(node) {
+  while (node && node !== document.body) {
+    if (node.nodeType === 1 && (node.id || node.getAttribute('data-e-id'))) return node;
+    node = node.parentNode;
+  }
+  return null;
+}
+
+function onCommentIconClick() {
+  hideSelectionToolbar();
+  if (!ensureUser()) return;
+  if (!currentSelection || !currentSelection.text) return;
+  const range = currentSelection.range;
+  const parent = findStableParent(range.commonAncestorContainer);
+  if (!parent) { toast('이 영역엔 댓글을 달 수 없어요', 'err'); return; }
+  const parentKey = parent.getAttribute('data-e-id') || parent.id;
+  const parentText = parent.textContent || '';
+  const startOffset = parentText.indexOf(currentSelection.text);
+  if (startOffset < 0) { toast('선택 영역을 찾지 못했어요', 'err'); return; }
+  const comment = {
+    id: uuid(), parentKey, startOffset,
+    text: currentSelection.text, thread: [], createdAt: nowIso()
+  };
+  CollabStore.data.comments.push(comment);
+  logActivity('comment', `"${currentSelection.text.slice(0,30)}${currentSelection.text.length>30?'…':''}" 에 댓글 스레드 생성`);
+  CollabStore.save();
+  applyAllHighlights();
+  openCommentThread(comment.id);
+  window.getSelection().removeAllRanges();
+  currentSelection = null;
+}
+
+/* ---------------- Apply highlights on load ---------------- */
+function applyAllHighlights() {
+  document.querySelectorAll('.comment-highlight').forEach(el => {
+    const parent = el.parentNode;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    parent.normalize();
+  });
+  const comments = CollabStore.data.comments || [];
+  comments.forEach(c => {
+    const el = document.querySelector(`[data-e-id="${c.parentKey}"]`) || document.getElementById(c.parentKey);
+    if (!el) return;
+    wrapTextOccurrence(el, c.text, c.id, c.thread ? c.thread.length : 0);
+  });
+}
+function wrapTextOccurrence(el, searchText, commentId, replyCount) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      if (!n.parentNode) return NodeFilter.FILTER_REJECT;
+      if (n.parentNode.classList && n.parentNode.classList.contains('comment-highlight')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = []; let full = '';
+  let tn;
+  while ((tn = walker.nextNode())) {
+    nodes.push({ node: tn, start: full.length, end: full.length + tn.nodeValue.length });
+    full += tn.nodeValue;
+  }
+  const idx = full.indexOf(searchText);
+  if (idx < 0) return;
+  const endIdx = idx + searchText.length;
+  let startNode = null, startOff = 0, endNode = null, endOff = 0;
+  for (const n of nodes) {
+    if (startNode === null && idx >= n.start && idx < n.end) { startNode = n.node; startOff = idx - n.start; }
+    if (endNode === null && endIdx > n.start && endIdx <= n.end) { endNode = n.node; endOff = endIdx - n.start; }
+  }
+  if (!startNode || !endNode) return;
+  try {
+    const r = document.createRange();
+    r.setStart(startNode, startOff);
+    r.setEnd(endNode, endOff);
+    const span = document.createElement('span');
+    span.className = 'comment-highlight';
+    span.setAttribute('data-comment-id', commentId);
+    span.onclick = (ev) => { ev.stopPropagation(); openCommentThread(commentId); };
+    try { r.surroundContents(span); }
+    catch(e) {
+      const frag = r.extractContents();
+      span.appendChild(frag);
+      r.insertNode(span);
+    }
+    if (replyCount > 0) {
+      const b = document.createElement('span');
+      b.className = 'cnt'; b.textContent = replyCount;
+      span.appendChild(b);
+    }
+  } catch(e) { console.warn('wrap failed', e); }
+}
+
+/* ---------------- Comment thread panel ---------------- */
+let activeThreadId = null;
+function openCommentThread(commentId) {
+  activeThreadId = commentId;
+  const c = CollabStore.data.comments.find(x => x.id === commentId);
+  if (!c) return;
+  document.querySelectorAll('.comment-highlight').forEach(el => el.classList.toggle('active', el.getAttribute('data-comment-id') === commentId));
+  document.getElementById('ctTitle').textContent = `댓글 (${c.thread.length})`;
+  document.getElementById('ctTarget').textContent = c.text;
+  renderCommentList(c);
+  document.getElementById('commentThread').classList.add('active');
+  document.getElementById('ctInput').value = '';
+  document.getElementById('ctSaveBtn').disabled = true;
+  setTimeout(() => document.getElementById('ctInput').focus(), 50);
+}
+function closeCommentThread() {
+  document.getElementById('commentThread').classList.remove('active');
+  document.querySelectorAll('.comment-highlight.active').forEach(el => el.classList.remove('active'));
+  activeThreadId = null;
+}
+function renderCommentList(c) {
+  const list = document.getElementById('ctList');
+  if (!c.thread.length) {
+    list.innerHTML = '<div class="hist-empty" style="padding:24px 0;">첫 댓글을 남겨주세요.</div>';
+    return;
+  }
+  const me = (CollabStore.data.user && CollabStore.data.user.email) || '';
+  list.innerHTML = c.thread.map(m => `
+    <div class="ct-msg" data-msg-id="${m.id}">
+      <div class="hd">
+        <div class="avatar">${escapeHtml((m.authorName||m.author||'?').slice(0,1).toUpperCase())}</div>
+        <div class="author-line">
+          <div class="author">${escapeHtml(m.authorName ? m.authorName+' ('+m.author+')' : m.author)}</div>
+          <div class="time">${fmtTime(m.createdAt)}</div>
+        </div>
+        ${m.author === me ? `<button class="delete" title="삭제" onclick="deleteReply('${c.id}','${m.id}')">🗑</button>` : ''}
+      </div>
+      <div class="body">${escapeHtml(m.content)}</div>
+    </div>
+  `).join('');
+}
+function onCtInput() {
+  const v = document.getElementById('ctInput').value.trim();
+  document.getElementById('ctSaveBtn').disabled = !v;
+}
+function saveCommentReply() {
+  if (!ensureUser()) return;
+  if (!activeThreadId) return;
+  const c = CollabStore.data.comments.find(x => x.id === activeThreadId);
+  if (!c) return;
+  const content = document.getElementById('ctInput').value.trim();
+  if (!content) return;
+  const u = CollabStore.data.user;
+  const reply = { id: uuid(), author: u.email, authorName: u.name || '', content, createdAt: nowIso() };
+  c.thread.push(reply);
+  const isFirst = c.thread.length === 1;
+  logActivity(isFirst ? 'comment' : 'reply', isFirst
+    ? `"${c.text.slice(0,24)}${c.text.length>24?'…':''}" 첫 댓글: ${content.slice(0,40)}${content.length>40?'…':''}`
+    : `"${c.text.slice(0,24)}${c.text.length>24?'…':''}" 답글: ${content.slice(0,40)}${content.length>40?'…':''}`
+  );
+  CollabStore.save();
+  notifySlack({ type: 'comment', author: u.email, authorName: u.name, targetText: c.text, content });
+  renderCommentList(c);
+  document.getElementById('ctInput').value = '';
+  document.getElementById('ctSaveBtn').disabled = true;
+  document.getElementById('ctTitle').textContent = `댓글 (${c.thread.length})`;
+  applyAllHighlights();
+}
+function deleteReply(commentId, replyId) {
+  const c = CollabStore.data.comments.find(x => x.id === commentId);
+  if (!c) return;
+  if (!confirm('이 댓글을 삭제할까요?')) return;
+  c.thread = c.thread.filter(m => m.id !== replyId);
+  let threadRemoved = false;
+  if (c.thread.length === 0) {
+    CollabStore.data.comments = CollabStore.data.comments.filter(x => x.id !== commentId);
+    threadRemoved = true;
+  }
+  logActivity('edit', threadRemoved ? '댓글 스레드 삭제' : '댓글 삭제');
+  CollabStore.save();
+  applyAllHighlights();
+  if (threadRemoved) closeCommentThread(); else renderCommentList(c);
+}
+
+/* ---------------- Inline edits ---------------- */
+document.addEventListener('dblclick', (e) => {
+  if (!document.body.classList.contains('prd-mode')) return;
+  const el = e.target.closest('.prd-editable');
+  if (!el) return;
+  if (e.target.closest('.comment-highlight')) return;
+  startInlineEdit(el);
+});
+function startInlineEdit(el) {
+  if (!ensureUser()) return;
+  if (el.getAttribute('contenteditable') === 'true') return;
+  const originalHtml = el.innerHTML;
+  const originalText = el.textContent;
+  el.setAttribute('contenteditable', 'true');
+  el.focus();
+  try {
+    const r = document.createRange();
+    r.selectNodeContents(el); r.collapse(false);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  } catch(e) {}
+  const finish = (commit) => {
+    el.removeAttribute('contenteditable');
+    el.removeEventListener('blur', onBlur);
+    el.removeEventListener('keydown', onKey);
+    if (!commit) { el.innerHTML = originalHtml; return; }
+    const newText = el.textContent;
+    if (newText === originalText) return;
+    const eid = el.getAttribute('data-e-id') || el.id;
+    const edit = {
+      id: uuid(), eid, tag: el.tagName.toLowerCase(),
+      before: originalText, after: newText, newHtml: el.innerHTML,
+      author: CollabStore.data.user.email,
+      authorName: CollabStore.data.user.name || '',
+      editedAt: nowIso()
+    };
+    CollabStore.data.edits.push(edit);
+    el.setAttribute('data-edited', '1');
+    logActivity('edit', `수정: "${originalText.slice(0,26)}${originalText.length>26?'…':''}" → "${newText.slice(0,26)}${newText.length>26?'…':''}"`);
+    CollabStore.save();
+    notifySlack({ type: 'edit', author: edit.author, authorName: edit.authorName, before: originalText, after: newText });
+    applyAllHighlights();
+  };
+  const onBlur = () => finish(true);
+  const onKey = (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); finish(false); el.blur(); }
+    else if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finish(true); el.blur(); }
+  };
+  el.addEventListener('blur', onBlur);
+  el.addEventListener('keydown', onKey);
+}
+function applyAllEdits() {
+  const edits = CollabStore.data.edits || [];
+  const latest = {};
+  edits.forEach(e => { latest[e.eid] = e; });
+  Object.values(latest).forEach(e => {
+    const el = document.querySelector(`[data-e-id="${e.eid}"]`);
+    if (!el) return;
+    el.innerHTML = e.newHtml;
+    el.setAttribute('data-edited', '1');
+  });
+}
+
+/* ---------------- Phase 3: Slack notify (webhook) ---------------- */
+async function notifySlack(payload) {
+  const url = window.SLACK_WEBHOOK_URL;
+  if (!url) return;
+  let text;
+  if (payload.type === 'comment') {
+    text = `💬 *${payload.authorName || payload.author}* 님이 PRD에 댓글:\n> ${payload.targetText.slice(0,120)}\n${payload.content}`;
+  } else if (payload.type === 'edit') {
+    text = `✏️ *${payload.authorName || payload.author}* 님이 PRD 내용 수정:\n~${payload.before.slice(0,100)}~\n→ ${payload.after.slice(0,100)}`;
+  } else { text = JSON.stringify(payload); }
+  try {
+    // text/plain content-type 으로 보내야 CORS preflight 회피됨 (Slack incoming webhook은 둘 다 수용)
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ text })
+    });
+  } catch(e) { console.warn('Slack notify failed', e); }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.collab-popup') && !e.target.closest('.collab-btn')) {
+    document.querySelectorAll('.collab-popup').forEach(el => el.classList.remove('active'));
+  }
+});
+
+/* ============================================================
  * Init
  * ============================================================ */
 loadState();
@@ -3301,6 +4256,13 @@ try {
   }
 } catch(e) {}
 loadPrdMeta();
+
+// Collab 초기화 (comments · edits · history · user)
+CollabStore.load().then(() => {
+  updateUserBtnState();
+  applyAllEdits();
+  applyAllHighlights();
+});
 
 // 실측 sticky 높이를 CSS 변수에 반영하여 scroll-margin 자동 동기화
 function updatePrdStickyHeight() {
