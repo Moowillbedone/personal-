@@ -1812,9 +1812,9 @@
   .ct-input-wrap .btns .save:disabled { background: #FDA4AF; cursor: not-allowed; }
   .ct-input-wrap .btns .cancel { background: transparent; color: #666; border: 1px solid var(--line); }
 
-  /* Inline edit */
+  /* Inline edit (PM 전용) */
   body.prd-mode .prd-editable { position: relative; transition: all .15s; }
-  body.prd-mode .prd-editable:hover:not([contenteditable="true"]) {
+  body.prd-mode.is-owner .prd-editable:hover:not([contenteditable="true"]) {
     outline: 1px dashed #FF2D55;
     outline-offset: 2px;
     border-radius: 2px;
@@ -3715,6 +3715,11 @@ document.addEventListener('click', (e) => {
  * ============================================================ */
 const COLLAB_KEY = 'grip_prd_collab_v1';
 const COLLAB_USER_KEY = 'grip_prd_user_v1'; // user 정보는 브라우저별 로컬 저장
+const OWNER_EMAILS = ['kmlee@gripcorp.co']; // 텍스트 편집 권한이 있는 PM 이메일
+function isOwner() {
+  const u = CollabStore.data.user;
+  return !!(u && u.email && OWNER_EMAILS.includes(u.email.toLowerCase()));
+}
 
 const CollabStore = {
   // 공유 데이터(comments/edits/activity)는 Firestore + 캐시(localStorage)
@@ -3845,10 +3850,15 @@ function renderUserPopup() {
   const u = CollabStore.data.user;
   const body = document.getElementById('userPopupBody');
   if (u && u.email) {
+    const ownerBadge = isOwner() ? '<span style="background:var(--grip);color:#fff;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:800;margin-left:6px;">PM</span>' : '<span style="background:#F3F4F6;color:#666;font-size:10px;padding:2px 7px;border-radius:999px;font-weight:600;margin-left:6px;">참여자</span>';
+    const ownerNote = isOwner()
+      ? '✏️ 텍스트 수정 가능 + 댓글 가능'
+      : '💬 댓글만 가능 (텍스트 수정은 PM 전용)';
     body.innerHTML = `
       <div class="current-user">
-        <b>현재 계정</b>
+        <b>현재 계정${ownerBadge}</b>
         ${escapeHtml(u.name || '')} · ${escapeHtml(u.email)}
+        <div style="font-size:11px;color:#666;margin-top:6px;">${ownerNote}</div>
       </div>
       <label>이름</label>
       <input type="text" id="uNameInput" value="${escapeHtml(u.name||'')}" placeholder="이름" />
@@ -3894,6 +3904,7 @@ function updateUserBtnState() {
   const btn = document.getElementById('userBtn');
   if (!btn) return;
   btn.classList.toggle('has-user', !!(CollabStore.data.user && CollabStore.data.user.email));
+  document.body.classList.toggle('is-owner', isOwner());
 }
 function toggleUserPopup(forceState) {
   const p = document.getElementById('userPopup');
@@ -4161,6 +4172,10 @@ document.addEventListener('dblclick', (e) => {
 });
 function startInlineEdit(el) {
   if (!ensureUser()) return;
+  if (!isOwner()) {
+    toast(`텍스트 수정은 PM(${OWNER_EMAILS[0]})만 가능해요. 의견은 댓글로 남겨주세요.`, 'err');
+    return;
+  }
   if (el.getAttribute('contenteditable') === 'true') return;
   const originalHtml = el.innerHTML;
   const originalText = el.textContent;
