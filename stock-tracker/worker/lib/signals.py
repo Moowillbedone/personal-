@@ -11,12 +11,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+import os
+
 import pandas as pd
 
-# Tunables (env-overridable later)
-GAP_PCT = 0.020          # 2.0% intra-bar move vs previous close
-VOL_RATIO = 3.0          # current volume must be >= 3x rolling avg
-LOOKBACK_BARS = 20       # rolling window for volume baseline
+# Tunables (env-overridable for live re-tuning without code changes)
+GAP_PCT = float(os.getenv("GAP_PCT", "0.012"))         # 1.2% intra-bar move vs previous close
+VOL_RATIO = float(os.getenv("VOL_RATIO", "2.5"))       # current volume must be >= 2.5x rolling avg
+LOOKBACK_BARS = int(os.getenv("LOOKBACK_BARS", "20"))  # rolling window for volume baseline
 
 
 @dataclass

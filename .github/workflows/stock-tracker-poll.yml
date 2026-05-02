@@ -30,6 +30,10 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      # Optional threshold overrides (defaults: 0.012 / 2.5):
+      # GAP_PCT: "0.012"
+      # VOL_RATIO: "2.5"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

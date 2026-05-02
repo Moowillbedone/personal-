@@ -7,7 +7,7 @@ import time
 import pandas as pd
 from dotenv import load_dotenv
 
-from lib import data, db, signals as sig
+from lib import data, db, notify, signals as sig
 
 BATCH_SIZE = 50  # yfinance batch size; smaller = more reliable, slower
 
@@ -88,6 +88,7 @@ def main() -> int:
                 f"  [{f['signal_type']}] {f['symbol']} "
                 f"{f['pct_change']*100:+.2f}% volx{f['volume_ratio']:.1f} @ {f['price']}"
             )
+        notify.notify_batch(fired)
     return 0
 
 
