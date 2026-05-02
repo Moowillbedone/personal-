@@ -1,0 +1,41 @@
+name: stock-tracker / poll
+
+# 5-minute cadence during US market hours including pre/after.
+# Cron is in UTC. Pre-market starts 04:00 ET; after-market ends 20:00 ET.
+# That covers UTC 08:00-01:00 (next day) when DST is on, or 09:00-02:00 when off.
+# Easiest: run year-round during the wide UTC window 08:00-01:00 on Mon-Fri+Sat
+# (Sat covers Friday after-hours in late UTC). Skip Sun/early-Mon.
+on:
+  schedule:
+    # every 5 min between UTC 08:00-23:55
+    - cron: "*/5 8-23 * * 1-5"
+    # late-evening UTC slice (00:00-01:55) covering US after-hours on weekdays
+    - cron: "*/5 0-1 * * 2-6"
+  workflow_dispatch: {}    # allow manual run from Actions tab
+
+concurrency:
+  group: stock-poll
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python poll.py
