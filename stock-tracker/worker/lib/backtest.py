@@ -62,17 +62,23 @@ def _realized_return(close_series: pd.Series, idx: int, fwd_bars: int) -> float 
 
 
 def collect_historical(
-    symbols: list[str], lookback_days: int = 60, batch_size: int = 50
+    symbols: list[str], lookback_days: int = 60, batch_size: int = 25
 ) -> list[HistoricalSignal]:
     """Run the detector across all bars in the lookback window for every symbol."""
     out: list[HistoricalSignal] = []
+    total_batches = (len(symbols) + batch_size - 1) // batch_size
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i : i + batch_size]
+        b_no = i // batch_size + 1
         try:
             frames = data.fetch_recent_bars(batch, interval="5m", lookback=f"{lookback_days}d")
         except Exception as e:
-            print(f"  history batch {i} failed: {e}")
+            print(f"  batch {b_no}/{total_batches} fetch FAILED: {e}")
             continue
+        if not frames:
+            print(f"  batch {b_no}/{total_batches} returned empty (yfinance) — symbols: {batch[:3]}…")
+            continue
+        b_signals = 0
         for sym, df in frames.items():
             if df is None or len(df) < sig.LOOKBACK_BARS + BARS_1D:
                 continue
@@ -93,6 +99,8 @@ def collect_historical(
                         realized_5d=_realized_return(closes, idx, BARS_5D),
                     )
                 )
+                b_signals += 1
+        print(f"  batch {b_no}/{total_batches}: {len(frames)} frames, {b_signals} signals")
     return out
 
 
