@@ -14,11 +14,34 @@ from typing import Optional
 import os
 
 import pandas as pd
+import pytz
 
 # Tunables (env-overridable for live re-tuning without code changes)
 GAP_PCT = float(os.getenv("GAP_PCT", "0.012"))         # 1.2% intra-bar move vs previous close
 VOL_RATIO = float(os.getenv("VOL_RATIO", "2.5"))       # current volume must be >= 2.5x rolling avg
 LOOKBACK_BARS = int(os.getenv("LOOKBACK_BARS", "20"))  # rolling window for volume baseline
+MIN_VOLUME = int(os.getenv("MIN_VOLUME", "5000"))      # absolute floor: skip thin bars (esp. extended hrs)
+MIN_BASELINE_VOL = int(os.getenv("MIN_BASELINE_VOL", "2000"))  # baseline avg must clear this too
+
+
+_ET = pytz.timezone("America/New_York")
+
+
+def _is_regular_session(ts: pd.Timestamp) -> bool:
+    """09:30-16:00 America/New_York. Handles DST automatically via pytz."""
+    et = ts.tz_convert(_ET) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(_ET)
+    hm = et.hour * 60 + et.minute
+    return 9 * 60 + 30 <= hm < 16 * 60
+
+
+def _is_volume_eligible_window(ts: pd.Timestamp) -> bool:
+    """Excludes opening 30 min (high routine volume) and closing 30 min (closing auction).
+    These are predictable volume spikes that aren't actionable trading signals.
+    Only the midday window 10:00-15:30 ET counts for volume_spike events.
+    """
+    et = ts.tz_convert(_ET) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(_ET)
+    hm = et.hour * 60 + et.minute
+    return 10 * 60 <= hm < 15 * 60 + 30
 
 
 @dataclass
@@ -57,7 +80,15 @@ def detect_for_symbol(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     vol_ratio = vol / avg_vol
 
     gap_hit = abs(pct) >= GAP_PCT
-    vol_hit = vol_ratio >= VOL_RATIO
+    # Volume hit requires ratio + absolute floor + midday window (10:00-15:30 ET).
+    # Excludes opening 30 min and closing 30 min where volume spikes are routine
+    # (warm-up + closing auction), so we only flag genuinely anomalous midday volume.
+    vol_hit = (
+        vol_ratio >= VOL_RATIO
+        and vol >= MIN_VOLUME
+        and avg_vol >= MIN_BASELINE_VOL
+        and _is_volume_eligible_window(latest.name)
+    )
 
     if not (gap_hit or vol_hit):
         return None
