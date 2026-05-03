@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Signal, SignalType, Ticker } from "@/lib/types";
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 500;
 
 type Exchange = "NASDAQ" | "NYSE";
 type Session = "pre" | "regular" | "after";
@@ -22,12 +22,13 @@ function fmtMoney(v: number | null) {
   return `$${v.toFixed(2)}`;
 }
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // YYYY/MM/DD HH:mm in user's local timezone (24-hour)
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
 }
 
 const TYPE_BADGE: Record<SignalType, string> = {
@@ -59,10 +60,23 @@ function FilterChip<T extends string>({
   );
 }
 
+/**
+ * Merge new rows into existing list, deduped by id, preserving DESC order by ts.
+ * Used for both initial load and "Load more" appends + realtime prepends.
+ */
+function mergeSignals(prev: Signal[], incoming: Signal[]): Signal[] {
+  const map = new Map<string, Signal>();
+  for (const s of prev) map.set(s.id, s);
+  for (const s of incoming) map.set(s.id, s);
+  return Array.from(map.values()).sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+}
+
 export default function Page() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [tickers, setTickers] = useState<Record<string, Ticker>>({});
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const [exchanges, setExchanges] = useState<Set<Exchange>>(new Set(EXCHANGES));
   const [types, setTypes] = useState<Set<SignalType>>(new Set(TYPES));
@@ -85,7 +99,9 @@ export default function Page() {
       if (!mounted) return;
       if (sigRes.error) console.error(sigRes.error);
       if (tickRes.error) console.error(tickRes.error);
-      setSignals((sigRes.data as Signal[]) ?? []);
+      const initial = (sigRes.data as Signal[]) ?? [];
+      setSignals(initial);
+      setHasMore(initial.length === PAGE_SIZE);
       const map: Record<string, Ticker> = {};
       ((tickRes.data as Ticker[]) ?? []).forEach((t) => (map[t.symbol] = t));
       setTickers(map);
@@ -99,7 +115,8 @@ export default function Page() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "signals" },
         (payload) => {
-          setSignals((prev) => [payload.new as Signal, ...prev].slice(0, PAGE_SIZE));
+          // Prepend; dedupe in case the row was also fetched via load.
+          setSignals((prev) => mergeSignals(prev, [payload.new as Signal]));
         },
       )
       .on(
@@ -118,6 +135,30 @@ export default function Page() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore || signals.length === 0) return;
+    setLoadingMore(true);
+    try {
+      // Cursor pagination: rows older than the oldest currently shown.
+      const cursor = signals[signals.length - 1].ts;
+      const { data, error } = await supabase
+        .from("signals")
+        .select("*")
+        .lt("ts", cursor)
+        .order("ts", { ascending: false })
+        .limit(PAGE_SIZE);
+      if (error) {
+        console.error(error);
+        return;
+      }
+      const more = (data as Signal[]) ?? [];
+      setSignals((prev) => mergeSignals(prev, more));
+      if (more.length < PAGE_SIZE) setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     return signals.filter((s) => {
@@ -310,6 +351,23 @@ export default function Page() {
           </table>
         </div>
       )}
+
+      {!loading && signals.length > 0 && (
+        <div className="mt-4 flex items-center justify-center gap-3 text-xs">
+          {hasMore ? (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-3 py-1.5 border border-neutral-700 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50"
+            >
+              {loadingMore ? "loading…" : `Load older signals (+${PAGE_SIZE})`}
+            </button>
+          ) : (
+            <span className="text-neutral-600">end of history ({signals.length} total)</span>
+          )}
+        </div>
+      )}
+
       <p className="text-xs text-neutral-600 mt-4">
         E[1d/3d/5d] = mean realized return of similar historical signals (same type, ±50% gap_pct & vol_ratio).
         Not investment advice.
