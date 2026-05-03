@@ -20,6 +20,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+      ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

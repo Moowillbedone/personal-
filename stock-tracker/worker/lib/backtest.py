@@ -19,7 +19,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from . import data, signals as sig
+from . import alpaca, signals as sig
 
 # Trading day = 6.5h regular session = 78 5-min bars.
 BARS_1D = 78
@@ -62,7 +62,7 @@ def _realized_return(close_series: pd.Series, idx: int, fwd_bars: int) -> float 
 
 
 def collect_historical(
-    symbols: list[str], lookback_days: int = 60, batch_size: int = 25
+    symbols: list[str], lookback_days: int = 60, batch_size: int = 50
 ) -> list[HistoricalSignal]:
     """Run the detector across all bars in the lookback window for every symbol."""
     out: list[HistoricalSignal] = []
@@ -71,12 +71,12 @@ def collect_historical(
         batch = symbols[i : i + batch_size]
         b_no = i // batch_size + 1
         try:
-            frames = data.fetch_recent_bars(batch, interval="5m", lookback=f"{lookback_days}d")
+            frames = alpaca.fetch_recent_bars(batch, interval="5m", lookback=f"{lookback_days}d")
         except Exception as e:
             print(f"  batch {b_no}/{total_batches} fetch FAILED: {e}")
             continue
         if not frames:
-            print(f"  batch {b_no}/{total_batches} returned empty (yfinance) — symbols: {batch[:3]}…")
+            print(f"  batch {b_no}/{total_batches} returned empty — symbols: {batch[:3]}…")
             continue
         b_signals = 0
         for sym, df in frames.items():

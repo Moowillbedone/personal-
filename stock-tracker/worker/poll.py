@@ -7,9 +7,9 @@ import time
 import pandas as pd
 from dotenv import load_dotenv
 
-from lib import data, db, notify, signals as sig
+from lib import alpaca, data, db, notify, signals as sig
 
-BATCH_SIZE = 50  # yfinance batch size; smaller = more reliable, slower
+BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
 
 
 def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
@@ -49,7 +49,7 @@ def main() -> int:
     for i in range(0, len(symbols), BATCH_SIZE):
         batch = symbols[i : i + BATCH_SIZE]
         try:
-            frames = data.fetch_recent_bars(batch, interval="5m", lookback="5d")
+            frames = alpaca.fetch_recent_bars(batch, interval="5m", lookback="5d")
         except Exception as e:
             print(f"  batch {i} failed: {e}", file=sys.stderr)
             time.sleep(2)
