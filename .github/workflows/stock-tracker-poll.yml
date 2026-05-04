@@ -37,9 +37,12 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-      # Optional threshold overrides (defaults: 0.012 / 2.5):
-      # GAP_PCT: "0.012"
-      # VOL_RATIO: "2.5"
+      # Optional threshold overrides — uncomment to retune without code changes:
+      # GAP_PCT:        "0.012"     # 1.2% gap threshold
+      # VOL_RATIO:      "2.5"       # 2.5x volume vs rolling 20-bar avg
+      # MIN_DOLLAR_VOL: "2000000"   # $2M ≈ 27억원 dollar-volume floor (universal)
+      # MIN_VOLUME:     "5000"      # absolute share count floor
+      # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push midday vol alerts
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

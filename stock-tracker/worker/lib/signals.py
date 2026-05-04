@@ -22,6 +22,10 @@ VOL_RATIO = float(os.getenv("VOL_RATIO", "2.5"))       # current volume must be 
 LOOKBACK_BARS = int(os.getenv("LOOKBACK_BARS", "20"))  # rolling window for volume baseline
 MIN_VOLUME = int(os.getenv("MIN_VOLUME", "5000"))      # absolute floor: skip thin bars (esp. extended hrs)
 MIN_BASELINE_VOL = int(os.getenv("MIN_BASELINE_VOL", "2000"))  # baseline avg must clear this too
+# Dollar-volume floor (price * shares for the latest 5-min bar).
+# Default $2,000,000 ≈ 27억원 — filters out noise from low-priced thinly-traded
+# names where 5000-share thresholds in cheap stocks (e.g. $10 stock = $50k) are meaningless.
+MIN_DOLLAR_VOL = float(os.getenv("MIN_DOLLAR_VOL", "2000000"))
 
 
 _ET = pytz.timezone("America/New_York")
@@ -70,6 +74,11 @@ def detect_for_symbol(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     close = float(latest["Close"])
     vol = float(latest["Volume"]) if pd.notna(latest["Volume"]) else 0.0
     if close <= 0 or vol <= 0:
+        return None
+
+    # Dollar-volume floor — universal credibility filter applied to ALL signal types.
+    # A price move on tiny dollar volume is just bid/ask wobble, not a real signal.
+    if close * vol < MIN_DOLLAR_VOL:
         return None
 
     pct = (close - prev_close) / prev_close
