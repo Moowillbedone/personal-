@@ -28,11 +28,14 @@ export default function TickerPage({ params }: PageProps) {
     async function load() {
       const [tRes, bRes, sRes] = await Promise.all([
         supabase.from("tickers").select("*").eq("symbol", sym).maybeSingle(),
+        // Fetch the LATEST 500 bars (DESC) and reverse for ascending display.
+        // The previous ascending+limit(500) returned the OLDEST bars and clipped
+        // off everything after that, so charts froze ~5 trading days into the past.
         supabase
           .from("price_snapshots")
           .select("ts,open,high,low,close,volume")
           .eq("symbol", sym)
-          .order("ts", { ascending: true })
+          .order("ts", { ascending: false })
           .limit(500),
         supabase
           .from("signals")
@@ -43,7 +46,24 @@ export default function TickerPage({ params }: PageProps) {
       ]);
       if (!mounted) return;
       setTicker((tRes.data as Ticker) ?? null);
-      setBars((bRes.data as PriceBar[]) ?? []);
+      // bars came back DESC; chart wants ASC.
+      const barsAsc = ((bRes.data as PriceBar[]) ?? []).slice().reverse();
+      // Winsorize wicks: clip high/low to ±WICK_PCT from previous close to hide
+      // single IEX outlier prints (long off-screen candles) that don't appear
+      // on consolidated-SIP charts like TradingView. Preserves the body so real
+      // catalyst moves are still visible.
+      const WICK_PCT = 0.02;
+      let prevClose = barsAsc[0]?.close ?? 0;
+      const cleaned: PriceBar[] = barsAsc.map((b) => {
+        const upper = prevClose * (1 + WICK_PCT);
+        const lower = prevClose * (1 - WICK_PCT);
+        // Don't clip below the body; if open/close themselves moved more than 2%, keep them.
+        const high = Math.min(b.high, Math.max(upper, b.open, b.close));
+        const low = Math.max(b.low, Math.min(lower, b.open, b.close));
+        prevClose = b.close;
+        return { ...b, high, low };
+      });
+      setBars(cleaned);
       setRecentSignals((sRes.data as Signal[]) ?? []);
     }
     load();
