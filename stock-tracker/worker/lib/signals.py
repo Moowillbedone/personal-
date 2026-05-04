@@ -39,13 +39,18 @@ def _is_regular_session(ts: pd.Timestamp) -> bool:
 
 
 def _is_volume_eligible_window(ts: pd.Timestamp) -> bool:
-    """Excludes opening 30 min (high routine volume) and closing 30 min (closing auction).
-    These are predictable volume spikes that aren't actionable trading signals.
-    Only the midday window 10:00-15:30 ET counts for volume_spike events.
+    """Volume_spike active window. Configurable via VOLUME_WINDOW env:
+      - 'midday' (10:00-15:30 ET): excludes open/close 30 min routine volume
+      - 'regular' (09:30-16:00 ET): full regular session (default — opted in)
+    Pre/after-hours are always excluded.
     """
     et = ts.tz_convert(_ET) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(_ET)
     hm = et.hour * 60 + et.minute
-    return 10 * 60 <= hm < 15 * 60 + 30
+    mode = os.getenv("VOLUME_WINDOW", "regular").lower()
+    if mode == "midday":
+        return 10 * 60 <= hm < 15 * 60 + 30
+    # default 'regular' = full session
+    return 9 * 60 + 30 <= hm < 16 * 60
 
 
 @dataclass

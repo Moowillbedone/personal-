@@ -42,7 +42,8 @@ jobs:
       # VOL_RATIO:      "2.5"       # 2.5x volume vs rolling 20-bar avg
       # MIN_DOLLAR_VOL: "2000000"   # $2M ≈ 27억원 dollar-volume floor (universal)
       # MIN_VOLUME:     "5000"      # absolute share count floor
-      # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push midday vol alerts
+      # VOLUME_WINDOW:  "midday"    # 'regular' (default, full 09:30-16:00 ET) | 'midday' (10:00-15:30 ET, less noise)
+      # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push vol alerts
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
