@@ -1,8 +1,10 @@
 """5-minute job: pull recent bars for all active tickers, persist, detect signals."""
 from __future__ import annotations
 
+import os
 import sys
 import time
+from datetime import datetime, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -10,6 +12,10 @@ from dotenv import load_dotenv
 from lib import alpaca, data, db, notify, signals as sig
 
 BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
+# Skip signals where the latest bar is older than this. Prevents stale-data
+# fires e.g. running pre-market polls on Friday's last bar (when IEX hasn't
+# emitted a Monday bar yet for that symbol).
+MAX_AGE_MIN = int(os.getenv("MAX_AGE_MIN", "15"))
 
 
 def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
@@ -55,10 +61,17 @@ def main() -> int:
             time.sleep(2)
             continue
 
+        now = datetime.now(timezone.utc)
         for sym, df in frames.items():
             all_price_rows.extend(_bars_to_rows(sym, df))
             signal = sig.detect_for_symbol(sym, df)
             if not signal:
+                continue
+            # Stale-data guard: ignore the latest bar if it's older than MAX_AGE_MIN.
+            # E.g. running a Monday pre-market poll, but Alpaca's last IEX bar for
+            # a quiet name is still Friday's close → fires a phantom signal.
+            age_min = (now - signal.ts.to_pydatetime()).total_seconds() / 60
+            if age_min > MAX_AGE_MIN:
                 continue
             ts_iso = data.to_iso_utc(signal.ts)
             if db.signal_exists(sb, sym, ts_iso):

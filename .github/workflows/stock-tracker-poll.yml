@@ -43,6 +43,7 @@ jobs:
       # MIN_DOLLAR_VOL: "2000000"   # $2M ≈ 27억원 dollar-volume floor (universal)
       # MIN_VOLUME:     "5000"      # absolute share count floor
       # VOLUME_WINDOW:  "midday"    # 'regular' (default, full 09:30-16:00 ET) | 'midday' (10:00-15:30 ET, less noise)
+      # MAX_AGE_MIN:    "15"        # ignore signals where latest bar is older than this many min (stale-data guard)
       # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push vol alerts
     steps:
       - uses: actions/checkout@v4
