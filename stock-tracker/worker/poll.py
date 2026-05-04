@@ -1,4 +1,12 @@
-"""5-minute job: pull recent bars for all active tickers, persist, detect signals."""
+"""Polling worker — runs once or in a long-lived loop.
+
+Run modes (env-controlled):
+  LOOP_MIN=0   (default)  → single poll cycle, then exit. Useful for manual runs.
+  LOOP_MIN=N>0           → poll every LOOP_INTERVAL_SEC for N minutes total.
+                           Used by the GitHub Actions long-running schedule to
+                           keep an internal 5-min cadence regardless of when
+                           the cron actually fires (GH Actions cron is unreliable).
+"""
 from __future__ import annotations
 
 import os
@@ -12,10 +20,15 @@ from dotenv import load_dotenv
 from lib import alpaca, data, db, notify, signals as sig
 
 BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
+
 # Skip signals where the latest bar is older than this. Prevents stale-data
 # fires e.g. running pre-market polls on Friday's last bar (when IEX hasn't
 # emitted a Monday bar yet for that symbol).
 MAX_AGE_MIN = int(os.getenv("MAX_AGE_MIN", "15"))
+
+# Loop-mode controls
+LOOP_MIN = int(os.getenv("LOOP_MIN", "0"))                # 0 = single shot
+LOOP_INTERVAL_SEC = int(os.getenv("LOOP_INTERVAL_SEC", "300"))  # cycle every 5 min
 
 
 def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
@@ -38,17 +51,8 @@ def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
     return rows
 
 
-def main() -> int:
-    load_dotenv()
-    sb = db.client()
-
-    symbols = db.get_active_symbols(sb)
-    if not symbols:
-        print("WARN: no active tickers; run refresh_universe.py first", file=sys.stderr)
-        return 0
-
-    print(f"polling {len(symbols)} symbols in batches of {BATCH_SIZE}")
-
+def run_once(sb, symbols: list[str]) -> tuple[int, int]:
+    """A single poll pass. Returns (#bars_persisted, #signals_fired)."""
     all_price_rows: list[dict] = []
     fired: list[dict] = []
 
@@ -67,9 +71,6 @@ def main() -> int:
             signal = sig.detect_for_symbol(sym, df)
             if not signal:
                 continue
-            # Stale-data guard: ignore the latest bar if it's older than MAX_AGE_MIN.
-            # E.g. running a Monday pre-market poll, but Alpaca's last IEX bar for
-            # a quiet name is still Friday's close → fires a phantom signal.
             age_min = (now - signal.ts.to_pydatetime()).total_seconds() / 60
             if age_min > MAX_AGE_MIN:
                 continue
@@ -87,14 +88,11 @@ def main() -> int:
                     "session": data.classify_session(signal.ts.to_pydatetime()),
                 }
             )
-
-        # tiny pause between batches to be kind to Yahoo
         time.sleep(1)
 
     db.upsert_price_snapshots(sb, all_price_rows)
     db.insert_signals(sb, fired)
 
-    print(f"persisted {len(all_price_rows)} bars, fired {len(fired)} new signals")
     if fired:
         for f in fired:
             print(
@@ -102,6 +100,49 @@ def main() -> int:
                 f"{f['pct_change']*100:+.2f}% volx{f['volume_ratio']:.1f} @ {f['price']}"
             )
         notify.notify_batch(fired)
+
+    return len(all_price_rows), len(fired)
+
+
+def main() -> int:
+    load_dotenv()
+    sb = db.client()
+
+    symbols = db.get_active_symbols(sb)
+    if not symbols:
+        print("WARN: no active tickers; run refresh_universe.py first", file=sys.stderr)
+        return 0
+
+    if LOOP_MIN <= 0:
+        print(f"single-shot poll over {len(symbols)} symbols")
+        bars, signals_n = run_once(sb, symbols)
+        print(f"persisted {bars} bars, fired {signals_n} new signals")
+        return 0
+
+    end = time.time() + LOOP_MIN * 60
+    print(
+        f"loop mode: polling {len(symbols)} symbols every "
+        f"{LOOP_INTERVAL_SEC}s for {LOOP_MIN} min"
+    )
+    cycle = 0
+    while time.time() < end:
+        cycle += 1
+        cycle_start = time.time()
+        try:
+            bars, signals_n = run_once(sb, symbols)
+            print(
+                f"[cycle {cycle}] {datetime.now(timezone.utc).isoformat(timespec='seconds')}  "
+                f"bars={bars}  fired={signals_n}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"[cycle {cycle}] FAILED: {e}", file=sys.stderr, flush=True)
+        # Sleep to next interval boundary, but not past the deadline.
+        sleep_for = max(0, LOOP_INTERVAL_SEC - (time.time() - cycle_start))
+        sleep_for = min(sleep_for, max(0, end - time.time()))
+        if sleep_for > 0:
+            time.sleep(sleep_for)
+    print(f"loop done: completed {cycle} cycles")
     return 0
 
 

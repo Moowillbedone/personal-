@@ -1,21 +1,31 @@
 name: stock-tracker / poll
 
-# 5-minute cadence during US market hours including pre/after.
-# Cron is in UTC. Pre-market starts 04:00 ET; after-market ends 20:00 ET.
-# That covers UTC 08:00-01:00 (next day) when DST is on, or 09:00-02:00 when off.
-# Easiest: run year-round during the wide UTC window 08:00-01:00 on Mon-Fri+Sat
-# (Sat covers Friday after-hours in late UTC). Skip Sun/early-Mon.
+# Long-running pattern: cron triggers every 4-5 hours, each run loops internally
+# every 5 minutes for ~5h20m. Adjacent runs overlap, so the effective polling
+# cadence stays a true 5 min regardless of GitHub Actions cron drift (which can
+# delay individual triggers by 30-150 min on the free tier).
+#
+# Daily compute: ~5 launches × 5h20m ≈ 26 hr ⇒ public-repo Actions has unlimited
+# minutes, so no quota concern. Concurrent runs during the 20-min overlap are
+# idempotent: signal_exists() dedupes signals, price_snapshots are upserted.
 on:
   schedule:
-    # every 5 min between UTC 08:00-23:55
-    - cron: "*/5 8-23 * * 1-5"
-    # late-evening UTC slice (00:00-01:55) covering US after-hours on weekdays
-    - cron: "*/5 0-1 * * 2-6"
-  workflow_dispatch: {}    # allow manual run from Actions tab
-
-concurrency:
-  group: stock-poll
-  cancel-in-progress: false
+    # UTC 08:00 (covers EDT pre-market 04:00 ET start)
+    - cron: "0 8 * * 1-5"
+    # UTC 13:00 (covers regular session start in EDT)
+    - cron: "0 13 * * 1-5"
+    # UTC 18:00
+    - cron: "0 18 * * 1-5"
+    # UTC 23:00 (covers tail end of after-hours)
+    - cron: "0 23 * * 1-5"
+    # UTC 03:00 next day for late after-hours / EST winter coverage
+    - cron: "0 3 * * 2-6"
+  workflow_dispatch:
+    inputs:
+      loop_min:
+        description: "Loop minutes (0 = single-shot)"
+        default: "0"
+        required: false
 
 permissions:
   contents: read
@@ -23,27 +33,28 @@ permissions:
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 350   # under GitHub Actions 6-hour hard limit
     defaults:
       run:
         working-directory: stock-tracker/worker
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      # Real-time IEX market data (free Alpaca account):
       ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
       ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
-      # Notification — set whichever you use. Telegram preferred if both present.
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      # 5h20m loop on cron triggers; manual triggers honor the input (default 0 = single shot).
+      LOOP_MIN: ${{ github.event_name == 'schedule' && '320' || (inputs.loop_min || '0') }}
+      LOOP_INTERVAL_SEC: "300"
       # Optional threshold overrides — uncomment to retune without code changes:
       # GAP_PCT:        "0.012"     # 1.2% gap threshold
       # VOL_RATIO:      "2.5"       # 2.5x volume vs rolling 20-bar avg
       # MIN_DOLLAR_VOL: "2000000"   # $2M ≈ 27억원 dollar-volume floor (universal)
       # MIN_VOLUME:     "5000"      # absolute share count floor
-      # VOLUME_WINDOW:  "midday"    # 'regular' (default, full 09:30-16:00 ET) | 'midday' (10:00-15:30 ET, less noise)
-      # MAX_AGE_MIN:    "15"        # ignore signals where latest bar is older than this many min (stale-data guard)
+      # VOLUME_WINDOW:  "midday"    # 'regular' (default, 09:30-16:00 ET) | 'midday' (10:00-15:30 ET)
+      # MAX_AGE_MIN:    "15"        # ignore signals where latest bar is older than this many min
       # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push vol alerts
     steps:
       - uses: actions/checkout@v4
