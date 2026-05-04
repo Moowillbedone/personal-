@@ -14,7 +14,11 @@ from dotenv import load_dotenv
 
 from lib import db
 
-ALPACA_TRADING_BASE = "https://api.alpaca.markets/v2"
+# Paper trading endpoint by default (PK... keys). Override with ALPACA_TRADING_BASE
+# env var if you have a live account (AK... keys → https://api.alpaca.markets/v2).
+ALPACA_TRADING_BASE = os.getenv(
+    "ALPACA_TRADING_BASE", "https://paper-api.alpaca.markets/v2"
+)
 
 
 def _headers() -> dict:
