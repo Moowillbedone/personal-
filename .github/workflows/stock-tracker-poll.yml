@@ -48,14 +48,16 @@ jobs:
       # 5h20m loop on cron triggers; manual triggers honor the input (default 0 = single shot).
       LOOP_MIN: ${{ github.event_name == 'schedule' && '320' || (inputs.loop_min || '0') }}
       LOOP_INTERVAL_SEC: "300"
-      # Optional threshold overrides — uncomment to retune without code changes:
-      # GAP_PCT:        "0.012"     # 1.2% gap threshold
-      # VOL_RATIO:      "2.5"       # 2.5x volume vs rolling 20-bar avg
-      # MIN_DOLLAR_VOL: "2000000"   # $2M ≈ 27억원 dollar-volume floor (universal)
-      # MIN_VOLUME:     "5000"      # absolute share count floor
+      # Threshold tuning (2026-05): defaults were too strict — only 20 vol_spikes
+      # in 48h, zero gap_up/gap_down. Loosened to capture more meaningful moves
+      # while keeping the dollar-volume floor that filters microcap noise.
+      GAP_PCT:        "0.008"     # was 1.2% → 0.8% (more 5-min moves qualify)
+      VOL_RATIO:      "2.0"       # was 2.5x → 2.0x (still anomalous, more frequent)
+      MIN_DOLLAR_VOL: "1000000"   # was $2M → $1M (still ≈14억원, blocks microcaps)
+      # MIN_VOLUME:     "5000"      # absolute share count floor (default)
       # VOLUME_WINDOW:  "midday"    # 'regular' (default, 09:30-16:00 ET) | 'midday' (10:00-15:30 ET)
       # MAX_AGE_MIN:    "15"        # ignore signals where latest bar is older than this many min
-      # NOTIFY_TYPES:   "gap_up,gap_down"   # add 'volume_spike' to also push vol alerts
+      NOTIFY_TYPES:   "gap_up,gap_down,volume_spike"   # push all three to Telegram
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
