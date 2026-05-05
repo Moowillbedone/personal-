@@ -41,11 +41,18 @@ interface AlpacaSnapshotRaw {
   prevDailyBar?: { o: number; h: number; l: number; c: number; v: number; t: string };
 }
 
-function classifySession(tradeTs: string | null): "pre" | "regular" | "after" | "closed" {
-  if (!tradeTs) return "closed";
-  const d = new Date(tradeTs);
-  // Convert UTC -> ET. ET = UTC-5 (standard) or UTC-4 (daylight). Approximate
-  // with the runtime's view of America/New_York via Intl.
+/**
+ * Returns the CURRENT US market session based on the wall-clock NY time.
+ * This is what the user sees on the page header and what we attribute
+ * snapshot prices to — "what session is open right now", not "what session
+ * was the last trade in" (which differs per ticker for low-volume names).
+ *
+ * Pre:     04:00 – 09:30 ET
+ * Regular: 09:30 – 16:00 ET
+ * After:   16:00 – 20:00 ET
+ * Closed:  outside those windows + weekends
+ */
+export function currentMarketSession(now: Date = new Date()): "pre" | "regular" | "after" | "closed" {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     hour12: false,
@@ -53,13 +60,12 @@ function classifySession(tradeTs: string | null): "pre" | "regular" | "after" | 
     minute: "2-digit",
     weekday: "short",
   });
-  const parts = fmt.formatToParts(d);
+  const parts = fmt.formatToParts(now);
   const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
   const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
   if (weekday === "Sat" || weekday === "Sun") return "closed";
   const mins = hour * 60 + minute;
-  // Pre: 04:00 - 09:30 ET, Regular: 09:30 - 16:00, After: 16:00 - 20:00, else closed
   if (mins >= 4 * 60 && mins < 9 * 60 + 30) return "pre";
   if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "regular";
   if (mins >= 16 * 60 && mins < 20 * 60) return "after";
@@ -94,7 +100,7 @@ export async function getSnapshot(symbol: string): Promise<Snapshot> {
     symbol: sym,
     lastPrice,
     lastTradeTs,
-    session: classifySession(lastTradeTs),
+    session: currentMarketSession(),
     prevClose,
     todayOpen,
     todayHigh,
@@ -204,7 +210,7 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
       symbol: sym,
       lastPrice,
       lastTradeTs,
-      session: classifySession(lastTradeTs),
+      session: currentMarketSession(),
       prevClose,
       todayOpen: s.dailyBar?.o ?? null,
       todayHigh: s.dailyBar?.h ?? null,

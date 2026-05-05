@@ -320,7 +320,11 @@ export default function TradePage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
+    <div className="max-w-7xl mx-auto">
+      {/* Global market clock — shows the user the current US session in their local time. */}
+      <MarketClock />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
       {/* LEFT: search + watchlist */}
       <aside className="space-y-4">
         <section>
@@ -770,6 +774,7 @@ export default function TradePage() {
           </>
         )}
       </section>
+      </div>
     </div>
   );
 }
@@ -779,6 +784,108 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="border border-neutral-800 rounded p-2">
       <div className="text-neutral-500">{label}</div>
       <div className="font-semibold mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Compute the current US market session by NY wall-clock time.
+ * Mirrors lib/alpaca.ts#currentMarketSession but runs in the browser
+ * so the badge updates every second without a server roundtrip.
+ */
+function computeSession(now: Date): "pre" | "regular" | "after" | "closed" {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+  });
+  const parts = fmt.formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  if (weekday === "Sat" || weekday === "Sun") return "closed";
+  const mins = hour * 60 + minute;
+  if (mins >= 4 * 60 && mins < 9 * 60 + 30) return "pre";
+  if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "regular";
+  if (mins >= 16 * 60 && mins < 20 * 60) return "after";
+  return "closed";
+}
+
+/** Minutes until the next session boundary, for the countdown text. */
+function nextBoundaryMinutes(now: Date, session: ReturnType<typeof computeSession>): { label: string; minsUntil: number } | null {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const parts = fmt.formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const mins = hour * 60 + minute;
+  const targets: Array<{ at: number; label: string }> = [
+    { at: 4 * 60, label: "프리마켓 시작" },
+    { at: 9 * 60 + 30, label: "정규장 개장" },
+    { at: 16 * 60, label: "정규장 마감" },
+    { at: 20 * 60, label: "애프터마켓 마감" },
+  ];
+  for (const t of targets) {
+    if (mins < t.at) {
+      return { label: t.label, minsUntil: t.at - mins };
+    }
+  }
+  // Past 20:00 ET — next event is tomorrow's pre-market open
+  return { label: "프리마켓 시작 (다음 영업일)", minsUntil: 24 * 60 - mins + 4 * 60 };
+}
+
+const SESSION_BADGE: Record<ReturnType<typeof computeSession>, { label: string; cls: string; emoji: string }> = {
+  pre:     { label: "프리마켓",   cls: "bg-amber-900/40 text-amber-200 border-amber-700",     emoji: "🌅" },
+  regular: { label: "정규장",     cls: "bg-emerald-900/40 text-emerald-200 border-emerald-700", emoji: "🇺🇸" },
+  after:   { label: "애프터마켓", cls: "bg-violet-900/40 text-violet-200 border-violet-700",   emoji: "🌙" },
+  closed:  { label: "장마감",     cls: "bg-neutral-800/60 text-neutral-400 border-neutral-700", emoji: "💤" },
+};
+
+function MarketClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const session = computeSession(now);
+  const boundary = nextBoundaryMinutes(now, session);
+  const kst = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(now);
+  const et = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  const badge = SESSION_BADGE[session];
+  return (
+    <div className="flex items-center justify-between flex-wrap gap-3 mb-5 border border-neutral-800 rounded-lg px-4 py-2.5 bg-neutral-900/40">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className={`px-2.5 py-1 text-xs border rounded font-semibold ${badge.cls}`}>
+          {badge.emoji} 미국 {badge.label}
+        </span>
+        {boundary && (
+          <span className="text-xs text-neutral-500">
+            다음: {boundary.label} ({Math.floor(boundary.minsUntil / 60)}시간 {boundary.minsUntil % 60}분 남음)
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 text-xs text-neutral-400 font-mono">
+        <span>KST {kst}</span>
+        <span className="text-neutral-700">·</span>
+        <span>ET {et}</span>
+      </div>
     </div>
   );
 }
