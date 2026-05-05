@@ -19,6 +19,9 @@ import pytz
 # Tunables (env-overridable for live re-tuning without code changes)
 GAP_PCT = float(os.getenv("GAP_PCT", "0.012"))         # 1.2% intra-bar move vs previous close
 VOL_RATIO = float(os.getenv("VOL_RATIO", "2.5"))       # current volume must be >= 2.5x rolling avg
+# A solo vol-spike must clear this much higher bar to qualify — ensures a price-less
+# volume blip alone is only flagged when truly extraordinary (e.g. block trade).
+VOL_RATIO_STRONG = float(os.getenv("VOL_RATIO_STRONG", "4.0"))
 LOOKBACK_BARS = int(os.getenv("LOOKBACK_BARS", "20"))  # rolling window for volume baseline
 MIN_VOLUME = int(os.getenv("MIN_VOLUME", "5000"))      # absolute floor: skip thin bars (esp. extended hrs)
 MIN_BASELINE_VOL = int(os.getenv("MIN_BASELINE_VOL", "2000"))  # baseline avg must clear this too
@@ -94,9 +97,6 @@ def detect_for_symbol(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     vol_ratio = vol / avg_vol
 
     gap_hit = abs(pct) >= GAP_PCT
-    # Volume hit requires ratio + absolute floor + midday window (10:00-15:30 ET).
-    # Excludes opening 30 min and closing 30 min where volume spikes are routine
-    # (warm-up + closing auction), so we only flag genuinely anomalous midday volume.
     vol_hit = (
         vol_ratio >= VOL_RATIO
         and vol >= MIN_VOLUME
@@ -104,14 +104,24 @@ def detect_for_symbol(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
         and _is_volume_eligible_window(latest.name)
     )
 
-    if not (gap_hit or vol_hit):
+    # High-conviction: BOTH a meaningful price move AND volume confirmation.
+    # This is the "real buy/sell candidate" filter — a 1% gap with no volume
+    # is just noise, and a volume spike with no price move is wash trading or
+    # block crossing. Together they signal genuine directional pressure.
+    high_conviction = gap_hit and vol_hit
+
+    # Standalone volume spikes only qualify if EXTRAORDINARILY strong (e.g.
+    # 4x+ rolling average) — captures rare unusual-activity events without
+    # flooding the feed with routine 2-3x ticks. DB-only by default.
+    extreme_vol = vol_hit and (not gap_hit) and vol_ratio >= VOL_RATIO_STRONG
+
+    if not (high_conviction or extreme_vol):
         return None
 
-    if gap_hit and pct > 0:
-        sig_type = "gap_up"
-    elif gap_hit and pct < 0:
-        sig_type = "gap_down"
+    if high_conviction:
+        sig_type = "gap_up" if pct > 0 else "gap_down"
     else:
+        # extreme_vol path
         sig_type = "volume_spike"
 
     return Signal(
