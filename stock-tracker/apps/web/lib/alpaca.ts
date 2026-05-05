@@ -114,12 +114,11 @@ export interface NewsItem {
   createdAt: string;
 }
 
-export async function getRecentNews(symbol: string, limit = 10): Promise<NewsItem[]> {
+export async function getRecentNews(symbol: string, limit = 25): Promise<NewsItem[]> {
   const sym = symbol.toUpperCase();
-  const r = await fetch(
-    `${DATA_BASE}/news?symbols=${encodeURIComponent(sym)}&limit=${limit}&sort=desc`,
-    { headers: headers(), cache: "no-store" },
-  );
+  // Alpaca news lives at v1beta1 (public docs), not v2.
+  const url = `https://data.alpaca.markets/v1beta1/news?symbols=${encodeURIComponent(sym)}&limit=${limit}&sort=desc`;
+  const r = await fetch(url, { headers: headers(), cache: "no-store" });
   if (!r.ok) {
     // News access varies by Alpaca plan; fail soft so analysis can continue without news.
     return [];
@@ -135,54 +134,231 @@ export async function getRecentNews(symbol: string, limit = 10): Promise<NewsIte
   }));
 }
 
-export interface RecentBars {
-  fiveMin: Array<{ ts: string; o: number; h: number; l: number; c: number; v: number }>;
-  daily: Array<{ ts: string; o: number; h: number; l: number; c: number; v: number }>;
+export interface Bar {
+  ts: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
 }
 
-export async function getRecentBars(symbol: string): Promise<RecentBars> {
-  const sym = symbol.toUpperCase();
+export interface RecentBars {
+  fiveMin: Bar[];
+  daily: Bar[];
+}
+
+async function fetchBars(symbol: string, timeframe: string, days: number, limit: number): Promise<Bar[]> {
   const now = new Date();
-  const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 3600 * 1000);
-  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 3600 * 1000);
-
-  const params5m = new URLSearchParams({
-    timeframe: "5Min",
-    start: fiveDaysAgo.toISOString().replace(/\.\d{3}Z$/, "Z"),
+  const start = new Date(now.getTime() - days * 24 * 3600 * 1000);
+  const params = new URLSearchParams({
+    timeframe,
+    start: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
     end: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    limit: "200",
+    limit: String(limit),
     feed: "iex",
     adjustment: "raw",
   });
-  const params1d = new URLSearchParams({
-    timeframe: "1Day",
-    start: sixtyDaysAgo.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    end: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    limit: "60",
-    feed: "iex",
-    adjustment: "raw",
+  const r = await fetch(`${DATA_BASE}/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`, {
+    headers: headers(),
+    cache: "no-store",
   });
+  if (!r.ok) return [];
+  const data = (await r.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> };
+  return (data.bars ?? []).map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
+}
 
-  const [r5, rd] = await Promise.all([
-    fetch(`${DATA_BASE}/stocks/${encodeURIComponent(sym)}/bars?${params5m}`, {
-      headers: headers(),
-      cache: "no-store",
-    }),
-    fetch(`${DATA_BASE}/stocks/${encodeURIComponent(sym)}/bars?${params1d}`, {
-      headers: headers(),
-      cache: "no-store",
-    }),
+/**
+ * Fetch a deeper history bundle: ~5 days of 5-min bars (intraday context)
+ * + ~365 days of daily bars (52w high/low + indicators).
+ */
+export async function getRecentBars(symbol: string): Promise<RecentBars> {
+  const [fiveMin, daily] = await Promise.all([
+    fetchBars(symbol, "5Min", 5, 600),
+    fetchBars(symbol, "1Day", 380, 380),
   ]);
+  return { fiveMin, daily };
+}
 
-  const fiveMin = r5.ok
-    ? ((await r5.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> }).bars ?? []
-    : [];
-  const daily = rd.ok
-    ? ((await rd.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> }).bars ?? []
-    : [];
+// ────────────────────────────────────────────────────────────────────────────
+// Batch snapshots (multiple symbols in one HTTP call)
+// ────────────────────────────────────────────────────────────────────────────
 
-  return {
-    fiveMin: fiveMin.map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v })),
-    daily: daily.map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v })),
-  };
+export async function getSnapshots(symbols: string[]): Promise<Record<string, Snapshot>> {
+  const list = Array.from(new Set(symbols.map((s) => s.toUpperCase()))).filter(Boolean);
+  if (list.length === 0) return {};
+  const url = `${DATA_BASE}/stocks/snapshots?symbols=${encodeURIComponent(list.join(","))}&feed=iex`;
+  const r = await fetch(url, { headers: headers(), cache: "no-store" });
+  if (!r.ok) return {};
+  const raw = (await r.json()) as Record<string, AlpacaSnapshotRaw>;
+  const out: Record<string, Snapshot> = {};
+  for (const [sym, s] of Object.entries(raw)) {
+    const lastPrice = s.latestTrade?.p ?? s.latestQuote?.ap ?? null;
+    const lastTradeTs = s.latestTrade?.t ?? s.latestQuote?.t ?? null;
+    const prevClose = s.prevDailyBar?.c ?? null;
+    const changePct =
+      lastPrice != null && prevClose != null && prevClose !== 0
+        ? (lastPrice - prevClose) / prevClose
+        : null;
+    out[sym] = {
+      symbol: sym,
+      lastPrice,
+      lastTradeTs,
+      session: classifySession(lastTradeTs),
+      prevClose,
+      todayOpen: s.dailyBar?.o ?? null,
+      todayHigh: s.dailyBar?.h ?? null,
+      todayLow: s.dailyBar?.l ?? null,
+      todayClose: s.dailyBar?.c ?? null,
+      todayVolume: s.dailyBar?.v ?? null,
+      changePct,
+    };
+  }
+  return out;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Options snapshot — ATM IV + put-call volume ratio.
+// Free Alpaca options data is OPRA-delayed; ok for context, not for execution.
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface OptionsContext {
+  atmCallIv: number | null;
+  atmPutIv: number | null;
+  atmIv: number | null;          // mean of call/put ATM
+  putCallVolumeRatio: number | null;
+  totalCallVolume: number;
+  totalPutVolume: number;
+  expiry: string | null;
+}
+
+interface OptContractRaw {
+  symbol: string;
+  strike_price: string;
+  expiration_date: string;
+  type: "call" | "put";
+}
+interface OptSnapshotRaw {
+  latestQuote?: { ap?: number; bp?: number };
+  latestTrade?: { p?: number };
+  impliedVolatility?: number;
+  greeks?: { delta?: number };
+  dailyBar?: { v?: number };
+}
+
+export async function getOptionsContext(symbol: string, underlyingPrice: number | null): Promise<OptionsContext | null> {
+  if (underlyingPrice == null || underlyingPrice <= 0) return null;
+  try {
+    // 1) List nearest-expiry contracts in a ±15% strike band
+    const sym = symbol.toUpperCase();
+    const lo = (underlyingPrice * 0.85).toFixed(2);
+    const hi = (underlyingPrice * 1.15).toFixed(2);
+    const today = new Date().toISOString().slice(0, 10);
+    const future = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const contractsUrl = `https://paper-api.alpaca.markets/v2/options/contracts?underlying_symbols=${sym}&status=active&expiration_date_gte=${today}&expiration_date_lte=${future}&strike_price_gte=${lo}&strike_price_lte=${hi}&limit=200`;
+    const cRes = await fetch(contractsUrl, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!cRes.ok) return null;
+    const cData = (await cRes.json()) as { option_contracts?: OptContractRaw[] };
+    const contracts = cData.option_contracts ?? [];
+    if (contracts.length === 0) return null;
+
+    // Find nearest expiry
+    const exps = Array.from(new Set(contracts.map((c) => c.expiration_date))).sort();
+    const nearest = exps[0];
+    const nearContracts = contracts.filter((c) => c.expiration_date === nearest);
+
+    // Find ATM strike
+    const strikes = Array.from(new Set(nearContracts.map((c) => Number(c.strike_price)))).sort((a, b) => a - b);
+    const atmStrike = strikes.reduce((best, s) =>
+      Math.abs(s - underlyingPrice) < Math.abs(best - underlyingPrice) ? s : best,
+    strikes[0]);
+
+    // 2) Snapshot all near-expiry contracts to get IV + volume
+    const occSyms = nearContracts.map((c) => c.symbol);
+    if (occSyms.length === 0) return null;
+    const snapUrl = `https://data.alpaca.markets/v1beta1/options/snapshots/${sym}?feed=indicative&limit=200`;
+    const sRes = await fetch(snapUrl, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!sRes.ok) return null;
+    const sData = (await sRes.json()) as { snapshots?: Record<string, OptSnapshotRaw> };
+    const snaps = sData.snapshots ?? {};
+
+    let totalCallVol = 0;
+    let totalPutVol = 0;
+    let atmCallIv: number | null = null;
+    let atmPutIv: number | null = null;
+
+    for (const c of nearContracts) {
+      const snap = snaps[c.symbol];
+      if (!snap) continue;
+      const v = snap.dailyBar?.v ?? 0;
+      if (c.type === "call") totalCallVol += v;
+      else totalPutVol += v;
+      if (Number(c.strike_price) === atmStrike) {
+        if (c.type === "call") atmCallIv = snap.impliedVolatility ?? null;
+        else atmPutIv = snap.impliedVolatility ?? null;
+      }
+    }
+
+    const atmIv =
+      atmCallIv != null && atmPutIv != null
+        ? (atmCallIv + atmPutIv) / 2
+        : atmCallIv ?? atmPutIv ?? null;
+
+    return {
+      atmCallIv,
+      atmPutIv,
+      atmIv,
+      putCallVolumeRatio: totalCallVol > 0 ? totalPutVol / totalCallVol : null,
+      totalCallVolume: totalCallVol,
+      totalPutVolume: totalPutVol,
+      expiry: nearest,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Corporate actions — dividends + splits + earnings dates (from Alpaca)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface CorporateActionsItem {
+  type: string;
+  date: string;
+  description: string;
+}
+
+export async function getCorporateActions(symbol: string): Promise<CorporateActionsItem[]> {
+  try {
+    const today = new Date();
+    const past = new Date(today.getTime() - 90 * 24 * 3600 * 1000);
+    const future = new Date(today.getTime() + 90 * 24 * 3600 * 1000);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const url = `${DATA_BASE.replace("/v2", "")}/v1/corporate-actions?symbols=${encodeURIComponent(symbol.toUpperCase())}&start=${fmt(past)}&end=${fmt(future)}`;
+    const r = await fetch(url, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const data = (await r.json()) as Record<string, unknown>;
+    const out: CorporateActionsItem[] = [];
+    const flatten = (obj: Record<string, unknown>) => {
+      for (const [type, list] of Object.entries(obj)) {
+        if (!Array.isArray(list)) continue;
+        for (const it of list) {
+          const item = it as Record<string, unknown>;
+          out.push({
+            type,
+            date: String(item.ex_date ?? item.process_date ?? item.declaration_date ?? ""),
+            description: JSON.stringify(item).slice(0, 200),
+          });
+        }
+      }
+    };
+    if (data.corporate_actions && typeof data.corporate_actions === "object") {
+      flatten(data.corporate_actions as Record<string, unknown>);
+    } else {
+      flatten(data);
+    }
+    return out.filter((o) => o.date).sort((a, b) => (a.date < b.date ? 1 : -1));
+  } catch {
+    return [];
+  }
 }

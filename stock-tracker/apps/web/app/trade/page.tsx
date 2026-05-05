@@ -29,6 +29,13 @@ interface WatchlistItem {
   sort_order: number;
 }
 
+interface HorizonOpinion {
+  verdict: "buy" | "hold" | "sell";
+  confidence: number;
+  summary: string;
+  key_points: string[];
+}
+
 interface AiAnalysis {
   id: string;
   symbol: string;
@@ -37,15 +44,21 @@ interface AiAnalysis {
   summary: string;
   bull_points: string[];
   bear_points: string[];
+  horizons: {
+    three_month?: HorizonOpinion;
+    six_month?: HorizonOpinion;
+    one_year?: HorizonOpinion;
+  } | null;
   context: Record<string, unknown>;
   model: string;
   created_at: string;
 }
 
 interface NewsItem {
-  id: number;
+  // Alpaca news has numeric id; premium-outlet headlines (Reuters/Bloomberg/...) don't.
+  id?: number;
   headline: string;
-  summary: string;
+  summary?: string;
   source: string;
   url: string;
   createdAt: string;
@@ -63,6 +76,7 @@ interface AnalyzeResponse {
   analysis: AiAnalysis;
   snapshot: Snapshot | null;
   news: NewsItem[];
+  sources_used?: Record<string, number>;
   sizing: Sizing;
 }
 
@@ -104,6 +118,34 @@ function fmtMoney(v: number | null) {
 }
 function fmtKRW(n: number) {
   return `${Math.round(n).toLocaleString()}원`;
+}
+
+/** "1000000" → "1,000,000". Empty string passes through. */
+function formatThousands(raw: string): string {
+  if (!raw) return "";
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (!digits) return "";
+  return Number(digits).toLocaleString();
+}
+
+/** Strip everything but digits — used so user can type/paste "1,000,000" or "1000000". */
+function stripNonDigits(s: string): string {
+  return s.replace(/[^0-9]/g, "");
+}
+
+/** Color-code news source badges so premium outlets visually stand out. */
+function sourceBadgeClass(source: string): string {
+  const s = source.toLowerCase();
+  if (s.includes("reuters")) return "bg-orange-900/40 text-orange-300 border-orange-700";
+  if (s.includes("bloomberg")) return "bg-fuchsia-900/40 text-fuchsia-300 border-fuchsia-700";
+  if (s.includes("cnbc")) return "bg-red-900/40 text-red-300 border-red-700";
+  if (s.includes("wsj") || s.includes("wall street")) return "bg-amber-900/40 text-amber-300 border-amber-700";
+  if (s.includes("ft") || s.includes("financial times")) return "bg-pink-900/40 text-pink-300 border-pink-700";
+  if (s.includes("marketwatch")) return "bg-indigo-900/40 text-indigo-300 border-indigo-700";
+  if (s.includes("benzinga")) return "bg-emerald-900/40 text-emerald-300 border-emerald-700";
+  if (s.includes("zacks")) return "bg-teal-900/40 text-teal-300 border-teal-700";
+  if (s.includes("seeking")) return "bg-cyan-900/40 text-cyan-300 border-cyan-700";
+  return "bg-neutral-800/60 text-neutral-300 border-neutral-700";
 }
 
 export default function TradePage() {
@@ -468,11 +510,12 @@ export default function TradePage() {
                   <label className="flex items-center gap-2">
                     <span className="text-neutral-500">총 예산 (KRW):</span>
                     <input
-                      type="number"
-                      value={posLumpKrw}
-                      onChange={(e) => setPosLumpKrw(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatThousands(posLumpKrw)}
+                      onChange={(e) => setPosLumpKrw(stripNonDigits(e.target.value))}
                       className="w-40 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-                      placeholder="10000000"
+                      placeholder="10,000,000"
                     />
                   </label>
                 </div>
@@ -481,10 +524,12 @@ export default function TradePage() {
                   <label className="flex items-center gap-2">
                     <span className="text-neutral-500">일 매수액 (KRW):</span>
                     <input
-                      type="number"
-                      value={posDcaPerDay}
-                      onChange={(e) => setPosDcaPerDay(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatThousands(posDcaPerDay)}
+                      onChange={(e) => setPosDcaPerDay(stripNonDigits(e.target.value))}
                       className="w-32 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
+                      placeholder="1,000,000"
                     />
                   </label>
                   <label className="flex items-center gap-2">
@@ -535,14 +580,17 @@ export default function TradePage() {
 
             {result && (
               <div className="space-y-4">
-                {/* verdict */}
+                {/* short-term verdict (1d ~ 1w) */}
                 <div className="border border-neutral-800 rounded-lg p-4">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <span
-                      className={`px-3 py-1 border rounded text-sm font-semibold ${VERDICT_STYLE[result.analysis.verdict]}`}
-                    >
-                      {VERDICT_LABEL[result.analysis.verdict]}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs uppercase tracking-wider text-neutral-500">단타 (1일 ~ 1주)</span>
+                      <span
+                        className={`px-3 py-1 border rounded text-sm font-semibold ${VERDICT_STYLE[result.analysis.verdict]}`}
+                      >
+                        {VERDICT_LABEL[result.analysis.verdict]}
+                      </span>
+                    </div>
                     <span className="text-xs text-neutral-500">
                       신뢰도 {(result.analysis.confidence * 100).toFixed(0)}% ·{" "}
                       {result.analysis.model} ·{" "}
@@ -551,6 +599,41 @@ export default function TradePage() {
                   </div>
                   <p className="mt-3 text-sm leading-relaxed">{result.analysis.summary}</p>
                 </div>
+
+                {/* long-term horizons (3m / 6m / 1y) */}
+                {result.analysis.horizons && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {([
+                      ["three_month", "3개월"],
+                      ["six_month", "6개월"],
+                      ["one_year", "1년"],
+                    ] as const).map(([key, label]) => {
+                      const h = result.analysis.horizons?.[key];
+                      if (!h) return null;
+                      return (
+                        <div key={key} className="border border-neutral-800 rounded-lg p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs uppercase tracking-wider text-neutral-500">{label}</span>
+                            <span className={`px-2 py-0.5 border rounded text-xs font-semibold ${VERDICT_STYLE[h.verdict]}`}>
+                              {VERDICT_LABEL[h.verdict]}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1">신뢰도 {(h.confidence * 100).toFixed(0)}%</div>
+                          {h.summary && (
+                            <p className="mt-2 text-xs leading-relaxed text-neutral-200">{h.summary}</p>
+                          )}
+                          {h.key_points.length > 0 && (
+                            <ul className="mt-2 text-xs space-y-0.5 list-disc list-inside text-neutral-300">
+                              {h.key_points.map((p, i) => (
+                                <li key={i}>{p}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* bull / bear */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -574,7 +657,53 @@ export default function TradePage() {
 
                 {/* sizing */}
                 <div className="border border-sky-900/50 bg-sky-950/20 rounded-lg p-4">
-                  <h3 className="text-xs uppercase text-sky-400 mb-2">권장 사이징</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs uppercase text-sky-400">권장 사이징</h3>
+                    <details className="group relative">
+                      <summary className="cursor-pointer list-none text-xs text-neutral-500 hover:text-sky-300 select-none">
+                        ⓘ 계산 규칙
+                      </summary>
+                      <div className="absolute right-0 top-6 z-10 w-[420px] max-w-[80vw] rounded-md border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-300 shadow-lg">
+                        <p className="text-neutral-200 mb-2">
+                          AI 신뢰도 <span className="text-sky-300">w</span> (0~1) × 포지션 설정 조합 룰. AI는 판정·신뢰도만 정하고, 금액 계산은 고정 공식.
+                        </p>
+                        <table className="w-full text-[11px] border border-neutral-800">
+                          <thead className="bg-neutral-900 text-neutral-400">
+                            <tr>
+                              <th className="px-1.5 py-1 text-left">판정</th>
+                              <th className="px-1.5 py-1 text-left">거치식 (예산 X)</th>
+                              <th className="px-1.5 py-1 text-left">DCA (일 매수액 Y)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-neutral-300">
+                            <tr className="border-t border-neutral-800">
+                              <td className="px-1.5 py-1 text-emerald-300">매수</td>
+                              <td className="px-1.5 py-1">X × w</td>
+                              <td className="px-1.5 py-1">Y × min(1 + 2w, 3)</td>
+                            </tr>
+                            <tr className="border-t border-neutral-800">
+                              <td className="px-1.5 py-1 text-amber-300">관망</td>
+                              <td className="px-1.5 py-1">0 (보류)</td>
+                              <td className="px-1.5 py-1">Y (평소 슬라이스)</td>
+                            </tr>
+                            <tr className="border-t border-neutral-800">
+                              <td className="px-1.5 py-1 text-rose-300">매도</td>
+                              <td className="px-1.5 py-1">X × w (보유분 익절/손절)</td>
+                              <td className="px-1.5 py-1">0 (오늘 매수 X)</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <div className="mt-2 text-neutral-400">
+                          <div className="text-neutral-300 font-semibold mb-0.5">DCA 매수 배수 예시</div>
+                          <div>w=0.50 → 2.0× · w=0.75 → 2.5× · w=1.00 → 3.0× (cap)</div>
+                        </div>
+                        <p className="mt-2 text-neutral-500 leading-relaxed">
+                          평소 DCA로 사고 있는 양에 가중을 더해 "신호 강할 때 평소보다 많이"
+                          사도록 설계된 룰. 거치식은 반대로 매수 신호가 없으면 0원으로 진입 보류.
+                        </p>
+                      </div>
+                    </details>
+                  </div>
                   <div className="text-sm">
                     <div className="text-2xl font-semibold">
                       {fmtKRW(result.sizing.amount_krw)}
@@ -589,20 +718,43 @@ export default function TradePage() {
                 {/* news */}
                 {result.news.length > 0 && (
                   <div className="border border-neutral-800 rounded-lg p-4">
-                    <h3 className="text-xs uppercase text-neutral-400 mb-2">참고 뉴스</h3>
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <h3 className="text-xs uppercase text-neutral-400">
+                        참고 뉴스 (총 {result.news.length}건)
+                      </h3>
+                      {result.sources_used && Object.keys(result.sources_used).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(result.sources_used)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([src, n]) => (
+                              <span
+                                key={src}
+                                className={`px-1.5 py-0.5 text-[10px] border rounded ${sourceBadgeClass(src)}`}
+                              >
+                                {src} {n}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                     <ul className="text-sm space-y-2">
-                      {result.news.slice(0, 6).map((n) => (
-                        <li key={n.id}>
+                      {result.news.slice(0, 20).map((n, i) => (
+                        <li key={n.id ?? `${n.source}-${n.url}-${i}`} className="flex items-start gap-2">
+                          <span
+                            className={`shrink-0 px-1.5 py-0.5 text-[10px] border rounded mt-0.5 ${sourceBadgeClass(n.source)}`}
+                          >
+                            {n.source}
+                          </span>
                           <a
                             href={n.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sky-300 hover:underline"
+                            className="text-sky-300 hover:underline leading-snug"
                           >
                             {n.headline}
                           </a>
-                          <span className="text-xs text-neutral-500 ml-2">
-                            {n.source} · {n.createdAt.slice(0, 10)}
+                          <span className="text-xs text-neutral-600 ml-auto shrink-0">
+                            {n.createdAt.slice(0, 10)}
                           </span>
                         </li>
                       ))}
