@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  getSnapshot,
   getSnapshots,
   getRecentNews,
-  getRecentBars,
   getOptionsContext,
   getCorporateActions,
   type Snapshot,
@@ -13,6 +11,7 @@ import {
   type OptionsContext,
   type CorporateActionsItem,
 } from "@/lib/alpaca";
+import { getPrimarySnapshot, getPrimaryRecentBars } from "@/lib/marketData";
 import { generateVerdict, ACTIVE_MODEL } from "@/lib/gemini";
 import { computeAll, type IndicatorBundle } from "@/lib/indicators";
 import { getSectorInfo, MARKET_TICKERS, type SectorInfo } from "@/lib/sectorMap";
@@ -148,8 +147,8 @@ export async function POST(req: NextRequest) {
         ownSignals,
         watchlistSyms,
       ] = await Promise.all([
-        getSnapshot(symbol),
-        softly(getRecentBars(symbol)),
+        getPrimarySnapshot(symbol),
+        softly(getPrimaryRecentBars(symbol)),
         softly(getRecentNews(symbol, 25)),
         softly(fetchMacroNews(2)),
         softly(fetchTickerNews(symbol, 2)),
@@ -274,7 +273,7 @@ export async function POST(req: NextRequest) {
       // still shows current price and citations even when the verdict itself
       // is reused. News fetches are fast (<2s) so this doesn't hurt much.
       const [freshSnap, freshAlpaca, freshTicker, freshMacro] = await Promise.all([
-        getSnapshot(symbol).catch(() => null),
+        getPrimarySnapshot(symbol).catch(() => null),
         softly(getRecentNews(symbol, 25)),
         softly(fetchTickerNews(symbol, 2)),
         softly(fetchMacroNews(2)),
@@ -338,6 +337,30 @@ function snapLine(sym: string, s: Snapshot | undefined): string {
   return `${sym}=${num(s.lastPrice)} (${pct(s.changePct)})`;
 }
 
+// Tells Gemini where the lastPrice came from so it can weight its confidence
+// appropriately. Extended-hours prices are real but thinly traded; IEX
+// during non-regular sessions means Yahoo failed and the price is stale.
+function sessionDisclosure(
+  session: Snapshot["session"],
+  source: Snapshot["priceSource"],
+): string {
+  if (session === "regular") {
+    return "정규장 실시간 IEX 피드. 가격·5분봉 모두 최신.";
+  }
+  if (source === "yahoo") {
+    if (session === "pre")
+      return "프리마켓 — 가격은 Yahoo 익스텐디드 호가 기반. 거래량이 정규장보다 훨씬 적어 슬리피지 큼, 단일 신호로 단정 금지.";
+    if (session === "after")
+      return "애프터마켓 — 가격은 Yahoo 익스텐디드 호가 기반. 거래량이 정규장보다 훨씬 적어 슬리피지 큼, 단일 신호로 단정 금지.";
+    return "장마감 — Yahoo가 본 가장 최근 거래 가격(익스텐디드 또는 정규장 종가). 실시간 아님.";
+  }
+  // source === 'iex' but non-regular: Yahoo failed, IEX is showing the
+  // last regular session trade. Warn Gemini explicitly.
+  const label =
+    session === "pre" ? "프리장" : session === "after" ? "애프터장" : "장마감";
+  return `${label} 시간대지만 익스텐디드 데이터 소스 실패 — 표시된 가격은 직전 정규장 IEX 종가로 stale 가능성 높음. 가격 단정 금지, 추세·뉴스 위주로 판단.`;
+}
+
 function buildPrompt(p: PromptInputs): string {
   const { symbol, snap, indicators, bars, alpacaNews, macroHeadlines, tickerHeadlines, secFilings, marketSnaps, sectorInfo, sectorSnaps, fredMacro, finnhub, optionsCtx, corpActions, ownSignals, watchSnaps } = p;
 
@@ -357,6 +380,7 @@ function buildPrompt(p: PromptInputs): string {
     "## 1) 현재 스냅샷",
     `- 가격: ${num(snap.lastPrice)} (${snap.session}) · 전일종가 ${num(snap.prevClose)} · 변동률 ${pct(snap.changePct)}`,
     `- 오늘 OHLC: O=${num(snap.todayOpen)} H=${num(snap.todayHigh)} L=${num(snap.todayLow)} V=${snap.todayVolume?.toLocaleString() ?? "?"}`,
+    `- 데이터 소스: ${sessionDisclosure(snap.session, snap.priceSource)}`,
   ].join("\n"));
 
   // 2) Indicators

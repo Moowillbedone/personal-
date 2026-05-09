@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSnapshot } from "@/lib/alpaca";
+import { getLatestPriceSnapshot } from "@/lib/marketData";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/snapshot?symbols=AAPL,MSFT — batched real-time snapshots
-// (pre-market / regular / after-hours all derived from Alpaca latestTrade).
+// GET /api/snapshot?symbols=AAPL,MSFT — batched real-time snapshots.
+// Regular session: Alpaca IEX. Pre/after/closed: Yahoo extended hours
+// (per symbol, fail-soft to IEX). Called only on user-triggered refresh
+// — auto-polling is intentionally off to avoid Yahoo rate-limiting the
+// Vercel datacenter IP across 20+ tickers.
 export async function GET(req: NextRequest) {
   const raw = (req.nextUrl.searchParams.get("symbols") ?? "").trim();
   if (!raw) return NextResponse.json({ snapshots: [] });
@@ -19,7 +22,7 @@ export async function GET(req: NextRequest) {
   const results = await Promise.all(
     symbols.map(async (sym) => {
       try {
-        return await getSnapshot(sym);
+        return await getLatestPriceSnapshot(sym);
       } catch (err) {
         return { symbol: sym, error: (err as Error).message };
       }
@@ -27,3 +30,4 @@ export async function GET(req: NextRequest) {
   );
   return NextResponse.json({ snapshots: results });
 }
+

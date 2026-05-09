@@ -32,6 +32,10 @@ export interface Snapshot {
   todayVolume: number | null;
   // computed
   changePct: number | null;       // (lastPrice - prevClose) / prevClose
+  // provenance: which feed produced lastPrice. 'iex' = Alpaca free IEX
+  // (real-time during regular session, often stale during pre/after).
+  // 'yahoo' = Yahoo Finance v8 chart (covers extended hours).
+  priceSource?: "iex" | "yahoo";
 }
 
 interface AlpacaSnapshotRaw {
@@ -108,6 +112,7 @@ export async function getSnapshot(symbol: string): Promise<Snapshot> {
     todayClose,
     todayVolume,
     changePct,
+    priceSource: "iex",
   };
 }
 
@@ -218,6 +223,7 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
       todayClose: s.dailyBar?.c ?? null,
       todayVolume: s.dailyBar?.v ?? null,
       changePct,
+      priceSource: "iex",
     };
   }
   return out;

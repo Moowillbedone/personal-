@@ -20,7 +20,22 @@ interface Snapshot {
   todayClose: number | null;
   todayVolume: number | null;
   changePct: number | null;
+  // 'iex' = Alpaca (real-time during regular, stale during pre/after).
+  // 'yahoo' = Yahoo extended hours. Outside regular session, 'iex' means
+  // Yahoo failed and we're showing the prior regular close as a fallback.
+  priceSource?: "iex" | "yahoo";
   error?: string;
+}
+
+/**
+ * True when the price shown is the prior regular close because Yahoo
+ * failed (rate-limited / blocked) during pre/after/closed. The user
+ * needs to see this so they don't act on a number that's hours stale.
+ */
+function isStalePrice(s: Snapshot | undefined): boolean {
+  if (!s) return false;
+  if (s.session === "regular") return false;
+  return s.priceSource !== "yahoo";
 }
 
 interface WatchlistItem {
@@ -157,6 +172,8 @@ export default function TradePage() {
   // watchlist
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapshotsUpdatedAt, setSnapshotsUpdatedAt] = useState<Date | null>(null);
 
   // selection
   const [selected, setSelected] = useState<string | null>(null);
@@ -208,24 +225,33 @@ export default function TradePage() {
     loadWatchlist();
   }, [loadWatchlist]);
 
-  // ── poll snapshots for watchlist + selection (every 60s)
+  // ── load snapshots for watchlist + selection.
+  // No auto-polling: pre/after sessions hit Yahoo per symbol, and 20+
+  // tickers polling every 60s would get the Vercel IP rate-limited fast.
+  // User refreshes manually via the ↻ button in the watchlist header.
+  // Auto-load still runs once on mount and whenever the watchlist or
+  // selection changes (those are user-initiated actions).
   const loadSnapshots = useCallback(async () => {
     const symbols = new Set(watchlist.map((w) => w.symbol));
     if (selected) symbols.add(selected);
     if (symbols.size === 0) return;
-    const list = Array.from(symbols).join(",");
-    const r = await fetch(`/api/snapshot?symbols=${encodeURIComponent(list)}`);
-    const data = (await r.json()) as { snapshots?: Snapshot[] };
-    const map: Record<string, Snapshot> = {};
-    for (const s of data.snapshots ?? []) map[s.symbol] = s;
-    setSnapshots(map);
-    if (selected && map[selected]) setSelectedSnap(map[selected]);
+    setSnapshotsLoading(true);
+    try {
+      const list = Array.from(symbols).join(",");
+      const r = await fetch(`/api/snapshot?symbols=${encodeURIComponent(list)}`);
+      const data = (await r.json()) as { snapshots?: Snapshot[] };
+      const map: Record<string, Snapshot> = {};
+      for (const s of data.snapshots ?? []) map[s.symbol] = s;
+      setSnapshots(map);
+      if (selected && map[selected]) setSelectedSnap(map[selected]);
+      setSnapshotsUpdatedAt(new Date());
+    } finally {
+      setSnapshotsLoading(false);
+    }
   }, [watchlist, selected]);
 
   useEffect(() => {
     loadSnapshots();
-    const id = setInterval(loadSnapshots, 60_000);
-    return () => clearInterval(id);
   }, [loadSnapshots]);
 
   // ── load position settings when selection changes
@@ -372,7 +398,25 @@ export default function TradePage() {
         </section>
 
         <section>
-          <h2 className="text-xs uppercase text-neutral-400 mb-2">즐겨찾기</h2>
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <h2 className="text-xs uppercase text-neutral-400">즐겨찾기</h2>
+            <div className="flex items-center gap-2">
+              {snapshotsUpdatedAt && (
+                <RelativeTime
+                  ts={snapshotsUpdatedAt}
+                  className="text-[10px] text-neutral-500"
+                />
+              )}
+              <button
+                onClick={loadSnapshots}
+                disabled={snapshotsLoading || watchlist.length === 0}
+                className="text-xs px-2 py-1 border border-neutral-700 rounded hover:border-sky-500 hover:text-sky-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="시세 새로고침 (Yahoo 익스텐디드 호가)"
+              >
+                {snapshotsLoading ? "⟳" : "↻"} 새로고침
+              </button>
+            </div>
+          </div>
           {watchlist.length === 0 ? (
             <p className="text-xs text-neutral-500">즐겨찾기 없음. 검색해서 ★ 버튼으로 추가.</p>
           ) : (
@@ -389,8 +433,16 @@ export default function TradePage() {
                   >
                     <div>
                       <div className="text-sm font-semibold text-sky-300">{w.symbol}</div>
-                      <div className="text-xs text-neutral-500">
-                        {s ? SESSION_LABEL[s.session] : "—"}
+                      <div className="text-xs text-neutral-500 flex items-center gap-1">
+                        <span>{s ? SESSION_LABEL[s.session] : "—"}</span>
+                        {isStalePrice(s) && (
+                          <span
+                            className="px-1 py-px text-[9px] border border-amber-700 bg-amber-950/40 text-amber-300 rounded leading-none"
+                            title="익스텐디드(Yahoo) 데이터 가져오기 실패 — 표시된 가격은 직전 정규장 종가입니다."
+                          >
+                            ⚠ stale
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -742,7 +794,12 @@ export default function TradePage() {
                       )}
                     </div>
                     <ul className="text-sm space-y-2">
-                      {result.news.slice(0, 20).map((n, i) => (
+                      {[...result.news]
+                        .sort((a, b) =>
+                          (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+                        )
+                        .slice(0, 20)
+                        .map((n, i) => (
                         <li key={n.id ?? `${n.source}-${n.url}-${i}`} className="flex items-start gap-2">
                           <span
                             className={`shrink-0 px-1.5 py-0.5 text-[10px] border rounded mt-0.5 ${sourceBadgeClass(n.source)}`}
@@ -786,6 +843,25 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="font-semibold mt-0.5">{value}</div>
     </div>
   );
+}
+
+/**
+ * Live-updating relative timestamp ("방금", "12초 전", "5분 전") for the
+ * watchlist refresh indicator. Re-renders every 10s so it doesn't lie.
+ */
+function RelativeTime({ ts, className }: { ts: Date; className?: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 10_000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - ts.getTime()) / 1000));
+  let label: string;
+  if (elapsedSec < 5) label = "방금";
+  else if (elapsedSec < 60) label = `${elapsedSec}초 전`;
+  else if (elapsedSec < 3600) label = `${Math.floor(elapsedSec / 60)}분 전`;
+  else label = `${Math.floor(elapsedSec / 3600)}시간 전`;
+  return <span className={className}>업데이트: {label}</span>;
 }
 
 /**
