@@ -28,13 +28,16 @@ interface Snapshot {
 }
 
 /**
- * True when the price shown is the prior regular close because Yahoo
- * failed (rate-limited / blocked) during pre/after/closed. The user
- * needs to see this so they don't act on a number that's hours stale.
+ * True when the price shown is unexpectedly stale — i.e. we're inside
+ * an active extended-hours window (pre or after) but Yahoo couldn't
+ * deliver a fresh extended-hours price, so we're falling back to the
+ * prior regular close. Closed session is intentionally excluded:
+ * during overnight/weekend there are no trades by definition, so the
+ * regular close IS the right answer and a "stale" badge would mislead.
  */
 function isStalePrice(s: Snapshot | undefined): boolean {
   if (!s) return false;
-  if (s.session === "regular") return false;
+  if (s.session !== "pre" && s.session !== "after") return false;
   return s.priceSource !== "yahoo";
 }
 
