@@ -22,6 +22,33 @@ interface StatsResponse {
   byTypeAndSession: Record<string, Record<string, Stats>>;
 }
 
+interface Position {
+  symbol: string;
+  mode: "paper" | "real";
+  openQty: number;
+  avgBuyPrice: number | null;
+  costBasisOpen: number;
+  realizedPnl: number;
+  totalBuyQty: number;
+  totalSellQty: number;
+  tradeCount: number;
+}
+
+interface PnlSummary {
+  mode: "paper" | "real" | "all";
+  windowDays: number | null;
+  tradeCount: number;
+  realizedPnl: number;
+  closedPositionCount: number;
+  winRate: number | null;
+}
+
+interface PositionsResponse {
+  asOf: string;
+  positions: Position[];
+  summary: PnlSummary;
+}
+
 const TYPE_LABEL: Record<string, string> = {
   gap_up: "갭상승",
   gap_down: "갭하락",
@@ -72,15 +99,19 @@ export default function StatsPage() {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trades, setTrades] = useState<PositionsResponse | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/signal-stats?lookback=${lookback}`)
-      .then((r) => r.json())
-      .then((d: StatsResponse | { error: string }) => {
-        if ("error" in d) setError(d.error);
-        else setData(d);
+    Promise.all([
+      fetch(`/api/signal-stats?lookback=${lookback}`).then((r) => r.json()),
+      fetch(`/api/trades/positions?lookback=${lookback}`).then((r) => r.json()),
+    ])
+      .then(([sigD, tradeD]: [StatsResponse | { error: string }, PositionsResponse | { error: string }]) => {
+        if ("error" in sigD) setError(sigD.error);
+        else setData(sigD);
+        if (!("error" in tradeD)) setTrades(tradeD);
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
@@ -131,9 +162,17 @@ export default function StatsPage() {
 
       {data && !loading && (
         <>
+          {/* Trade journal P&L */}
+          {trades && (
+            <section className="border border-neutral-800 rounded-lg p-4">
+              <h2 className="text-xs uppercase text-neutral-400 mb-3">📝 내 매매 성과 ({lookback}일)</h2>
+              <TradePnlPanel data={trades} />
+            </section>
+          )}
+
           {/* Overall */}
           <section className="border border-neutral-800 rounded-lg p-4">
-            <h2 className="text-xs uppercase text-neutral-400 mb-3">전체 (모든 시그널 합산)</h2>
+            <h2 className="text-xs uppercase text-neutral-400 mb-3">전체 시그널 (지난 {lookback}일, 측정된 것만)</h2>
             <OverallCard stats={data.overall} />
           </section>
 
@@ -197,6 +236,116 @@ function Tile({ label, value, className }: { label: string; value: string; class
     <div className="border border-neutral-800 rounded p-2.5">
       <div className="text-[10px] uppercase text-neutral-500">{label}</div>
       <div className={`mt-1 text-lg font-semibold ${className ?? "text-neutral-100"}`}>{value}</div>
+    </div>
+  );
+}
+
+function TradePnlPanel({ data }: { data: PositionsResponse }) {
+  const { positions, summary } = data;
+  const paperPos = positions.filter((p) => p.mode === "paper");
+  const realPos = positions.filter((p) => p.mode === "real");
+
+  if (positions.length === 0) {
+    return (
+      <p className="text-sm text-neutral-500">
+        아직 거래 기록이 없습니다. /trade 페이지에서 종목 선택 후 매수/매도를 기록하세요.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <Tile
+          label="총 거래 건수"
+          value={summary.tradeCount.toLocaleString()}
+        />
+        <Tile
+          label="청산 완료 포지션"
+          value={summary.closedPositionCount.toLocaleString()}
+        />
+        <Tile
+          label="청산 승률"
+          value={
+            summary.winRate != null
+              ? `${(summary.winRate * 100).toFixed(1)}%`
+              : "—"
+          }
+          className={winRateClass(summary.winRate)}
+        />
+        <Tile
+          label="실현 손익 (USD)"
+          value={`${summary.realizedPnl >= 0 ? "+" : ""}$${summary.realizedPnl.toFixed(2)}`}
+          className={
+            summary.realizedPnl > 0
+              ? "text-emerald-400"
+              : summary.realizedPnl < 0
+                ? "text-rose-400"
+                : "text-neutral-300"
+          }
+        />
+      </div>
+      {paperPos.length > 0 && (
+        <PositionsTable label="📄 페이퍼 포지션" rows={paperPos} />
+      )}
+      {realPos.length > 0 && (
+        <PositionsTable label="💵 실전 포지션" rows={realPos} />
+      )}
+    </div>
+  );
+}
+
+function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-neutral-300 mb-1">{label}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-neutral-500 border-b border-neutral-800">
+            <tr>
+              <th className="text-left py-1.5 pr-2">종목</th>
+              <th className="text-right py-1.5 px-2">보유 수량</th>
+              <th className="text-right py-1.5 px-2">평균 매수가</th>
+              <th className="text-right py-1.5 px-2">실현 손익</th>
+              <th className="text-right py-1.5 px-2">총 매수</th>
+              <th className="text-right py-1.5 pl-2">총 매도</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr
+                key={`${p.symbol}|${p.mode}`}
+                className="border-b border-neutral-900 hover:bg-neutral-900/40"
+              >
+                <td className="py-1.5 pr-2 text-sky-300 font-semibold">{p.symbol}</td>
+                <td className="text-right py-1.5 px-2 text-neutral-200">
+                  {p.openQty.toFixed(p.openQty < 1 ? 4 : 2)}
+                </td>
+                <td className="text-right py-1.5 px-2 text-neutral-200">
+                  {p.avgBuyPrice != null ? `$${p.avgBuyPrice.toFixed(2)}` : "—"}
+                </td>
+                <td
+                  className={`text-right py-1.5 px-2 font-semibold ${
+                    p.realizedPnl > 0
+                      ? "text-emerald-400"
+                      : p.realizedPnl < 0
+                        ? "text-rose-400"
+                        : "text-neutral-300"
+                  }`}
+                >
+                  {p.realizedPnl >= 0 ? "+" : ""}${p.realizedPnl.toFixed(2)}
+                </td>
+                <td className="text-right py-1.5 px-2 text-neutral-400">
+                  {p.totalBuyQty.toFixed(2)}
+                </td>
+                <td className="text-right py-1.5 pl-2 text-neutral-400">
+                  {p.totalSellQty.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

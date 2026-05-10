@@ -106,6 +106,30 @@ interface PositionSetting {
   dca_total_days: number | null;
 }
 
+interface Trade {
+  id: string;
+  symbol: string;
+  action: "buy" | "sell";
+  qty: number;
+  price: number;
+  mode: "paper" | "real";
+  ts: string;
+  notes: string | null;
+  ai_analysis_id: string | null;
+}
+
+interface PositionDerived {
+  symbol: string;
+  mode: "paper" | "real";
+  openQty: number;
+  avgBuyPrice: number | null;
+  costBasisOpen: number;
+  realizedPnl: number;
+  totalBuyQty: number;
+  totalSellQty: number;
+  tradeCount: number;
+}
+
 const SESSION_LABEL: Record<Snapshot["session"], string> = {
   pre: "프리마켓",
   regular: "정규장",
@@ -617,6 +641,13 @@ export default function TradePage() {
               </div>
             </div>
 
+            {/* Trade journal — log buys/sells, see realized P&L per symbol */}
+            <TradeJournalPanel
+              symbol={selected}
+              currentPrice={selectedSnap?.lastPrice ?? null}
+              aiAnalysisId={result?.analysis.id ?? null}
+            />
+
             {/* Analyze button */}
             <div className="flex items-center gap-3 mb-6">
               <button
@@ -846,6 +877,416 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="font-semibold mt-0.5">{value}</div>
     </div>
   );
+}
+
+/**
+ * Per-symbol trade journal: log a buy/sell, see derived position + realized
+ * P&L, and a recent-trades table. Loads its own data on mount and after
+ * every mutation so the parent doesn't need to know about trade state.
+ */
+function TradeJournalPanel({
+  symbol,
+  currentPrice,
+  aiAnalysisId,
+}: {
+  symbol: string;
+  currentPrice: number | null;
+  aiAnalysisId: string | null;
+}) {
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [formOpen, setFormOpen] = useState<"buy" | "sell" | null>(null);
+  const [mode, setMode] = useState<"paper" | "real">("paper");
+  const [qty, setQty] = useState("");
+  const [price, setPrice] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/trades?symbol=${encodeURIComponent(symbol)}&limit=50`);
+      const d = (await r.json()) as { trades?: Trade[] };
+      setTrades(d.trades ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Compute paper + real positions client-side from the loaded trades.
+  // Same weighted-avg math as lib/trades.ts; duplicated here so the panel
+  // doesn't need a second roundtrip after every mutation.
+  const positions = useMemo(() => derivePositions(trades), [trades]);
+
+  function openForm(action: "buy" | "sell") {
+    setFormOpen(action);
+    setError(null);
+    // Default price to current snapshot price for one-click logging.
+    setPrice(currentPrice != null ? currentPrice.toFixed(2) : "");
+    setQty("");
+    setNotes("");
+  }
+
+  async function submit() {
+    if (!formOpen) return;
+    const qtyN = Number(qty);
+    const priceN = Number(price);
+    if (!isFinite(qtyN) || qtyN <= 0) {
+      setError("수량은 0보다 커야 합니다");
+      return;
+    }
+    if (!isFinite(priceN) || priceN <= 0) {
+      setError("가격은 0보다 커야 합니다");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/trades", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          action: formOpen,
+          qty: qtyN,
+          price: priceN,
+          mode,
+          notes: notes.trim() || null,
+          ai_analysis_id: aiAnalysisId,
+        }),
+      });
+      const d = (await r.json()) as { trade?: Trade; error?: string };
+      if (d.error) {
+        setError(d.error);
+        return;
+      }
+      setFormOpen(null);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("이 거래 기록을 삭제할까요? (P&L 재계산됨)")) return;
+    await fetch(`/api/trades?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    await load();
+  }
+
+  return (
+    <div className="border border-neutral-800 rounded-lg p-4 mb-6">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <h2 className="text-sm font-semibold">📝 매매 기록</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openForm("buy")}
+            className="text-xs px-3 py-1.5 border border-emerald-700 text-emerald-300 rounded hover:bg-emerald-950/40"
+          >
+            + 매수 기록
+          </button>
+          <button
+            onClick={() => openForm("sell")}
+            className="text-xs px-3 py-1.5 border border-rose-700 text-rose-300 rounded hover:bg-rose-950/40"
+          >
+            − 매도 기록
+          </button>
+        </div>
+      </div>
+
+      {/* Position summary (paper + real) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs mb-3">
+        <PositionSummary
+          label="📄 페이퍼"
+          pos={positions.paper}
+          currentPrice={currentPrice}
+        />
+        <PositionSummary
+          label="💵 실전"
+          pos={positions.real}
+          currentPrice={currentPrice}
+        />
+      </div>
+
+      {/* Inline form */}
+      {formOpen && (
+        <div className="border border-neutral-800 rounded p-3 mb-3 bg-neutral-950/40">
+          <div className="text-xs text-neutral-400 mb-2">
+            {formOpen === "buy" ? "매수 기록" : "매도 기록"}{" "}
+            {aiAnalysisId && (
+              <span className="text-neutral-600">· 최근 AI 분석에 연결됨</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={mode === "paper"}
+                onChange={() => setMode("paper")}
+              />
+              모의 (paper)
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={mode === "real"}
+                onChange={() => setMode("real")}
+              />
+              실전 (real)
+            </label>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 text-xs">
+            <label className="flex flex-col">
+              <span className="text-neutral-500 mb-0.5">수량 (주식)</span>
+              <input
+                type="number"
+                step="any"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
+                placeholder="10"
+              />
+            </label>
+            <label className="flex flex-col">
+              <span className="text-neutral-500 mb-0.5">가격 ($)</span>
+              <input
+                type="number"
+                step="any"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
+                placeholder={currentPrice?.toFixed(2) ?? "0.00"}
+              />
+            </label>
+            <label className="flex flex-col flex-1 min-w-[180px]">
+              <span className="text-neutral-500 mb-0.5">메모 (선택)</span>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+                placeholder="갭상승 시그널 보고 진입"
+              />
+            </label>
+            <button
+              onClick={submit}
+              disabled={submitting}
+              className={`px-3 py-1.5 text-xs rounded font-semibold ${
+                formOpen === "buy"
+                  ? "bg-emerald-700 hover:bg-emerald-600 text-white"
+                  : "bg-rose-700 hover:bg-rose-600 text-white"
+              } disabled:opacity-50`}
+            >
+              {submitting ? "저장 중…" : "저장"}
+            </button>
+            <button
+              onClick={() => setFormOpen(null)}
+              className="px-2 py-1.5 text-xs border border-neutral-700 rounded text-neutral-400 hover:text-neutral-200"
+            >
+              취소
+            </button>
+          </div>
+          {error && <div className="mt-2 text-xs text-rose-400">{error}</div>}
+        </div>
+      )}
+
+      {/* Recent trades table */}
+      {loading ? (
+        <p className="text-xs text-neutral-500">로딩 중…</p>
+      ) : trades.length === 0 ? (
+        <p className="text-xs text-neutral-500">
+          이 종목 거래 기록 없음. 위 버튼으로 첫 매수/매도를 기록하세요.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-neutral-500 border-b border-neutral-800">
+              <tr>
+                <th className="text-left py-1.5 pr-2">시각</th>
+                <th className="text-left py-1.5 pr-2">구분</th>
+                <th className="text-right py-1.5 px-2">수량</th>
+                <th className="text-right py-1.5 px-2">가격</th>
+                <th className="text-right py-1.5 px-2">금액</th>
+                <th className="text-left py-1.5 pl-2">모드</th>
+                <th className="text-left py-1.5 pl-2">메모</th>
+                <th className="py-1.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((t) => (
+                <tr key={t.id} className="border-b border-neutral-900 hover:bg-neutral-900/40">
+                  <td className="py-1.5 pr-2 text-neutral-400">
+                    {new Date(t.ts).toLocaleString("ko-KR", {
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td
+                    className={`py-1.5 pr-2 font-semibold ${
+                      t.action === "buy" ? "text-emerald-400" : "text-rose-400"
+                    }`}
+                  >
+                    {t.action === "buy" ? "매수" : "매도"}
+                  </td>
+                  <td className="text-right py-1.5 px-2 text-neutral-200">{t.qty}</td>
+                  <td className="text-right py-1.5 px-2 text-neutral-200">
+                    ${t.price.toFixed(2)}
+                  </td>
+                  <td className="text-right py-1.5 px-2 text-neutral-300">
+                    ${(t.qty * t.price).toFixed(2)}
+                  </td>
+                  <td className="py-1.5 pl-2 text-neutral-500">
+                    {t.mode === "paper" ? "모의" : "실전"}
+                  </td>
+                  <td className="py-1.5 pl-2 text-neutral-400 max-w-[200px] truncate">
+                    {t.notes ?? ""}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <button
+                      onClick={() => remove(t.id)}
+                      className="text-neutral-700 hover:text-rose-400"
+                      title="삭제"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PositionSummary({
+  label,
+  pos,
+  currentPrice,
+}: {
+  label: string;
+  pos: PositionDerived;
+  currentPrice: number | null;
+}) {
+  if (pos.tradeCount === 0) {
+    return (
+      <div className="border border-neutral-800 rounded p-2.5 text-neutral-500">
+        <div className="text-[10px] uppercase mb-1">{label}</div>
+        <div className="text-xs">기록 없음</div>
+      </div>
+    );
+  }
+  const unrealized =
+    pos.openQty > 0 && pos.avgBuyPrice != null && currentPrice != null
+      ? pos.openQty * (currentPrice - pos.avgBuyPrice)
+      : null;
+  const totalPnl = pos.realizedPnl + (unrealized ?? 0);
+  return (
+    <div className="border border-neutral-800 rounded p-2.5">
+      <div className="text-[10px] uppercase text-neutral-500 mb-1">{label}</div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+        <span className="text-neutral-500">보유 수량</span>
+        <span className="text-right text-neutral-200 font-semibold">
+          {pos.openQty.toFixed(pos.openQty < 1 ? 4 : 2)}
+        </span>
+        <span className="text-neutral-500">평균 매수가</span>
+        <span className="text-right text-neutral-200">
+          {pos.avgBuyPrice != null ? `$${pos.avgBuyPrice.toFixed(2)}` : "—"}
+        </span>
+        <span className="text-neutral-500">실현 손익</span>
+        <span
+          className={`text-right font-semibold ${
+            pos.realizedPnl > 0
+              ? "text-emerald-400"
+              : pos.realizedPnl < 0
+                ? "text-rose-400"
+                : "text-neutral-300"
+          }`}
+        >
+          {pos.realizedPnl >= 0 ? "+" : ""}${pos.realizedPnl.toFixed(2)}
+        </span>
+        {unrealized != null && (
+          <>
+            <span className="text-neutral-500">평가 손익</span>
+            <span
+              className={`text-right ${
+                unrealized > 0
+                  ? "text-emerald-400"
+                  : unrealized < 0
+                    ? "text-rose-400"
+                    : "text-neutral-300"
+              }`}
+            >
+              {unrealized >= 0 ? "+" : ""}${unrealized.toFixed(2)}
+            </span>
+            <span className="text-neutral-500">총 손익</span>
+            <span
+              className={`text-right font-semibold ${
+                totalPnl > 0
+                  ? "text-emerald-400"
+                  : totalPnl < 0
+                    ? "text-rose-400"
+                    : "text-neutral-300"
+              }`}
+            >
+              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Same weighted-avg math as lib/trades.ts, but client-side for a single symbol. */
+function derivePositions(trades: Trade[]): {
+  paper: PositionDerived;
+  real: PositionDerived;
+} {
+  const empty = (mode: "paper" | "real"): PositionDerived => ({
+    symbol: trades[0]?.symbol ?? "",
+    mode,
+    openQty: 0,
+    avgBuyPrice: null,
+    costBasisOpen: 0,
+    realizedPnl: 0,
+    totalBuyQty: 0,
+    totalSellQty: 0,
+    tradeCount: 0,
+  });
+  const out = { paper: empty("paper"), real: empty("real") };
+  const acc = { paper: { buyQty: 0, buyCost: 0, sellQty: 0, sellRev: 0 }, real: { buyQty: 0, buyCost: 0, sellQty: 0, sellRev: 0 } };
+  for (const t of trades) {
+    const a = acc[t.mode];
+    out[t.mode].tradeCount += 1;
+    if (t.action === "buy") {
+      a.buyQty += t.qty;
+      a.buyCost += t.qty * t.price;
+    } else {
+      a.sellQty += t.qty;
+      a.sellRev += t.qty * t.price;
+    }
+  }
+  for (const k of ["paper", "real"] as const) {
+    const a = acc[k];
+    const avg = a.buyQty > 0 ? a.buyCost / a.buyQty : null;
+    out[k].totalBuyQty = a.buyQty;
+    out[k].totalSellQty = a.sellQty;
+    out[k].openQty = a.buyQty - a.sellQty;
+    out[k].avgBuyPrice = avg;
+    out[k].costBasisOpen = avg != null ? Math.max(0, out[k].openQty) * avg : 0;
+    out[k].realizedPnl = avg != null ? a.sellRev - avg * a.sellQty : 0;
+  }
+  return out;
 }
 
 /**
