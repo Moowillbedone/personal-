@@ -99,9 +99,42 @@ def call_analyze(symbol: str) -> dict | None:
         return None
 
 
-def format_digest(
+# Per-summary cap. The AI summary is usually 200-400 chars in Korean;
+# 280 fits 3-4 telegram lines and reads as a complete thought rather
+# than a sentence trailing into "...". The packer below splits into
+# multiple messages if the total overshoots telegram's 4096-char limit.
+SUMMARY_CHAR_CAP = 280
+
+# Telegram hard cap is 4096; we leave a little headroom for markdown
+# formatting overhead and a safe truncation point.
+TG_MSG_CHAR_CAP = 3900
+
+
+def _format_entry(v: dict) -> str:
+    """One BUY/SELL entry block — symbol header + summary if present."""
+    sym = v.get("symbol", "?")
+    conf = int(round(float(v.get("confidence") or 0) * 100))
+    summary = (v.get("summary") or "").strip()
+    if len(summary) > SUMMARY_CHAR_CAP:
+        # Cut at the previous sentence boundary if there is one in the
+        # last ~40 chars; otherwise hard-cut and append ellipsis.
+        cut = summary[:SUMMARY_CHAR_CAP]
+        last_period = max(cut.rfind(". "), cut.rfind("다. "), cut.rfind("다.\n"))
+        if last_period > SUMMARY_CHAR_CAP - 40:
+            summary = cut[: last_period + 2]
+        else:
+            summary = cut.rstrip() + "…"
+    line = f"• *{sym}*  신뢰도 {conf}%"
+    if summary:
+        line += f"\n  _{summary}_"
+    return line
+
+
+def _build_blocks(
     verdicts: list[dict], total_scanned: int, watchlist_n: int, signals_n: int
-) -> str:
+) -> list[str]:
+    """Emit a list of atomic content blocks. The packer never splits inside
+    a block — keeps each BUY/SELL entry intact across message boundaries."""
     by_v: dict[str, list[dict]] = {"buy": [], "sell": [], "hold": []}
     for v in verdicts:
         bucket = (v.get("verdict") or "hold").lower()
@@ -112,64 +145,72 @@ def format_digest(
         by_v[k].sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
-    lines: list[str] = [
-        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
+    blocks: list[str] = [
+        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})\n"
         f"스캔 종목: {total_scanned}건 "
-        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})",
-        "",
+        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})"
     ]
 
     if by_v["buy"]:
-        lines.append(f"🟢 *BUY ({len(by_v['buy'])})*")
+        blocks.append(f"🟢 *BUY ({len(by_v['buy'])})*")
         for v in by_v["buy"][:DIGEST_MAX_PER_BUCKET]:
-            sym = v.get("symbol", "?")
-            conf = int(round(float(v.get("confidence") or 0) * 100))
-            summary = (v.get("summary") or "").strip().split("\n")[0][:80]
-            lines.append(f"• *{sym}*  신뢰도 {conf}%")
-            if summary:
-                lines.append(f"  _{summary}_")
+            blocks.append(_format_entry(v))
         if len(by_v["buy"]) > DIGEST_MAX_PER_BUCKET:
-            lines.append(f"  …외 {len(by_v['buy']) - DIGEST_MAX_PER_BUCKET}건")
-        lines.append("")
+            blocks.append(f"  …외 {len(by_v['buy']) - DIGEST_MAX_PER_BUCKET}건")
 
     if by_v["sell"]:
-        lines.append(f"🔴 *SELL ({len(by_v['sell'])})*")
+        blocks.append(f"🔴 *SELL ({len(by_v['sell'])})*")
         for v in by_v["sell"][:DIGEST_MAX_PER_BUCKET]:
-            sym = v.get("symbol", "?")
-            conf = int(round(float(v.get("confidence") or 0) * 100))
-            summary = (v.get("summary") or "").strip().split("\n")[0][:80]
-            lines.append(f"• *{sym}*  신뢰도 {conf}%")
-            if summary:
-                lines.append(f"  _{summary}_")
+            blocks.append(_format_entry(v))
         if len(by_v["sell"]) > DIGEST_MAX_PER_BUCKET:
-            lines.append(f"  …외 {len(by_v['sell']) - DIGEST_MAX_PER_BUCKET}건")
-        lines.append("")
+            blocks.append(f"  …외 {len(by_v['sell']) - DIGEST_MAX_PER_BUCKET}건")
 
     if by_v["hold"]:
-        lines.append(f"🟡 *HOLD ({len(by_v['hold'])})*")
-        # Wrap symbol list at ~60 chars/line
+        hold_lines = [f"🟡 *HOLD ({len(by_v['hold'])})*"]
         hold_syms = [v.get("symbol", "?") for v in by_v["hold"]]
         line_buf: list[str] = []
         line_chars = 0
         for s in hold_syms:
             if line_chars + len(s) + 1 > 60 and line_buf:
-                lines.append("  " + " ".join(line_buf))
+                hold_lines.append("  " + " ".join(line_buf))
                 line_buf = []
                 line_chars = 0
             line_buf.append(s)
             line_chars += len(s) + 1
         if line_buf:
-            lines.append("  " + " ".join(line_buf))
-        lines.append("")
+            hold_lines.append("  " + " ".join(line_buf))
+        blocks.append("\n".join(hold_lines))
 
-    lines.append(f"[전체 분석 →]({FRONT_URL}/trade)")
-    text = "\n".join(lines)
-    # Telegram caps single-message text at 4096 chars. The dispatcher will
-    # truncate further if we ever overshoot, but in practice 40 symbols
-    # with HOLD-only-as-list lands well under 3000.
-    if len(text) > 4000:
-        text = text[:3990] + "\n\n…(truncated)"
-    return text
+    blocks.append(f"[전체 분석 →]({FRONT_URL}/trade)")
+    return blocks
+
+
+def pack_messages(blocks: list[str], cap: int = TG_MSG_CHAR_CAP) -> list[str]:
+    """Greedy-pack blocks into telegram-sized messages. Each block stays
+    intact; messages are separated wherever adding the next block would
+    overshoot. Header is naturally on the first message."""
+    msgs: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for block in blocks:
+        block_len = len(block) + 2  # the "\n\n" separator
+        if current and current_len + block_len > cap:
+            msgs.append("\n\n".join(current))
+            current = []
+            current_len = 0
+        current.append(block)
+        current_len += block_len
+    if current:
+        msgs.append("\n\n".join(current))
+    return msgs
+
+
+def format_digest(
+    verdicts: list[dict], total_scanned: int, watchlist_n: int, signals_n: int
+) -> list[str]:
+    """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
+    blocks = _build_blocks(verdicts, total_scanned, watchlist_n, signals_n)
+    return pack_messages(blocks)
 
 
 def send_telegram(text: str) -> bool:
@@ -253,15 +294,24 @@ def main() -> int:
         print("ai_scan: no verdicts to send, skipping telegram", file=sys.stderr)
         return 1
 
-    text = format_digest(
+    messages = format_digest(
         verdicts,
         total_scanned=len(targets),
         watchlist_n=len(watchlist),
         signals_n=len(signals),
     )
-    sent = send_telegram(text)
-    print(f"ai_scan: telegram sent={sent} ({len(text)} chars)")
-    return 0
+    sent_ok = 0
+    for i, msg in enumerate(messages, 1):
+        ok = send_telegram(msg)
+        if ok:
+            sent_ok += 1
+        print(
+            f"ai_scan: telegram msg {i}/{len(messages)} sent={ok} ({len(msg)} chars)"
+        )
+        # Brief gap between messages so they arrive in order on slow networks.
+        if i < len(messages):
+            time.sleep(1)
+    return 0 if sent_ok == len(messages) else 1
 
 
 if __name__ == "__main__":
