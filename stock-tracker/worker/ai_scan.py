@@ -49,9 +49,15 @@ INTER_CALL_DELAY_SEC = 2
 # 4096-char limit even when the scan is full.
 DIGEST_MAX_PER_BUCKET = 10
 
-FRONT_URL = os.getenv("FRONT_URL", "https://stock-tracker-khaki-mu.vercel.app").rstrip("/")
-TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+DEFAULT_FRONT_URL = "https://stock-tracker-khaki-mu.vercel.app"
+# `os.getenv(key, default)` only returns `default` when the key is unset,
+# NOT when it's set to an empty string. GH Actions sets every env var even
+# when its source secret is missing (yields ""), so we need an explicit
+# `or` to fall back. Otherwise we end up POSTing to "/api/analyze" with
+# no scheme and get "Invalid URL: No scheme supplied" on every call.
+FRONT_URL = (os.getenv("FRONT_URL") or DEFAULT_FRONT_URL).rstrip("/")
+TG_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+TG_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
 
 
 def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:

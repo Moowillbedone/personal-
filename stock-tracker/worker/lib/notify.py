@@ -17,7 +17,9 @@ TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 DISCORD_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
-FRONT_URL = os.getenv("FRONT_URL", "https://stock-tracker-khaki-mu.vercel.app").rstrip("/")
+# Empty-string secrets bypass os.getenv's default arg (the key is "set"),
+# so we need `or` for a real fallback. Same gotcha as ai_scan.py.
+FRONT_URL = (os.getenv("FRONT_URL") or "https://stock-tracker-khaki-mu.vercel.app").rstrip("/")
 
 # Comma-separated allow-list. Defaults exclude `volume_spike` because pure volume
 # events without a price move are noisy. Override with NOTIFY_TYPES env var.
