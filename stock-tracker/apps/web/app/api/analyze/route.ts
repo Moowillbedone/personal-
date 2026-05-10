@@ -17,6 +17,7 @@ import { computeAll, type IndicatorBundle } from "@/lib/indicators";
 import { getSectorInfo, MARKET_TICKERS, type SectorInfo } from "@/lib/sectorMap";
 import { fetchTickerNews, fetchMacroNews, type HeadlineItem } from "@/lib/macroNews";
 import { fetchRecent8K, type FilingItem } from "@/lib/sec";
+import { getInsiderSummary, type InsiderSummary } from "@/lib/secInsider";
 import { getMacroSnapshot, isFredEnabled, type MacroSnapshot } from "@/lib/fred";
 import { getFinnhubBundle, isFinnhubEnabled, type FinnhubBundle } from "@/lib/finnhub";
 import { getOwnSignalsFor, getWatchlistSymbols, type OwnSignalSummary } from "@/lib/signalsDb";
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest) {
         corpActions,
         ownSignals,
         watchlistSyms,
+        insider,
       ] = await Promise.all([
         getPrimarySnapshot(symbol),
         softly(getPrimaryRecentBars(symbol)),
@@ -160,6 +162,7 @@ export async function POST(req: NextRequest) {
         softly(getCorporateActions(symbol)),
         softly(getOwnSignalsFor(symbol, 30)),
         softly(getWatchlistSymbols()),
+        softly(getInsiderSummary(symbol, 90)),
       ]);
 
       snapshot = snap;
@@ -218,6 +221,7 @@ export async function POST(req: NextRequest) {
         corpActions: corpActions ?? [],
         ownSignals: ownSignals ?? null,
         watchSnaps: watchSnaps ?? {},
+        insider: insider ?? null,
       });
 
       const verdict = await generateVerdict(prompt);
@@ -321,6 +325,7 @@ interface PromptInputs {
   corpActions: CorporateActionsItem[];
   ownSignals: OwnSignalSummary | null;
   watchSnaps: Record<string, Snapshot>;
+  insider: InsiderSummary | null;
 }
 
 function pct(v: number | null | undefined): string {
@@ -362,7 +367,7 @@ function sessionDisclosure(
 }
 
 function buildPrompt(p: PromptInputs): string {
-  const { symbol, snap, indicators, bars, alpacaNews, macroHeadlines, tickerHeadlines, secFilings, marketSnaps, sectorInfo, sectorSnaps, fredMacro, finnhub, optionsCtx, corpActions, ownSignals, watchSnaps } = p;
+  const { symbol, snap, indicators, bars, alpacaNews, macroHeadlines, tickerHeadlines, secFilings, marketSnaps, sectorInfo, sectorSnaps, fredMacro, finnhub, optionsCtx, corpActions, ownSignals, watchSnaps, insider } = p;
 
   const fiveMinTail = (bars?.fiveMin ?? []).slice(-40).map(
     (b) => `${b.ts.slice(11, 16)} c=${b.c.toFixed(2)} v=${b.v}`,
@@ -492,6 +497,30 @@ function buildPrompt(p: PromptInputs): string {
     ].join("\n"));
   }
 
+  // 10.5) Insider transactions (SEC Form 4) — strongest "smart money" signal
+  // available. CEO/CFO open-market purchases especially. Filtered to P/S
+  // codes only (no awards / option exercises / gifts).
+  if (insider && insider.transactions.length > 0) {
+    const fmtUsd = (v: number): string => {
+      if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+      return `$${v.toFixed(0)}`;
+    };
+    const netLabel = insider.netUsd >= 0 ? "순매수" : "순매도";
+    const lines = [
+      `## 10.5) 인사이더 거래 (SEC Form 4, 지난 ${insider.windowDays}일)`,
+      `- 총 거래 ${insider.transactions.length}건 · 인사이더 ${insider.uniqueInsiders}명`,
+      `- 매수 ${fmtUsd(insider.totalBoughtUsd)} / 매도 ${fmtUsd(insider.totalSoldUsd)} → ${netLabel} ${fmtUsd(Math.abs(insider.netUsd))}`,
+      "- 최근 거래 (오픈마켓 P/S만, 옵션 행사·award·gift 제외):",
+      ...insider.transactions.slice(0, 8).map((t) => {
+        const role = t.role || (t.isTenPercentOwner ? "10% Owner" : "");
+        const arrow = t.action === "buy" ? "🟢 BUY" : "🔴 SELL";
+        return `  · ${t.tradedAt} [${arrow}] ${t.insiderName}${role ? ` (${role})` : ""} — ${t.shares.toLocaleString()}주 @ $${t.pricePerShare.toFixed(2)} = ${fmtUsd(t.notionalUsd)}`;
+      }),
+    ];
+    sections.push(lines.join("\n"));
+  }
+
   // 11) Own signals
   if (ownSignals && ownSignals.total > 0) {
     const t = ownSignals.byType;
@@ -593,6 +622,7 @@ function buildPrompt(p: PromptInputs): string {
     "- bull_points / bear_points는 단타용 (각 2-4개)",
     "- 각 horizon의 key_points는 2-3개씩",
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
+    "- §10.5 인사이더 거래는 **smart money 직접 신호**. CEO/CFO/CFO/Director의 BUY는 강한 강세 (자기 돈으로 매수 = 가장 정직한 conviction); SELL은 mixed (분산투자·세금·10b5-1 plan일 수도). 순매수 > $1M = 3개월 horizon에 강한 강세 가중. 순매도 > $5M + 10% Owner 매도 = 약세 가중. award/option exercise는 이미 §10.5에서 제외된 상태",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",

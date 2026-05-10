@@ -2,7 +2,9 @@
 // SEC requires a descriptive User-Agent with contact info per their fair-access policy.
 // We do a CIK lookup once per symbol then list recent 8-Ks.
 
-const UA = "stock-tracker (personal use) contact@example.com";
+// Public so secInsider.ts can use the same User-Agent (SEC pins on the UA
+// for rate-limiting, so we want a single identity across all SEC traffic).
+export const SEC_UA = "stock-tracker (personal use) contact@example.com";
 const CIK_LOOKUP_URL = "https://www.sec.gov/cgi-bin/browse-edgar";
 
 export interface FilingItem {
@@ -15,13 +17,18 @@ export interface FilingItem {
 // Cache CIK lookups in memory (process-wide, safe for short-lived dev/serverless invocations).
 const cikCache = new Map<string, string | null>();
 
-async function lookupCik(symbol: string): Promise<string | null> {
+/**
+ * Symbol → 10-digit CIK. Cached per process. Exported so other SEC adapters
+ * (insider trades, ownership changes, etc.) share the same warm cache and
+ * don't issue duplicate browse-edgar lookups.
+ */
+export async function lookupCik(symbol: string): Promise<string | null> {
   const sym = symbol.toUpperCase();
   if (cikCache.has(sym)) return cikCache.get(sym) ?? null;
   try {
     const url = `${CIK_LOOKUP_URL}?action=getcompany&CIK=${encodeURIComponent(sym)}&type=8-K&dateb=&owner=include&count=1&output=atom`;
     const r = await fetch(url, {
-      headers: { "user-agent": UA, accept: "application/atom+xml" },
+      headers: { "user-agent": SEC_UA, accept: "application/atom+xml" },
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
@@ -48,7 +55,7 @@ export async function fetchRecent8K(symbol: string, limit = 5): Promise<FilingIt
     // SEC submissions JSON gives a clean machine-readable index of recent filings.
     const url = `https://data.sec.gov/submissions/CIK${cik}.json`;
     const r = await fetch(url, {
-      headers: { "user-agent": UA, accept: "application/json" },
+      headers: { "user-agent": SEC_UA, accept: "application/json" },
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
