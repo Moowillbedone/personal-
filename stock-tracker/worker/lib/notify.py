@@ -27,9 +27,24 @@ NOTIFY_TYPES = set(
 # If a single poll fires more than this many alerts, collapse into one summary message.
 NOTIFY_BATCH_THRESHOLD = int(os.getenv("NOTIFY_BATCH_THRESHOLD", "5"))
 
+# When true, only notify signals that came with at least one recent headline.
+# Default OFF until /stats accumulates enough has_news vs no_news data to
+# prove the filter is warranted. Flip to "1" via env once you've seen e.g.
+# "no_news gap_up win rate 45% vs has_news gap_up 62%" on /stats.
+NOTIFY_REQUIRE_NEWS = os.getenv("NOTIFY_REQUIRE_NEWS", "0").strip() in {"1", "true", "yes"}
+
 
 def _arrow(typ: str) -> str:
     return "🟢▲" if typ == "gap_up" else "🔴▼" if typ == "gap_down" else "🟡⚡"
+
+
+def _news_badge(s: dict) -> str:
+    n = s.get("recent_news_count")
+    if n is None:
+        return ""
+    if n == 0:
+        return "  ·  📭 no news"
+    return f"  ·  📰 news×{n}"
 
 
 def _fmt_telegram(s: dict) -> str:
@@ -38,7 +53,7 @@ def _fmt_telegram(s: dict) -> str:
     volx = float(s["volume_ratio"])
     price = float(s["price"])
     return (
-        f"{_arrow(s['signal_type'])} *{sym}*  ·  `{s['signal_type']}`\n"
+        f"{_arrow(s['signal_type'])} *{sym}*  ·  `{s['signal_type']}`{_news_badge(s)}\n"
         f"💰 ${price:.2f}    Δ {pct:+.2f}%    Vol×{volx:.1f}\n"
         f"🕒 {s['session']} session\n"
         f"[chart →]({FRONT_URL}/ticker/{sym})"
@@ -130,8 +145,22 @@ def _summary_message(signals: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _passes_news_gate(signal: dict) -> bool:
+    """When NOTIFY_REQUIRE_NEWS is on, suppress signals that fired without a
+    recent headline. recent_news_count == None means enrichment failed —
+    we let those through (don't punish a transient news-API outage)."""
+    if not NOTIFY_REQUIRE_NEWS:
+        return True
+    n = signal.get("recent_news_count")
+    if n is None:
+        return True
+    return n > 0
+
+
 def notify_signal(signal: dict) -> None:
     if signal["signal_type"] not in NOTIFY_TYPES:
+        return
+    if not _passes_news_gate(signal):
         return
     if TG_TOKEN and TG_CHAT_ID:
         _send_telegram(signal)
@@ -140,7 +169,10 @@ def notify_signal(signal: dict) -> None:
 
 
 def notify_batch(signals: list[dict]) -> None:
-    eligible = [s for s in signals if s["signal_type"] in NOTIFY_TYPES]
+    eligible = [
+        s for s in signals
+        if s["signal_type"] in NOTIFY_TYPES and _passes_news_gate(s)
+    ]
     if not eligible:
         return
 

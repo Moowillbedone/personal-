@@ -17,9 +17,11 @@ interface StatsResponse {
   asOf: string;
   totalSignalsInWindow: number;
   measuredSignals: number;
+  newsEnrichedSignals: number;
   overall: Stats;
   byType: Record<string, Stats>;
   byTypeAndSession: Record<string, Record<string, Stats>>;
+  byTypeAndNews: Record<string, { withNews: Stats; noNews: Stats }>;
 }
 
 interface Position {
@@ -197,6 +199,42 @@ export default function StatsPage() {
                 <StatsTable rows={sessions} labelMap={SESSION_LABEL} firstColLabel="세션" />
               </div>
             ))}
+          </section>
+
+          {/* By type × news (with-news vs no-news comparison) */}
+          <section className="border border-neutral-800 rounded-lg p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <h2 className="text-xs uppercase text-neutral-400">
+                📰 뉴스 동반 vs 뉴스 없음 (시그널 신뢰도 비교)
+              </h2>
+              <span className="text-[11px] text-neutral-500">
+                뉴스 측정됨: {data.newsEnrichedSignals.toLocaleString()} /{" "}
+                {data.measuredSignals.toLocaleString()}건
+              </span>
+            </div>
+            {data.newsEnrichedSignals === 0 ? (
+              <p className="text-sm text-neutral-500">
+                뉴스 enrichment이 적용된 시그널이 아직 없습니다. poll worker가 6번 가량
+                새 시그널을 기록하면 데이터가 쌓입니다 (5분 cadence).
+              </p>
+            ) : (
+              Object.entries(data.byTypeAndNews).map(([type, split]) => (
+                <div key={type} className="mb-4 last:mb-0">
+                  <h3 className="text-sm font-semibold text-sky-300 mb-1">
+                    {TYPE_LABEL[type] ?? type}
+                  </h3>
+                  <StatsTable
+                    rows={{ withNews: split.withNews, noNews: split.noNews }}
+                    labelMap={{ withNews: "📰 뉴스 동반", noNews: "📭 뉴스 없음" }}
+                    firstColLabel="구분"
+                  />
+                </div>
+              ))
+            )}
+            <p className="mt-2 text-xs text-neutral-600">
+              뉴스 동반 승률이 뉴스 없음 대비 +10%p 이상 차이 나면 NOTIFY_REQUIRE_NEWS=1 로
+              필터 활성화 권장 (워커 환경변수).
+            </p>
           </section>
 
           <p className="text-xs text-neutral-600">

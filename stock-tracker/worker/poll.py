@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from dotenv import load_dotenv
 
-from lib import alpaca, data, db, notify, signals as sig
+from lib import alpaca, data, db, news, notify, signals as sig
 
 BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
 
@@ -91,13 +91,25 @@ def run_once(sb, symbols: list[str]) -> tuple[int, int]:
         time.sleep(1)
 
     db.upsert_price_snapshots(sb, all_price_rows)
+
+    # Enrich each firing signal with the last ~30 min of headlines for that
+    # symbol BEFORE insert. Fail-soft: if Alpaca news errors, signals still
+    # get inserted with recent_news_count = None and notify still fires.
+    if fired:
+        try:
+            news.enrich_signals_with_news(fired)
+        except Exception as e:
+            print(f"  news enrichment failed (continuing): {e}", file=sys.stderr)
+
     db.insert_signals(sb, fired)
 
     if fired:
         for f in fired:
+            n_news = f.get("recent_news_count")
+            news_tag = f"news×{n_news}" if n_news else ("no-news" if n_news == 0 else "news?")
             print(
                 f"  [{f['signal_type']}] {f['symbol']} "
-                f"{f['pct_change']*100:+.2f}% volx{f['volume_ratio']:.1f} @ {f['price']}"
+                f"{f['pct_change']*100:+.2f}% volx{f['volume_ratio']:.1f} @ {f['price']}  ·  {news_tag}"
             )
         notify.notify_batch(fired)
 

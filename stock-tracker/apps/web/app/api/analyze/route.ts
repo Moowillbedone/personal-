@@ -515,12 +515,17 @@ function buildPrompt(p: PromptInputs): string {
     lines.push(
       ...ownSignals.recent
         .slice(0, 5)
-        .map(
-          (s) =>
-            `  · ${s.ts.slice(0, 16)} ${s.signal_type} ${pct(s.pct_change)} vol×${s.volume_ratio.toFixed(1)} (${s.session})${
-              s.realized_1d != null ? ` → 실제 1d=${pct(s.realized_1d)}` : ""
-            }`,
-        ),
+        .map((s) => {
+          const newsTag =
+            s.recent_news_count == null
+              ? ""
+              : s.recent_news_count > 0
+                ? ` 📰×${s.recent_news_count}`
+                : " 📭";
+          return `  · ${s.ts.slice(0, 16)} ${s.signal_type} ${pct(s.pct_change)} vol×${s.volume_ratio.toFixed(1)} (${s.session})${newsTag}${
+            s.realized_1d != null ? ` → 실제 1d=${pct(s.realized_1d)}` : ""
+          }`;
+        }),
     );
     sections.push(lines.join("\n"));
   }
@@ -589,6 +594,7 @@ function buildPrompt(p: PromptInputs): string {
     "- 각 horizon의 key_points는 2-3개씩",
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
+    "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
     "- JSON 스키마에 정확히 맞춰 응답",
   ].join("\n"));

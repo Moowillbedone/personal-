@@ -25,6 +25,7 @@ interface Row {
   realized_1d: number | null;
   realized_3d: number | null;
   realized_5d: number | null;
+  recent_news_count: number | null;
 }
 
 interface Stats {
@@ -96,7 +97,9 @@ export async function GET(req: NextRequest) {
   // where realized_1d not null makes this fast even with months of data.
   const { data, error } = await supabaseAdmin
     .from("signals")
-    .select("signal_type, session, realized_1d, realized_3d, realized_5d")
+    .select(
+      "signal_type, session, realized_1d, realized_3d, realized_5d, recent_news_count",
+    )
     .gte("ts", since)
     .not("realized_1d", "is", null)
     .order("ts", { ascending: false })
@@ -117,6 +120,11 @@ export async function GET(req: NextRequest) {
 
   const byType: Record<string, Stats> = {};
   const byTypeAndSession: Record<string, Record<string, Stats>> = {};
+  // News-correlation comparison: for each signal type, split rows by
+  // whether news fired in the surrounding window. Only includes rows where
+  // recent_news_count is not null (signals that pre-date the news enrichment
+  // feature have null and are excluded — apples-to-apples comparison).
+  const byTypeAndNews: Record<string, { withNews: Stats; noNews: Stats }> = {};
 
   const typeBuckets: Record<string, Row[]> = {};
   for (const r of rows) {
@@ -134,15 +142,32 @@ export async function GET(req: NextRequest) {
     for (const [sess, sBucket] of Object.entries(sessBuckets)) {
       byTypeAndSession[type][sess] = compute(sBucket);
     }
+    const withNews = bucket.filter(
+      (r) => r.recent_news_count != null && r.recent_news_count > 0,
+    );
+    const noNews = bucket.filter(
+      (r) => r.recent_news_count != null && r.recent_news_count === 0,
+    );
+    byTypeAndNews[type] = {
+      withNews: compute(withNews),
+      noNews: compute(noNews),
+    };
   }
+
+  // News-enrichment coverage diagnostic — surfaces "how much of the data
+  // has been enriched yet" so the UI can warn before the comparison is
+  // statistically meaningful.
+  const enrichedCount = rows.filter((r) => r.recent_news_count != null).length;
 
   return NextResponse.json({
     lookbackDays: lookback,
     asOf: new Date().toISOString(),
     totalSignalsInWindow: totalRecent ?? rows.length,
     measuredSignals: rows.length,
+    newsEnrichedSignals: enrichedCount,
     overall: compute(rows),
     byType,
     byTypeAndSession,
+    byTypeAndNews,
   });
 }

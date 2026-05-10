@@ -20,6 +20,9 @@ export interface OwnSignal {
   realized_1d: number | null;
   realized_3d: number | null;
   realized_5d: number | null;
+  // News correlation: count of headlines for this symbol in the ~30 min
+  // around signal time. null = enrichment not run (legacy signal).
+  recent_news_count: number | null;
 }
 
 export interface OwnSignalSummary {
@@ -58,7 +61,7 @@ export async function getOwnSignalsFor(symbol: string, days = 30): Promise<OwnSi
     const { data, error } = await supabaseAdmin
       .from("signals")
       .select(
-        "ts, signal_type, pct_change, volume_ratio, session, expected_1d, expected_3d, expected_5d, sample_size, realized_1d, realized_3d, realized_5d",
+        "ts, signal_type, pct_change, volume_ratio, session, expected_1d, expected_3d, expected_5d, sample_size, realized_1d, realized_3d, realized_5d, recent_news_count",
       )
       .eq("symbol", symbol.toUpperCase())
       .gte("ts", since)
