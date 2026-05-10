@@ -24,12 +24,17 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
 
 from lib import db
+
+# Telegram hard cap is 4096; leave headroom for markdown overhead and a safe
+# truncation point. Same value used in ai_scan.py.
+TG_MSG_CHAR_CAP = 3900
 
 # Same gotcha as ai_scan.py: GH Actions sets every env var declared in
 # the workflow even if the source secret is missing (yields ""), so we
@@ -165,34 +170,41 @@ def main() -> int:
     later_evts.sort(key=lambda c: c.get("date", ""))
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
-    lines: list[str] = [
-        f"📅 *어닝 캘린더 알림* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
-        f"watchlist {len(watchlist)}종목 중 7일 내 어닝 {len(relevant)}건",
-        "",
+
+    # Atomic content blocks. The packer below merges them into telegram-sized
+    # messages without splitting any single block — keeps each event entry
+    # intact across message boundaries. With 100-symbol watchlists the
+    # this-week section can easily blow past 4096 chars; this is the
+    # defensive split.
+    blocks: list[str] = [
+        f"📅 *어닝 캘린더 알림* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})\n"
+        f"watchlist {len(watchlist)}종목 중 7일 내 어닝 {len(relevant)}건"
     ]
 
     if today_evts:
-        lines.append("🚨 *오늘 어닝 (D-day)*")
+        today_lines = ["🚨 *오늘 어닝 (D-day)*"]
         for c in today_evts:
             sym = (c.get("symbol") or "?").upper()
-            lines.append(
+            today_lines.append(
                 f"• *{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
             )
-            lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
-        lines.append("")
+            today_lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
+        blocks.append("\n".join(today_lines))
 
     if tomorrow_evts:
-        lines.append("⏰ *내일 어닝 (D+1)*")
+        tom_lines = ["⏰ *내일 어닝 (D+1)*"]
         for c in tomorrow_evts:
             sym = (c.get("symbol") or "?").upper()
-            lines.append(
+            tom_lines.append(
                 f"• *{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
             )
-            lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
-        lines.append("")
+            tom_lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
+        blocks.append("\n".join(tom_lines))
 
     if later_evts:
-        lines.append(f"📆 *이번 주 미리보기 (D+2 ~ D+{LOOKBACK_DAYS}, {len(later_evts)}건)*")
+        later_lines = [
+            f"📆 *이번 주 미리보기 (D+2 ~ D+{LOOKBACK_DAYS}, {len(later_evts)}건)*"
+        ]
         for c in later_evts:
             sym = (c.get("symbol") or "?").upper()
             d = c.get("date") or ""
@@ -200,18 +212,48 @@ def main() -> int:
             hour_str = f" ({hour})" if hour else ""
             est = c.get("epsEstimate")
             est_str = f" · EPS ${est:.2f}" if est is not None else ""
-            lines.append(f"• {d}: *{sym}*{hour_str}{est_str}")
-        lines.append("")
+            later_lines.append(f"• {d}: *{sym}*{hour_str}{est_str}")
+        blocks.append("\n".join(later_lines))
 
-    lines.append(f"[전체 워치리스트 →]({FRONT_URL}/trade)")
-    text = "\n".join(lines)
+    blocks.append(f"[전체 워치리스트 →]({FRONT_URL}/trade)")
+
+    messages = pack_messages(blocks)
     print(
         f"earnings_alert: today={len(today_evts)} tomorrow={len(tomorrow_evts)} "
-        f"later={len(later_evts)}, sending digest ({len(text)} chars)"
+        f"later={len(later_evts)} → {len(messages)} telegram messages"
     )
-    sent = send_telegram(text)
-    print(f"earnings_alert: telegram sent={sent}")
-    return 0 if sent else 1
+    sent_ok = 0
+    for i, msg in enumerate(messages, 1):
+        ok = send_telegram(msg)
+        if ok:
+            sent_ok += 1
+        print(
+            f"earnings_alert: msg {i}/{len(messages)} sent={ok} ({len(msg)} chars)"
+        )
+        if i < len(messages):
+            time.sleep(1)
+    return 0 if sent_ok == len(messages) else 1
+
+
+def pack_messages(blocks: list[str], cap: int = TG_MSG_CHAR_CAP) -> list[str]:
+    """Greedy-pack atomic blocks into telegram-sized messages. A block is
+    never split — exceeding `cap` mid-block just bumps that block to the
+    next message. Mirrors the same helper in ai_scan.py.
+    """
+    msgs: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for block in blocks:
+        block_len = len(block) + 2  # the "\n\n" separator
+        if current and current_len + block_len > cap:
+            msgs.append("\n\n".join(current))
+            current = []
+            current_len = 0
+        current.append(block)
+        current_len += block_len
+    if current:
+        msgs.append("\n\n".join(current))
+    return msgs
 
 
 if __name__ == "__main__":

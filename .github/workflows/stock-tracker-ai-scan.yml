@@ -19,7 +19,9 @@ permissions:
 jobs:
   ai-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # 75 min covers the worst case of 100 symbols × ~32s each (analyze maxDuration
+    # is 60s, typical 25-35s, plus 2s inter-call delay) with comfortable buffer.
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: stock-tracker/worker

@@ -30,10 +30,13 @@ from dotenv import load_dotenv
 
 from lib import db
 
-# Cap how many symbols we analyze per run. 40 keeps the job under 30 min
-# at ~30s/call and stays comfortably under Gemini free-tier quota even
-# when both daily runs land at full capacity.
-MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "40"))
+# Cap how many symbols we analyze per run. 100 covers the projected max
+# watchlist size; at ~32s/call (analyze maxDuration 60s, typical 25-35s,
+# plus 2s inter-call delay) the worst-case run is ~55 min, comfortably
+# under the 75-min workflow timeout. Daily quota: 100 × 2 runs = 200 Gemini
+# calls — fits inside the free 250 RPD per model with a 4-model fallback
+# chain (~1000 RPD effective).
+MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "100"))
 
 # Per-call HTTP timeout. The /api/analyze route's maxDuration is 60s on
 # Vercel; the buffer here gives us a clean error rather than a half-read
