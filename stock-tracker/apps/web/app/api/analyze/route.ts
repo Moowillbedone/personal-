@@ -495,12 +495,34 @@ function buildPrompt(p: PromptInputs): string {
   // 11) Own signals
   if (ownSignals && ownSignals.total > 0) {
     const t = ownSignals.byType;
-    sections.push([
+    const lines = [
       "## 11) 자체 시그널 트래커 (지난 30일, 본인 운영 중)",
       `- 총 ${ownSignals.total}건: gap_up ${t.gap_up ?? 0} / gap_down ${t.gap_down ?? 0} / volume_spike ${t.volume_spike ?? 0}`,
-      `- 백테스트 평균 기대수익: 1d=${pct(ownSignals.meanExpected1d)} · 3d=${pct(ownSignals.meanExpected3d)} · 5d=${pct(ownSignals.meanExpected5d)}`,
-      ...ownSignals.recent.slice(0, 5).map((s) => `  · ${s.ts.slice(0, 16)} ${s.signal_type} ${pct(s.pct_change)} vol×${s.volume_ratio.toFixed(1)} (${s.session})`),
-    ].join("\n"));
+      `- 백테스트 평균 기대수익 (analogue prior): 1d=${pct(ownSignals.meanExpected1d)} · 3d=${pct(ownSignals.meanExpected3d)} · 5d=${pct(ownSignals.meanExpected5d)}`,
+    ];
+    // Realized returns (actual measurement) — only present for signals ≥7 days old.
+    // This is the truth signal; weight it more than the analogue priors.
+    if (ownSignals.realizedSampleSize > 0) {
+      const wr = ownSignals.winRate1d;
+      lines.push(
+        `- 실제 측정 결과 (n=${ownSignals.realizedSampleSize}): 1일 승률 ${
+          wr != null ? `${(wr * 100).toFixed(0)}%` : "?"
+        } · 평균 1d=${pct(ownSignals.meanRealized1d)} · 3d=${pct(ownSignals.meanRealized3d)} · 5d=${pct(ownSignals.meanRealized5d)}`,
+      );
+    } else {
+      lines.push("- 실제 측정 결과: 아직 측정 가능한 시그널 없음 (모두 7일 미만)");
+    }
+    lines.push(
+      ...ownSignals.recent
+        .slice(0, 5)
+        .map(
+          (s) =>
+            `  · ${s.ts.slice(0, 16)} ${s.signal_type} ${pct(s.pct_change)} vol×${s.volume_ratio.toFixed(1)} (${s.session})${
+              s.realized_1d != null ? ` → 실제 1d=${pct(s.realized_1d)}` : ""
+            }`,
+        ),
+    );
+    sections.push(lines.join("\n"));
   }
 
   // 12) Watchlist context
@@ -566,7 +588,7 @@ function buildPrompt(p: PromptInputs): string {
     "- bull_points / bear_points는 단타용 (각 2-4개)",
     "- 각 horizon의 key_points는 2-3개씩",
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
-    "- 본인 시그널 트래커 시그널 + 기대수익은 단타·3개월에 인용",
+    "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
     "- JSON 스키마에 정확히 맞춰 응답",
   ].join("\n"));

@@ -1,6 +1,10 @@
 name: stock-tracker / backtest
 
-# Daily after US market close: fill expected_1d/3d/5d on new signals.
+# Daily after US market close. Two jobs run sequentially:
+#   1. backtest.py — fills expected_1d/3d/5d on new signals using analogue
+#      matching against historical similar-magnitude signals (priors).
+#   2. realize.py  — fills realized_1d/3d/5d on signals at least 7 calendar
+#      days old by looking up the actual forward close prices (measurement).
 # 23:00 UTC ≈ 18:00/19:00 ET (after-hours done). Mon-Fri.
 on:
   schedule:
@@ -13,7 +17,7 @@ permissions:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: stock-tracker/worker
@@ -30,4 +34,9 @@ jobs:
           cache: "pip"
           cache-dependency-path: stock-tracker/worker/requirements.txt
       - run: pip install -r requirements.txt
-      - run: python backtest.py
+      - name: Backfill expected_* (analogue priors)
+        run: python backtest.py
+      - name: Backfill realized_* (actual forward returns)
+        # Continue even if backtest.py failed — realize.py is independent.
+        if: ${{ always() }}
+        run: python realize.py

@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex items-center gap-4 text-sm text-neutral-400">
               <Link href="/" className="hover:text-neutral-100">Signals</Link>
               <Link href="/trade" className="hover:text-neutral-100">Trade</Link>
+              <Link href="/stats" className="hover:text-neutral-100">Stats</Link>
             </nav>
           </div>
           <span className="text-xs text-neutral-500">
