@@ -1,0 +1,40 @@
+name: stock-tracker / earnings-alert
+
+# Daily earnings digest for watchlist symbols.
+# 13:00 UTC = ET 09:00 = KST 22:00 — fires just before US regular open
+# so the user gets:
+#   - 4-6 hours' notice for "today AMC" earnings
+#   - Full evening to research "tomorrow BMO" names
+#   - This-week preview for sizing decisions
+# Weekdays only (US market is closed Sat/Sun, no earnings calls then).
+on:
+  schedule:
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  earnings-alert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FRONT_URL: ${{ secrets.FRONT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python earnings_alert.py
