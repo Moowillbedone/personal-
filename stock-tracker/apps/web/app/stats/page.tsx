@@ -51,6 +51,33 @@ interface PositionsResponse {
   summary: PnlSummary;
 }
 
+interface AiVerdictStats {
+  count: number;
+  mean1d: number | null;
+  mean3d: number | null;
+  mean5d: number | null;
+  mean30d: number | null;
+  winRate1d: number | null;
+  sharpe1d: number | null;
+}
+
+interface CalibrationBin {
+  confidenceMin: number;
+  confidenceMax: number;
+  count: number;
+  meanReturn1d: number | null;
+  winRate1d: number | null;
+}
+
+interface AiStatsResponse {
+  lookbackDays: number;
+  asOf: string;
+  totalAnalysesInWindow: number;
+  measuredAnalyses: number;
+  byVerdict: { buy: AiVerdictStats; sell: AiVerdictStats; hold: AiVerdictStats };
+  confidenceCalibrationBuy: CalibrationBin[];
+}
+
 const TYPE_LABEL: Record<string, string> = {
   gap_up: "갭상승",
   gap_down: "갭하락",
@@ -102,6 +129,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trades, setTrades] = useState<PositionsResponse | null>(null);
+  const [ai, setAi] = useState<AiStatsResponse | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -109,12 +137,20 @@ export default function StatsPage() {
     Promise.all([
       fetch(`/api/signal-stats?lookback=${lookback}`).then((r) => r.json()),
       fetch(`/api/trades/positions?lookback=${lookback}`).then((r) => r.json()),
+      fetch(`/api/ai-stats?lookback=${lookback}`).then((r) => r.json()),
     ])
-      .then(([sigD, tradeD]: [StatsResponse | { error: string }, PositionsResponse | { error: string }]) => {
-        if ("error" in sigD) setError(sigD.error);
-        else setData(sigD);
-        if (!("error" in tradeD)) setTrades(tradeD);
-      })
+      .then(
+        ([sigD, tradeD, aiD]: [
+          StatsResponse | { error: string },
+          PositionsResponse | { error: string },
+          AiStatsResponse | { error: string },
+        ]) => {
+          if ("error" in sigD) setError(sigD.error);
+          else setData(sigD);
+          if (!("error" in tradeD)) setTrades(tradeD);
+          if (!("error" in aiD)) setAi(aiD);
+        },
+      )
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
   }, [lookback]);
@@ -169,6 +205,22 @@ export default function StatsPage() {
             <section className="border border-neutral-800 rounded-lg p-4">
               <h2 className="text-xs uppercase text-neutral-400 mb-3">📝 내 매매 성과 ({lookback}일)</h2>
               <TradePnlPanel data={trades} />
+            </section>
+          )}
+
+          {/* AI verdict accuracy */}
+          {ai && (
+            <section className="border border-neutral-800 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <h2 className="text-xs uppercase text-neutral-400">
+                  🤖 AI verdict 정확도 ({lookback}일)
+                </h2>
+                <span className="text-[11px] text-neutral-500">
+                  측정됨 {ai.measuredAnalyses.toLocaleString()} /
+                  전체 {ai.totalAnalysesInWindow.toLocaleString()}건
+                </span>
+              </div>
+              <AiAccuracyPanel data={ai} />
             </section>
           )}
 
@@ -329,6 +381,142 @@ function TradePnlPanel({ data }: { data: PositionsResponse }) {
       {realPos.length > 0 && (
         <PositionsTable label="💵 실전 포지션" rows={realPos} />
       )}
+    </div>
+  );
+}
+
+function AiAccuracyPanel({ data }: { data: AiStatsResponse }) {
+  const totalMeasured =
+    data.byVerdict.buy.count +
+    data.byVerdict.sell.count +
+    data.byVerdict.hold.count;
+
+  if (totalMeasured === 0) {
+    return (
+      <p className="text-sm text-neutral-500">
+        측정된 AI verdict 없음. AI 스캔 워커가 발동한 verdict가 7일 이상 지나야 measured 상태로 전환됩니다 (1d/3d/5d 필요). 첫 스캔 후 약 1주일 뒤부터 데이터가 쌓입니다.
+      </p>
+    );
+  }
+
+  const verdicts: Array<{
+    key: "buy" | "sell" | "hold";
+    label: string;
+    interpretation: string;
+    color: string;
+  }> = [
+    {
+      key: "buy",
+      label: "🟢 BUY",
+      interpretation: "승률 = 1d 후 가격 상승 비율",
+      color: "border-emerald-900/50 bg-emerald-950/20",
+    },
+    {
+      key: "sell",
+      label: "🔴 SELL",
+      interpretation: "승률 = 1d 후 가격 하락 비율",
+      color: "border-rose-900/50 bg-rose-950/20",
+    },
+    {
+      key: "hold",
+      label: "🟡 HOLD",
+      interpretation: "승률 = 1d 후 |변화| < 1% 비율",
+      color: "border-amber-900/50 bg-amber-950/20",
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Per-verdict tiles */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {verdicts.map((v) => {
+          const s = data.byVerdict[v.key];
+          if (s.count === 0) {
+            return (
+              <div
+                key={v.key}
+                className={`border rounded-lg p-3 ${v.color} opacity-60`}
+              >
+                <div className="text-xs font-semibold text-neutral-300">{v.label}</div>
+                <div className="text-xs text-neutral-500 mt-1">측정 데이터 없음</div>
+              </div>
+            );
+          }
+          return (
+            <div key={v.key} className={`border rounded-lg p-3 ${v.color}`}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs font-semibold text-neutral-200">{v.label}</div>
+                <div className="text-xs text-neutral-400">n = {s.count}</div>
+              </div>
+              <div className="text-xs text-neutral-500 mb-2">{v.interpretation}</div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                <span className="text-neutral-500">승률 (1d)</span>
+                <span className={`text-right font-semibold ${winRateClass(s.winRate1d)}`}>
+                  {s.winRate1d != null ? `${(s.winRate1d * 100).toFixed(1)}%` : "—"}
+                </span>
+                <span className="text-neutral-500">평균 1d</span>
+                <span className={`text-right ${pctClass(s.mean1d)}`}>{fmtPct(s.mean1d)}</span>
+                <span className="text-neutral-500">평균 3d</span>
+                <span className={`text-right ${pctClass(s.mean3d)}`}>{fmtPct(s.mean3d)}</span>
+                <span className="text-neutral-500">평균 5d</span>
+                <span className={`text-right ${pctClass(s.mean5d)}`}>{fmtPct(s.mean5d)}</span>
+                {s.mean30d != null && (
+                  <>
+                    <span className="text-neutral-500">평균 30d</span>
+                    <span className={`text-right ${pctClass(s.mean30d)}`}>
+                      {fmtPct(s.mean30d)}
+                    </span>
+                  </>
+                )}
+                <span className="text-neutral-500">Sharpe (1d)</span>
+                <span className="text-right text-neutral-300">{fmtNum(s.sharpe1d)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Confidence calibration for BUY */}
+      <div>
+        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
+          BUY 신뢰도 캘리브레이션
+        </h3>
+        <p className="text-xs text-neutral-500 mb-2">
+          잘 캘리브레이션된 AI는 신뢰도 구간이 높을수록 승률이 일관되게 ↑.
+          높은 신뢰도 구간에서 승률이 낮으면 → AI가 과신 (verdict 신뢰도를 그대로 받지 말 것).
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-neutral-500 border-b border-neutral-800">
+              <tr>
+                <th className="text-left py-1.5 pr-2">신뢰도 구간</th>
+                <th className="text-right py-1.5 px-2">건수</th>
+                <th className="text-right py-1.5 px-2">승률 (1d)</th>
+                <th className="text-right py-1.5 pl-2">평균 1d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.confidenceCalibrationBuy.map((b, i) => (
+                <tr
+                  key={i}
+                  className="border-b border-neutral-900 hover:bg-neutral-900/40"
+                >
+                  <td className="py-1.5 pr-2 text-neutral-300">
+                    {(b.confidenceMin * 100).toFixed(0)}% ~ {Math.min(100, b.confidenceMax * 100).toFixed(0)}%
+                  </td>
+                  <td className="text-right py-1.5 px-2 text-neutral-400">{b.count}</td>
+                  <td className={`text-right py-1.5 px-2 ${winRateClass(b.winRate1d)}`}>
+                    {b.winRate1d != null ? `${(b.winRate1d * 100).toFixed(1)}%` : "—"}
+                  </td>
+                  <td className={`text-right py-1.5 pl-2 ${pctClass(b.meanReturn1d)}`}>
+                    {fmtPct(b.meanReturn1d)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

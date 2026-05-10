@@ -1,10 +1,13 @@
 name: stock-tracker / backtest
 
-# Daily after US market close. Two jobs run sequentially:
-#   1. backtest.py — fills expected_1d/3d/5d on new signals using analogue
+# Daily after US market close. Three jobs run sequentially:
+#   1. backtest.py  — fills expected_1d/3d/5d on new signals using analogue
 #      matching against historical similar-magnitude signals (priors).
-#   2. realize.py  — fills realized_1d/3d/5d on signals at least 7 calendar
+#   2. realize.py   — fills realized_1d/3d/5d on signals at least 7 calendar
 #      days old by looking up the actual forward close prices (measurement).
+#   3. ai_realize.py — fills realized_1d/3d/5d/30d on ai_analysis rows by
+#      comparing context.last_price to forward closes (AI-verdict edge
+#      measurement — drives /stats AI accuracy section).
 # 23:00 UTC ≈ 18:00/19:00 ET (after-hours done). Mon-Fri.
 on:
   schedule:
@@ -34,9 +37,13 @@ jobs:
           cache: "pip"
           cache-dependency-path: stock-tracker/worker/requirements.txt
       - run: pip install -r requirements.txt
-      - name: Backfill expected_* (analogue priors)
+      - name: Backfill signals.expected_* (analogue priors)
         run: python backtest.py
-      - name: Backfill realized_* (actual forward returns)
+      - name: Backfill signals.realized_* (actual forward returns)
         # Continue even if backtest.py failed — realize.py is independent.
         if: ${{ always() }}
         run: python realize.py
+      - name: Backfill ai_analysis.realized_* (AI verdict accuracy)
+        # Independent of the signals jobs above.
+        if: ${{ always() }}
+        run: python ai_realize.py
