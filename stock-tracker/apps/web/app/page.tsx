@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Signal, SignalType, Ticker } from "@/lib/types";
 
@@ -21,14 +21,39 @@ function fmtMoney(v: number | null) {
   if (v == null) return "—";
   return `$${v.toFixed(2)}`;
 }
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
 function fmtTime(iso: string) {
   // YYYY/MM/DD HH:mm in user's local timezone (24-hour)
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
   return (
     `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ` +
     `${pad(d.getHours())}:${pad(d.getMinutes())}`
   );
+}
+function fmtTimeShort(iso: string) {
+  // HH:mm only — used inside a date-grouped row where the date is in the header
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** YYYY-MM-DD in user's local timezone, used as a stable group key. */
+function dateKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+/** Friendly date label: "오늘", "어제", or "M/D (요일)". */
+const KOREAN_DOW = ["일", "월", "화", "수", "목", "금", "토"];
+function fmtDateLabel(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const today = new Date();
+  const todayKey = dateKey(today.toISOString());
+  const yesterday = new Date(today.getTime() - 24 * 3600 * 1000);
+  const yesterdayKey = dateKey(yesterday.toISOString());
+  if (key === todayKey) return `오늘 (${m}/${d} ${KOREAN_DOW[dt.getDay()]})`;
+  if (key === yesterdayKey) return `어제 (${m}/${d} ${KOREAN_DOW[dt.getDay()]})`;
+  return `${y}-${pad(m)}-${pad(d)} (${KOREAN_DOW[dt.getDay()]})`;
 }
 
 const TYPE_BADGE: Record<SignalType, string> = {
@@ -172,6 +197,58 @@ export default function Page() {
     });
   }, [signals, tickers, exchanges, types, sessions, minPct, minVolX]);
 
+  /**
+   * Group filtered signals by local-date YYYY-MM-DD with per-group counts.
+   * Date order: most recent first (matches the underlying ts-desc ordering
+   * so realtime inserts naturally land in the top group).
+   */
+  const groups = useMemo(() => {
+    const buckets = new Map<string, Signal[]>();
+    for (const s of filtered) {
+      const key = dateKey(s.ts);
+      const arr = buckets.get(key);
+      if (arr) arr.push(s);
+      else buckets.set(key, [s]);
+    }
+    const out = Array.from(buckets.entries()).map(([date, sigs]) => {
+      const buy = sigs.filter((s) => s.signal_type === "gap_up").length;
+      const sell = sigs.filter((s) => s.signal_type === "gap_down").length;
+      const spike = sigs.filter((s) => s.signal_type === "volume_spike").length;
+      return { date, signals: sigs, count: sigs.length, buy, sell, spike };
+    });
+    out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return out;
+  }, [filtered]);
+
+  /**
+   * Which date groups are expanded. Default: only the most recent date is open
+   * (so initial render shows the day's signals at a glance, history collapsed).
+   * Realtime inserts on a new day will create a new group; user expands manually.
+   */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const autoExpandedRef = useRef(false);
+  useEffect(() => {
+    if (autoExpandedRef.current) return;
+    if (groups.length === 0) return;
+    setExpanded(new Set([groups[0].date]));
+    autoExpandedRef.current = true;
+  }, [groups]);
+
+  function toggleGroup(date: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }
+  function expandAll() {
+    setExpanded(new Set(groups.map((g) => g.date)));
+  }
+  function collapseAll() {
+    setExpanded(new Set());
+  }
+
   function toggle<T>(set: Set<T>, val: T, setter: (s: Set<T>) => void) {
     const next = new Set(set);
     if (next.has(val)) next.delete(val);
@@ -255,101 +332,181 @@ export default function Page() {
             : "No signals match the current filters."}
         </p>
       ) : (
-        <div className="overflow-x-auto border border-neutral-800 rounded-lg">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-900/60 text-neutral-400 uppercase text-xs">
-              <tr>
-                <th className="px-3 py-2 text-left">Time</th>
-                <th className="px-3 py-2 text-left">Symbol</th>
-                <th className="px-3 py-2 text-left">Exch</th>
-                <th className="px-3 py-2 text-left">Type</th>
-                <th className="px-3 py-2 text-right">Price</th>
-                <th className="px-3 py-2 text-right">Δ%</th>
-                <th className="px-3 py-2 text-right">Vol×</th>
-                <th className="px-3 py-2 text-left">Session</th>
-                <th className="px-3 py-2 text-right">E[1d]</th>
-                <th className="px-3 py-2 text-right">E[3d]</th>
-                <th className="px-3 py-2 text-right">E[5d]</th>
-                <th className="px-3 py-2 text-right">n</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => {
-                const t = tickers[s.symbol];
-                return (
-                  <tr
-                    key={s.id}
-                    className="border-t border-neutral-800 hover:bg-neutral-900/40"
+        <>
+          {/* Group expand/collapse controls — only when multiple groups exist */}
+          {groups.length > 1 && (
+            <div className="flex items-center justify-end gap-2 mb-2 text-[11px] text-neutral-500">
+              <button
+                onClick={expandAll}
+                className="hover:text-neutral-200"
+              >
+                전체 펼치기
+              </button>
+              <span className="text-neutral-700">·</span>
+              <button
+                onClick={collapseAll}
+                className="hover:text-neutral-200"
+              >
+                전체 접기
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {groups.map((g) => {
+              const isOpen = expanded.has(g.date);
+              return (
+                <section
+                  key={g.date}
+                  className="border border-neutral-800 rounded-lg overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleGroup(g.date)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-900/40 hover:bg-neutral-900/70 text-left"
                   >
-                    <td className="px-3 py-2 text-neutral-400">{fmtTime(s.ts)}</td>
-                    <td className="px-3 py-2">
-                      <Link
-                        href={`/ticker/${s.symbol}`}
-                        className="font-semibold text-sky-300 hover:underline"
-                      >
-                        {s.symbol}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2 text-neutral-500">{t?.exchange ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`px-2 py-0.5 border rounded text-xs ${TYPE_BADGE[s.signal_type]}`}
-                      >
-                        {s.signal_type}
+                    <div className="flex items-center gap-3">
+                      <span className="text-neutral-500 text-xs">
+                        {isOpen ? "▼" : "▶"}
                       </span>
-                    </td>
-                    <td className="px-3 py-2 text-right">{fmtMoney(s.price)}</td>
-                    <td
-                      className={`px-3 py-2 text-right ${
-                        s.pct_change >= 0 ? "text-emerald-400" : "text-rose-400"
-                      }`}
-                    >
-                      {fmtPct(s.pct_change)}
-                    </td>
-                    <td className="px-3 py-2 text-right">{s.volume_ratio.toFixed(1)}×</td>
-                    <td className="px-3 py-2 text-neutral-400">{s.session}</td>
-                    <td
-                      className={`px-3 py-2 text-right ${
-                        s.expected_1d != null && s.expected_1d >= 0
-                          ? "text-emerald-400"
-                          : s.expected_1d != null
-                            ? "text-rose-400"
-                            : ""
-                      }`}
-                    >
-                      {s.expected_1d != null ? fmtPct(s.expected_1d) : "—"}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right ${
-                        s.expected_3d != null && s.expected_3d >= 0
-                          ? "text-emerald-400"
-                          : s.expected_3d != null
-                            ? "text-rose-400"
-                            : ""
-                      }`}
-                    >
-                      {s.expected_3d != null ? fmtPct(s.expected_3d) : "—"}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right ${
-                        s.expected_5d != null && s.expected_5d >= 0
-                          ? "text-emerald-400"
-                          : s.expected_5d != null
-                            ? "text-rose-400"
-                            : ""
-                      }`}
-                    >
-                      {s.expected_5d != null ? fmtPct(s.expected_5d) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-neutral-500">
-                      {s.sample_size ?? "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <span className="text-sm font-semibold text-neutral-100">
+                        {fmtDateLabel(g.date)}
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        {g.count}건
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      {g.buy > 0 && (
+                        <span className="text-emerald-400">▲ {g.buy}</span>
+                      )}
+                      {g.sell > 0 && (
+                        <span className="text-rose-400">▼ {g.sell}</span>
+                      )}
+                      {g.spike > 0 && (
+                        <span className="text-amber-400">⚡ {g.spike}</span>
+                      )}
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="overflow-x-auto border-t border-neutral-800">
+                      <table className="w-full text-sm">
+                        <thead className="bg-neutral-900/30 text-neutral-400 uppercase text-xs">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Time</th>
+                            <th className="px-3 py-2 text-left">Symbol</th>
+                            <th className="px-3 py-2 text-left">Exch</th>
+                            <th className="px-3 py-2 text-left">Type</th>
+                            <th className="px-3 py-2 text-right">Price</th>
+                            <th className="px-3 py-2 text-right">Δ%</th>
+                            <th className="px-3 py-2 text-right">Vol×</th>
+                            <th className="px-3 py-2 text-left">Session</th>
+                            <th className="px-3 py-2 text-right">E[1d]</th>
+                            <th className="px-3 py-2 text-right">E[3d]</th>
+                            <th className="px-3 py-2 text-right">E[5d]</th>
+                            <th className="px-3 py-2 text-right">n</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.signals.map((s) => {
+                            const t = tickers[s.symbol];
+                            return (
+                              <tr
+                                key={s.id}
+                                className="border-t border-neutral-800 hover:bg-neutral-900/40"
+                              >
+                                <td className="px-3 py-2 text-neutral-400">
+                                  {fmtTimeShort(s.ts)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Link
+                                    href={`/ticker/${s.symbol}`}
+                                    className="font-semibold text-sky-300 hover:underline"
+                                  >
+                                    {s.symbol}
+                                  </Link>
+                                </td>
+                                <td className="px-3 py-2 text-neutral-500">
+                                  {t?.exchange ?? "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={`px-2 py-0.5 border rounded text-xs ${TYPE_BADGE[s.signal_type]}`}
+                                  >
+                                    {s.signal_type}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {fmtMoney(s.price)}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right ${
+                                    s.pct_change >= 0
+                                      ? "text-emerald-400"
+                                      : "text-rose-400"
+                                  }`}
+                                >
+                                  {fmtPct(s.pct_change)}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {s.volume_ratio.toFixed(1)}×
+                                </td>
+                                <td className="px-3 py-2 text-neutral-400">
+                                  {s.session}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right ${
+                                    s.expected_1d != null && s.expected_1d >= 0
+                                      ? "text-emerald-400"
+                                      : s.expected_1d != null
+                                        ? "text-rose-400"
+                                        : ""
+                                  }`}
+                                >
+                                  {s.expected_1d != null
+                                    ? fmtPct(s.expected_1d)
+                                    : "—"}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right ${
+                                    s.expected_3d != null && s.expected_3d >= 0
+                                      ? "text-emerald-400"
+                                      : s.expected_3d != null
+                                        ? "text-rose-400"
+                                        : ""
+                                  }`}
+                                >
+                                  {s.expected_3d != null
+                                    ? fmtPct(s.expected_3d)
+                                    : "—"}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right ${
+                                    s.expected_5d != null && s.expected_5d >= 0
+                                      ? "text-emerald-400"
+                                      : s.expected_5d != null
+                                        ? "text-rose-400"
+                                        : ""
+                                  }`}
+                                >
+                                  {s.expected_5d != null
+                                    ? fmtPct(s.expected_5d)
+                                    : "—"}
+                                </td>
+                                <td className="px-3 py-2 text-right text-neutral-500">
+                                  {s.sample_size ?? "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {!loading && signals.length > 0 && (
