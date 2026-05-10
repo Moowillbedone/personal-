@@ -17,9 +17,16 @@ import {
   type TradeAction,
   type TradeMode,
 } from "@/lib/trades";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Auto-link window: when the user records a trade without explicitly passing
+// ai_analysis_id, look back this far for a verdict on the same symbol and
+// link it. 24h matches the daily AI-scan cadence — if it's older than this,
+// it's probably stale enough that linking would be misleading.
+const AUTOLINK_LOOKBACK_HOURS = 24;
 
 const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -60,6 +67,26 @@ export async function POST(req: NextRequest) {
   }
   const mode = body.mode === "real" ? "real" : "paper";
 
+  // Auto-link the trade to the most recent AI analysis on this symbol within
+  // the lookback window if the caller didn't supply one. Lets the user log a
+  // trade without first running an analysis and still have the verdict
+  // captured for downstream P&L-vs-AI comparison.
+  let aiAnalysisId = body.ai_analysis_id ?? null;
+  if (!aiAnalysisId) {
+    const cutoff = new Date(
+      Date.now() - AUTOLINK_LOOKBACK_HOURS * 3600 * 1000,
+    ).toISOString();
+    const { data: recent } = await supabaseAdmin
+      .from("ai_analysis")
+      .select("id")
+      .eq("symbol", symbol)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent?.id) aiAnalysisId = recent.id as string;
+  }
+
   try {
     const trade = await insertTrade({
       symbol,
@@ -69,7 +96,7 @@ export async function POST(req: NextRequest) {
       mode,
       ts: body.ts,
       notes: body.notes ?? null,
-      ai_analysis_id: body.ai_analysis_id ?? null,
+      ai_analysis_id: aiAnalysisId,
       signal_id: body.signal_id ?? null,
     });
     return NextResponse.json({ trade });

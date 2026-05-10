@@ -210,6 +210,11 @@ export default function TradePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  // Latest cached verdict shown as a banner above the analyze button
+  // BEFORE user runs a fresh analysis. Pulled from ai_analysis history
+  // (no Gemini call), so the user immediately sees "AI said BUY 3h ago"
+  // without spending a fresh quota point.
+  const [cachedVerdict, setCachedVerdict] = useState<AiAnalysis | null>(null);
 
   // position settings
   const [position, setPosition] = useState<PositionSetting | null>(null);
@@ -281,14 +286,16 @@ export default function TradePage() {
     loadSnapshots();
   }, [loadSnapshots]);
 
-  // ── load position settings when selection changes
+  // ── load position settings + cached verdict when selection changes
   useEffect(() => {
     if (!selected) {
       setPosition(null);
+      setCachedVerdict(null);
       return;
     }
     setResult(null);
     setAnalysisError(null);
+    setCachedVerdict(null);
     (async () => {
       const r = await fetch(`/api/positions?symbol=${encodeURIComponent(selected)}`);
       const data = (await r.json()) as { setting?: PositionSetting | null };
@@ -298,6 +305,20 @@ export default function TradePage() {
         setPosLumpKrw(data.setting.total_budget_krw?.toString() ?? "");
         setPosDcaPerDay(data.setting.dca_per_day_krw?.toString() ?? "1000000");
         setPosDcaDays(data.setting.dca_total_days?.toString() ?? "30");
+      }
+    })();
+    // Fetch the latest cached verdict (within 24h) — pure DB lookup, no
+    // Gemini cost. Surfaces "AI already said X" so user doesn't burn quota
+    // re-analyzing what's still fresh.
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/analyze/latest?symbol=${encodeURIComponent(selected)}&maxAgeHours=24`,
+        );
+        const d = (await r.json()) as { analysis?: AiAnalysis | null };
+        if (d.analysis) setCachedVerdict(d.analysis);
+      } catch {
+        // ignore — banner just stays hidden
       }
     })();
   }, [selected]);
@@ -555,6 +576,13 @@ export default function TradePage() {
               </button>
             </div>
 
+            {/* AI verdict banner — shows the most recent AI call (within 24h)
+                without spending a fresh quota point. Hidden once the user
+                runs a new analysis (then `result` takes over below). */}
+            {!result && cachedVerdict && (
+              <VerdictBanner verdict={cachedVerdict} />
+            )}
+
             {/* OHLC + sessions */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-6 text-xs">
               <Stat label="전일 종가" value={fmtMoney(selectedSnap?.prevClose ?? null)} />
@@ -670,25 +698,17 @@ export default function TradePage() {
 
             {result && (
               <div className="space-y-4">
-                {/* short-term verdict (1d ~ 1w) */}
-                <div className="border border-neutral-800 rounded-lg p-4">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs uppercase tracking-wider text-neutral-500">단타 (1일 ~ 1주)</span>
-                      <span
-                        className={`px-3 py-1 border rounded text-sm font-semibold ${VERDICT_STYLE[result.analysis.verdict]}`}
-                      >
-                        {VERDICT_LABEL[result.analysis.verdict]}
-                      </span>
+                {/* Prominent verdict callout — the BUY/SELL/HOLD call is now
+                    the visual headline, not a side-label. */}
+                <VerdictBanner verdict={result.analysis} fresh />
+                {result.analysis.summary && (
+                  <div className="border border-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wider text-neutral-500 mb-2">
+                      단타 (1일 ~ 1주) · 요약
                     </div>
-                    <span className="text-xs text-neutral-500">
-                      신뢰도 {(result.analysis.confidence * 100).toFixed(0)}% ·{" "}
-                      {result.analysis.model} ·{" "}
-                      {new Date(result.analysis.created_at).toLocaleString()}
-                    </span>
+                    <p className="text-sm leading-relaxed">{result.analysis.summary}</p>
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed">{result.analysis.summary}</p>
-                </div>
+                )}
 
                 {/* long-term horizons (3m / 6m / 1y) */}
                 {result.analysis.horizons && (
@@ -866,6 +886,59 @@ export default function TradePage() {
         )}
       </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Big colored AI verdict callout. Two visual modes:
+ *   - cached (fresh=false): "AI 추천 — 24h 내 분석" + age badge
+ *   - fresh  (fresh=true):  "🤖 AI 단타 추천" + larger emphasis
+ *
+ * The verdict color and large label make this the primary visual element
+ * of the detail view so the user can answer "what did AI say?" at a glance.
+ */
+function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?: boolean }) {
+  const v = verdict.verdict;
+  const conf = Math.round(verdict.confidence * 100);
+  const ageMin = Math.max(0, Math.floor((Date.now() - new Date(verdict.created_at).getTime()) / 60000));
+  const ageLabel =
+    ageMin < 1 ? "방금" : ageMin < 60 ? `${ageMin}분 전` : `${Math.floor(ageMin / 60)}시간 전`;
+  const bgClass =
+    v === "buy"
+      ? "border-emerald-700 bg-emerald-950/40"
+      : v === "sell"
+        ? "border-rose-700 bg-rose-950/40"
+        : "border-amber-700 bg-amber-950/30";
+  const textClass =
+    v === "buy" ? "text-emerald-300" : v === "sell" ? "text-rose-300" : "text-amber-300";
+  const emoji = v === "buy" ? "🟢" : v === "sell" ? "🔴" : "🟡";
+  return (
+    <div className={`border-2 rounded-lg p-4 ${bgClass}`}>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs uppercase tracking-wider text-neutral-400">
+            🤖 AI 단타 추천{!fresh && ` · ${ageLabel} 분석`}
+          </span>
+        </div>
+        <span className="text-xs text-neutral-500">
+          {verdict.model}
+          {fresh && " · 방금 분석"}
+        </span>
+      </div>
+      <div className="mt-2 flex items-baseline gap-4 flex-wrap">
+        <div className={`text-4xl font-bold ${textClass}`}>
+          {emoji} {VERDICT_LABEL[v]}
+        </div>
+        <div className="text-sm text-neutral-400">
+          신뢰도 <span className={`text-lg font-semibold ${textClass}`}>{conf}%</span>
+        </div>
+      </div>
+      {!fresh && verdict.summary && (
+        <p className="mt-2 text-xs text-neutral-300 leading-relaxed line-clamp-2">
+          {verdict.summary}
+        </p>
+      )}
     </div>
   );
 }

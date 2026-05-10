@@ -1,0 +1,262 @@
+"""Twice-daily AI scan: call /api/analyze on the union of watchlist symbols
+and any symbols that fired a signal in the last 24h, then telegram-digest
+the resulting BUY / SELL / HOLD verdicts.
+
+Why: until now AI verdicts only existed when the user manually clicked
+"분석" on a single ticker. There was no proactive "AI says BUY today"
+output, so the trade journal couldn't link to anything and we couldn't
+measure AI-recommendation accuracy. This worker fills the gap.
+
+Cost: each /api/analyze call is one Gemini-2.5-flash request. The route
+already caches results for 5 minutes per symbol, so back-to-back scan
+runs on the same ticker are free. Free Gemini quota is ~250 RPD per
+model with a 4-model fallback chain, so 40 symbols × 2 runs/day stays
+well within budget.
+
+Schedule (GH Actions cron, .github/workflows/stock-tracker-ai-scan.yml):
+  - 13:00 UTC = ET 09:00 = KST 22:00 (premarket close, before regular open)
+  - 21:00 UTC = ET 17:00 = KST 06:00 (after-hours done, next-day planning)
+Both weekdays only.
+"""
+from __future__ import annotations
+
+import os
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+
+import requests
+from dotenv import load_dotenv
+
+from lib import db
+
+# Cap how many symbols we analyze per run. 40 keeps the job under 30 min
+# at ~30s/call and stays comfortably under Gemini free-tier quota even
+# when both daily runs land at full capacity.
+MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "40"))
+
+# Per-call HTTP timeout. The /api/analyze route's maxDuration is 60s on
+# Vercel; the buffer here gives us a clean error rather than a half-read
+# response if Vercel kills the request.
+ANALYZE_TIMEOUT_SEC = 75
+
+# Brief pause between calls so we don't hammer downstream APIs (Alpaca,
+# Yahoo, Finnhub, FRED) all at once when the route fans out.
+INTER_CALL_DELAY_SEC = 2
+
+# How many BUY / SELL entries to render in full in the digest. Extras
+# beyond this threshold are dropped to keep the message under telegram's
+# 4096-char limit even when the scan is full.
+DIGEST_MAX_PER_BUCKET = 10
+
+FRONT_URL = os.getenv("FRONT_URL", "https://stock-tracker-khaki-mu.vercel.app").rstrip("/")
+TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+
+
+def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:
+    """Returns (target_list, watchlist_set, signals_set).
+
+    The two sets are returned alongside so the digest header can attribute
+    counts to each source.
+    """
+    watchlist: set[str] = set()
+    try:
+        res = sb.table("watchlist").select("symbol").execute()
+        watchlist = {r["symbol"].upper() for r in (res.data or []) if r.get("symbol")}
+    except Exception as e:
+        print(f"  watchlist fetch failed: {e}", file=sys.stderr)
+
+    signals: set[str] = set()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    try:
+        res = sb.table("signals").select("symbol").gte("ts", cutoff).execute()
+        signals = {r["symbol"].upper() for r in (res.data or []) if r.get("symbol")}
+    except Exception as e:
+        print(f"  signals fetch failed: {e}", file=sys.stderr)
+
+    targets = sorted(watchlist | signals)[:MAX_SYMBOLS_PER_RUN]
+    return targets, watchlist, signals
+
+
+def call_analyze(symbol: str) -> dict | None:
+    """POST /api/analyze and return the `analysis` object (or None on failure)."""
+    url = f"{FRONT_URL}/api/analyze"
+    try:
+        r = requests.post(url, json={"symbol": symbol}, timeout=ANALYZE_TIMEOUT_SEC)
+        if r.status_code != 200:
+            print(f"    HTTP {r.status_code}: {r.text[:200]}", file=sys.stderr)
+            return None
+        return r.json().get("analysis")
+    except Exception as e:
+        print(f"    analyze({symbol}) failed: {e}", file=sys.stderr)
+        return None
+
+
+def format_digest(
+    verdicts: list[dict], total_scanned: int, watchlist_n: int, signals_n: int
+) -> str:
+    by_v: dict[str, list[dict]] = {"buy": [], "sell": [], "hold": []}
+    for v in verdicts:
+        bucket = (v.get("verdict") or "hold").lower()
+        if bucket not in by_v:
+            bucket = "hold"
+        by_v[bucket].append(v)
+    for k in by_v:
+        by_v[k].sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
+
+    now_kst = datetime.now(timezone(timedelta(hours=9)))
+    lines: list[str] = [
+        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
+        f"스캔 종목: {total_scanned}건 "
+        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})",
+        "",
+    ]
+
+    if by_v["buy"]:
+        lines.append(f"🟢 *BUY ({len(by_v['buy'])})*")
+        for v in by_v["buy"][:DIGEST_MAX_PER_BUCKET]:
+            sym = v.get("symbol", "?")
+            conf = int(round(float(v.get("confidence") or 0) * 100))
+            summary = (v.get("summary") or "").strip().split("\n")[0][:80]
+            lines.append(f"• *{sym}*  신뢰도 {conf}%")
+            if summary:
+                lines.append(f"  _{summary}_")
+        if len(by_v["buy"]) > DIGEST_MAX_PER_BUCKET:
+            lines.append(f"  …외 {len(by_v['buy']) - DIGEST_MAX_PER_BUCKET}건")
+        lines.append("")
+
+    if by_v["sell"]:
+        lines.append(f"🔴 *SELL ({len(by_v['sell'])})*")
+        for v in by_v["sell"][:DIGEST_MAX_PER_BUCKET]:
+            sym = v.get("symbol", "?")
+            conf = int(round(float(v.get("confidence") or 0) * 100))
+            summary = (v.get("summary") or "").strip().split("\n")[0][:80]
+            lines.append(f"• *{sym}*  신뢰도 {conf}%")
+            if summary:
+                lines.append(f"  _{summary}_")
+        if len(by_v["sell"]) > DIGEST_MAX_PER_BUCKET:
+            lines.append(f"  …외 {len(by_v['sell']) - DIGEST_MAX_PER_BUCKET}건")
+        lines.append("")
+
+    if by_v["hold"]:
+        lines.append(f"🟡 *HOLD ({len(by_v['hold'])})*")
+        # Wrap symbol list at ~60 chars/line
+        hold_syms = [v.get("symbol", "?") for v in by_v["hold"]]
+        line_buf: list[str] = []
+        line_chars = 0
+        for s in hold_syms:
+            if line_chars + len(s) + 1 > 60 and line_buf:
+                lines.append("  " + " ".join(line_buf))
+                line_buf = []
+                line_chars = 0
+            line_buf.append(s)
+            line_chars += len(s) + 1
+        if line_buf:
+            lines.append("  " + " ".join(line_buf))
+        lines.append("")
+
+    lines.append(f"[전체 분석 →]({FRONT_URL}/trade)")
+    text = "\n".join(lines)
+    # Telegram caps single-message text at 4096 chars. The dispatcher will
+    # truncate further if we ever overshoot, but in practice 40 symbols
+    # with HOLD-only-as-list lands well under 3000.
+    if len(text) > 4000:
+        text = text[:3990] + "\n\n…(truncated)"
+    return text
+
+
+def send_telegram(text: str) -> bool:
+    if not TG_TOKEN or not TG_CHAT_ID:
+        print("  TELEGRAM_BOT_TOKEN/CHAT_ID not set — skipping send", file=sys.stderr)
+        return False
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    try:
+        r = requests.post(
+            url,
+            json={
+                "chat_id": TG_CHAT_ID,
+                "text": text,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": True,
+            },
+            timeout=15,
+        )
+        if r.status_code >= 300:
+            print(
+                f"  telegram failed [{r.status_code}]: {r.text[:200]}",
+                file=sys.stderr,
+            )
+            return False
+        return True
+    except Exception as e:
+        print(f"  telegram exception: {e}", file=sys.stderr)
+        return False
+
+
+def main() -> int:
+    load_dotenv()
+    sb = db.client()
+
+    targets, watchlist, signals = collect_target_symbols(sb)
+    print(
+        f"ai_scan: {len(targets)} target symbols "
+        f"(watchlist={len(watchlist)}, signals_24h={len(signals)})"
+    )
+
+    if not targets:
+        print("ai_scan: no symbols to scan, exiting")
+        return 0
+
+    verdicts: list[dict] = []
+    failed: list[str] = []
+    started = time.time()
+
+    for i, sym in enumerate(targets, 1):
+        elapsed = int(time.time() - started)
+        print(f"  [{i}/{len(targets)}] analyze {sym} (elapsed {elapsed}s)", flush=True)
+        analysis = call_analyze(sym)
+        if not analysis:
+            failed.append(sym)
+            continue
+        verdicts.append(
+            {
+                "symbol": sym,
+                "verdict": analysis.get("verdict") or "hold",
+                "confidence": analysis.get("confidence") or 0,
+                "summary": analysis.get("summary") or "",
+            }
+        )
+        time.sleep(INTER_CALL_DELAY_SEC)
+
+    counts = {"buy": 0, "sell": 0, "hold": 0}
+    for v in verdicts:
+        counts[(v.get("verdict") or "hold").lower()] = counts.get(
+            (v.get("verdict") or "hold").lower(), 0
+        ) + 1
+    print(
+        f"ai_scan: collected {len(verdicts)} verdicts "
+        f"(buy={counts.get('buy', 0)}, sell={counts.get('sell', 0)}, "
+        f"hold={counts.get('hold', 0)}), failed={len(failed)}"
+    )
+    if failed:
+        head = ", ".join(failed[:20])
+        print(f"  failed: {head}{'…' if len(failed) > 20 else ''}")
+
+    if not verdicts:
+        print("ai_scan: no verdicts to send, skipping telegram", file=sys.stderr)
+        return 1
+
+    text = format_digest(
+        verdicts,
+        total_scanned=len(targets),
+        watchlist_n=len(watchlist),
+        signals_n=len(signals),
+    )
+    sent = send_telegram(text)
+    print(f"ai_scan: telegram sent={sent} ({len(text)} chars)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
