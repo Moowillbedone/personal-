@@ -30,6 +30,16 @@ MIN_BASELINE_VOL = int(os.getenv("MIN_BASELINE_VOL", "2000"))  # baseline avg mu
 # names where 5000-share thresholds in cheap stocks (e.g. $10 stock = $50k) are meaningless.
 MIN_DOLLAR_VOL = float(os.getenv("MIN_DOLLAR_VOL", "2000000"))
 
+# ─── Pre-market thresholds ────────────────────────────────────────────────
+# Pre-market (04:00-09:30 ET) has 5-50× less volume than the regular session,
+# so the regular vol_hit gate (2.5× rolling baseline + MIN_VOLUME=5000) almost
+# never fires there even when news drops. We replace it during pre-market with
+# a gap-only path at a higher percent threshold — the size of the move itself
+# becomes the conviction proxy. Most retail platforms quote a "+5% pre-market
+# mover" list with similar logic.
+PRE_GAP_PCT = float(os.getenv("PRE_GAP_PCT", "0.03"))            # 3% intra-bar move vs prev close
+PRE_MIN_DOLLAR_VOL = float(os.getenv("PRE_MIN_DOLLAR_VOL", "500000"))  # $500K — relaxed vs regular
+
 
 _ET = pytz.timezone("America/New_York")
 
@@ -54,6 +64,13 @@ def _is_volume_eligible_window(ts: pd.Timestamp) -> bool:
         return 10 * 60 <= hm < 15 * 60 + 30
     # default 'regular' = full session
     return 9 * 60 + 30 <= hm < 16 * 60
+
+
+def _is_premarket(ts: pd.Timestamp) -> bool:
+    """04:00-09:30 ET. Mirrors data.classify_session('pre') in shape."""
+    et = ts.tz_convert(_ET) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(_ET)
+    hm = et.hour * 60 + et.minute
+    return 4 * 60 <= hm < 9 * 60 + 30
 
 
 @dataclass
@@ -84,12 +101,34 @@ def detect_for_symbol(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     if close <= 0 or vol <= 0:
         return None
 
-    # Dollar-volume floor — universal credibility filter applied to ALL signal types.
-    # A price move on tiny dollar volume is just bid/ask wobble, not a real signal.
+    pct = (close - prev_close) / prev_close
+
+    # Pre-market path: gap-only with higher % threshold + relaxed dollar floor.
+    # Pre-market liquidity is a fraction of regular session, so the regular
+    # vol_hit rule (2.5× a thin-pre-market baseline) misfires constantly. The
+    # gap size itself becomes the conviction proxy. Returns early so the
+    # rest of the function only handles the regular-session branch.
+    if _is_premarket(latest.name):
+        if close * vol < PRE_MIN_DOLLAR_VOL:
+            return None
+        if abs(pct) < PRE_GAP_PCT:
+            return None
+        # Compute vol_ratio for the record even though we didn't gate on it.
+        avg_vol_pre = float(df["Volume"].iloc[-(LOOKBACK_BARS + 1) : -1].mean())
+        vr = vol / avg_vol_pre if avg_vol_pre > 0 else 0.0
+        return Signal(
+            symbol=symbol,
+            ts=latest.name,
+            signal_type="gap_up" if pct > 0 else "gap_down",
+            price=close,
+            pct_change=round(pct, 6),
+            volume_ratio=round(vr, 4),
+        )
+
+    # Regular-session (and after-hours) path: existing gap+vol confirmation.
+    # Dollar-volume floor — universal credibility filter applied here too.
     if close * vol < MIN_DOLLAR_VOL:
         return None
-
-    pct = (close - prev_close) / prev_close
 
     avg_vol = float(df["Volume"].iloc[-(LOOKBACK_BARS + 1) : -1].mean())
     if avg_vol <= 0:

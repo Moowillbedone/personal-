@@ -51,15 +51,35 @@ def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
     return rows
 
 
+def _pick_fetcher(now_utc: datetime):
+    """Return the right per-poll bar fetcher.
+
+    Regular session (09:30-16:00 ET): Alpaca IEX — real-time, no quota worry.
+    Pre/after/closed: yfinance with prepost=True — IEX has near-zero pre/after
+    volume and would never fire a signal there. yfinance is 15-min delayed and
+    occasionally rate-limited from data-center IPs but it's the only free
+    source that includes extended-hours bars. The signal detector treats the
+    pre-market path with a higher gap threshold (PRE_GAP_PCT=3%) so the lower
+    quote-quality doesn't translate into noise.
+    """
+    sess = data.classify_session(now_utc)
+    if sess == "regular":
+        return alpaca.fetch_recent_bars, "alpaca-iex"
+    return data.fetch_recent_bars, "yfinance-prepost"
+
+
 def run_once(sb, symbols: list[str]) -> tuple[int, int]:
     """A single poll pass. Returns (#bars_persisted, #signals_fired)."""
     all_price_rows: list[dict] = []
     fired: list[dict] = []
+    now = datetime.now(timezone.utc)
+    fetcher, fetcher_label = _pick_fetcher(now)
+    print(f"poll: source={fetcher_label} session={data.classify_session(now)}")
 
     for i in range(0, len(symbols), BATCH_SIZE):
         batch = symbols[i : i + BATCH_SIZE]
         try:
-            frames = alpaca.fetch_recent_bars(batch, interval="5m", lookback="5d")
+            frames = fetcher(batch, interval="5m", lookback="5d")
         except Exception as e:
             print(f"  batch {i} failed: {e}", file=sys.stderr)
             time.sleep(2)
