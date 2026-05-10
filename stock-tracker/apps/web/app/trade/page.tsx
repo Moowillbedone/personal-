@@ -935,10 +935,35 @@ function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?
         </div>
       </div>
       {!fresh && verdict.summary && (
-        <p className="mt-2 text-xs text-neutral-300 leading-relaxed line-clamp-2">
+        <p className="mt-2 text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap">
           {verdict.summary}
         </p>
       )}
+      {!fresh && (verdict.bull_points?.length || verdict.bear_points?.length) ? (
+        <details className="mt-3 group">
+          <summary className="text-[11px] text-neutral-500 cursor-pointer hover:text-neutral-300 select-none list-none">
+            ▸ 강세/약세 근거 보기
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+            {verdict.bull_points?.length ? (
+              <div className="border border-emerald-900/50 bg-emerald-950/10 rounded p-2">
+                <div className="text-[10px] uppercase text-emerald-400 mb-1">강세 근거</div>
+                <ul className="text-xs space-y-0.5 list-disc list-inside text-neutral-200">
+                  {verdict.bull_points.map((p, i) => <li key={i}>{p}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {verdict.bear_points?.length ? (
+              <div className="border border-rose-900/50 bg-rose-950/10 rounded p-2">
+                <div className="text-[10px] uppercase text-rose-400 mb-1">약세 근거</div>
+                <ul className="text-xs space-y-0.5 list-disc list-inside text-neutral-200">
+                  {verdict.bear_points.map((p, i) => <li key={i}>{p}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
