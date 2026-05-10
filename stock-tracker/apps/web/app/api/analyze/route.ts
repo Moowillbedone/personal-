@@ -512,6 +512,28 @@ function buildPrompt(p: PromptInputs): string {
       const t = finnhub.priceTarget;
       lines.push(`- 가격 목표: 평균 ${num(t.targetMean)} (고 ${num(t.targetHigh)} / 저 ${num(t.targetLow)}, 분석가 ${t.numberOfAnalysts ?? "?"}명)`);
     }
+    // Rating actions — upgrades / downgrades / inits in last 30d. The CHANGE
+    // is the catalyst, not the static consensus above. Aggregate counts give
+    // bias direction; per-action lines surface the specific firm + grade.
+    if (finnhub.ratingActions.length > 0) {
+      const ups = finnhub.ratingActions.filter((a) => a.action === "up").length;
+      const downs = finnhub.ratingActions.filter((a) => a.action === "down").length;
+      const inits = finnhub.ratingActions.filter((a) => a.action === "init").length;
+      const mains = finnhub.ratingActions.filter((a) => a.action === "main").length;
+      lines.push(
+        `- 최근 30일 등급 변경: 🔼${ups} 🔽${downs} 🆕${inits} 🔁${mains}`,
+      );
+      const arrow = (a: string): string =>
+        a === "up" ? "🔼" : a === "down" ? "🔽" : a === "init" ? "🆕" : "🔁";
+      // Show last 8 actions to keep the prompt compact; the most recent
+      // shipments are what move the price short-term.
+      for (const r of finnhub.ratingActions.slice(0, 8)) {
+        const transition = r.fromGrade
+          ? `${r.fromGrade} → ${r.toGrade}`
+          : r.toGrade;
+        lines.push(`  · ${r.date} ${arrow(r.action)} [${r.firm}] ${transition}`);
+      }
+    }
     if (lines.length > 1) sections.push(lines.join("\n"));
   }
 
@@ -694,6 +716,7 @@ function buildPrompt(p: PromptInputs): string {
     "- §10.5 인사이더 거래는 **smart money 직접 신호**. CEO/CFO/CFO/Director의 BUY는 강한 강세 (자기 돈으로 매수 = 가장 정직한 conviction); SELL은 mixed (분산투자·세금·10b5-1 plan일 수도). 순매수 > $1M = 3개월 horizon에 강한 강세 가중. 순매도 > $5M + 10% Owner 매도 = 약세 가중. award/option exercise는 이미 §10.5에서 제외된 상태",
     "- §7 비정상 옵션 거래량은 **단기 (1-7일) 방향성 시그널**. 큰 notional ($1M+) 콜 매수가 OTM (+5% 이상)에 몰리면 = 강세 베팅 / 풋 OTM (-5% 이하)에 몰리면 = 약세 또는 헤지. volRatio 5×+ 는 명확한 outlier. DTE < 14일이면 catalyst (어닝·공시) 기대 신호. 단, 단일 strike 한 줄로 강한 결론 X — 콜·풋 양쪽 패턴 합쳐 판단",
     "- §8.5 Float + 공매도는 squeeze setup 평가용. Float < 50M주 + Short% > 20% + Days-to-Cover > 5일 = 강한 squeeze 후보 (어닝/뉴스 catalyst 시 폭발적). Float > 1B + Short% < 5% = squeeze 위험 거의 없음 (대형주 보통 케이스). 약세 가설일 때도 short% 매우 높으면 short squeeze risk로 신중함 명시",
+    "- §8 등급 변경은 **단기 모멘텀 catalyst** (특히 5일 horizon). 메이저 IB (Goldman/Morgan Stanley/JPM/BofA) 의 🔼 업그레이드 = 즉시 단기 강세 가중. 🔽 다운그레이드는 약세 가중. 정적 consensus (SB/B/H/S/SS 카운트)보다 **변화**가 더 강한 신호. 30일 내 net 업그레이드 ≥ 3건이면 \"애널리스트 모멘텀\" 명시",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",

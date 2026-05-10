@@ -35,6 +35,21 @@ export interface NextEarnings {
   daysUntil: number;
 }
 
+export type AnalystAction = "up" | "down" | "main" | "init";
+
+export interface AnalystAction_Item {
+  /** ISO date the rating was published. */
+  date: string;
+  /** Issuing firm — "Goldman Sachs", "Morgan Stanley", etc. */
+  firm: string;
+  /** "up" = upgrade, "down" = downgrade, "main" = reiterate, "init" = initiate. */
+  action: AnalystAction;
+  /** Rating before the change (empty for "init"). */
+  fromGrade: string;
+  /** Rating after — "Buy", "Strong Buy", "Hold", "Sell", etc. */
+  toGrade: string;
+}
+
 export interface StockMetrics {
   /** Total market cap in USD (Finnhub returns millions; we normalize). */
   marketCap: number | null;
@@ -55,6 +70,8 @@ export interface FinnhubBundle {
   recentSurprises: EarningsSurprise[];
   nextEarnings: NextEarnings | null;
   metrics: StockMetrics | null;
+  /** Last ~30d of analyst rating actions (upgrades / downgrades / inits). */
+  ratingActions: AnalystAction_Item[];
 }
 
 export function isFinnhubEnabled(): boolean {
@@ -97,7 +114,12 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
     };
   };
 
-  const [recRaw, ptRaw, surpRaw, calRaw, metRaw] = await Promise.all([
+  // Lookback window for rating changes. 30d is short enough to capture
+  // the "fresh upgrade momentum" effect (typically lives ~5 days post-
+  // event) while giving enough sample size on dormant tickers.
+  const RATING_LOOKBACK_DAYS = 30;
+
+  const [recRaw, ptRaw, surpRaw, calRaw, metRaw, ratingsRaw] = await Promise.all([
     get<Array<{ buy: number; hold: number; sell: number; strongBuy: number; strongSell: number; period: string }>>(
       `/stock/recommendation?symbol=${sym}`,
     ),
@@ -116,6 +138,23 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
       );
     })(),
     get<MetricRaw>(`/stock/metric?symbol=${sym}&metric=all`),
+    (async () => {
+      const today = new Date();
+      const past = new Date(
+        today.getTime() - RATING_LOOKBACK_DAYS * 24 * 3600 * 1000,
+      );
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      return get<
+        Array<{
+          symbol: string;
+          gradeTime: number;          // unix seconds
+          fromGrade: string;
+          toGrade: string;
+          company: string;            // issuing firm
+          action: AnalystAction;
+        }>
+      >(`/stock/upgrade-downgrade?symbol=${sym}&from=${fmt(past)}&to=${fmt(today)}`);
+    })(),
   ]);
 
   const consensus: AnalystConsensus | null = recRaw && recRaw.length
@@ -180,5 +219,26 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
     };
   }
 
-  return { consensus, priceTarget, recentSurprises, nextEarnings, metrics };
+  // Rating actions: normalize timestamps to ISO date and sort recent-first.
+  // Finnhub may return an empty array for low-coverage names (no error,
+  // just []). We surface that as an empty list and the prompt skips the
+  // section gracefully.
+  const ratingActions: AnalystAction_Item[] = (ratingsRaw ?? [])
+    .map((r) => ({
+      date: new Date(r.gradeTime * 1000).toISOString().slice(0, 10),
+      firm: r.company || "?",
+      action: r.action,
+      fromGrade: r.fromGrade || "",
+      toGrade: r.toGrade || "",
+    }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  return {
+    consensus,
+    priceTarget,
+    recentSurprises,
+    nextEarnings,
+    metrics,
+    ratingActions,
+  };
 }
