@@ -234,6 +234,22 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
 // Free Alpaca options data is OPRA-delayed; ok for context, not for execution.
 // ────────────────────────────────────────────────────────────────────────────
 
+export interface UnusualOption {
+  type: "call" | "put";
+  strike: number;
+  expiry: string;            // YYYY-MM-DD
+  daysToExpiry: number;
+  volume: number;
+  /** Mid-quote price per contract (USD), or last trade if quote unavailable. */
+  midPrice: number;
+  /** volume × midPrice × 100 (each contract = 100 shares). */
+  notionalUsd: number;
+  /** (strike - spot) / spot — positive = OTM call / ITM put, negative reversed. */
+  distFromSpotPct: number;
+  /** volume / median(volumes of same side, same expiry). 1 = typical, 5 = 5× outlier. */
+  volRatio: number;
+}
+
 export interface OptionsContext {
   atmCallIv: number | null;
   atmPutIv: number | null;
@@ -242,6 +258,10 @@ export interface OptionsContext {
   totalCallVolume: number;
   totalPutVolume: number;
   expiry: string | null;
+  /** Top calls by volume (max 5) — surfaces where bullish flow is concentrating. */
+  topCalls: UnusualOption[];
+  /** Top puts by volume (max 5) — bearish flow / hedging. */
+  topPuts: UnusualOption[];
 }
 
 interface OptContractRaw {
@@ -256,6 +276,19 @@ interface OptSnapshotRaw {
   impliedVolatility?: number;
   greeks?: { delta?: number };
   dailyBar?: { v?: number };
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const a = new Date(fromIso).getTime();
+  const b = new Date(toIso).getTime();
+  return Math.max(0, Math.round((b - a) / (24 * 3600 * 1000)));
 }
 
 export async function getOptionsContext(symbol: string, underlyingPrice: number | null): Promise<OptionsContext | null> {
@@ -299,6 +332,17 @@ export async function getOptionsContext(symbol: string, underlyingPrice: number 
     let atmCallIv: number | null = null;
     let atmPutIv: number | null = null;
 
+    // Per-contract enriched view used both for the existing aggregates and
+    // for the new UnusualOption picks. Computing once avoids a second pass.
+    interface EnrichedContract {
+      type: "call" | "put";
+      strike: number;
+      expiry: string;
+      volume: number;
+      midPrice: number;
+    }
+    const enriched: EnrichedContract[] = [];
+
     for (const c of nearContracts) {
       const snap = snaps[c.symbol];
       if (!snap) continue;
@@ -309,12 +353,61 @@ export async function getOptionsContext(symbol: string, underlyingPrice: number 
         if (c.type === "call") atmCallIv = snap.impliedVolatility ?? null;
         else atmPutIv = snap.impliedVolatility ?? null;
       }
+      // Mid quote when both legs available; fallback to last trade so we
+      // still get a notional estimate for thinly-quoted contracts.
+      const ap = snap.latestQuote?.ap;
+      const bp = snap.latestQuote?.bp;
+      const lastTrade = snap.latestTrade?.p;
+      let midPrice = 0;
+      if (ap != null && bp != null && ap > 0 && bp > 0) {
+        midPrice = (ap + bp) / 2;
+      } else if (lastTrade != null && lastTrade > 0) {
+        midPrice = lastTrade;
+      }
+      if (v > 0) {
+        enriched.push({
+          type: c.type,
+          strike: Number(c.strike_price),
+          expiry: c.expiration_date,
+          volume: v,
+          midPrice,
+        });
+      }
     }
 
     const atmIv =
       atmCallIv != null && atmPutIv != null
         ? (atmCallIv + atmPutIv) / 2
         : atmCallIv ?? atmPutIv ?? null;
+
+    // ─── Unusual options activity ────────────────────────────────────────
+    // "Unusual" here = highest-volume strikes today, with a vol/median ratio
+    // so the prompt can show how outlier the flow is. Without historical OI
+    // we can't compare to a 20-day baseline; comparing to today's median of
+    // same-side same-expiry contracts is the next-best proxy and works
+    // well in practice — most strikes get crickets, the live ones stand out.
+    const spot = underlyingPrice;  // narrow capture — early-return guarantees > 0
+    const topToday = today;
+    function pickTop(side: "call" | "put"): UnusualOption[] {
+      const sameSide = enriched.filter((e) => e.type === side);
+      if (sameSide.length === 0) return [];
+      const med = median(sameSide.map((e) => e.volume));
+      const denom = med > 0 ? med : 1;
+      return sameSide
+        .sort((a, b) => b.volume - a.volume)
+        .slice(0, 5)
+        .map((e) => ({
+          type: e.type,
+          strike: e.strike,
+          expiry: e.expiry,
+          daysToExpiry: daysBetween(topToday, e.expiry),
+          volume: e.volume,
+          midPrice: e.midPrice,
+          notionalUsd: e.volume * e.midPrice * 100,
+          distFromSpotPct: (e.strike - spot) / spot,
+          volRatio: e.volume / denom,
+        }));
+    }
 
     return {
       atmCallIv,
@@ -324,6 +417,8 @@ export async function getOptionsContext(symbol: string, underlyingPrice: number 
       totalCallVolume: totalCallVol,
       totalPutVolume: totalPutVol,
       expiry: nearest,
+      topCalls: pickTop("call"),
+      topPuts: pickTop("put"),
     };
   } catch {
     return null;

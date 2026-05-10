@@ -449,12 +449,46 @@ function buildPrompt(p: PromptInputs): string {
 
   // 7) Options
   if (optionsCtx) {
-    sections.push([
+    const lines: string[] = [
       "## 7) 옵션 시장 컨텍스트",
       `- 가장 가까운 만기: ${optionsCtx.expiry}`,
       `- ATM IV: 콜=${num(optionsCtx.atmCallIv, 3)} · 풋=${num(optionsCtx.atmPutIv, 3)} · 평균=${num(optionsCtx.atmIv, 3)}`,
       `- Put/Call 거래량 비율 = ${num(optionsCtx.putCallVolumeRatio, 2)} (콜 ${optionsCtx.totalCallVolume.toLocaleString()} vs 풋 ${optionsCtx.totalPutVolume.toLocaleString()})`,
-    ].join("\n"));
+    ];
+
+    // 7.5) Unusual options activity — top 5 calls + top 5 puts by volume.
+    // volRatio = today's vol / median(same-side same-expiry) — outlier flag.
+    // notional ≥ $100K is the rough cutoff for "smart money sized" trades;
+    // anything below is retail-noise on free Alpaca data and we skip it.
+    const fmtUsd = (v: number): string => {
+      if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+      return `$${v.toFixed(0)}`;
+    };
+    const fmtUnusual = (o: typeof optionsCtx.topCalls[number]): string => {
+      const dist = (o.distFromSpotPct * 100).toFixed(1);
+      const distLabel = o.distFromSpotPct >= 0 ? `+${dist}%` : `${dist}%`;
+      return (
+        `  · $${o.strike} ${o.type === "call" ? "C" : "P"} ${o.expiry} (D-${o.daysToExpiry}, ` +
+        `${distLabel} from spot) · vol=${o.volume.toLocaleString()} ` +
+        `(${o.volRatio.toFixed(1)}× median) · ` +
+        `mid=$${o.midPrice.toFixed(2)} · notional=${fmtUsd(o.notionalUsd)}`
+      );
+    };
+    const sigCalls = optionsCtx.topCalls.filter((o) => o.notionalUsd >= 100_000);
+    const sigPuts = optionsCtx.topPuts.filter((o) => o.notionalUsd >= 100_000);
+    if (sigCalls.length > 0 || sigPuts.length > 0) {
+      lines.push("- 비정상 옵션 거래량 (notional ≥ $100K, 가장 가까운 만기):");
+      if (sigCalls.length > 0) {
+        lines.push(`  📈 콜 top ${sigCalls.length}:`);
+        sigCalls.forEach((o) => lines.push(fmtUnusual(o)));
+      }
+      if (sigPuts.length > 0) {
+        lines.push(`  📉 풋 top ${sigPuts.length}:`);
+        sigPuts.forEach((o) => lines.push(fmtUnusual(o)));
+      }
+    }
+    sections.push(lines.join("\n"));
   }
 
   // 8) Earnings + analyst (Finnhub)
@@ -623,6 +657,7 @@ function buildPrompt(p: PromptInputs): string {
     "- 각 horizon의 key_points는 2-3개씩",
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
     "- §10.5 인사이더 거래는 **smart money 직접 신호**. CEO/CFO/CFO/Director의 BUY는 강한 강세 (자기 돈으로 매수 = 가장 정직한 conviction); SELL은 mixed (분산투자·세금·10b5-1 plan일 수도). 순매수 > $1M = 3개월 horizon에 강한 강세 가중. 순매도 > $5M + 10% Owner 매도 = 약세 가중. award/option exercise는 이미 §10.5에서 제외된 상태",
+    "- §7 비정상 옵션 거래량은 **단기 (1-7일) 방향성 시그널**. 큰 notional ($1M+) 콜 매수가 OTM (+5% 이상)에 몰리면 = 강세 베팅 / 풋 OTM (-5% 이하)에 몰리면 = 약세 또는 헤지. volRatio 5×+ 는 명확한 outlier. DTE < 14일이면 catalyst (어닝·공시) 기대 신호. 단, 단일 strike 한 줄로 강한 결론 X — 콜·풋 양쪽 패턴 합쳐 판단",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
