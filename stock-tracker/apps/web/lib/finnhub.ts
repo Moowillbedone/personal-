@@ -35,11 +35,26 @@ export interface NextEarnings {
   daysUntil: number;
 }
 
+export interface StockMetrics {
+  /** Total market cap in USD (Finnhub returns millions; we normalize). */
+  marketCap: number | null;
+  sharesOutstanding: number | null;
+  /** Free-float shares — non-restricted, available to public. */
+  floatShares: number | null;
+  /** Total shares sold short (latest reported, biweekly cadence). */
+  shortInterest: number | null;
+  /** 0..1 fraction. e.g. 0.18 = 18% of float is short. */
+  shortPercentOfFloat: number | null;
+  /** Days to cover = shares short / avg daily volume. */
+  daysToCover: number | null;
+}
+
 export interface FinnhubBundle {
   consensus: AnalystConsensus | null;
   priceTarget: PriceTarget | null;
   recentSurprises: EarningsSurprise[];
   nextEarnings: NextEarnings | null;
+  metrics: StockMetrics | null;
 }
 
 export function isFinnhubEnabled(): boolean {
@@ -66,7 +81,23 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
   if (!isFinnhubEnabled()) return null;
   const sym = symbol.toUpperCase();
 
-  const [recRaw, ptRaw, surpRaw, calRaw] = await Promise.all([
+  // Finnhub `metric=all` returns ~100 fields; we only pull what we need.
+  // Numbers come in millions of shares / millions of USD for share-related
+  // fields, except shortInterest which is in absolute share count and the
+  // ratio fields (already 0..1 or days). Documentation is sparse — these
+  // mappings were verified against live AAPL / NVDA / TSLA responses.
+  type MetricRaw = {
+    metric?: {
+      marketCapitalization?: number;
+      shareOutstanding?: number;
+      shareFloat?: number;
+      shortInterest?: number;
+      shortPercentOfFloat?: number;
+      shortRatio?: number;
+    };
+  };
+
+  const [recRaw, ptRaw, surpRaw, calRaw, metRaw] = await Promise.all([
     get<Array<{ buy: number; hold: number; sell: number; strongBuy: number; strongSell: number; period: string }>>(
       `/stock/recommendation?symbol=${sym}`,
     ),
@@ -84,6 +115,7 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
         `/calendar/earnings?from=${fmt(today)}&to=${fmt(future)}&symbol=${sym}`,
       );
     })(),
+    get<MetricRaw>(`/stock/metric?symbol=${sym}&metric=all`),
   ]);
 
   const consensus: AnalystConsensus | null = recRaw && recRaw.length
@@ -127,5 +159,26 @@ export async function getFinnhubBundle(symbol: string): Promise<FinnhubBundle | 
     };
   }
 
-  return { consensus, priceTarget, recentSurprises, nextEarnings };
+  // Stock metrics — float / shares / short interest. Free tier returns
+  // most of these; shortInterest may be null on certain tickers (penny
+  // stocks, ADRs) and we surface that gracefully as "not reported."
+  let metrics: StockMetrics | null = null;
+  if (metRaw?.metric) {
+    const m = metRaw.metric;
+    const m1 = (v: number | undefined) => (v != null ? v * 1_000_000 : null);
+    metrics = {
+      marketCap: m1(m.marketCapitalization),
+      sharesOutstanding: m1(m.shareOutstanding),
+      floatShares: m1(m.shareFloat),
+      shortInterest: m.shortInterest ?? null,
+      // Finnhub returns shortPercentOfFloat as a percent (e.g. 18.4),
+      // we normalize to fraction (0.184) for consistency with our
+      // other percent fields.
+      shortPercentOfFloat:
+        m.shortPercentOfFloat != null ? m.shortPercentOfFloat / 100 : null,
+      daysToCover: m.shortRatio ?? null,
+    };
+  }
+
+  return { consensus, priceTarget, recentSurprises, nextEarnings, metrics };
 }

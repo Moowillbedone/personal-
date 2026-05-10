@@ -515,6 +515,41 @@ function buildPrompt(p: PromptInputs): string {
     if (lines.length > 1) sections.push(lines.join("\n"));
   }
 
+  // 8.5) Short interest + float (Finnhub metrics) — squeeze setup detection.
+  // Small float + high short% + low days-to-cover = short squeeze candidate.
+  // Large float + low short% = no squeeze risk regardless of how bullish news.
+  if (finnhub?.metrics) {
+    const m = finnhub.metrics;
+    const fmtShares = (n: number | null): string => {
+      if (n == null) return "?";
+      if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+      if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+      if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+      return `${n}`;
+    };
+    const lines: string[] = ["## 8.5) Float + 공매도 (squeeze 후보 평가)"];
+    if (m.floatShares != null) {
+      const floatRatio =
+        m.sharesOutstanding != null && m.sharesOutstanding > 0
+          ? ` (Outstanding ${fmtShares(m.sharesOutstanding)}의 ${((m.floatShares / m.sharesOutstanding) * 100).toFixed(0)}%)`
+          : "";
+      lines.push(`- Float: ${fmtShares(m.floatShares)}주${floatRatio}`);
+    } else if (m.sharesOutstanding != null) {
+      lines.push(`- Outstanding: ${fmtShares(m.sharesOutstanding)}주 (Float 미보고)`);
+    }
+    if (m.shortInterest != null) {
+      const sof =
+        m.shortPercentOfFloat != null
+          ? ` (Float의 ${(m.shortPercentOfFloat * 100).toFixed(1)}%)`
+          : "";
+      lines.push(`- Short Interest: ${fmtShares(m.shortInterest)}주${sof}`);
+    }
+    if (m.daysToCover != null) {
+      lines.push(`- Days-to-Cover: ${m.daysToCover.toFixed(1)}일 (= short / 평균 일거래량)`);
+    }
+    if (lines.length > 1) sections.push(lines.join("\n"));
+  }
+
   // 9) SEC 8-K
   if (secFilings.length > 0) {
     sections.push([
@@ -658,6 +693,7 @@ function buildPrompt(p: PromptInputs): string {
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
     "- §10.5 인사이더 거래는 **smart money 직접 신호**. CEO/CFO/CFO/Director의 BUY는 강한 강세 (자기 돈으로 매수 = 가장 정직한 conviction); SELL은 mixed (분산투자·세금·10b5-1 plan일 수도). 순매수 > $1M = 3개월 horizon에 강한 강세 가중. 순매도 > $5M + 10% Owner 매도 = 약세 가중. award/option exercise는 이미 §10.5에서 제외된 상태",
     "- §7 비정상 옵션 거래량은 **단기 (1-7일) 방향성 시그널**. 큰 notional ($1M+) 콜 매수가 OTM (+5% 이상)에 몰리면 = 강세 베팅 / 풋 OTM (-5% 이하)에 몰리면 = 약세 또는 헤지. volRatio 5×+ 는 명확한 outlier. DTE < 14일이면 catalyst (어닝·공시) 기대 신호. 단, 단일 strike 한 줄로 강한 결론 X — 콜·풋 양쪽 패턴 합쳐 판단",
+    "- §8.5 Float + 공매도는 squeeze setup 평가용. Float < 50M주 + Short% > 20% + Days-to-Cover > 5일 = 강한 squeeze 후보 (어닝/뉴스 catalyst 시 폭발적). Float > 1B + Short% < 5% = squeeze 위험 거의 없음 (대형주 보통 케이스). 약세 가설일 때도 short% 매우 높으면 short squeeze risk로 신중함 명시",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
