@@ -139,12 +139,16 @@ JOBS = [
         {"ref": "main"},
         [13],
     ),
-    # Backtest + realize + ai_realize chain: once daily after US close.
+    # Backtest + realize + ai_realize chain: 4× per weekday so freshly-
+    # fired signals get expected_*/realized_* filled within hours instead
+    # of waiting 24h. Matches the cron schedule in workflow file.
+    #   05 UTC = KST 14:00     11 UTC = KST 20:00
+    #   19 UTC = KST 04:00     23 UTC = KST 08:00 (next day)
     (
         "stock-tracker-backtest",
         "stock-tracker-backtest.yml",
         {"ref": "main"},
-        [23],
+        [5, 11, 19, 23],
     ),
 ]
 

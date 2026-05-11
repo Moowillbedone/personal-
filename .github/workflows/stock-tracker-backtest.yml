@@ -8,9 +8,26 @@ name: stock-tracker / backtest
 #   3. ai_realize.py — fills realized_1d/3d/5d/30d on ai_analysis rows by
 #      comparing context.last_price to forward closes (AI-verdict edge
 #      measurement — drives /stats AI accuracy section).
-# 23:00 UTC ≈ 18:00/19:00 ET (after-hours done). Mon-Fri.
+# Runs four times per US weekday so freshly-fired signals get their
+# expected_* / realized_* columns filled within hours instead of waiting
+# up to 24h for the next daily run. Without this, every signal that fires
+# during the regular session shows blank E[1d/3d/5d] columns on the
+# /signals page until the next morning's run — fine for the priors but
+# bad for at-a-glance triage.
+#
+#   05 UTC = KST 14:00 weekday afternoon — catches yesterday's afterhours
+#   11 UTC = KST 20:00 weekday evening   — pre-market about to start
+#   19 UTC = KST 04:00 next-day dawn     — mid US regular session
+#   23 UTC = KST 08:00 next-day morning  — full regular + early after
+#
+# Weekday cron (1-5 = Mon-Fri UTC). Overlap with US sessions is fine —
+# the backfill query is idempotent (only touches expected_1d IS NULL rows)
+# so repeated runs cost only the daily-bar fetch and quickly skip.
 on:
   schedule:
+    - cron: "0 5 * * 1-5"
+    - cron: "0 11 * * 1-5"
+    - cron: "0 19 * * 1-5"
     - cron: "0 23 * * 1-5"
   workflow_dispatch: {}
 
