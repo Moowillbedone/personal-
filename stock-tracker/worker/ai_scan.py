@@ -47,10 +47,12 @@ ANALYZE_TIMEOUT_SEC = 75
 # Yahoo, Finnhub, FRED) all at once when the route fans out.
 INTER_CALL_DELAY_SEC = 2
 
-# How many BUY / SELL entries to render in full in the digest. Extras
-# beyond this threshold are dropped to keep the message under telegram's
-# 4096-char limit even when the scan is full.
-DIGEST_MAX_PER_BUCKET = 10
+# Per-bucket safety cap. Set very high so in practice every analyzed
+# symbol appears in the digest with its full reasoning — the per-message
+# 3900-char cap + pack_messages() will just produce more telegram messages
+# if needed. User explicitly wants no silent truncation; messages get
+# split across 2-5 telegrams rather than dropping content.
+DIGEST_MAX_PER_BUCKET = 200
 
 DEFAULT_FRONT_URL = "https://stock-tracker-khaki-mu.vercel.app"
 # `os.getenv(key, default)` only returns `default` when the key is unset,
@@ -154,35 +156,24 @@ def _build_blocks(
         f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})"
     ]
 
+    # All three buckets use the same per-entry block format now: symbol +
+    # confidence + truncated summary. Section header is its own block so
+    # the packer can split between header and entries if needed. No silent
+    # drops — DIGEST_MAX_PER_BUCKET is a soft safety only.
     if by_v["buy"]:
         blocks.append(f"🟢 *BUY ({len(by_v['buy'])})*")
         for v in by_v["buy"][:DIGEST_MAX_PER_BUCKET]:
             blocks.append(_format_entry(v))
-        if len(by_v["buy"]) > DIGEST_MAX_PER_BUCKET:
-            blocks.append(f"  …외 {len(by_v['buy']) - DIGEST_MAX_PER_BUCKET}건")
 
     if by_v["sell"]:
         blocks.append(f"🔴 *SELL ({len(by_v['sell'])})*")
         for v in by_v["sell"][:DIGEST_MAX_PER_BUCKET]:
             blocks.append(_format_entry(v))
-        if len(by_v["sell"]) > DIGEST_MAX_PER_BUCKET:
-            blocks.append(f"  …외 {len(by_v['sell']) - DIGEST_MAX_PER_BUCKET}건")
 
     if by_v["hold"]:
-        hold_lines = [f"🟡 *HOLD ({len(by_v['hold'])})*"]
-        hold_syms = [v.get("symbol", "?") for v in by_v["hold"]]
-        line_buf: list[str] = []
-        line_chars = 0
-        for s in hold_syms:
-            if line_chars + len(s) + 1 > 60 and line_buf:
-                hold_lines.append("  " + " ".join(line_buf))
-                line_buf = []
-                line_chars = 0
-            line_buf.append(s)
-            line_chars += len(s) + 1
-        if line_buf:
-            hold_lines.append("  " + " ".join(line_buf))
-        blocks.append("\n".join(hold_lines))
+        blocks.append(f"🟡 *HOLD ({len(by_v['hold'])})*")
+        for v in by_v["hold"][:DIGEST_MAX_PER_BUCKET]:
+            blocks.append(_format_entry(v))
 
     blocks.append(f"[전체 분석 →]({FRONT_URL}/trade)")
     return blocks
