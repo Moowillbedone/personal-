@@ -171,9 +171,28 @@ def _build_blocks(
             blocks.append(_format_entry(v))
 
     if by_v["hold"]:
-        blocks.append(f"🟡 *HOLD ({len(by_v['hold'])})*")
+        # HOLD is the "no clear edge" bucket — per-entry summaries would
+        # bloat the digest without adding decision value. Compact format:
+        # `TICKER(conf%)` tokens wrapped at ~60 chars/line, sorted by
+        # confidence descending (same as BUY/SELL).
+        hold_lines = [f"🟡 *HOLD ({len(by_v['hold'])})*"]
+        entries: list[str] = []
         for v in by_v["hold"][:DIGEST_MAX_PER_BUCKET]:
-            blocks.append(_format_entry(v))
+            sym = v.get("symbol", "?")
+            conf = int(round(float(v.get("confidence") or 0) * 100))
+            entries.append(f"{sym}({conf}%)")
+        line_buf: list[str] = []
+        line_chars = 0
+        for e in entries:
+            if line_chars + len(e) + 1 > 60 and line_buf:
+                hold_lines.append("  " + " ".join(line_buf))
+                line_buf = []
+                line_chars = 0
+            line_buf.append(e)
+            line_chars += len(e) + 1
+        if line_buf:
+            hold_lines.append("  " + " ".join(line_buf))
+        blocks.append("\n".join(hold_lines))
 
     blocks.append(f"[전체 분석 →]({FRONT_URL}/trade)")
     return blocks
