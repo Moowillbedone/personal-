@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   insertTrade,
   getTradesForSymbol,
+  getTradesByUnderlying,
   getAllTrades,
   deleteTrade,
   type TradeAction,
@@ -40,6 +41,8 @@ interface PostBody {
   notes?: string;
   ai_analysis_id?: string;
   signal_id?: string;
+  /** Analyzed/underlying symbol when trading a derivative — see lib/trades.ts. */
+  underlying_symbol?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -67,19 +70,36 @@ export async function POST(req: NextRequest) {
   }
   const mode = body.mode === "real" ? "real" : "paper";
 
-  // Auto-link the trade to the most recent AI analysis on this symbol within
-  // the lookback window if the caller didn't supply one. Lets the user log a
-  // trade without first running an analysis and still have the verdict
-  // captured for downstream P&L-vs-AI comparison.
+  // Optional underlying — when present, validate and treat as the asset the
+  // AI/signal pipeline analyzed (e.g. TSLA), even though `symbol` is the
+  // actually-traded derivative (e.g. TSLL). When equal to symbol or empty,
+  // store as null since it adds no new info.
+  let underlyingSymbol: string | null = null;
+  const rawUnderlying = body.underlying_symbol?.trim().toUpperCase();
+  if (rawUnderlying && rawUnderlying !== symbol) {
+    if (!SYMBOL_RE.test(rawUnderlying)) {
+      return NextResponse.json(
+        { error: "invalid underlying_symbol" },
+        { status: 400 },
+      );
+    }
+    underlyingSymbol = rawUnderlying;
+  }
+
+  // Auto-link to the most recent AI analysis if the caller didn't supply one.
+  // CRITICAL: when underlying_symbol is set, look up the analysis on the
+  // UNDERLYING (TSLA), not the traded derivative (TSLL) — the AI never
+  // analyzed the leveraged ETF, only the underlying asset.
   let aiAnalysisId = body.ai_analysis_id ?? null;
   if (!aiAnalysisId) {
+    const lookupSymbol = underlyingSymbol ?? symbol;
     const cutoff = new Date(
       Date.now() - AUTOLINK_LOOKBACK_HOURS * 3600 * 1000,
     ).toISOString();
     const { data: recent } = await supabaseAdmin
       .from("ai_analysis")
       .select("id")
-      .eq("symbol", symbol)
+      .eq("symbol", lookupSymbol)
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -98,6 +118,7 @@ export async function POST(req: NextRequest) {
       notes: body.notes ?? null,
       ai_analysis_id: aiAnalysisId,
       signal_id: body.signal_id ?? null,
+      underlying_symbol: underlyingSymbol,
     });
     return NextResponse.json({ trade });
   } catch (err) {
@@ -108,6 +129,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const symbol = sp.get("symbol")?.trim().toUpperCase();
+  const underlyingSymbol = sp.get("underlying_symbol")?.trim().toUpperCase();
   const modeRaw = sp.get("mode");
   const mode: TradeMode | undefined =
     modeRaw === "paper" || modeRaw === "real" ? modeRaw : undefined;
@@ -115,9 +137,14 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(1000, Math.max(1, Number(sp.get("limit") ?? "100") || 100));
 
   try {
-    const trades = symbol
-      ? await getTradesForSymbol(symbol, { mode, limit })
-      : await getAllTrades({ mode, since, limit });
+    let trades;
+    if (underlyingSymbol) {
+      trades = await getTradesByUnderlying(underlyingSymbol, { mode, limit });
+    } else if (symbol) {
+      trades = await getTradesForSymbol(symbol, { mode, limit });
+    } else {
+      trades = await getAllTrades({ mode, since, limit });
+    }
     return NextResponse.json({ trades });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

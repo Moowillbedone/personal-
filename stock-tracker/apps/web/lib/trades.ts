@@ -23,6 +23,13 @@ export interface Trade {
   notes: string | null;
   ai_analysis_id: string | null;
   signal_id: string | null;
+  /**
+   * When the user trades a derivative (e.g. leveraged ETF TSLL) on top of
+   * a signal/analysis on the underlying (TSLA), `symbol` carries the
+   * actually-traded instrument and `underlying_symbol` carries the
+   * analyzed asset. Null when trading the underlying directly.
+   */
+  underlying_symbol: string | null;
   created_at: string;
 }
 
@@ -36,6 +43,7 @@ export interface NewTradeInput {
   notes?: string | null;
   ai_analysis_id?: string | null;
   signal_id?: string | null;
+  underlying_symbol?: string | null;
 }
 
 export async function insertTrade(t: NewTradeInput): Promise<Trade> {
@@ -51,6 +59,9 @@ export async function insertTrade(t: NewTradeInput): Promise<Trade> {
       notes: t.notes ?? null,
       ai_analysis_id: t.ai_analysis_id ?? null,
       signal_id: t.signal_id ?? null,
+      underlying_symbol: t.underlying_symbol
+        ? t.underlying_symbol.toUpperCase()
+        : null,
     })
     .select("*")
     .single();
@@ -71,6 +82,27 @@ export async function getTradesForSymbol(
   if (opts.mode) q = q.eq("mode", opts.mode);
   const { data, error } = await q;
   if (error) throw new Error(`getTradesForSymbol: ${error.message}`);
+  return (data ?? []) as Trade[];
+}
+
+/**
+ * Trades where this symbol is the analyzed underlying (e.g. TSLA) but the
+ * actual instrument traded is a derivative (e.g. TSLL). Used by the trade
+ * page's TSLA detail view to surface "you traded TSLL on this analysis."
+ */
+export async function getTradesByUnderlying(
+  underlying: string,
+  opts: { mode?: TradeMode; limit?: number } = {},
+): Promise<Trade[]> {
+  let q = supabaseAdmin
+    .from("trade_log")
+    .select("*")
+    .eq("underlying_symbol", underlying.toUpperCase())
+    .order("ts", { ascending: false })
+    .limit(opts.limit ?? 100);
+  if (opts.mode) q = q.eq("mode", opts.mode);
+  const { data, error } = await q;
+  if (error) throw new Error(`getTradesByUnderlying: ${error.message}`);
   return (data ?? []) as Trade[];
 }
 

@@ -116,6 +116,9 @@ interface Trade {
   ts: string;
   notes: string | null;
   ai_analysis_id: string | null;
+  /** Set when this trade is on a derivative (e.g. TSLL) of an analyzed
+   *  underlying (TSLA). Null when trading the underlying directly. */
+  underlying_symbol: string | null;
 }
 
 interface PositionDerived {
@@ -1000,13 +1003,37 @@ function TradeJournalPanel({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Leveraged-derivative recording: when "다른 종목으로 매매" is on, the
+  // user enters the actually-traded ticker (e.g. TSLL) here while the
+  // panel's `symbol` (e.g. TSLA) becomes the underlying. The trade row
+  // gets `symbol=TSLL, underlying_symbol=TSLA`, and AI-analysis auto-link
+  // server-side uses the underlying for the lookup.
+  const [useDerivative, setUseDerivative] = useState(false);
+  const [derivTicker, setDerivTicker] = useState("");
+  const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
+  // Fetch trades for the panel: include trades where this symbol is the
+  // traded instrument OR the underlying. That way "TSLA detail page"
+  // surfaces both direct-TSLA trades and TSLL-on-TSLA leverage trades.
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/trades?symbol=${encodeURIComponent(symbol)}&limit=50`);
-      const d = (await r.json()) as { trades?: Trade[] };
-      setTrades(d.trades ?? []);
+      const [byTraded, byUnderlying] = await Promise.all([
+        fetch(`/api/trades?symbol=${encodeURIComponent(symbol)}&limit=50`).then(
+          (r) => r.json() as Promise<{ trades?: Trade[] }>,
+        ),
+        fetch(
+          `/api/trades?underlying_symbol=${encodeURIComponent(symbol)}&limit=50`,
+        ).then((r) => r.json() as Promise<{ trades?: Trade[] }>),
+      ]);
+      // Dedupe by trade id; sort by ts desc.
+      const map = new Map<string, Trade>();
+      for (const t of byTraded.trades ?? []) map.set(t.id, t);
+      for (const t of byUnderlying.trades ?? []) map.set(t.id, t);
+      const merged = Array.from(map.values()).sort((a, b) =>
+        a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0,
+      );
+      setTrades(merged);
     } finally {
       setLoading(false);
     }
@@ -1016,16 +1043,55 @@ function TradeJournalPanel({
     load();
   }, [load]);
 
-  // Compute paper + real positions client-side from the loaded trades.
-  // Same weighted-avg math as lib/trades.ts; duplicated here so the panel
-  // doesn't need a second roundtrip after every mutation.
-  const positions = useMemo(() => derivePositions(trades), [trades]);
+  // Compute per-instrument positions. When the user trades a derivative
+  // (TSLL) on a TSLA-thesis, the panel for TSLA shows BOTH a direct-TSLA
+  // position (if any) and a TSLL position — never mixed in the same
+  // weighted-avg, since $442 TSLA and $16 TSLL aren't fungible quantities.
+  const positionsByInstrument = useMemo(() => {
+    const bySym = new Map<string, Trade[]>();
+    for (const t of trades) {
+      const arr = bySym.get(t.symbol);
+      if (arr) arr.push(t);
+      else bySym.set(t.symbol, [t]);
+    }
+    const out: Array<{
+      symbol: string;
+      underlying: string | null;
+      paper: PositionDerived;
+      real: PositionDerived;
+    }> = [];
+    for (const [sym, group] of bySym) {
+      const der = derivePositions(group);
+      out.push({
+        symbol: sym,
+        // All trades for one symbol share the same underlying (or null).
+        underlying: group[0]?.underlying_symbol ?? null,
+        paper: der.paper,
+        real: der.real,
+      });
+    }
+    // Put the panel's own symbol first; derivatives after.
+    out.sort((a, b) => {
+      if (a.symbol === symbol) return -1;
+      if (b.symbol === symbol) return 1;
+      return a.symbol.localeCompare(b.symbol);
+    });
+    return out;
+  }, [trades, symbol]);
 
   function openForm(action: "buy" | "sell") {
     setFormOpen(action);
     setError(null);
     // Default price to current snapshot price for one-click logging.
-    setPrice(currentPrice != null ? currentPrice.toFixed(2) : "");
+    // When derivative-mode is on, the underlying's price isn't useful so
+    // we leave it blank — user enters the leverage ticker's actual price.
+    setPrice(
+      useDerivative
+        ? ""
+        : currentPrice != null
+          ? currentPrice.toFixed(2)
+          : "",
+    );
     setQty("");
     setNotes("");
   }
@@ -1042,6 +1108,23 @@ function TradeJournalPanel({
       setError("가격은 0보다 커야 합니다");
       return;
     }
+    // Derivative-mode: validate the alternate ticker before submit.
+    // When equal to underlying or empty, treat as direct (no underlying flag).
+    let tradedSymbol = symbol;
+    let underlyingForBody: string | null = null;
+    if (useDerivative) {
+      const t = derivTicker.trim().toUpperCase();
+      if (!t || !SYMBOL_RE.test(t)) {
+        setError("거래 종목 티커가 올바르지 않습니다 (예: TSLL)");
+        return;
+      }
+      if (t === symbol) {
+        setError("거래 종목이 기초자산과 같습니다 — 토글을 꺼주세요");
+        return;
+      }
+      tradedSymbol = t;
+      underlyingForBody = symbol;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -1049,13 +1132,14 @@ function TradeJournalPanel({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          symbol,
+          symbol: tradedSymbol,
           action: formOpen,
           qty: qtyN,
           price: priceN,
           mode,
           notes: notes.trim() || null,
           ai_analysis_id: aiAnalysisId,
+          underlying_symbol: underlyingForBody,
         }),
       });
       const d = (await r.json()) as { trade?: Trade; error?: string };
@@ -1098,19 +1182,52 @@ function TradeJournalPanel({
         </div>
       </div>
 
-      {/* Position summary (paper + real) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs mb-3">
-        <PositionSummary
-          label="📄 페이퍼"
-          pos={positions.paper}
-          currentPrice={currentPrice}
-        />
-        <PositionSummary
-          label="💵 실전"
-          pos={positions.real}
-          currentPrice={currentPrice}
-        />
-      </div>
+      {/* Position summary — one row per traded instrument. Direct trades
+          on `symbol` show first; derivatives (different `symbol` with
+          underlying = panel symbol) follow with a tag indicating link. */}
+      {positionsByInstrument.length === 0 ? (
+        <div className="border border-neutral-800 rounded p-2.5 text-xs text-neutral-500 mb-3">
+          이 종목 기록 없음
+        </div>
+      ) : (
+        <div className="space-y-2 mb-3">
+          {positionsByInstrument.map((inst) => {
+            const isDerivative = inst.symbol !== symbol;
+            // Only show "current price" mark-to-market for the panel's own
+            // symbol; we don't have the derivative's live snapshot here.
+            const px = isDerivative ? null : currentPrice;
+            return (
+              <div key={inst.symbol}>
+                <div className="flex items-center gap-2 mb-1 text-[11px] text-neutral-400">
+                  <span className="font-semibold text-neutral-200">
+                    {inst.symbol}
+                  </span>
+                  {isDerivative && (
+                    <span
+                      className="px-1 py-px text-[9px] border border-violet-700 bg-violet-950/40 text-violet-300 rounded"
+                      title={`기초자산: ${inst.underlying ?? symbol}`}
+                    >
+                      ⇢ {inst.underlying ?? symbol}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  <PositionSummary
+                    label="📄 페이퍼"
+                    pos={inst.paper}
+                    currentPrice={px}
+                  />
+                  <PositionSummary
+                    label="💵 실전"
+                    pos={inst.real}
+                    currentPrice={px}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Inline form */}
       {formOpen && (
@@ -1139,9 +1256,54 @@ function TradeJournalPanel({
               실전 (real)
             </label>
           </div>
+
+          {/* Derivative / leveraged ETF toggle. When ON, the trade is
+              recorded against `derivTicker` (e.g. TSLL) with `symbol` as
+              the underlying (TSLA). P&L math runs on the leverage ticker;
+              AI analysis stays linked to the underlying. */}
+          <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b border-neutral-800/60">
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={!useDerivative}
+                onChange={() => {
+                  setUseDerivative(false);
+                  if (currentPrice != null) setPrice(currentPrice.toFixed(2));
+                }}
+              />
+              {symbol} 직접 매매
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="radio"
+                checked={useDerivative}
+                onChange={() => {
+                  setUseDerivative(true);
+                  setPrice(""); // underlying price doesn't apply to leverage ETF
+                }}
+              />
+              다른 종목으로 매매 (레버리지 등)
+            </label>
+            {useDerivative && (
+              <label className="flex items-center gap-1 ml-1">
+                <span className="text-neutral-500">거래 티커:</span>
+                <input
+                  type="text"
+                  value={derivTicker}
+                  onChange={(e) => setDerivTicker(e.target.value.toUpperCase())}
+                  className="w-24 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 uppercase"
+                  placeholder="TSLL"
+                  maxLength={10}
+                />
+              </label>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-end gap-2 text-xs">
             <label className="flex flex-col">
-              <span className="text-neutral-500 mb-0.5">수량 (주식)</span>
+              <span className="text-neutral-500 mb-0.5">
+                수량 (주식{useDerivative ? `, ${derivTicker || "?"}` : ""})
+              </span>
               <input
                 type="number"
                 step="any"
@@ -1152,14 +1314,24 @@ function TradeJournalPanel({
               />
             </label>
             <label className="flex flex-col">
-              <span className="text-neutral-500 mb-0.5">가격 ($)</span>
+              <span className="text-neutral-500 mb-0.5">
+                가격 ($
+                {useDerivative
+                  ? `, ${derivTicker || "거래 티커"} 기준`
+                  : ""}
+                )
+              </span>
               <input
                 type="number"
                 step="any"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-                placeholder={currentPrice?.toFixed(2) ?? "0.00"}
+                placeholder={
+                  useDerivative
+                    ? "16.81"
+                    : currentPrice?.toFixed(2) ?? "0.00"
+                }
               />
             </label>
             <label className="flex flex-col flex-1 min-w-[180px]">
@@ -1208,6 +1380,7 @@ function TradeJournalPanel({
               <tr>
                 <th className="text-left py-1.5 pr-2">시각</th>
                 <th className="text-left py-1.5 pr-2">구분</th>
+                <th className="text-left py-1.5 pr-2">티커</th>
                 <th className="text-right py-1.5 px-2">수량</th>
                 <th className="text-right py-1.5 px-2">가격</th>
                 <th className="text-right py-1.5 px-2">금액</th>
@@ -1233,6 +1406,17 @@ function TradeJournalPanel({
                     }`}
                   >
                     {t.action === "buy" ? "매수" : "매도"}
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <span className="text-sky-300 font-semibold">{t.symbol}</span>
+                    {t.underlying_symbol && t.underlying_symbol !== t.symbol && (
+                      <span
+                        className="ml-1 px-1 py-px text-[9px] border border-violet-700 bg-violet-950/40 text-violet-300 rounded"
+                        title={`기초자산: ${t.underlying_symbol}`}
+                      >
+                        ⇢ {t.underlying_symbol}
+                      </span>
+                    )}
                   </td>
                   <td className="text-right py-1.5 px-2 text-neutral-200">{t.qty}</td>
                   <td className="text-right py-1.5 px-2 text-neutral-200">
