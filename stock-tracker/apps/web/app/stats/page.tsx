@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 interface Stats {
   count: number;
@@ -24,6 +24,14 @@ interface StatsResponse {
   byTypeAndNews: Record<string, { withNews: Stats; noNews: Stats }>;
 }
 
+interface PositionTradeNote {
+  ts: string;
+  action: "buy" | "sell";
+  qty: number;
+  price: number;
+  note: string;
+}
+
 interface Position {
   symbol: string;
   mode: "paper" | "real";
@@ -34,6 +42,7 @@ interface Position {
   totalBuyQty: number;
   totalSellQty: number;
   tradeCount: number;
+  notedTrades: PositionTradeNote[];
 }
 
 interface PnlSummary {
@@ -539,8 +548,8 @@ function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
           </thead>
           <tbody>
             {rows.map((p) => (
+              <Fragment key={`${p.symbol}|${p.mode}`}>
               <tr
-                key={`${p.symbol}|${p.mode}`}
                 className="border-b border-neutral-900 hover:bg-neutral-900/40"
               >
                 <td className="py-1.5 pr-2 text-sky-300 font-semibold">{p.symbol}</td>
@@ -568,6 +577,48 @@ function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
                   {p.totalSellQty.toFixed(2)}
                 </td>
               </tr>
+              {/* Notes from the trades that built this position. Inline,
+                  always visible so the user can review every entry/exit
+                  rationale without round-tripping back to the trade page. */}
+              {p.notedTrades.length > 0 && (
+                <tr>
+                  <td colSpan={6} className="pb-3 px-2 bg-neutral-950/40">
+                    <ul className="space-y-1.5 text-[11px]">
+                      {p.notedTrades.map((n, i) => (
+                        <li
+                          key={i}
+                          className="flex flex-wrap items-start gap-2 leading-relaxed"
+                        >
+                          <span className="text-neutral-500 shrink-0 font-mono">
+                            {new Date(n.ts).toLocaleString("ko-KR", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span
+                            className={`shrink-0 font-semibold ${
+                              n.action === "buy"
+                                ? "text-emerald-400"
+                                : "text-rose-400"
+                            }`}
+                          >
+                            {n.action === "buy" ? "매수" : "매도"}
+                          </span>
+                          <span className="shrink-0 text-neutral-400">
+                            {n.qty} @ ${n.price.toFixed(2)}
+                          </span>
+                          <span className="text-neutral-200 break-words italic">
+                            “{n.note}”
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

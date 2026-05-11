@@ -130,6 +130,20 @@ export async function deleteTrade(id: string): Promise<void> {
 
 // ─── position math ─────────────────────────────────────────────────────────
 
+/**
+ * Lightweight per-trade record bundled into Position for the stats page —
+ * lets the user see the rationale they wrote at trade time without
+ * round-tripping back to the trade page. Only includes trades that had a
+ * non-empty note (silence speaks for itself).
+ */
+export interface PositionTradeNote {
+  ts: string;            // ISO timestamp
+  action: TradeAction;
+  qty: number;
+  price: number;
+  note: string;          // trimmed, guaranteed non-empty
+}
+
 export interface Position {
   symbol: string;
   mode: TradeMode;
@@ -146,6 +160,9 @@ export interface Position {
   /** Total qty sold across history (for context). */
   totalSellQty: number;
   tradeCount: number;
+  /** All non-empty notes from trades in this position, recent-first.
+   *  Surfaced on /stats so the user can review entry/exit rationale. */
+  notedTrades: PositionTradeNote[];
 }
 
 /**
@@ -175,6 +192,20 @@ export function computePosition(
     avgBuyPrice != null ? totalSellRevenue - avgBuyPrice * totalSellQty : 0;
   const openQty = totalBuyQty - totalSellQty;
   const costBasisOpen = avgBuyPrice != null ? Math.max(0, openQty) * avgBuyPrice : 0;
+
+  // Collect only trades that carry a real note. Sorted recent-first so the
+  // stats page shows the latest rationale at the top.
+  const notedTrades: PositionTradeNote[] = trades
+    .filter((t) => t.notes && t.notes.trim().length > 0)
+    .map((t) => ({
+      ts: t.ts,
+      action: t.action,
+      qty: t.qty,
+      price: t.price,
+      note: t.notes!.trim(),
+    }))
+    .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+
   return {
     symbol,
     mode,
@@ -185,6 +216,7 @@ export function computePosition(
     totalBuyQty,
     totalSellQty,
     tradeCount: trades.length,
+    notedTrades,
   };
 }
 
