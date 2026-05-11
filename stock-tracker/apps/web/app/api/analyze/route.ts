@@ -344,13 +344,21 @@ function snapLine(sym: string, s: Snapshot | undefined): string {
 
 // Tells Gemini where the lastPrice came from so it can weight its confidence
 // appropriately. Extended-hours prices are real but thinly traded; IEX
-// during non-regular sessions means Yahoo failed and the price is stale.
+// during non-regular sessions means both extended-hours sources failed
+// and the price is stale.
 function sessionDisclosure(
   session: Snapshot["session"],
   source: Snapshot["priceSource"],
 ): string {
   if (session === "regular") {
     return "정규장 실시간 IEX 피드. 가격·5분봉 모두 최신.";
+  }
+  if (source === "finnhub") {
+    if (session === "pre")
+      return "프리마켓 — 가격은 Finnhub /quote 기반 (익스텐디드 hours 포함). 정규장보다 거래량 적어 슬리피지 큼, 단일 신호로 단정 금지.";
+    if (session === "after")
+      return "애프터마켓 — 가격은 Finnhub /quote 기반 (익스텐디드 hours 포함). 정규장보다 거래량 적어 슬리피지 큼, 단일 신호로 단정 금지.";
+    return "장마감 — Finnhub가 본 가장 최근 거래 가격 (익스텐디드 또는 정규장 종가). 실시간 아님.";
   }
   if (source === "yahoo") {
     if (session === "pre")
@@ -359,11 +367,11 @@ function sessionDisclosure(
       return "애프터마켓 — 가격은 Yahoo 익스텐디드 호가 기반. 거래량이 정규장보다 훨씬 적어 슬리피지 큼, 단일 신호로 단정 금지.";
     return "장마감 — Yahoo가 본 가장 최근 거래 가격(익스텐디드 또는 정규장 종가). 실시간 아님.";
   }
-  // source === 'iex' but non-regular: Yahoo failed, IEX is showing the
-  // last regular session trade. Warn Gemini explicitly.
+  // source === 'iex' but non-regular: BOTH Finnhub and Yahoo failed,
+  // IEX is showing the last regular session trade. Warn Gemini explicitly.
   const label =
     session === "pre" ? "프리장" : session === "after" ? "애프터장" : "장마감";
-  return `${label} 시간대지만 익스텐디드 데이터 소스 실패 — 표시된 가격은 직전 정규장 IEX 종가로 stale 가능성 높음. 가격 단정 금지, 추세·뉴스 위주로 판단.`;
+  return `${label} 시간대지만 익스텐디드 데이터 소스 모두 실패 (Finnhub + Yahoo) — 표시된 가격은 직전 정규장 IEX 종가로 stale 가능성 높음. 가격 단정 금지, 추세·뉴스 위주로 판단.`;
 }
 
 function buildPrompt(p: PromptInputs): string {

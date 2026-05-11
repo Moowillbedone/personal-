@@ -32,10 +32,11 @@ export interface Snapshot {
   todayVolume: number | null;
   // computed
   changePct: number | null;       // (lastPrice - prevClose) / prevClose
-  // provenance: which feed produced lastPrice. 'iex' = Alpaca free IEX
-  // (real-time during regular session, often stale during pre/after).
-  // 'yahoo' = Yahoo Finance v8 chart (covers extended hours).
-  priceSource?: "iex" | "yahoo";
+  // Provenance: which feed produced lastPrice.
+  //   'iex'     = Alpaca free IEX (real-time regular, stale extended hours)
+  //   'finnhub' = Finnhub /quote (covers extended hours, primary fallback)
+  //   'yahoo'   = Yahoo v8 chart (covers extended hours, secondary fallback)
+  priceSource?: "iex" | "finnhub" | "yahoo";
 }
 
 interface AlpacaSnapshotRaw {

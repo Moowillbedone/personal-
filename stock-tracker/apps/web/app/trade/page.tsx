@@ -20,25 +20,30 @@ interface Snapshot {
   todayClose: number | null;
   todayVolume: number | null;
   changePct: number | null;
-  // 'iex' = Alpaca (real-time during regular, stale during pre/after).
-  // 'yahoo' = Yahoo extended hours. Outside regular session, 'iex' means
-  // Yahoo failed and we're showing the prior regular close as a fallback.
-  priceSource?: "iex" | "yahoo";
+  // Provenance of lastPrice:
+  //   'iex'     = Alpaca free IEX (real-time regular, stale extended hours)
+  //   'finnhub' = Finnhub /quote (primary fallback during extended hours)
+  //   'yahoo'   = Yahoo v8 chart (secondary fallback)
+  // Outside regular session, 'iex' means both Finnhub AND Yahoo failed —
+  // that's the only case where the stale badge should fire.
+  priceSource?: "iex" | "finnhub" | "yahoo";
   error?: string;
 }
 
 /**
  * True when the price shown is unexpectedly stale — i.e. we're inside
- * an active extended-hours window (pre or after) but Yahoo couldn't
- * deliver a fresh extended-hours price, so we're falling back to the
- * prior regular close. Closed session is intentionally excluded:
- * during overnight/weekend there are no trades by definition, so the
- * regular close IS the right answer and a "stale" badge would mislead.
+ * an active extended-hours window (pre or after) but neither Finnhub
+ * nor Yahoo could deliver a fresh extended-hours price, so we're falling
+ * back to the prior regular close. Closed session is intentionally
+ * excluded: during overnight/weekend there are no trades by definition,
+ * so the regular close IS the right answer and a "stale" badge would
+ * mislead.
  */
 function isStalePrice(s: Snapshot | undefined): boolean {
   if (!s) return false;
   if (s.session !== "pre" && s.session !== "after") return false;
-  return s.priceSource !== "yahoo";
+  // priceSource undefined on legacy responses = treat as 'iex' (stale).
+  return s.priceSource !== "yahoo" && s.priceSource !== "finnhub";
 }
 
 interface WatchlistItem {

@@ -1,14 +1,25 @@
 // Session-aware orchestrator for snapshots and intraday bars.
 //
 // During regular hours we use Alpaca IEX directly — it's real-time and the
-// existing pipeline. During pre-market / after-hours / closed we layer
-// Yahoo's v8 chart on top to get extended-hours prices and 5-min bars,
-// because IEX has almost no extended-hours volume and reports the regular
-// session close as "latest trade" (which makes Gemini analyze stale data).
+// existing pipeline. During pre-market / after-hours / closed we need a
+// different source because IEX has almost no extended-hours volume and
+// reports the regular session close as "latest trade".
 //
-// Yahoo is fail-soft: if it returns null (rate-limited, blocked, slow),
-// we transparently fall back to IEX. Caching is shared via yahoo.ts so a
-// single fetch serves both /api/analyze and /api/snapshot.
+// Extended-hours price fallback chain (in order of attempt):
+//   1. Finnhub /quote   — primary. Reliable from Vercel data-center IPs,
+//                         covers extended hours, 60 req/min free tier.
+//   2. Yahoo v8 chart   — secondary. Often blocked by Yahoo for data-center
+//                         IPs but cheap to try when not blocked.
+//   3. IEX (Alpaca)     — final. Last-trade snapshot (stale during pre/after).
+//
+// The price-source choice flows through to `Snapshot.priceSource` so the
+// trade page stale badge only fires when we genuinely fell all the way
+// through to IEX during a non-regular session.
+//
+// Intraday 5-min bars (for the analyze prompt) still use Yahoo because
+// Finnhub's free tier doesn't expose intraday bars. If Yahoo's chart
+// endpoint is blocked, those bars degrade to IEX (which has near-zero
+// pre/after volume) — same as before this change.
 
 import {
   getSnapshot as getIexSnapshot,
@@ -18,48 +29,79 @@ import {
   type RecentBars,
   type Bar,
 } from "./alpaca";
-import { getYahooChartCached, type YahooChartResult } from "./yahoo";
+import { getYahooChartCached } from "./yahoo";
+import { getFinnhubQuote } from "./finnhub";
 
-function augmentWithYahoo(iex: Snapshot, yahoo: YahooChartResult | null): Snapshot {
-  if (!yahoo || yahoo.lastPrice == null) return iex;
-  // Prefer IEX's prevClose (it's the official prior daily bar). Fall back
-  // to Yahoo's only if IEX didn't return one.
-  const prevClose = iex.prevClose ?? yahoo.prevClose;
-  const changePct =
-    prevClose != null && prevClose !== 0
-      ? (yahoo.lastPrice - prevClose) / prevClose
-      : null;
-  return {
-    ...iex,
-    lastPrice: yahoo.lastPrice,
-    lastTradeTs: yahoo.lastTradeTs ?? iex.lastTradeTs,
-    prevClose,
-    changePct,
-    priceSource: "yahoo",
-  };
+/**
+ * Merge an extended-hours price into the IEX baseline snapshot. Tries
+ * Finnhub first (most reliable from Vercel), then Yahoo (fast when not
+ * blocked). Falls through to IEX if both are unavailable — caller's
+ * stale-badge logic will surface that condition to the user.
+ */
+async function augmentExtendedHours(iex: Snapshot): Promise<Snapshot> {
+  // 1) Finnhub /quote — primary.
+  const fq = await getFinnhubQuote(iex.symbol);
+  if (fq && fq.c > 0) {
+    const prevClose = iex.prevClose ?? (fq.pc > 0 ? fq.pc : null);
+    const changePct =
+      prevClose != null && prevClose !== 0 ? (fq.c - prevClose) / prevClose : null;
+    return {
+      ...iex,
+      lastPrice: fq.c,
+      lastTradeTs:
+        fq.t > 0 ? new Date(fq.t * 1000).toISOString() : iex.lastTradeTs,
+      prevClose,
+      changePct,
+      priceSource: "finnhub",
+    };
+  }
+
+  // 2) Yahoo v8 chart — secondary. May 429 from data-center IPs.
+  const yahoo = await getYahooChartCached(iex.symbol, {
+    interval: "5m",
+    range: "1d",
+    includePrePost: true,
+  });
+  if (yahoo && yahoo.lastPrice != null) {
+    const prevClose = iex.prevClose ?? yahoo.prevClose;
+    const changePct =
+      prevClose != null && prevClose !== 0
+        ? (yahoo.lastPrice - prevClose) / prevClose
+        : null;
+    return {
+      ...iex,
+      lastPrice: yahoo.lastPrice,
+      lastTradeTs: yahoo.lastTradeTs ?? iex.lastTradeTs,
+      prevClose,
+      changePct,
+      priceSource: "yahoo",
+    };
+  }
+
+  // 3) IEX baseline — both extended-hours sources unavailable. The Snapshot
+  // already carries priceSource: 'iex' from getIexSnapshot, so callers can
+  // detect the stale condition (session != regular && priceSource === iex).
+  return iex;
 }
 
 /**
- * Snapshot for the analyzed (primary) symbol — uses 5d range so the same
- * Yahoo response can populate getPrimaryRecentBars's 5-min bars.
+ * Snapshot for the analyzed (primary) symbol. Used by /api/analyze for
+ * the prompt's "current price" line. The fan-out also pulls 5-min bars
+ * via getPrimaryRecentBars; they share the Yahoo chart fetch via the
+ * yahoo.ts in-process cache.
  */
 export async function getPrimarySnapshot(symbol: string): Promise<Snapshot> {
   const iex = await getIexSnapshot(symbol);
   if (iex.session === "regular") return iex;
-  const yahoo = await getYahooChartCached(symbol, {
-    interval: "5m",
-    range: "5d",
-    includePrePost: true,
-  });
-  return augmentWithYahoo(iex, yahoo);
+  return augmentExtendedHours(iex);
 }
 
 /**
- * Recent bars with extended-hours awareness. Daily bars stay IEX (used for
- * SMA/RSI/52w — closing prices from IEX are essentially the consolidated
- * close because all exchanges align at the closing auction). 5-min bars
- * switch to Yahoo (with includePrePost) outside regular hours so Gemini
- * sees the actual pre/after price action.
+ * Recent bars with extended-hours awareness. Daily bars stay IEX (closing
+ * prices from IEX align with the consolidated close at the closing auction,
+ * good enough for SMA/RSI/52w). 5-min bars switch to Yahoo (with
+ * includePrePost) outside regular hours so Gemini sees pre/after action.
+ * Finnhub doesn't help here — its free tier has no intraday bars.
  */
 export async function getPrimaryRecentBars(symbol: string): Promise<RecentBars> {
   const session = currentMarketSession();
@@ -94,17 +136,11 @@ export async function getPrimaryRecentBars(symbol: string): Promise<RecentBars> 
 }
 
 /**
- * Lightweight snapshot for the watchlist batch — same Yahoo augmentation
- * but with range=1d so the per-symbol payload stays small (~10KB) when
- * refreshing 20+ tickers at once.
+ * Lightweight snapshot for the watchlist batch (/api/snapshot). Identical
+ * extended-hours fallback path as getPrimarySnapshot.
  */
 export async function getLatestPriceSnapshot(symbol: string): Promise<Snapshot> {
   const iex = await getIexSnapshot(symbol);
   if (iex.session === "regular") return iex;
-  const yahoo = await getYahooChartCached(symbol, {
-    interval: "5m",
-    range: "1d",
-    includePrePost: true,
-  });
-  return augmentWithYahoo(iex, yahoo);
+  return augmentExtendedHours(iex);
 }
