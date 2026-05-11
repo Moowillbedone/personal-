@@ -455,7 +455,12 @@ export default function TradePage() {
 
         <section>
           <div className="flex items-center justify-between mb-2 gap-2">
-            <h2 className="text-xs uppercase text-neutral-400">즐겨찾기</h2>
+            <h2 className="text-xs uppercase text-neutral-400">
+              즐겨찾기{" "}
+              <span className="text-neutral-500 normal-case">
+                ({watchlist.length})
+              </span>
+            </h2>
             <div className="flex items-center gap-2">
               {snapshotsUpdatedAt && (
                 <RelativeTime
