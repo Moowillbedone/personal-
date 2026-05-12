@@ -62,6 +62,35 @@ const TYPE_BADGE: Record<SignalType, string> = {
   volume_spike: "bg-amber-900/40 text-amber-300 border-amber-700",
 };
 
+/**
+ * Sortable column header. The label + indicator are inside a button so the
+ * entire header cell is clickable. Indicator: ⇅ inactive, ↓ desc, ↑ asc.
+ */
+function SortHeader({
+  label,
+  active,
+  indicator,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  indicator: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 hover:text-neutral-200 transition-colors ${
+        active ? "text-sky-300" : "text-neutral-400"
+      }`}
+      title={active ? "다시 누르면 방향 전환 / 한 번 더 누르면 정렬 해제" : "정렬"}
+    >
+      <span>{label}</span>
+      <span className="text-[10px] opacity-80">{indicator}</span>
+    </button>
+  );
+}
+
 function FilterChip<T extends string>({
   label,
   active,
@@ -234,6 +263,40 @@ export default function Page() {
     autoExpandedRef.current = true;
   }, [groups]);
 
+  // Optional sort by expected-return columns. Three-state cycle per column:
+  //   inactive → desc (highest expected first) → asc (lowest first) → inactive
+  // NULL values always sink to the bottom so they don't dominate either end.
+  // When no column is selected, signals stay in natural ts-desc order.
+  type SortKey = "expected_1d" | "expected_3d" | "expected_5d";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  function cycleSort(key: SortKey) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("desc");
+    } else if (sortDir === "desc") {
+      setSortDir("asc");
+    } else {
+      setSortKey(null);
+    }
+  }
+  function sortIndicator(key: SortKey): string {
+    if (sortKey !== key) return "⇅";
+    return sortDir === "desc" ? "↓" : "↑";
+  }
+  function sortSignals(rows: Signal[]): Signal[] {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      // NULL → bottom regardless of dir.
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return sortDir === "desc" ? vb - va : va - vb;
+    });
+  }
+
   function toggleGroup(date: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -400,14 +463,35 @@ export default function Page() {
                             <th className="px-3 py-2 text-right">Δ%</th>
                             <th className="px-3 py-2 text-right">Vol×</th>
                             <th className="px-3 py-2 text-left">Session</th>
-                            <th className="px-3 py-2 text-right">E[1d]</th>
-                            <th className="px-3 py-2 text-right">E[3d]</th>
-                            <th className="px-3 py-2 text-right">E[5d]</th>
+                            <th className="px-3 py-2 text-right">
+                              <SortHeader
+                                label="E[1d]"
+                                active={sortKey === "expected_1d"}
+                                indicator={sortIndicator("expected_1d")}
+                                onClick={() => cycleSort("expected_1d")}
+                              />
+                            </th>
+                            <th className="px-3 py-2 text-right">
+                              <SortHeader
+                                label="E[3d]"
+                                active={sortKey === "expected_3d"}
+                                indicator={sortIndicator("expected_3d")}
+                                onClick={() => cycleSort("expected_3d")}
+                              />
+                            </th>
+                            <th className="px-3 py-2 text-right">
+                              <SortHeader
+                                label="E[5d]"
+                                active={sortKey === "expected_5d"}
+                                indicator={sortIndicator("expected_5d")}
+                                onClick={() => cycleSort("expected_5d")}
+                              />
+                            </th>
                             <th className="px-3 py-2 text-right">n</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {g.signals.map((s) => {
+                          {sortSignals(g.signals).map((s) => {
                             const t = tickers[s.symbol];
                             return (
                               <tr
