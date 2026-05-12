@@ -58,7 +58,11 @@ jobs:
       # MIN_VOLUME:     "5000"      # absolute share count floor (default)
       # VOLUME_WINDOW:  "midday"    # 'regular' (default, 09:30-16:00 ET) | 'midday' (10:00-15:30 ET)
       # MAX_AGE_MIN:    "15"        # ignore signals where latest bar is older than this many min
-      NOTIFY_TYPES:     "gap_up,gap_down"   # high-conviction only; volume_spike DB-only
+      # Empty allow-list = telegram disabled for ALL signal types. Signals
+      # still get detected, news-enriched, and written to DB; user reviews
+      # them on /signals page. Keeps the telegram inbox focused on the
+      # AI daily digest (3x/day) which is the actual decision-making signal.
+      NOTIFY_TYPES:     ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

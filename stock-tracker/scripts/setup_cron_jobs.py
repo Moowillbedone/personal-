@@ -125,12 +125,15 @@ JOBS = [
         {"ref": "main", "inputs": {"loop_min": "320"}},
         [6, 11, 16, 21],
     ),
-    # AI scan: twice daily — premarket open + after-hours close.
+    # AI scan: 3× per US weekday at each session boundary.
+    #   08 UTC = KST 17:00  pre-market start
+    #   13 UTC = KST 22:00  regular open (30m prior)
+    #   21 UTC = KST 06:00  after-hours mid (next-day plan)
     (
         "stock-tracker-ai-scan",
         "stock-tracker-ai-scan.yml",
         {"ref": "main"},
-        [13, 21],
+        [8, 13, 21],
     ),
     # Earnings alert: once daily at KST 22:00 (before US regular open).
     (

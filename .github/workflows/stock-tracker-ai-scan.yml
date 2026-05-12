@@ -1,14 +1,20 @@
 name: stock-tracker / ai-scan
 
-# Twice daily: run /api/analyze on watchlist + 24h-fired-signal symbols
-# and telegram a BUY/SELL/HOLD digest.
+# Three times daily: run /api/analyze on watchlist + 24h-fired-signal
+# symbols and telegram a BUY/SELL/HOLD digest. Each run aligns with the
+# START of a US trading session so the user sees fresh AI verdicts before
+# acting.
 #
-#   13:00 UTC  =  ET 09:00  =  KST 22:00  (premarket, 30 min before open)
-#   21:00 UTC  =  ET 17:00  =  KST 06:00  (after-hours done, next-day plan)
+#   08:00 UTC  =  ET 04:00  =  KST 17:00  (pre-market session start)
+#   13:00 UTC  =  ET 09:00  =  KST 22:00  (regular session opens in 30m)
+#   21:00 UTC  =  ET 17:00  =  KST 06:00  (after-hours running, daily wrap)
 #
-# Weekdays only (US market is closed Sat/Sun).
+# Weekdays only (US market is closed Sat/Sun). 3x/day × ~100 symbols
+# ≈ 300 Gemini calls/day, well under the ~1000 RPD free-tier ceiling
+# across the 4-model fallback chain.
 on:
   schedule:
+    - cron: "0 8 * * 1-5"
     - cron: "0 13 * * 1-5"
     - cron: "0 21 * * 1-5"
   workflow_dispatch: {}

@@ -136,7 +136,11 @@ def _format_entry(v: dict) -> str:
 
 
 def _build_blocks(
-    verdicts: list[dict], total_scanned: int, watchlist_n: int, signals_n: int
+    verdicts: list[dict],
+    total_scanned: int,
+    watchlist_n: int,
+    signals_n: int,
+    aborted_early: bool = False,
 ) -> list[str]:
     """Emit a list of atomic content blocks. The packer never splits inside
     a block — keeps each BUY/SELL entry intact across message boundaries."""
@@ -150,11 +154,17 @@ def _build_blocks(
         by_v[k].sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
-    blocks: list[str] = [
-        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})\n"
+    header_lines = [
+        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
         f"스캔 종목: {total_scanned}건 "
-        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})"
+        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})",
     ]
+    if aborted_early:
+        header_lines.append(
+            "⚠️ *부분 결과* — Gemini 무료 한도 소진으로 조기 중단. "
+            "내일 PT 자정(KST 17:00) 한도 리셋 후 다음 스캔에서 전체 커버."
+        )
+    blocks: list[str] = ["\n".join(header_lines)]
 
     # All three buckets use the same per-entry block format now: symbol +
     # confidence + truncated summary. Section header is its own block so
@@ -219,10 +229,16 @@ def pack_messages(blocks: list[str], cap: int = TG_MSG_CHAR_CAP) -> list[str]:
 
 
 def format_digest(
-    verdicts: list[dict], total_scanned: int, watchlist_n: int, signals_n: int
+    verdicts: list[dict],
+    total_scanned: int,
+    watchlist_n: int,
+    signals_n: int,
+    aborted_early: bool = False,
 ) -> list[str]:
     """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
-    blocks = _build_blocks(verdicts, total_scanned, watchlist_n, signals_n)
+    blocks = _build_blocks(
+        verdicts, total_scanned, watchlist_n, signals_n, aborted_early
+    )
     return pack_messages(blocks)
 
 
@@ -268,8 +284,17 @@ def main() -> int:
         print("ai_scan: no symbols to scan, exiting")
         return 0
 
+    # Quota-aware early abort: when Gemini's free quota is exhausted, every
+    # subsequent call burns ~8 retry slots (4 models × 2 attempts) on 429s
+    # and contributes nothing. Once we see N consecutive failures we give
+    # up on the rest of the scan and send whatever we got. Prevents one
+    # bad day from cascading into "all 4 models locked out till tomorrow."
+    EARLY_ABORT_CONSECUTIVE_FAILURES = 5
+
     verdicts: list[dict] = []
     failed: list[str] = []
+    consecutive_failures = 0
+    aborted_early = False
     started = time.time()
 
     for i, sym in enumerate(targets, 1):
@@ -278,7 +303,18 @@ def main() -> int:
         analysis = call_analyze(sym)
         if not analysis:
             failed.append(sym)
+            consecutive_failures += 1
+            if consecutive_failures >= EARLY_ABORT_CONSECUTIVE_FAILURES:
+                aborted_early = True
+                skipped = len(targets) - i
+                print(
+                    f"  ! {consecutive_failures} consecutive failures — likely Gemini quota "
+                    f"exhausted; aborting remaining {skipped} symbols to preserve future runs",
+                    file=sys.stderr,
+                )
+                break
             continue
+        consecutive_failures = 0  # reset on any success
         verdicts.append(
             {
                 "symbol": sym,
@@ -312,6 +348,7 @@ def main() -> int:
         total_scanned=len(targets),
         watchlist_n=len(watchlist),
         signals_n=len(signals),
+        aborted_early=aborted_early,
     )
     sent_ok = 0
     for i, msg in enumerate(messages, 1):
