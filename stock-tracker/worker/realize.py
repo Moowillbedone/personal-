@@ -66,7 +66,13 @@ def main() -> int:
     load_dotenv()
     sb = db.client()
 
-    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=MIN_AGE_DAYS)).isoformat()
+    # Use explicit Z suffix instead of isoformat()'s "+00:00" — the `+` can
+    # be misinterpreted as a space along certain URL encoding paths and was
+    # silently returning 0 rows from Supabase even though matching rows
+    # existed (cost us ~5 days of realized backfills going unprocessed).
+    cutoff_iso = (
+        datetime.now(timezone.utc) - timedelta(days=MIN_AGE_DAYS)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = (
         sb.table("signals")
         .select("id,symbol,ts,price,realized_5d")

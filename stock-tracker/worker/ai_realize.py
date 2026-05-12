@@ -54,7 +54,10 @@ def main() -> int:
     load_dotenv()
     sb = db.client()
 
-    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=MIN_AGE_DAYS)).isoformat()
+    # Z suffix avoids the URL-encoding `+ → space` trap seen in realize.py.
+    cutoff_iso = (
+        datetime.now(timezone.utc) - timedelta(days=MIN_AGE_DAYS)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = (
         sb.table("ai_analysis")
         .select(

@@ -79,7 +79,11 @@ def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:
         print(f"  watchlist fetch failed: {e}", file=sys.stderr)
 
     signals: set[str] = set()
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    # Z suffix avoids the URL-encoding `+ → space` trap that silently
+    # zeroed out realize.py's queries for ~5 days.
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     try:
         res = sb.table("signals").select("symbol").gte("ts", cutoff).execute()
         signals = {r["symbol"].upper() for r in (res.data or []) if r.get("symbol")}
