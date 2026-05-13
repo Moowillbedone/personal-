@@ -43,9 +43,17 @@ MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "100"))
 # response if Vercel kills the request.
 ANALYZE_TIMEOUT_SEC = 75
 
-# Brief pause between calls so we don't hammer downstream APIs (Alpaca,
-# Yahoo, Finnhub, FRED) all at once when the route fans out.
-INTER_CALL_DELAY_SEC = 2
+# Pause between calls. Sized to stay under Gemini's per-model RPM ceiling
+# even when signals_24h pushes the target list to 80-100 symbols. The
+# primary model (gemini-2.5-flash) caps at 10 RPM on free tier, so we
+# need ≥ 6s/call (= 10 RPM). 7s adds a safety margin against:
+#   - clock drift between worker and Google's rate-limit window
+#   - the gemini.ts retry-on-429 logic firing twice in quick succession
+#   - parallel watchlist refresh + analyze button activity from the user
+# Cost: ~12s × 90 symbols ≈ 11min/run, comfortably within the 75min
+# workflow timeout. Was 2s, which routinely tripped the 10 RPM ceiling
+# and cascaded into the 5-consecutive-fail early-abort.
+INTER_CALL_DELAY_SEC = 7
 
 # Per-bucket safety cap. Set very high so in practice every analyzed
 # symbol appears in the digest with its full reasoning — the per-message
@@ -165,8 +173,8 @@ def _build_blocks(
     ]
     if aborted_early:
         header_lines.append(
-            "⚠️ *부분 결과* — Gemini 무료 한도 소진으로 조기 중단. "
-            "내일 PT 자정(KST 17:00) 한도 리셋 후 다음 스캔에서 전체 커버."
+            "⚠️ *부분 결과* — Gemini 한도 도달로 조기 중단 (분당 RPM 또는 일일 RPD). "
+            "다음 스캔 (또는 다음날 PT 자정 = KST 16:00 리셋 후) 자동 재시도."
         )
     blocks: list[str] = ["\n".join(header_lines)]
 
