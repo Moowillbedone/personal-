@@ -1,15 +1,27 @@
-// Server-side Gemini client. Free tier: gemini-2.5-flash via Google AI Studio.
+// Server-side Gemini client. Free tier via Google AI Studio.
 // https://ai.google.dev/gemini-api/docs/quickstart
 //
 // Resilience: when the primary model returns 503 (capacity) or 429 (rate
 // limit), retry with exponential backoff and fall back to alternate models.
 // 4xx auth/validation errors fail immediately — no point retrying.
+//
+// Primary model is gemini-2.5-flash-lite, not -flash, because:
+//   - 1000 RPD vs 250 RPD (4× headroom)
+//   - 30 RPM vs 10 RPM (3× headroom)
+//   - For our 17-section synthesis prompt, the quality delta vs -flash
+//     is negligible (both produce solid JSON-schema verdicts); the
+//     quota headroom is the actual limiting factor on a busy day.
+// Override with GEMINI_MODEL env var if a specific run needs the heavier
+// model (e.g., one-off analysis where quality > quota matters).
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 
-const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
-// Fallback chain: try primary first, then progressively cheaper/lighter models.
-// Skips duplicates if primary is already in the list.
-const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+// Fallback chain: from highest- to lowest-quota free-tier models so we
+// drain the deepest bucket first. Skips duplicates if primary is already
+// listed.
+//   gemini-2.5-flash         250 RPD  10 RPM   highest quality
+//   gemini-flash-latest      250 RPD  10 RPM   recent stable alias
+//   gemini-2.0-flash         200 RPD  15 RPM   older but cheap
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
