@@ -98,7 +98,14 @@ def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:
     except Exception as e:
         print(f"  signals fetch failed: {e}", file=sys.stderr)
 
-    targets = sorted(watchlist | signals)[:MAX_SYMBOLS_PER_RUN]
+    # Priority order: watchlist FIRST, then signals_24h to fill remaining
+    # slots. Quality-first policy on the Gemini side means tight quota days
+    # might run short, so we want the symbols the user actively watches
+    # analyzed before any signal-fired surprises. Within each group we sort
+    # alphabetically for run-to-run reproducibility.
+    wl_sorted = sorted(watchlist)
+    sg_only = sorted(signals - watchlist)
+    targets = (wl_sorted + sg_only)[:MAX_SYMBOLS_PER_RUN]
     return targets, watchlist, signals
 
 

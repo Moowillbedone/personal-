@@ -5,24 +5,21 @@
 // quota), retry with exponential backoff and fall back to alternate
 // models. 4xx auth/validation errors fail immediately — no point retrying.
 //
-// Primary stays gemini-2.5-flash (quality > quota). The combined RPD
-// across primary + first fallback (250 + 250 = 500) covers normal
-// load — 3 scans/day × ~100 symbols = 300 calls/day — with margin.
-// What killed us earlier wasn't the model choice; it was per-analyze
-// cascade waste: every failed call hit ALL 4 models × 2 attempts each,
-// burning ~8 RPD per failure. The cooldown logic below makes a model
-// 429 once → skipped for the next hour instead of retried every call.
+// Quality-first policy: this prompt produces actual buy/sell verdicts the
+// user trades on, so we never fall back to a lower-quality model. The
+// chain is restricted to gemini-2.5-flash and gemini-flash-latest only —
+// flash-latest is currently aliased to the same -flash generation, just
+// drawing from a separate 250 RPD quota bucket. Combined 500 RPD covers
+// the planned 3 scans/day × ~100 symbols = 300 calls/day with margin.
+//
+// Intentionally NOT in the chain:
+//   gemini-2.5-flash-lite  (1000 RPD but noticeably lighter reasoning)
+//   gemini-2.0-flash       (older generation)
+// If both top-tier models exhaust, the analyze call throws and ai-scan's
+// early-abort kicks in — the digest ships partial with the user-visible
+// banner explaining why. Better a missing verdict than a low-quality one.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
-// Fallback chain ordered by descending quality.
-//   gemini-flash-latest      250 RPD  10 RPM   essentially same as -flash
-//   gemini-2.5-flash-lite    1000 RPD 30 RPM   slightly lighter, big bucket
-//   gemini-2.0-flash         200 RPD  15 RPM   last resort
-const FALLBACK_MODELS = [
-  "gemini-flash-latest",
-  "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
-];
+const FALLBACK_MODELS = ["gemini-flash-latest"];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
