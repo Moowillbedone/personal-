@@ -30,13 +30,36 @@ from dotenv import load_dotenv
 
 from lib import db
 
-# Cap how many symbols we analyze per run. 100 covers the projected max
-# watchlist size; at ~32s/call (analyze maxDuration 60s, typical 25-35s,
-# plus 2s inter-call delay) the worst-case run is ~55 min, comfortably
-# under the 75-min workflow timeout. Daily quota: 100 × 2 runs = 200 Gemini
-# calls — fits inside the free 250 RPD per model with a 4-model fallback
-# chain (~1000 RPD effective).
+# Hard safety cap on scan size. Real per-scan size is controlled by
+# SCAN_BUDGET below — this just protects against runaway list growth.
 MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "100"))
+
+# Target scan size per run. Sized so 3 runs/day stay comfortably inside
+# the free Gemini quota (250 RPD primary + 250 RPD fallback = 500 RPD;
+# 25 × 3 = 75 calls/day = 15% of budget) WITH the quality-only model
+# chain (no fallback to lighter models). Composition:
+#   watchlist (all)               + 0 to len(watchlist) symbols
+#   top signals_24h by conviction + the rest, up to SCAN_BUDGET total
+# If watchlist alone exceeds SCAN_BUDGET, watchlist symbols still all
+# get analyzed (the per-scan ceiling is MAX_SYMBOLS_PER_RUN above).
+SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "25"))
+
+# Conviction-score weights for signal-24h selection. Computed per signal
+# row as:
+#   score = volume_ratio × |pct_change| × news_factor
+# - volume_ratio captures how outlier today's bar is vs the rolling avg
+#   (volume_spike's defining metric, also strong on gap+vol confirmations)
+# - |pct_change| captures gap magnitude (works for gap_up and gap_down)
+# - news_factor is a modest catalyst bonus — 1.2× not 1.5× because we
+#   don't have measured proof that news-confirmed signals outperform
+#   non-news ones yet (the comparison is starting to populate as
+#   realized_* backfill catches up). Re-tune from /stats data later.
+#
+# Dollar volume is NOT in the score: signals don't store the raw bar
+# volume so we can't compute price × volume per row. The signal
+# detector's MIN_DOLLAR_VOL gate ($1M default) already ensures every
+# row in the pool meets the liquidity baseline.
+NEWS_FACTOR = float(os.getenv("AI_SCAN_NEWS_FACTOR", "1.2"))
 
 # Per-call HTTP timeout. The /api/analyze route's maxDuration is 60s on
 # Vercel; the buffer here gives us a clean error rather than a half-read
@@ -73,11 +96,40 @@ TG_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 TG_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
 
 
-def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:
-    """Returns (target_list, watchlist_set, signals_set).
+def _conviction_score(row: dict) -> float:
+    """Score a signals-table row for conviction. Higher = more worth analyzing.
 
-    The two sets are returned alongside so the digest header can attribute
-    counts to each source.
+    Inputs:
+      volume_ratio       — multiplier vs 20-bar avg (volume_spike strength)
+      pct_change         — fractional move vs prev close (gap magnitude, signed)
+      recent_news_count  — int (≥1 means catalyst present; null treated as 0)
+
+    Formula: volume_ratio × |pct_change| × (NEWS_FACTOR if news else 1.0)
+    """
+    try:
+        vr = float(row.get("volume_ratio") or 0)
+        pc = abs(float(row.get("pct_change") or 0))
+    except (TypeError, ValueError):
+        return 0.0
+    news_count = row.get("recent_news_count") or 0
+    news_factor = NEWS_FACTOR if news_count > 0 else 1.0
+    return vr * pc * news_factor
+
+
+def collect_target_symbols(
+    sb,
+) -> tuple[list[str], set[str], set[str], int]:
+    """Returns (target_list, watchlist_set, signals_set_all, signals_selected_count).
+
+    Composition of target_list:
+      1. ALL watchlist symbols (priority — these are user's active focus)
+      2. signals_24h symbols ranked by conviction score, descending, taking
+         enough to fill up to SCAN_BUDGET total
+    Hard cap at MAX_SYMBOLS_PER_RUN for runaway protection.
+
+    signals_set_all is the full 24h signal-fired set (used for digest header
+    attribution: "X of Y signals selected"). signals_selected_count is the
+    count actually included in target_list after conviction filtering.
     """
     watchlist: set[str] = set()
     try:
@@ -86,27 +138,51 @@ def collect_target_symbols(sb) -> tuple[list[str], set[str], set[str]]:
     except Exception as e:
         print(f"  watchlist fetch failed: {e}", file=sys.stderr)
 
-    signals: set[str] = set()
-    # Z suffix avoids the URL-encoding `+ → space` trap that silently
-    # zeroed out realize.py's queries for ~5 days.
+    # Pull signals_24h with full metadata for scoring. Z suffix avoids the
+    # `+00:00 → space` URL-encoding trap that bit realize.py earlier.
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
+    raw_signals: list[dict] = []
     try:
-        res = sb.table("signals").select("symbol").gte("ts", cutoff).execute()
-        signals = {r["symbol"].upper() for r in (res.data or []) if r.get("symbol")}
+        res = (
+            sb.table("signals")
+            .select("symbol,volume_ratio,pct_change,recent_news_count,ts")
+            .gte("ts", cutoff)
+            .execute()
+        )
+        raw_signals = res.data or []
     except Exception as e:
         print(f"  signals fetch failed: {e}", file=sys.stderr)
 
-    # Priority order: watchlist FIRST, then signals_24h to fill remaining
-    # slots. Quality-first policy on the Gemini side means tight quota days
-    # might run short, so we want the symbols the user actively watches
-    # analyzed before any signal-fired surprises. Within each group we sort
-    # alphabetically for run-to-run reproducibility.
+    # All distinct symbols in the 24h signal window (used for stats display).
+    signals_set_all: set[str] = {
+        (r.get("symbol") or "").upper() for r in raw_signals if r.get("symbol")
+    }
+    signals_set_all.discard("")
+
+    # For each symbol, keep its BEST conviction score across however many
+    # signals fired on it in 24h. Exclude symbols already in watchlist
+    # (those get analyzed unconditionally, no need to score them).
+    best_score: dict[str, float] = {}
+    for r in raw_signals:
+        sym = (r.get("symbol") or "").upper()
+        if not sym or sym in watchlist:
+            continue
+        s = _conviction_score(r)
+        if s > best_score.get(sym, -1.0):
+            best_score[sym] = s
+
+    # Build target list: watchlist (alphabetical for determinism) + top-N
+    # signals by conviction score. Top-N count = SCAN_BUDGET - watchlist_size.
     wl_sorted = sorted(watchlist)
-    sg_only = sorted(signals - watchlist)
-    targets = (wl_sorted + sg_only)[:MAX_SYMBOLS_PER_RUN]
-    return targets, watchlist, signals
+    remaining = max(0, SCAN_BUDGET - len(wl_sorted))
+    ranked_signals = sorted(
+        best_score.items(), key=lambda kv: kv[1], reverse=True
+    )[:remaining]
+    selected_signals = [sym for sym, _ in ranked_signals]
+    targets = (wl_sorted + selected_signals)[:MAX_SYMBOLS_PER_RUN]
+    return targets, watchlist, signals_set_all, len(selected_signals)
 
 
 def call_analyze(symbol: str) -> dict | None:
@@ -159,6 +235,7 @@ def _build_blocks(
     total_scanned: int,
     watchlist_n: int,
     signals_n: int,
+    signals_selected: int = 0,
     aborted_early: bool = False,
 ) -> list[str]:
     """Emit a list of atomic content blocks. The packer never splits inside
@@ -173,10 +250,18 @@ def _build_blocks(
         by_v[k].sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
+    # Header explains exactly which symbols were picked: all watchlist, plus
+    # the top-N conviction-ranked signals_24h. Lets the user verify nothing
+    # important was silently filtered out.
+    selection_summary = (
+        f"watchlist {watchlist_n} + 시그널 24h {signals_n}건 중 conviction 상위 "
+        f"{signals_selected}건"
+        if signals_n > 0
+        else f"watchlist {watchlist_n}"
+    )
     header_lines = [
         f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
-        f"스캔 종목: {total_scanned}건 "
-        f"(watchlist {watchlist_n} ∪ signal-fired-24h {signals_n})",
+        f"스캔 종목: {total_scanned}건 ({selection_summary})",
     ]
     if aborted_early:
         header_lines.append(
@@ -252,11 +337,17 @@ def format_digest(
     total_scanned: int,
     watchlist_n: int,
     signals_n: int,
+    signals_selected: int = 0,
     aborted_early: bool = False,
 ) -> list[str]:
     """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
     blocks = _build_blocks(
-        verdicts, total_scanned, watchlist_n, signals_n, aborted_early
+        verdicts,
+        total_scanned,
+        watchlist_n,
+        signals_n,
+        signals_selected,
+        aborted_early,
     )
     return pack_messages(blocks)
 
@@ -293,10 +384,11 @@ def main() -> int:
     load_dotenv()
     sb = db.client()
 
-    targets, watchlist, signals = collect_target_symbols(sb)
+    targets, watchlist, signals, signals_selected = collect_target_symbols(sb)
     print(
         f"ai_scan: {len(targets)} target symbols "
-        f"(watchlist={len(watchlist)}, signals_24h={len(signals)})"
+        f"(watchlist={len(watchlist)} + {signals_selected} of {len(signals)} "
+        f"signals_24h by conviction score, budget={SCAN_BUDGET})"
     )
 
     if not targets:
@@ -367,6 +459,7 @@ def main() -> int:
         total_scanned=len(targets),
         watchlist_n=len(watchlist),
         signals_n=len(signals),
+        signals_selected=signals_selected,
         aborted_early=aborted_early,
     )
     sent_ok = 0
