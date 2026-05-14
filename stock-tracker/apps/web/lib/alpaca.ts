@@ -192,6 +192,20 @@ export async function getRecentBars(symbol: string): Promise<RecentBars> {
   return { fiveMin, daily };
 }
 
+/**
+ * Public wrapper for one-shot bar fetches outside the recent-bars bundle.
+ * Used by /api/bars to power the ticker-page chart with caller-controlled
+ * timeframe (e.g. 1Day × 380 days for the 1-year default view).
+ */
+export async function fetchAlpacaBars(
+  symbol: string,
+  timeframe: string,
+  days: number,
+  limit?: number,
+): Promise<Bar[]> {
+  return fetchBars(symbol, timeframe, days, limit ?? Math.max(days, 600));
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Batch snapshots (multiple symbols in one HTTP call)
 // ────────────────────────────────────────────────────────────────────────────

@@ -22,21 +22,19 @@ export default function TickerPage({ params }: PageProps) {
   const chartApiRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
-  // Fetch ticker meta + bars + recent signals.
+  // Fetch ticker meta + chart bars + recent signals.
+  // Chart bars now default to 1-year daily (via /api/bars → Alpaca direct)
+  // so the user sees real long-term context instead of last-week 5-min noise.
+  // price_snapshots (5-min only, ~5 days deep) is no longer used here —
+  // signal detection and AI analysis still pull from it on their own.
   useEffect(() => {
     let mounted = true;
     async function load() {
       const [tRes, bRes, sRes] = await Promise.all([
         supabase.from("tickers").select("*").eq("symbol", sym).maybeSingle(),
-        // Fetch the LATEST 500 bars (DESC) and reverse for ascending display.
-        // The previous ascending+limit(500) returned the OLDEST bars and clipped
-        // off everything after that, so charts froze ~5 trading days into the past.
-        supabase
-          .from("price_snapshots")
-          .select("ts,open,high,low,close,volume")
-          .eq("symbol", sym)
-          .order("ts", { ascending: false })
-          .limit(500),
+        fetch(`/api/bars?symbol=${encodeURIComponent(sym)}&interval=1d&days=380`)
+          .then((r) => r.json() as Promise<{ bars?: PriceBar[]; error?: string }>)
+          .catch(() => ({ bars: [] as PriceBar[] })),
         supabase
           .from("signals")
           .select("*")
@@ -46,18 +44,18 @@ export default function TickerPage({ params }: PageProps) {
       ]);
       if (!mounted) return;
       setTicker((tRes.data as Ticker) ?? null);
-      // bars came back DESC; chart wants ASC.
-      const barsAsc = ((bRes.data as PriceBar[]) ?? []).slice().reverse();
+      // Daily bars from Alpaca arrive ASC by timestamp — chart wants ASC, no reverse needed.
+      const barsAsc = (bRes.bars ?? []) as PriceBar[];
       // Winsorize wicks: clip high/low to ±WICK_PCT from previous close to hide
       // single IEX outlier prints (long off-screen candles) that don't appear
-      // on consolidated-SIP charts like TradingView. Preserves the body so real
-      // catalyst moves are still visible.
-      const WICK_PCT = 0.02;
+      // on consolidated-SIP charts like TradingView. Threshold ~6% works for
+      // daily bars (intraday moves of 5-8% are common around earnings, so we
+      // leave more room than the 2% used on the previous 5-min chart).
+      const WICK_PCT = 0.06;
       let prevClose = barsAsc[0]?.close ?? 0;
       const cleaned: PriceBar[] = barsAsc.map((b) => {
         const upper = prevClose * (1 + WICK_PCT);
         const lower = prevClose * (1 - WICK_PCT);
-        // Don't clip below the body; if open/close themselves moved more than 2%, keep them.
         const high = Math.min(b.high, Math.max(upper, b.open, b.close));
         const low = Math.max(b.low, Math.min(lower, b.open, b.close));
         prevClose = b.close;
@@ -87,7 +85,9 @@ export default function TickerPage({ params }: PageProps) {
           vertLines: { color: "#1f2937" },
           horzLines: { color: "#1f2937" },
         },
-        timeScale: { timeVisible: true, secondsVisible: false },
+        // Daily bars only need date labels — hide the HH:MM since
+        // intraday time-of-day isn't meaningful on a 1-year daily chart.
+        timeScale: { timeVisible: false, secondsVisible: false },
       });
       chartApiRef.current = chart;
       seriesRef.current = chart.addCandlestickSeries({
