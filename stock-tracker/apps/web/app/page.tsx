@@ -263,11 +263,15 @@ export default function Page() {
     autoExpandedRef.current = true;
   }, [groups]);
 
-  // Optional sort by expected-return columns. Three-state cycle per column:
-  //   inactive → desc (highest expected first) → asc (lowest first) → inactive
+  // Optional sort by numeric columns. Three-state cycle per column:
+  //   inactive → desc (highest first) → asc (lowest first) → inactive
   // NULL values always sink to the bottom so they don't dominate either end.
   // When no column is selected, signals stay in natural ts-desc order.
-  type SortKey = "expected_1d" | "expected_3d" | "expected_5d";
+  type SortKey =
+    | "volume_ratio"
+    | "expected_1d"
+    | "expected_3d"
+    | "expected_5d";
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   function cycleSort(key: SortKey) {
@@ -461,7 +465,14 @@ export default function Page() {
                             <th className="px-3 py-2 text-left">Type</th>
                             <th className="px-3 py-2 text-right">Price</th>
                             <th className="px-3 py-2 text-right">Δ%</th>
-                            <th className="px-3 py-2 text-right">Vol×</th>
+                            <th className="px-3 py-2 text-right">
+                              <SortHeader
+                                label="Vol×"
+                                active={sortKey === "volume_ratio"}
+                                indicator={sortIndicator("volume_ratio")}
+                                onClick={() => cycleSort("volume_ratio")}
+                              />
+                            </th>
                             <th className="px-3 py-2 text-left">Session</th>
                             <th className="px-3 py-2 text-right">
                               <SortHeader
