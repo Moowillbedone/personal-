@@ -1028,8 +1028,9 @@ function TradeJournalPanel({
 }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [formOpen, setFormOpen] = useState<"buy" | "sell" | null>(null);
-  const [mode, setMode] = useState<"paper" | "real">("paper");
+  // User trades real money on leveraged ETFs as the default workflow.
+  // No paper mode UI (always "real") and the derivative toggle defaults on.
+  const [action, setAction] = useState<"buy" | "sell">("buy");
   const [qty, setQty] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
@@ -1037,10 +1038,9 @@ function TradeJournalPanel({
   const [error, setError] = useState<string | null>(null);
   // Leveraged-derivative recording: when "다른 종목으로 매매" is on, the
   // user enters the actually-traded ticker (e.g. TSLL) here while the
-  // panel's `symbol` (e.g. TSLA) becomes the underlying. The trade row
-  // gets `symbol=TSLL, underlying_symbol=TSLA`, and AI-analysis auto-link
-  // server-side uses the underlying for the lookup.
-  const [useDerivative, setUseDerivative] = useState(false);
+  // panel's `symbol` (e.g. TSLA) becomes the underlying. Defaults on
+  // because the user's typical flow is small-cap real money on 2x ETFs.
+  const [useDerivative, setUseDerivative] = useState(true);
   const [derivTicker, setDerivTicker] = useState("");
   const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -1111,25 +1111,7 @@ function TradeJournalPanel({
     return out;
   }, [trades, symbol]);
 
-  function openForm(action: "buy" | "sell") {
-    setFormOpen(action);
-    setError(null);
-    // Default price to current snapshot price for one-click logging.
-    // When derivative-mode is on, the underlying's price isn't useful so
-    // we leave it blank — user enters the leverage ticker's actual price.
-    setPrice(
-      useDerivative
-        ? ""
-        : currentPrice != null
-          ? currentPrice.toFixed(2)
-          : "",
-    );
-    setQty("");
-    setNotes("");
-  }
-
   async function submit() {
-    if (!formOpen) return;
     const qtyN = Number(qty);
     const priceN = Number(price);
     if (!isFinite(qtyN) || qtyN <= 0) {
@@ -1165,10 +1147,10 @@ function TradeJournalPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           symbol: tradedSymbol,
-          action: formOpen,
+          action,
           qty: qtyN,
           price: priceN,
-          mode,
+          mode: "real", // user trades real money only; no paper mode
           notes: notes.trim() || null,
           ai_analysis_id: aiAnalysisId,
           underlying_symbol: underlyingForBody,
@@ -1179,7 +1161,11 @@ function TradeJournalPanel({
         setError(d.error);
         return;
       }
-      setFormOpen(null);
+      // Clear inputs for the next entry; keep action/derivative settings
+      // since the user's workflow often involves repeat trades.
+      setQty("");
+      setPrice("");
+      setNotes("");
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -1198,25 +1184,16 @@ function TradeJournalPanel({
     <div className="border border-neutral-800 rounded-lg p-4 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-sm font-semibold">📝 매매 기록</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => openForm("buy")}
-            className="text-xs px-3 py-1.5 border border-emerald-700 text-emerald-300 rounded hover:bg-emerald-950/40"
-          >
-            + 매수 기록
-          </button>
-          <button
-            onClick={() => openForm("sell")}
-            className="text-xs px-3 py-1.5 border border-rose-700 text-rose-300 rounded hover:bg-rose-950/40"
-          >
-            − 매도 기록
-          </button>
-        </div>
+        {aiAnalysisId && (
+          <span className="text-[11px] text-neutral-500">최근 AI 분석에 연결됨</span>
+        )}
       </div>
 
       {/* Position summary — one row per traded instrument. Direct trades
           on `symbol` show first; derivatives (different `symbol` with
-          underlying = panel symbol) follow with a tag indicating link. */}
+          underlying = panel symbol) follow with a tag indicating link.
+          Paper-mode summary hidden when zero paper trades (user is on
+          real money only — no need to clutter the panel). */}
       {positionsByInstrument.length === 0 ? (
         <div className="border border-neutral-800 rounded p-2.5 text-xs text-neutral-500 mb-3">
           이 종목 기록 없음
@@ -1228,6 +1205,7 @@ function TradeJournalPanel({
             // Only show "current price" mark-to-market for the panel's own
             // symbol; we don't have the derivative's live snapshot here.
             const px = isDerivative ? null : currentPrice;
+            const hasPaper = inst.paper.tradeCount > 0;
             return (
               <div key={inst.symbol}>
                 <div className="flex items-center gap-2 mb-1 text-[11px] text-neutral-400">
@@ -1243,12 +1221,18 @@ function TradeJournalPanel({
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                  <PositionSummary
-                    label="📄 페이퍼"
-                    pos={inst.paper}
-                    currentPrice={px}
-                  />
+                <div
+                  className={`grid grid-cols-1 gap-2 text-xs ${
+                    hasPaper ? "md:grid-cols-2" : ""
+                  }`}
+                >
+                  {hasPaper && (
+                    <PositionSummary
+                      label="📄 페이퍼 (legacy)"
+                      pos={inst.paper}
+                      currentPrice={px}
+                    />
+                  )}
                   <PositionSummary
                     label="💵 실전"
                     pos={inst.real}
@@ -1261,149 +1245,149 @@ function TradeJournalPanel({
         </div>
       )}
 
-      {/* Inline form */}
-      {formOpen && (
-        <div className="border border-neutral-800 rounded p-3 mb-3 bg-neutral-950/40">
-          <div className="text-xs text-neutral-400 mb-2">
-            {formOpen === "buy" ? "매수 기록" : "매도 기록"}{" "}
-            {aiAnalysisId && (
-              <span className="text-neutral-600">· 최근 AI 분석에 연결됨</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={mode === "paper"}
-                onChange={() => setMode("paper")}
-              />
-              모의 (paper)
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={mode === "real"}
-                onChange={() => setMode("real")}
-              />
-              실전 (real)
-            </label>
-          </div>
+      {/* Always-open record form. The two original buttons (+ 매수 / − 매도)
+          were removed — user trades real money only, and a single inline
+          form with a buy/sell radio is faster for frequent recording.
+          Default state: real-mode + derivative-ticker entry (user's typical
+          2× leveraged ETF workflow). */}
+      <div className="border border-neutral-800 rounded p-3 bg-neutral-950/40">
+        <div className="flex flex-wrap items-center gap-3 text-xs mb-2">
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              checked={action === "buy"}
+              onChange={() => setAction("buy")}
+            />
+            <span className="text-emerald-300 font-semibold">매수</span>
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              checked={action === "sell"}
+              onChange={() => setAction("sell")}
+            />
+            <span className="text-rose-300 font-semibold">매도</span>
+          </label>
+        </div>
 
-          {/* Derivative / leveraged ETF toggle. When ON, the trade is
-              recorded against `derivTicker` (e.g. TSLL) with `symbol` as
-              the underlying (TSLA). P&L math runs on the leverage ticker;
-              AI analysis stays linked to the underlying. */}
-          <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b border-neutral-800/60">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={!useDerivative}
-                onChange={() => {
-                  setUseDerivative(false);
-                  if (currentPrice != null) setPrice(currentPrice.toFixed(2));
-                }}
-              />
-              {symbol} 직접 매매
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={useDerivative}
-                onChange={() => {
-                  setUseDerivative(true);
-                  setPrice(""); // underlying price doesn't apply to leverage ETF
-                }}
-              />
-              다른 종목으로 매매 (레버리지 등)
-            </label>
-            {useDerivative && (
-              <label className="flex items-center gap-1 ml-1">
-                <span className="text-neutral-500">거래 티커:</span>
-                <input
-                  type="text"
-                  value={derivTicker}
-                  onChange={(e) => setDerivTicker(e.target.value.toUpperCase())}
-                  className="w-24 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 uppercase"
-                  placeholder="TSLL"
-                  maxLength={10}
-                />
-              </label>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-end gap-2 text-xs">
-            <label className="flex flex-col">
-              <span className="text-neutral-500 mb-0.5">
-                수량 (주식{useDerivative ? `, ${derivTicker || "?"}` : ""})
-              </span>
-              <input
-                type="number"
-                step="any"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-                placeholder="10"
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className="text-neutral-500 mb-0.5">
-                가격 ($
-                {useDerivative
-                  ? `, ${derivTicker || "거래 티커"} 기준`
-                  : ""}
-                )
-              </span>
-              <input
-                type="number"
-                step="any"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-                placeholder={
-                  useDerivative
-                    ? "16.81"
-                    : currentPrice?.toFixed(2) ?? "0.00"
-                }
-              />
-            </label>
-            <label className="flex flex-col flex-1 min-w-[180px]">
-              <span className="text-neutral-500 mb-0.5">메모 (선택)</span>
+        {/* Derivative / leveraged ETF toggle. Default ON since user's
+            typical workflow trades 2× ETFs (e.g. TSLL) on the analyzed
+            underlying (TSLA). When ON, qty/price reflect the leverage
+            ticker; the trade row stores symbol=TSLL underlying=TSLA. */}
+        <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b border-neutral-800/60">
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              checked={useDerivative}
+              onChange={() => {
+                setUseDerivative(true);
+                setPrice(""); // leverage price differs from underlying
+              }}
+            />
+            다른 종목으로 매매 (레버리지 등)
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              checked={!useDerivative}
+              onChange={() => {
+                setUseDerivative(false);
+                if (currentPrice != null) setPrice(currentPrice.toFixed(2));
+              }}
+            />
+            {symbol} 직접 매매
+          </label>
+          {useDerivative && (
+            <label className="flex items-center gap-1 ml-1">
+              <span className="text-neutral-500">거래 티커:</span>
               <input
                 type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
-                placeholder="갭상승 시그널 보고 진입"
+                value={derivTicker}
+                onChange={(e) => setDerivTicker(e.target.value.toUpperCase())}
+                className="w-24 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 uppercase"
+                placeholder="TSLL"
+                maxLength={10}
               />
             </label>
-            <button
-              onClick={submit}
-              disabled={submitting}
-              className={`px-3 py-1.5 text-xs rounded font-semibold ${
-                formOpen === "buy"
-                  ? "bg-emerald-700 hover:bg-emerald-600 text-white"
-                  : "bg-rose-700 hover:bg-rose-600 text-white"
-              } disabled:opacity-50`}
-            >
-              {submitting ? "저장 중…" : "저장"}
-            </button>
-            <button
-              onClick={() => setFormOpen(null)}
-              className="px-2 py-1.5 text-xs border border-neutral-700 rounded text-neutral-400 hover:text-neutral-200"
-            >
-              취소
-            </button>
-          </div>
-          {error && <div className="mt-2 text-xs text-rose-400">{error}</div>}
+          )}
         </div>
-      )}
+
+        <div className="flex flex-wrap items-end gap-2 text-xs">
+          <label className="flex flex-col">
+            <span className="text-neutral-500 mb-0.5">
+              수량 (주식{useDerivative ? `, ${derivTicker || "?"}` : ""})
+            </span>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={qty}
+              // Strip leading '-' so the user cannot enter negative qty
+              // even by paste or keyboard. Shares can't be negative.
+              onChange={(e) => setQty(e.target.value.replace(/^-+/, ""))}
+              onKeyDown={(e) => {
+                if (e.key === "-") e.preventDefault();
+              }}
+              className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
+              placeholder="10"
+            />
+          </label>
+          <label className="flex flex-col">
+            <span className="text-neutral-500 mb-0.5">
+              가격 ($
+              {useDerivative
+                ? `, ${derivTicker || "거래 티커"} 기준`
+                : ""}
+              )
+            </span>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value.replace(/^-+/, ""))}
+              onKeyDown={(e) => {
+                if (e.key === "-") e.preventDefault();
+              }}
+              className="w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
+              placeholder={
+                useDerivative
+                  ? "16.81"
+                  : currentPrice?.toFixed(2) ?? "0.00"
+              }
+            />
+          </label>
+          <label className="flex flex-col flex-1 min-w-[180px]">
+            <span className="text-neutral-500 mb-0.5">메모 (선택)</span>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1"
+              placeholder="갭상승 시그널 보고 진입"
+            />
+          </label>
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className={`px-3 py-1.5 text-xs rounded font-semibold disabled:opacity-50 ${
+              action === "buy"
+                ? "bg-emerald-700 hover:bg-emerald-600 text-white"
+                : "bg-rose-700 hover:bg-rose-600 text-white"
+            }`}
+          >
+            {submitting ? "저장 중…" : action === "buy" ? "매수 저장" : "매도 저장"}
+          </button>
+        </div>
+        {error && <div className="mt-2 text-xs text-rose-400">{error}</div>}
+      </div>
 
       {/* Recent trades table */}
       {loading ? (
         <p className="text-xs text-neutral-500">로딩 중…</p>
       ) : trades.length === 0 ? (
         <p className="text-xs text-neutral-500">
-          이 종목 거래 기록 없음. 위 버튼으로 첫 매수/매도를 기록하세요.
+          이 종목 거래 기록 없음. 위 폼에서 첫 매수/매도를 기록하세요.
         </p>
       ) : (
         <div className="overflow-x-auto">
