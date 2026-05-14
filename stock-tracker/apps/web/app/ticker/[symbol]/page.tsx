@@ -124,9 +124,20 @@ export default function TickerPage({ params }: PageProps) {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/" className="text-sm text-sky-400 hover:underline">
-        ← back to signals
-      </Link>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <Link href="/" className="text-sm text-sky-400 hover:underline">
+          ← back to signals
+        </Link>
+        {/* One-click jump to the trade page with this symbol pre-selected.
+            Lets the user go from "interesting signal" → AI analysis screen
+            without re-searching the symbol. */}
+        <Link
+          href={`/trade?symbol=${encodeURIComponent(sym)}`}
+          className="px-3 py-1.5 text-sm border border-sky-700 bg-sky-900/30 text-sky-200 rounded hover:bg-sky-900/60 hover:border-sky-500 transition-colors"
+        >
+          📊 Trade 페이지에서 분석 →
+        </Link>
+      </div>
       <div className="mt-4 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">{sym}</h1>

@@ -214,6 +214,28 @@ export default function TradePage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedSnap, setSelectedSnap] = useState<Snapshot | null>(null);
 
+  // Deep-link from the ticker detail page: /trade?symbol=AAPL pre-selects
+  // AAPL on mount. The user goes "signal interesting → ticker page → one
+  // click → trade page with that symbol loaded → click 분석".
+  //
+  // We read window.location.search directly inside a client-only useEffect
+  // rather than via Next.js useSearchParams() — useSearchParams forces the
+  // page out of static generation and triggers a "missing Suspense
+  // boundary" build error, since the trade page is a single huge client
+  // component. Direct window access only runs after hydration, so SSR
+  // safety is preserved and there's nothing to pre-render here anyway.
+  const initialSelectionApplied = useRef(false);
+  useEffect(() => {
+    if (initialSelectionApplied.current) return;
+    initialSelectionApplied.current = true;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sym = params.get("symbol")?.trim().toUpperCase();
+    if (sym && /^[A-Z][A-Z0-9.\-]{0,9}$/.test(sym)) {
+      setSelected(sym);
+    }
+  }, []);
+
   // analysis
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
