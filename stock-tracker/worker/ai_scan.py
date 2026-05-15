@@ -1,22 +1,33 @@
-"""Twice-daily AI scan: call /api/analyze on the union of watchlist symbols
-and any symbols that fired a signal in the last 24h, then telegram-digest
-the resulting BUY / SELL / HOLD verdicts.
+"""Thrice-daily AI scan: call /api/analyze on the union of watchlist symbols
+and the top-conviction signals_24h, then telegram-digest the resulting
+BUY / SELL / HOLD verdicts.
 
 Why: until now AI verdicts only existed when the user manually clicked
 "분석" on a single ticker. There was no proactive "AI says BUY today"
 output, so the trade journal couldn't link to anything and we couldn't
 measure AI-recommendation accuracy. This worker fills the gap.
 
-Cost: each /api/analyze call is one Gemini-2.5-flash request. The route
-already caches results for 5 minutes per symbol, so back-to-back scan
-runs on the same ticker are free. Free Gemini quota is ~250 RPD per
-model with a 4-model fallback chain, so 40 symbols × 2 runs/day stays
-well within budget.
+Cost & graceful degradation:
+  - Each /api/analyze call is one gemini-2.5-flash request (with
+    gemini-flash-latest as quality-equivalent fallback). The route caches
+    per symbol for 5 minutes.
+  - Free Gemini quota is ~250 RPD per model — sized so 25 × 3 = 75 calls/
+    day fits inside the budget WITH the quality-only model chain (no
+    fallback to lighter models).
+  - When quota IS exhausted (e.g., user clicked /api/analyze many times
+    earlier in the PT day, or RPM ceiling hit by a parallel run), the
+    scan flips to *stale-only mode*: instead of bombarding Gemini with
+    retries, we pull each remaining symbol's last verdict from
+    ai_analysis (≤24h old) and ship that with a "(N시간 전 · cached)"
+    marker. Quality is preserved — those cached verdicts were generated
+    by the same top-tier model chain a few hours ago. The user gets a
+    COMPLETE digest instead of the old "부분 결과 — 조기 중단" banner.
 
 Schedule (GH Actions cron, .github/workflows/stock-tracker-ai-scan.yml):
-  - 13:00 UTC = ET 09:00 = KST 22:00 (premarket close, before regular open)
+  - 08:00 UTC = ET 04:00 = KST 17:00 (premarket session start)
+  - 13:00 UTC = ET 09:00 = KST 22:00 (regular open in 30m)
   - 21:00 UTC = ET 17:00 = KST 06:00 (after-hours done, next-day planning)
-Both weekdays only.
+All weekdays only.
 """
 from __future__ import annotations
 
@@ -199,6 +210,81 @@ def call_analyze(symbol: str) -> dict | None:
         return None
 
 
+# How far back we'll reach into ai_analysis when a fresh Gemini call fails.
+# Verdicts older than this are dropped silently — too stale to publish in
+# what's labeled "AI 일일 추천."
+#
+# 24h is the sweet spot:
+#   - Watchlist symbols get analyzed in every 8-hour scan, so a stale fall-
+#     back is at most ~8h old (≪ 24h) under normal cadence
+#   - Across an entire quota-burned PT day, the oldest still-valid verdict
+#     was generated this morning's KST 17:00 scan = ~7h ago — well inside
+#     the window
+#   - Beyond 24h, market context (overnight earnings, gap moves, macro
+#     releases) has shifted enough that the verdict is misleading
+STALE_FALLBACK_MAX_AGE_HOURS = 24
+
+
+def fetch_stale_verdict(sb, symbol: str) -> dict | None:
+    """Look up the most recent ai_analysis row for `symbol` within the
+    stale-fallback window. Returns a dict shaped like /api/analyze's
+    `analysis` response + a `created_at` timestamp, or None.
+
+    Used as fallback when Gemini quota is exhausted: we'd rather ship the
+    last fresh-quality verdict (generated maybe a few hours ago, still
+    high-quality because it came from the same gemini-2.5-flash chain)
+    than abort the scan and show "부분 결과" banner. Quality > recency
+    when the alternative is no data at all.
+    """
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=STALE_FALLBACK_MAX_AGE_HOURS)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        res = (
+            sb.table("ai_analysis")
+            .select("symbol,verdict,confidence,summary,created_at")
+            .eq("symbol", symbol)
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        print(f"    stale lookup({symbol}) failed: {e}", file=sys.stderr)
+        return None
+    rows = res.data or []
+    if not rows:
+        return None
+    row = rows[0]
+    return {
+        "verdict": row.get("verdict") or "hold",
+        "confidence": row.get("confidence") or 0,
+        "summary": row.get("summary") or "",
+        "created_at": row.get("created_at"),
+    }
+
+
+def _stale_age_label(created_at_iso: str | None) -> str:
+    """Render a short relative-time label, e.g. '3시간 전' or '어제'.
+    Empty string if input is missing or unparseable."""
+    if not created_at_iso:
+        return ""
+    try:
+        # ai_analysis.created_at is timestamptz; Supabase returns ISO-8601
+        # with timezone. Python's fromisoformat handles +HH:MM and Z (3.11+).
+        ts = datetime.fromisoformat(created_at_iso.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return ""
+    delta = datetime.now(timezone.utc) - ts
+    hours = int(delta.total_seconds() // 3600)
+    if hours < 1:
+        return "방금 전"
+    if hours < 24:
+        return f"{hours}시간 전"
+    days = hours // 24
+    return f"{days}일 전"
+
+
 # Per-summary cap. The AI summary is usually 200-400 chars in Korean;
 # 280 fits 3-4 telegram lines and reads as a complete thought rather
 # than a sentence trailing into "...". The packer below splits into
@@ -211,7 +297,14 @@ TG_MSG_CHAR_CAP = 3900
 
 
 def _format_entry(v: dict) -> str:
-    """One BUY/SELL entry block — symbol header + summary if present."""
+    """One BUY/SELL entry block — symbol header + summary if present.
+
+    If the verdict came from the stale-fallback path (Gemini quota was
+    exhausted, we reused the last fresh ai_analysis row), append a
+    "(N시간 전)" marker so the user knows the verdict isn't from this
+    minute's data. Quality is unchanged — the verdict was generated by
+    the same quality-first model chain a few hours ago.
+    """
     sym = v.get("symbol", "?")
     conf = int(round(float(v.get("confidence") or 0) * 100))
     summary = (v.get("summary") or "").strip()
@@ -225,6 +318,9 @@ def _format_entry(v: dict) -> str:
         else:
             summary = cut.rstrip() + "…"
     line = f"• *{sym}*  신뢰도 {conf}%"
+    if v.get("stale"):
+        age = _stale_age_label(v.get("created_at"))
+        line += f"  _({age} · cached)_" if age else "  _(cached)_"
     if summary:
         line += f"\n  _{summary}_"
     return line
@@ -236,7 +332,8 @@ def _build_blocks(
     watchlist_n: int,
     signals_n: int,
     signals_selected: int = 0,
-    aborted_early: bool = False,
+    stale_count: int = 0,
+    missing_count: int = 0,
 ) -> list[str]:
     """Emit a list of atomic content blocks. The packer never splits inside
     a block — keeps each BUY/SELL entry intact across message boundaries."""
@@ -263,10 +360,21 @@ def _build_blocks(
         f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
         f"스캔 종목: {total_scanned}건 ({selection_summary})",
     ]
-    if aborted_early:
+    if stale_count > 0:
+        # Informational only — quality is preserved (cached verdicts came
+        # from the same gemini-2.5-flash chain, just generated earlier).
+        # No "부분 결과" framing because the digest IS complete.
         header_lines.append(
-            "⚠️ *부분 결과* — Gemini 한도 도달로 조기 중단 (분당 RPM 또는 일일 RPD). "
-            "다음 스캔 (또는 다음날 PT 자정 = KST 16:00 리셋 후) 자동 재시도."
+            f"ℹ️ {stale_count}건은 Gemini 한도 보호 차원에서 최근 캐시 verdict 재사용 "
+            "(각 항목에 시점 표시)."
+        )
+    if missing_count > 0:
+        # Symbols that had neither a fresh call success nor a cached verdict
+        # within 24h. Rare — only happens for brand-new signal symbols when
+        # quota is exhausted.
+        header_lines.append(
+            f"⚠️ {missing_count}건은 신규 종목 + Gemini 한도로 verdict 생성 실패. "
+            "다음 스캔 (KST 16:00 PT-자정 quota 리셋) 자동 재시도."
         )
     blocks: list[str] = ["\n".join(header_lines)]
 
@@ -338,7 +446,8 @@ def format_digest(
     watchlist_n: int,
     signals_n: int,
     signals_selected: int = 0,
-    aborted_early: bool = False,
+    stale_count: int = 0,
+    missing_count: int = 0,
 ) -> list[str]:
     """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
     blocks = _build_blocks(
@@ -347,7 +456,8 @@ def format_digest(
         watchlist_n,
         signals_n,
         signals_selected,
-        aborted_early,
+        stale_count,
+        missing_count,
     )
     return pack_messages(blocks)
 
@@ -395,46 +505,85 @@ def main() -> int:
         print("ai_scan: no symbols to scan, exiting")
         return 0
 
-    # Quota-aware early abort: when Gemini's free quota is exhausted, every
-    # subsequent call burns ~8 retry slots (4 models × 2 attempts) on 429s
-    # and contributes nothing. Once we see N consecutive failures we give
-    # up on the rest of the scan and send whatever we got. Prevents one
-    # bad day from cascading into "all 4 models locked out till tomorrow."
-    EARLY_ABORT_CONSECUTIVE_FAILURES = 5
+    # Quota-aware degraded mode: when Gemini's free quota is exhausted,
+    # additional /api/analyze calls just burn 429-retry slots and contribute
+    # nothing. After N consecutive fresh failures we flip into "stale-only"
+    # mode for the rest of the scan: skip Gemini entirely, just pull each
+    # remaining symbol's last fresh verdict from ai_analysis (≤24h old).
+    #
+    # Why 3 (was 5): with the model cooldown logic in gemini.ts, the first
+    # 429 already locks both models for 1h. Three consecutive failures is
+    # strong evidence that quota is exhausted (not just transient 5xx), so
+    # we don't need to be conservative about flipping the switch.
+    CONSECUTIVE_FAIL_TO_DEGRADE = 3
 
     verdicts: list[dict] = []
-    failed: list[str] = []
+    missing: list[str] = []  # no fresh AND no stale verdict — truly dropped
     consecutive_failures = 0
-    aborted_early = False
+    stale_only_mode = False
+    fresh_count = 0
+    stale_count = 0
     started = time.time()
 
     for i, sym in enumerate(targets, 1):
         elapsed = int(time.time() - started)
-        print(f"  [{i}/{len(targets)}] analyze {sym} (elapsed {elapsed}s)", flush=True)
-        analysis = call_analyze(sym)
+        analysis: dict | None = None
+        used_stale = False
+
+        if not stale_only_mode:
+            print(
+                f"  [{i}/{len(targets)}] analyze {sym} (elapsed {elapsed}s)",
+                flush=True,
+            )
+            analysis = call_analyze(sym)
+            if analysis:
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+                if consecutive_failures >= CONSECUTIVE_FAIL_TO_DEGRADE:
+                    stale_only_mode = True
+                    remaining = len(targets) - i
+                    print(
+                        f"  ! {consecutive_failures} consecutive fresh failures — "
+                        f"likely Gemini quota exhausted. Switching to stale-only "
+                        f"mode for remaining {remaining} symbols to preserve next "
+                        f"scan's quota; will pull cached verdicts from ai_analysis.",
+                        file=sys.stderr,
+                    )
+        else:
+            # In degraded mode: don't call Gemini at all. Just log briefly.
+            print(
+                f"  [{i}/{len(targets)}] stale-only {sym} (elapsed {elapsed}s)",
+                flush=True,
+            )
+
+        # If no fresh result, fall back to most recent ai_analysis row.
         if not analysis:
-            failed.append(sym)
-            consecutive_failures += 1
-            if consecutive_failures >= EARLY_ABORT_CONSECUTIVE_FAILURES:
-                aborted_early = True
-                skipped = len(targets) - i
-                print(
-                    f"  ! {consecutive_failures} consecutive failures — likely Gemini quota "
-                    f"exhausted; aborting remaining {skipped} symbols to preserve future runs",
-                    file=sys.stderr,
-                )
-                break
-            continue
-        consecutive_failures = 0  # reset on any success
+            stale_row = fetch_stale_verdict(sb, sym)
+            if stale_row:
+                analysis = stale_row
+                used_stale = True
+            else:
+                missing.append(sym)
+                # Don't sleep — no API call was made.
+                continue
+
         verdicts.append(
             {
                 "symbol": sym,
                 "verdict": analysis.get("verdict") or "hold",
                 "confidence": analysis.get("confidence") or 0,
                 "summary": analysis.get("summary") or "",
+                "stale": used_stale,
+                "created_at": analysis.get("created_at") if used_stale else None,
             }
         )
-        time.sleep(INTER_CALL_DELAY_SEC)
+        if used_stale:
+            stale_count += 1
+        else:
+            fresh_count += 1
+            # Inter-call delay only applies after a real Gemini call.
+            time.sleep(INTER_CALL_DELAY_SEC)
 
     counts = {"buy": 0, "sell": 0, "hold": 0}
     for v in verdicts:
@@ -444,11 +593,12 @@ def main() -> int:
     print(
         f"ai_scan: collected {len(verdicts)} verdicts "
         f"(buy={counts.get('buy', 0)}, sell={counts.get('sell', 0)}, "
-        f"hold={counts.get('hold', 0)}), failed={len(failed)}"
+        f"hold={counts.get('hold', 0)}); fresh={fresh_count}, "
+        f"stale={stale_count}, missing={len(missing)}"
     )
-    if failed:
-        head = ", ".join(failed[:20])
-        print(f"  failed: {head}{'…' if len(failed) > 20 else ''}")
+    if missing:
+        head = ", ".join(missing[:20])
+        print(f"  missing (no fresh + no cache): {head}{'…' if len(missing) > 20 else ''}")
 
     if not verdicts:
         print("ai_scan: no verdicts to send, skipping telegram", file=sys.stderr)
@@ -460,7 +610,8 @@ def main() -> int:
         watchlist_n=len(watchlist),
         signals_n=len(signals),
         signals_selected=signals_selected,
-        aborted_early=aborted_early,
+        stale_count=stale_count,
+        missing_count=len(missing),
     )
     sent_ok = 0
     for i, msg in enumerate(messages, 1):
