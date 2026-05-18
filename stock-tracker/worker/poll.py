@@ -52,20 +52,32 @@ def _bars_to_rows(symbol: str, df: pd.DataFrame) -> list[dict]:
 
 
 def _pick_fetcher(now_utc: datetime):
-    """Return the right per-poll bar fetcher.
+    """Return the per-poll bar fetcher. All sessions now use Alpaca IEX.
 
-    Regular session (09:30-16:00 ET): Alpaca IEX — real-time, no quota worry.
-    Pre/after/closed: yfinance with prepost=True — IEX has near-zero pre/after
-    volume and would never fire a signal there. yfinance is 15-min delayed and
-    occasionally rate-limited from data-center IPs but it's the only free
-    source that includes extended-hours bars. The signal detector treats the
-    pre-market path with a higher gap threshold (PRE_GAP_PCT=3%) so the lower
-    quote-quality doesn't translate into noise.
+    History: pre/after used to route to yfinance with prepost=True because
+    IEX's extended-hours volume is thin and yfinance pulled the consolidated
+    feed. That broke on 2026-05 when Yahoo started aggressively rate-limiting
+    GitHub Actions runner IPs (every batch returned 429, signals fired = 0
+    across the entire weekend → Monday premarket window). Same issue we hit
+    earlier from Vercel IPs in /api/snapshot.
+
+    Tradeoff of IEX-only extended hours:
+      - Top ~50 most-active names (AAPL/NVDA/TSLA/MSFT/AMD/META/AVGO/...,
+        plus user's watchlist) still have enough IEX pre/after volume for
+        real signals to fire. These are exactly the names the user cares
+        about, so coverage where it counts is preserved.
+      - Mid-cap names with no IEX extended-hours print won't trigger
+        pre/after signals. The MIN_DOLLAR_VOL=$1M floor in the signal
+        detector already screens those out as not-actionable.
+      - Net effect on ai_scan: signals_24h pool is somewhat smaller during
+        weekends/Monday-AM (when only ext-hours bars exist), but the
+        conviction-ranked top-22 still gets filled.
+
+    Finnhub was considered as a yfinance replacement but its /stock/candle
+    endpoint moved to premium-only on free tier (only /quote remains free,
+    which gives current price but no historical OHLCV for volume_ratio).
     """
-    sess = data.classify_session(now_utc)
-    if sess == "regular":
-        return alpaca.fetch_recent_bars, "alpaca-iex"
-    return data.fetch_recent_bars, "yfinance-prepost"
+    return alpaca.fetch_recent_bars, "alpaca-iex"
 
 
 def run_once(sb, symbols: list[str]) -> tuple[int, int]:
