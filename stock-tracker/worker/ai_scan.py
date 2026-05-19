@@ -77,17 +77,33 @@ NEWS_FACTOR = float(os.getenv("AI_SCAN_NEWS_FACTOR", "1.2"))
 # response if Vercel kills the request.
 ANALYZE_TIMEOUT_SEC = 75
 
-# Pause between calls. Sized to stay under Gemini's per-model RPM ceiling
-# even when signals_24h pushes the target list to 80-100 symbols. The
-# primary model (gemini-2.5-flash) caps at 10 RPM on free tier, so we
-# need ≥ 6s/call (= 10 RPM). 7s adds a safety margin against:
-#   - clock drift between worker and Google's rate-limit window
-#   - the gemini.ts retry-on-429 logic firing twice in quick succession
-#   - parallel watchlist refresh + analyze button activity from the user
-# Cost: ~12s × 90 symbols ≈ 11min/run, comfortably within the 75min
-# workflow timeout. Was 2s, which routinely tripped the 10 RPM ceiling
-# and cascaded into the 5-consecutive-fail early-abort.
-INTER_CALL_DELAY_SEC = 7
+# Pause between calls. Sized to stay under Gemini's INPUT-TOKENS-PER-MINUTE
+# (TPM) ceiling, which turns out to be the actual binding constraint — NOT
+# the RPM count. Free tier TPM = 250,000 input tokens/min per model.
+#
+# Our prompt is dense (17 sections: price/tech/macro/options/earnings/
+# ratings/float+short/SEC 8-K/insider/own signals/news/watchlist) and
+# typically runs ~30-50K input tokens per call.
+#
+# Math:
+#   250K TPM ÷ 40K avg-per-call ≈ 6.25 calls/min max
+#   60s ÷ 6.25 = 9.6s/call minimum spacing
+#   15s gives ~4 calls/min × 40K = 160K TPM (safe margin)
+#
+# Was 7s — that gave ~8-9 calls/min × 40K = 320-360K TPM, blowing through
+# the 250K ceiling and triggering 429 InputTokensPerMinute mid-scan.
+# Symptom: digests came back with "ℹ️ N건 캐시 재사용" header banner
+# because the worker hit 3 consecutive 429s and flipped to stale-only mode.
+# Diagnosed 2026-05-19 from the 429 response body's QuotaFailure details
+# (quotaId: GenerateContentInputTokensPerModelPerMinute-FreeTier).
+#
+# Cost: ~15s × 25 symbols = 6.25 min/scan, plus the analyze route's own
+# data-fetch time (~5-20s per call). Total ~10-15 min per scan, still
+# well within the 75-min workflow timeout.
+#
+# RPM(요청/분) is also 10/min on free tier, which is satisfied (we do ~4/min)
+# RPD(요청/일) is 250/model, also satisfied (75/day from scans)
+INTER_CALL_DELAY_SEC = 15
 
 # Per-bucket safety cap. Set very high so in practice every analyzed
 # symbol appears in the digest with its full reasoning — the per-message

@@ -26,19 +26,27 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS_PER_MODEL = 2;
 
 // ─── Per-process model cooldown ────────────────────────────────────────────
-// When a model 429s (RPM rate limit OR RPD daily quota — the response
-// doesn't reliably distinguish), every subsequent /api/analyze call would
-// otherwise also try it first and burn another 2 attempts before
-// cascading. That's what blew through the daily quota across all models
-// today. We mark a 429-returning model "cooled" for 1 hour and skip it
-// entirely until then.
+// When a model 429s, every subsequent /api/analyze call would otherwise
+// also try it first and burn another 2 attempts before cascading. We mark
+// a 429-returning model "cooled" and skip it entirely until cooldown ends.
 //
-// 1h is the sweet spot: short enough that a transient 60s RPM cool-off
-// recovers automatically before the next scan, long enough that a true
-// RPD exhaustion doesn't keep hammering the model for the rest of the
-// PT day. Module-level Map persists across /api/analyze invocations on
-// the same warm Vercel function instance.
-const MODEL_COOLDOWN_MS = 60 * 60 * 1000;
+// The 429 response carries QuotaFailure details that identify *which*
+// quota was hit — e.g.:
+//   GenerateContentInputTokensPerModelPerMinute-FreeTier  (250K TPM)
+//   GenerateContentRequestsPerMinutePerModel-FreeTier     (10 RPM)
+//   GenerateContentRequestsPerDayPerModel-FreeTier        (250 RPD)
+//
+// Per-minute quotas (TPM, RPM) clear in ~60s, so we set a short cooldown
+// (75s gives a safety margin). Per-day quotas only clear at PT midnight,
+// so we set the longer 1h cooldown (worker will keep checking).
+//
+// Diagnosed 2026-05-19: the binding constraint for our 17-section prompt
+// is TPM (~30-50K input tokens per call × ~9 calls/min on the old 7s
+// pacing = 300-450K TPM, blowing past 250K). Bumped delay to 15s and
+// added this smart cooldown so transient TPM hits don't lock the model
+// for a full hour.
+const COOLDOWN_SHORT_MS = 75 * 1000;       // per-minute quotas (TPM, RPM)
+const COOLDOWN_LONG_MS = 60 * 60 * 1000;   // per-day quotas (RPD), unknown
 const modelCooldownUntil = new Map<string, number>();
 
 function isModelCooled(model: string): boolean {
@@ -49,8 +57,16 @@ function isModelCooled(model: string): boolean {
   return false;
 }
 
-function markModelCooled(model: string): void {
-  modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
+function markModelCooled(model: string, errorBody: string | undefined): void {
+  // PerMinute clears in ~60s; PerDay needs hours. Default to long if we
+  // can't parse — safer to over-cooldown than to keep hammering a depleted
+  // daily bucket.
+  const isPerMinute = errorBody != null && /PerMinute/i.test(errorBody);
+  const ms = isPerMinute ? COOLDOWN_SHORT_MS : COOLDOWN_LONG_MS;
+  modelCooldownUntil.set(model, Date.now() + ms);
+  console.log(
+    `gemini_cooldown model=${model} ms=${ms} kind=${isPerMinute ? "per-minute" : "per-day-or-unknown"}`,
+  );
 }
 
 function endpointFor(model: string): string {
@@ -135,13 +151,35 @@ async function callOnce(model: string, apiKey: string, prompt: string): Promise<
   });
   if (!r.ok) {
     const t = await r.text();
-    const err = new Error(`gemini ${r.status} (${model}): ${t.slice(0, 300)}`);
+    // Preserve enough body to capture QuotaFailure.details on 429 (the
+    // "PerMinute" vs "PerDay" marker we use for adaptive cooldown lives
+    // ~600 bytes deep in the JSON). 1200 is generous but bounded.
+    const err = new Error(`gemini ${r.status} (${model}): ${t.slice(0, 1200)}`);
     (err as Error & { status?: number }).status = r.status;
     throw err;
   }
   const data = (await r.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
+  // Log token usage so we can audit input-TPM consumption. The free-tier
+  // 250K input-tokens-per-minute ceiling is the actual binding constraint
+  // for ai_scan throughput (NOT the 10 RPM request-count limit). When
+  // pacing or prompt-size changes, grep Vercel logs for "gemini_usage" to
+  // verify we're still under TPM.
+  const usage = data.usageMetadata;
+  if (usage) {
+    console.log(
+      `gemini_usage model=${model} prompt=${usage.promptTokenCount ?? 0} ` +
+        `output=${usage.candidatesTokenCount ?? 0} thoughts=${usage.thoughtsTokenCount ?? 0} ` +
+        `total=${usage.totalTokenCount ?? 0}`,
+    );
+  }
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error(`gemini (${model}): empty response`);
   return text;
@@ -170,11 +208,12 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
         const status = (e as Error & { status?: number }).status;
         // Auth / validation / unknown model — don't retry, jump to next model
         if (status && !RETRYABLE_STATUS.has(status)) break;
-        // 429 specifically: mark this model cooled for 1h and immediately
-        // fall through to the next model — don't waste an in-call retry
-        // on something already rate-limited.
+        // 429: pick cooldown duration based on which quota was hit.
+        // Per-minute quotas (TPM/RPM) clear fast (75s). Per-day (RPD) needs
+        // hours. The 429 error body carries QuotaFailure details we parse
+        // for "PerMinute" vs "PerDay" markers.
         if (status === 429) {
-          markModelCooled(model);
+          markModelCooled(model, (e as Error).message);
           break;
         }
         // Other retryable (5xx): backoff before next attempt within same model
