@@ -8,12 +8,13 @@ output, so the trade journal couldn't link to anything and we couldn't
 measure AI-recommendation accuracy. This worker fills the gap.
 
 Cost & graceful degradation:
-  - Each /api/analyze call is one gemini-2.5-flash request (with
-    gemini-flash-latest as quality-equivalent fallback). The route caches
-    per symbol for 5 minutes.
-  - Free Gemini quota is ~250 RPD per model — sized so 25 × 3 = 75 calls/
-    day fits inside the budget WITH the quality-only model chain (no
-    fallback to lighter models).
+  - Each /api/analyze call is one gemini-2.5-flash request. No fallback
+    model (gemini-flash-latest aliases to a 20-RPD preview — see
+    apps/web/lib/gemini.ts comments). The route caches per symbol for
+    5 minutes.
+  - Free Gemini quota is 250 RPD on primary — sized so 60 × 3 = 180
+    calls/day fits inside the budget with manual-click headroom
+    (~20-30 calls/day) and 20% safety margin.
   - When quota IS exhausted (e.g., user clicked /api/analyze many times
     earlier in the PT day, or RPM ceiling hit by a parallel run), the
     scan flips to *stale-only mode*: instead of bombarding Gemini with
@@ -45,15 +46,32 @@ from lib import db
 # SCAN_BUDGET below — this just protects against runaway list growth.
 MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "100"))
 
-# Target scan size per run. Sized so 3 runs/day stay comfortably inside
-# the free Gemini quota (250 RPD primary + 250 RPD fallback = 500 RPD;
-# 25 × 3 = 75 calls/day = 15% of budget) WITH the quality-only model
-# chain (no fallback to lighter models). Composition:
-#   watchlist (all)               + 0 to len(watchlist) symbols
-#   top signals_24h by conviction + the rest, up to SCAN_BUDGET total
-# If watchlist alone exceeds SCAN_BUDGET, watchlist symbols still all
-# get analyzed (the per-scan ceiling is MAX_SYMBOLS_PER_RUN above).
-SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "25"))
+# Target scan size per run. Sized to maximize coverage within the
+# gemini-2.5-flash free-tier limits (audit + tuning 2026-05-19/20):
+#
+#   Primary RPD limit:        250 calls/day (per-project-per-model)
+#   Fallback chain:           REMOVED (gemini-flash-latest aliases to a
+#                             20-RPD preview model — see gemini.ts)
+#   User manual /api/analyze: ~20-30 calls/day (Trade page clicks)
+#   3 scans/day budget:       250 - 30 - 20%_buffer ≈ 180-200 calls
+#   Per-scan budget:          ~60 symbols
+#
+# Composition (priority order):
+#   1. watchlist (all)              — user's active focus
+#   2. signals_24h by conviction    — fill remainder up to SCAN_BUDGET
+# If watchlist alone exceeds SCAN_BUDGET, watchlist still gets analyzed
+# fully (per-scan ceiling is MAX_SYMBOLS_PER_RUN above).
+#
+# Runtime budget:
+#   60 calls × 45s/call = 2700s = 45min   (workflow timeout=75min, 60% used)
+#   TPM check: 4 calls/min × 8K tokens = 32K TPM (250K limit, 13% used)
+#
+# Previously was 25 — that was sized when GH Actions schedule + cron-job.org
+# both fired = effective 6 scans/day = 150 calls already. After the 2026-05-19
+# fix dropping schedule, actual is 3 scans/day, so headroom doubled. This
+# bump claims that headroom for richer signals_24h coverage (60 = top
+# conviction across a busy market day vs 25 = only the very top names).
+SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "60"))
 
 # Conviction-score weights for signal-24h selection. Computed per signal
 # row as:

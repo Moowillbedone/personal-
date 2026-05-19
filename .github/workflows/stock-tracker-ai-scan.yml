@@ -9,9 +9,11 @@ name: stock-tracker / ai-scan
 #   13:00 UTC  =  ET 09:00  =  KST 22:00  (regular session opens in 30m)
 #   21:00 UTC  =  ET 17:00  =  KST 06:00  (after-hours running, daily wrap)
 #
-# Weekdays only (US market is closed Sat/Sun). 3x/day × ~100 symbols
-# ≈ 300 Gemini calls/day, well under the ~1000 RPD free-tier ceiling
-# across the 4-model fallback chain.
+# Weekdays only (US market is closed Sat/Sun). 3x/day × 60 symbols
+# = 180 Gemini calls/day on primary gemini-2.5-flash (250 RPD limit).
+# Manual /api/analyze clicks (~20-30/day) keep total within ~80% of
+# the daily budget. See worker/ai_scan.py SCAN_BUDGET docstring for
+# full sizing rationale.
 on:
   # Triggered exclusively by cron-job.org via workflow_dispatch at the
   # intended times (08/13/21 UTC = KST 17/22/06). GitHub Actions' native
