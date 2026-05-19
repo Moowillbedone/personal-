@@ -576,11 +576,19 @@ def main() -> int:
     # mode for the rest of the scan: skip Gemini entirely, just pull each
     # remaining symbol's last fresh verdict from ai_analysis (≤24h old).
     #
-    # Why 3 (was 5): with the model cooldown logic in gemini.ts, the first
-    # 429 already locks both models for 1h. Three consecutive failures is
-    # strong evidence that quota is exhausted (not just transient 5xx), so
-    # we don't need to be conservative about flipping the switch.
-    CONSECUTIVE_FAIL_TO_DEGRADE = 3
+    # 2026-05-20 tuning: bumped 3 → 5 + added a 75s recovery wait + probe
+    # before committing to stale-only. The 22:00 KST scan that day hit a
+    # transient per-minute 429 on the very first call (likely from a
+    # debugging burst minutes earlier) and immediately flipped to stale-only,
+    # producing fresh=0/stale=14/missing=11. Probing the same key 75s
+    # later showed 200 OK — quota had recovered. The new logic gives that
+    # recovery window a chance:
+    #   1) On 5 consecutive failures, sleep RECOVERY_WAIT_SEC
+    #   2) Probe one symbol fresh
+    #   3) If probe succeeds, reset counter and keep going (transient burst)
+    #   4) If probe fails too, then commit to stale-only for the rest
+    CONSECUTIVE_FAIL_TO_DEGRADE = 5
+    RECOVERY_WAIT_SEC = 75  # matches gemini.ts per-minute cooldown duration
 
     verdicts: list[dict] = []
     missing: list[str] = []  # no fresh AND no stale verdict — truly dropped
@@ -606,15 +614,41 @@ def main() -> int:
             else:
                 consecutive_failures += 1
                 if consecutive_failures >= CONSECUTIVE_FAIL_TO_DEGRADE:
-                    stale_only_mode = True
-                    remaining = len(targets) - i
+                    # Before giving up: a per-minute (TPM/RPM) 429 clears in
+                    # ~60s while a per-day (RPD) 429 won't. Wait the cooldown
+                    # window, then probe ONCE — if the probe succeeds we
+                    # have transient burst, not real RPD exhaustion. Reset
+                    # the counter and continue normally.
                     print(
-                        f"  ! {consecutive_failures} consecutive fresh failures — "
-                        f"likely Gemini quota exhausted. Switching to stale-only "
-                        f"mode for remaining {remaining} symbols to preserve next "
-                        f"scan's quota; will pull cached verdicts from ai_analysis.",
+                        f"  ⏸ {consecutive_failures} consecutive failures — "
+                        f"waiting {RECOVERY_WAIT_SEC}s for possible per-minute "
+                        f"quota recovery before committing to stale-only mode",
                         file=sys.stderr,
+                        flush=True,
                     )
+                    time.sleep(RECOVERY_WAIT_SEC)
+                    probe = call_analyze(sym)
+                    if probe:
+                        print(
+                            f"  ✓ recovery probe on {sym} succeeded — quota was "
+                            f"transient (RPM/TPM), continuing normally",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        analysis = probe
+                        consecutive_failures = 0
+                    else:
+                        stale_only_mode = True
+                        remaining = len(targets) - i
+                        print(
+                            f"  ! recovery probe also failed — likely RPD "
+                            f"exhaustion. Switching to stale-only mode for "
+                            f"remaining {remaining} symbols to preserve next "
+                            f"scan's quota; will pull cached verdicts from "
+                            f"ai_analysis.",
+                            file=sys.stderr,
+                            flush=True,
+                        )
         else:
             # In degraded mode: don't call Gemini at all. Just log briefly.
             print(
