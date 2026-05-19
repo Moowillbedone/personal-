@@ -1,10 +1,38 @@
-"""Alpaca Markets data adapter (free IEX feed, real-time).
+"""Alpaca Markets data adapter (free tier, consolidated feed with 15-min delay).
 
 Drop-in replacement for the yfinance-based fetcher. Returns DataFrames with the
 same Open/High/Low/Close/Volume columns and a tz-aware DatetimeIndex so the
 existing signal detector and DB-row builder keep working unchanged.
 
 Auth via ALPACA_KEY_ID / ALPACA_SECRET env vars.
+
+Free-tier rules (live-probed 2026-05-19):
+  - Setting ``end=<current-time>`` triggers Alpaca's "recent SIP" guard
+    and returns 403 ("subscription does not permit querying recent SIP
+    data"). Free paper accounts can NOT request bars right up to "now".
+  - Setting ``feed=iex`` always works, but IEX is just one exchange and
+    its 5-min bar coverage is extremely sparse — today many major names
+    had ZERO IEX prints for 16+ hours, even during premarket session.
+  - Omitting BOTH ``end`` AND ``feed`` returns the consolidated tape
+    (all exchanges) up to Alpaca's free-tier cutoff, which is roughly
+    "now minus 15 min". For signal detection on 5-min bars this is fine —
+    a bar from 15min ago is still actionable.
+
+Previous worker forced ``feed=iex`` + ``end=now``. That worked yesterday
+because IEX had richer print coverage; today IEX dried up and the worker
+looped for 5h with bars=46858 (same 5-day snapshot) and fired=0 signals.
+
+This rewrite:
+  1. Drops ``end`` so Alpaca picks the latest available timestamp.
+  2. Omits ``feed`` so we get consolidated (rich) tape.
+  3. ALPACA_FEED env override remains for emergency rollback if Alpaca
+     changes free-tier rules again.
+
+Tradeoff vs the old broken behavior: bars are ~15min delayed. Signals
+that fire on a freshly-rolled 5-min bar will appear in DB ~15min after
+the underlying move instead of ~1min. Trade journal and AI verdicts
+remain timely because they read snapshots, which use a different
+endpoint with its own freshness profile (Finnhub for extended-hours).
 """
 from __future__ import annotations
 
@@ -16,7 +44,10 @@ import pandas as pd
 import requests
 
 BASE = "https://data.alpaca.markets/v2"
-FEED = os.getenv("ALPACA_FEED", "iex")  # 'iex' (free) or 'sip' (paid)
+# Empty string (default) → omit the param entirely → Alpaca picks the
+# broadest feed available for the account. Override via env to lock to a
+# specific feed: 'iex' (IEX exchange only), 'sip' (consolidated, paid).
+FEED = os.getenv("ALPACA_FEED", "").strip().lower()
 BATCH_SYMBOLS = 100  # Alpaca multi-symbol query supports up to ~100 per call
 
 
@@ -79,15 +110,23 @@ def fetch_recent_bars(
         batch = symbols[i : i + BATCH_SYMBOLS]
         page_token: str | None = None
         while True:
-            params = {
+            params: dict = {
                 "symbols": ",".join(batch),
                 "timeframe": tf,
                 "start": start.isoformat(timespec="seconds").replace("+00:00", "Z"),
-                "end": end.isoformat(timespec="seconds").replace("+00:00", "Z"),
                 "limit": 10000,
-                "feed": FEED,
                 "adjustment": "raw",
             }
+            # NEVER include explicit `end=now` — Alpaca's free tier rejects
+            # that as "recent SIP". Omitting end → Alpaca defaults to its
+            # free-tier cutoff (~now-15min) which is fine for signal work.
+            # NEVER pin `feed=iex` either — IEX exchange alone has sparse
+            # coverage (zero prints for hours on major names today). No-feed
+            # gets consolidated tape across all exchanges.
+            # Both overrides remain available via ALPACA_FEED env var for
+            # emergency rollback.
+            if FEED:
+                params["feed"] = FEED
             if page_token:
                 params["page_token"] = page_token
 

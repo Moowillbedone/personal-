@@ -77,10 +77,16 @@ export function currentMarketSession(now: Date = new Date()): "pre" | "regular" 
   return "closed";
 }
 
+// 2026-05-19: dropped `feed=iex` from query strings — the IEX exchange
+// alone often has zero prints for major names during pre/after sessions,
+// returning empty bars. With no `feed` param Alpaca picks the broadest
+// feed allowed by the account (free paper now gets SIP-equivalent
+// consolidated tape per live probe). priceSource is now labeled "alpaca"
+// generically since we no longer pin a specific exchange.
 export async function getSnapshot(symbol: string): Promise<Snapshot> {
   const sym = symbol.toUpperCase();
   const r = await fetch(
-    `${DATA_BASE}/stocks/${encodeURIComponent(sym)}/snapshot?feed=iex`,
+    `${DATA_BASE}/stocks/${encodeURIComponent(sym)}/snapshot`,
     { headers: headers(), cache: "no-store" },
   );
   if (!r.ok) {
@@ -166,10 +172,14 @@ async function fetchBars(symbol: string, timeframe: string, days: number, limit:
   const params = new URLSearchParams({
     timeframe,
     start: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    end: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
     limit: String(limit),
-    feed: "iex",
     adjustment: "raw",
+    // NOTE: omit `end` and `feed` for free-tier compatibility.
+    // - end=<now>  → 403 "subscription does not permit querying recent SIP data"
+    // - feed=iex   → very sparse coverage (IEX exchange only)
+    // - both off   → consolidated tape, ~15-min historical cutoff. Fine for
+    //                chart rendering and analyze-route bar context.
+    // See worker/lib/alpaca.py for full rationale (diagnosed 2026-05-19).
   });
   const r = await fetch(`${DATA_BASE}/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`, {
     headers: headers(),
@@ -213,7 +223,8 @@ export async function fetchAlpacaBars(
 export async function getSnapshots(symbols: string[]): Promise<Record<string, Snapshot>> {
   const list = Array.from(new Set(symbols.map((s) => s.toUpperCase()))).filter(Boolean);
   if (list.length === 0) return {};
-  const url = `${DATA_BASE}/stocks/snapshots?symbols=${encodeURIComponent(list.join(","))}&feed=iex`;
+  // No feed param — see getSnapshot() comment for why.
+  const url = `${DATA_BASE}/stocks/snapshots?symbols=${encodeURIComponent(list.join(","))}`;
   const r = await fetch(url, { headers: headers(), cache: "no-store" });
   if (!r.ok) return {};
   const raw = (await r.json()) as Record<string, AlpacaSnapshotRaw>;
