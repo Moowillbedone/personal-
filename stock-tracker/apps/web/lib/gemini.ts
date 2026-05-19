@@ -213,6 +213,12 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
         // hours. The 429 error body carries QuotaFailure details we parse
         // for "PerMinute" vs "PerDay" markers.
         if (status === 429) {
+          // Log full body so we can debug regex misses. Cooldown classifier
+          // saw "per-day-or-unknown" in production but our SCAN_BUDGET math
+          // suggests we shouldn't be hitting RPD — body inspection will
+          // tell us if it's actually RPM/TPM with different format, or a
+          // different quota name we don't recognize.
+          console.log(`gemini_429_body model=${model} body=${(e as Error).message.slice(0, 2500)}`);
           markModelCooled(model, (e as Error).message);
           break;
         }
