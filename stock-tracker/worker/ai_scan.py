@@ -312,6 +312,37 @@ SUMMARY_CHAR_CAP = 280
 TG_MSG_CHAR_CAP = 3900
 
 
+def _md_safe(text: str) -> str:
+    """Strip/escape Telegram Markdown special chars from free-form text.
+
+    Telegram Markdown treats unmatched `*`, `_`, `` ` ``, `[`, `]` as
+    formatting tokens. AI-generated summaries occasionally contain a
+    bare `*` (e.g., "$AAPL*콜옵션*") that opens a bold entity without
+    closing it. When such a summary lands past the 4000-byte message
+    cap, the parser reports 'Can't find end of the entity' → 400 error
+    → entire digest fails to send (ai-scan workflow then exits non-zero
+    even though all Gemini work succeeded).
+
+    Safest fix is to neutralize the formatting metachars in user-content
+    text. We keep the dedicated formatting (`*BOLD*`, `_italic_`) that
+    our format strings emit; only the AI-generated body text is sanitized.
+
+    Diagnosed 2026-05-19 from the 05-18 16:31 KST scan run that failed
+    with "Bad Request: can't parse entities" at byte offset 4032.
+    """
+    if not text:
+        return ""
+    # Telegram Markdown metachars: `*` (bold), `_` (italic), `[` (link),
+    # `` ` `` (code). Strip them to avoid unmatched-entity errors.
+    return (
+        text.replace("*", "·")
+            .replace("_", " ")
+            .replace("`", "'")
+            .replace("[", "(")
+            .replace("]", ")")
+    )
+
+
 def _format_entry(v: dict) -> str:
     """One BUY/SELL entry block — symbol header + summary if present.
 
@@ -323,7 +354,7 @@ def _format_entry(v: dict) -> str:
     """
     sym = v.get("symbol", "?")
     conf = int(round(float(v.get("confidence") or 0) * 100))
-    summary = (v.get("summary") or "").strip()
+    summary = _md_safe((v.get("summary") or "").strip())
     if len(summary) > SUMMARY_CHAR_CAP:
         # Cut at the previous sentence boundary if there is one in the
         # last ~40 chars; otherwise hard-cut and append ellipsis.

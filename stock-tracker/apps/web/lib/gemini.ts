@@ -6,20 +6,36 @@
 // models. 4xx auth/validation errors fail immediately — no point retrying.
 //
 // Quality-first policy: this prompt produces actual buy/sell verdicts the
-// user trades on, so we never fall back to a lower-quality model. The
-// chain is restricted to gemini-2.5-flash and gemini-flash-latest only —
-// flash-latest is currently aliased to the same -flash generation, just
-// drawing from a separate 250 RPD quota bucket. Combined 500 RPD covers
-// the planned 3 scans/day × ~100 symbols = 300 calls/day with margin.
+// user trades on, so we never fall back to a lower-quality model.
+//
+// Model chain (2026-05-19 live-audited):
+//   PRIMARY: gemini-2.5-flash      (250 RPD on free tier — comfortable)
+//   FALLBACK: (none)
+//
+// Earlier we used gemini-flash-latest as fallback assuming it had its own
+// 250 RPD bucket. Direct probe showed it exhausts after ~5-10 daily calls
+// (the "-latest" alias points to a preview model with a much smaller free
+// quota bucket — somewhere around 10-25 RPD). Result: as soon as primary
+// hit a transient TPM blip, every subsequent call cascaded to flash-latest,
+// burned its tiny daily quota in minutes, then both were locked out and
+// ai_scan flipped to stale-only mode for hours. That's the user-visible
+// "ℹ️ N건 캐시 재사용" banner cascade.
+//
+// With pacing fixed (INTER_CALL_DELAY=15s respects 250K TPM ceiling) and
+// per-scan cap at 25 symbols × 3 scans = 75 calls/day, primary alone
+// stays well under 250 RPD even with user manual clicks. Transient 429s
+// get a 75s cooldown via the smart-classifier and recover within the
+// next call.
 //
 // Intentionally NOT in the chain:
+//   gemini-flash-latest    (preview alias, tiny free RPD — cascaded burnout)
 //   gemini-2.5-flash-lite  (1000 RPD but noticeably lighter reasoning)
 //   gemini-2.0-flash       (older generation)
-// If both top-tier models exhaust, the analyze call throws and ai-scan's
-// early-abort kicks in — the digest ships partial with the user-visible
-// banner explaining why. Better a missing verdict than a low-quality one.
+// If primary exhausts (rare with current pacing), the analyze call throws
+// and ai-scan's stale-fallback ships the last fresh verdict per symbol
+// (≤24h old) with a "(N시간 전 · cached)" marker. Quality preserved.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const FALLBACK_MODELS = ["gemini-flash-latest"];
+const FALLBACK_MODELS: string[] = [];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
