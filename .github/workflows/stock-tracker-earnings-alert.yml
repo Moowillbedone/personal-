@@ -8,8 +8,9 @@ name: stock-tracker / earnings-alert
 #   - This-week preview for sizing decisions
 # Weekdays only (US market is closed Sat/Sun, no earnings calls then).
 on:
-  schedule:
-    - cron: "0 13 * * 1-5"
+  # Triggered exclusively by cron-job.org via workflow_dispatch at 13 UTC
+  # (KST 22:00). GitHub Actions' `schedule:` was removed 2026-05-19 — see
+  # ai-scan workflow comment for the duplicate-fire reasoning.
   workflow_dispatch: {}
 
 permissions:

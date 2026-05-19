@@ -24,11 +24,10 @@ name: stock-tracker / backtest
 # the backfill query is idempotent (only touches expected_1d IS NULL rows)
 # so repeated runs cost only the daily-bar fetch and quickly skip.
 on:
-  schedule:
-    - cron: "0 5 * * 1-5"
-    - cron: "0 11 * * 1-5"
-    - cron: "0 19 * * 1-5"
-    - cron: "0 23 * * 1-5"
+  # Triggered exclusively by cron-job.org via workflow_dispatch at the
+  # intended times (05/11/19/23 UTC = KST 14/20/04/08). GitHub Actions'
+  # native `schedule:` was removed 2026-05-19 — see ai-scan workflow
+  # comment for the duplicate-fire reasoning.
   workflow_dispatch: {}
 
 permissions:

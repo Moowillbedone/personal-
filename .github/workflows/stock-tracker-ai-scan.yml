@@ -13,10 +13,13 @@ name: stock-tracker / ai-scan
 # ≈ 300 Gemini calls/day, well under the ~1000 RPD free-tier ceiling
 # across the 4-model fallback chain.
 on:
-  schedule:
-    - cron: "0 8 * * 1-5"
-    - cron: "0 13 * * 1-5"
-    - cron: "0 21 * * 1-5"
+  # Triggered exclusively by cron-job.org via workflow_dispatch at the
+  # intended times (08/13/21 UTC = KST 17/22/06). GitHub Actions' native
+  # `schedule:` cron was removed 2026-05-19 because it ran in addition to
+  # cron-job.org — at unpredictable delays of 30min~3.5h — producing
+  # DUPLICATE digests at random KST times (e.g., 20:28, 01:16) and
+  # doubling Gemini API consumption (75 → 150 calls/day). cron-job.org
+  # is reliable enough that the GH Actions backup is net harmful.
   workflow_dispatch: {}
 
 permissions:
