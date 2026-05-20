@@ -25,8 +25,8 @@ Cost & graceful degradation:
     COMPLETE digest instead of the old "부분 결과 — 조기 중단" banner.
 
 Schedule (cron-job.org → workflow_dispatch, weekdays only):
-  - 13:00 UTC = ET 09:00 = KST 22:00 (regular open in 30m)  ← primary
-  - 21:00 UTC = ET 17:00 = KST 06:00 (after-hours done, next-day plan)
+  - 08:00 UTC = ET 04:00 = KST 17:00 (pre-market session start)
+  - 13:00 UTC = ET 09:00 = KST 22:00 (regular open in 30m)
 """
 from __future__ import annotations
 

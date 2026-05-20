@@ -1,22 +1,14 @@
 name: stock-tracker / ai-scan
 
-# Twice daily: run /api/analyze on watchlist symbols and telegram a
-# BUY/SELL/HOLD digest. Each run aligns with a decision-critical moment
-# in the US session so the user sees fresh AI verdicts before acting.
+# Twice daily during user's waking hours (KST) — chosen 2026-05-20 by user:
 #
-#   13:00 UTC  =  ET 09:00  =  KST 22:00  (regular session opens in 30m)  ← primary
-#   21:00 UTC  =  ET 17:00  =  KST 06:00  (after-hours done, next-day plan)
+#   08:00 UTC  =  ET 04:00  =  KST 17:00  (pre-market session start)
+#   13:00 UTC  =  ET 09:00  =  KST 22:00  (regular session opens in 30m)
 #
-# Dropped 2026-05-20: 08:00 UTC (KST 17:00 pre-market start). Free-tier
-# gemini-2.5-flash on this project has 20 RPD; 3×6 watchlist = 18 left
-# zero room for manual clicks. 2×6 = 12 keeps comfortable safety margin.
-# Pre-market signals still get logged in DB by poll.py for the 22:00 scan
-# to factor in via signals_24h context.
-#
-# Weekdays only (US market is closed Sat/Sun). 2x/day × 6 watchlist
-# = 12 Gemini calls/day on primary gemini-2.5-flash (REAL free-tier
-# RPD = 20, not 250 docs). Manual /api/analyze clicks (~1-2/day) keep
-# total well within 70% of the daily quota.
+# Sized for the free-tier 20-RPD ceiling on this project's gemini-2.5-flash:
+# 2×6 watchlist = 12 Gemini calls/day (60% of quota) + manual /api/analyze
+# clicks (~1-2/day) = ~70% with comfortable 6-call margin. Self-protecting
+# quota guard in ai_scan.main() auto-clamps any misconfiguration.
 on:
   # Triggered exclusively by cron-job.org via workflow_dispatch at the
   # intended times (08/13/21 UTC = KST 17/22/06). GitHub Actions' native
