@@ -1,0 +1,44 @@
+name: stock-tracker / health-check
+
+# Daily system audit at KST 16:00 (= UTC 07:00 = PT midnight just hit).
+# Telegrams the user with:
+#   💚 all-OK heartbeat if every component is alive, OR
+#   🔴/🟡 detailed diagnostic if anything's degraded.
+#
+# Catches silent failure modes that would otherwise only surface as a
+# missing/incomplete digest later in the day (poll worker dead, Alpaca
+# outage, Gemini quota burned, watchlist symbols going stale, etc.).
+#
+# Triggered exclusively by cron-job.org via workflow_dispatch — same
+# reasoning as ai-scan: GH Actions native cron is unreliable, cron-job.org
+# fires on time. See ai-scan workflow comments for the duplicate-fire
+# postmortem.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+      ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python health_check.py

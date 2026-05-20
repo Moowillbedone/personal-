@@ -72,10 +72,12 @@ def build_job(
     workflow_body: dict,
     hours_utc: list[int],
     github_pat: str,
+    minutes: list[int] | None = None,
 ) -> dict:
     """Build the PUT /jobs payload for one cronjob.
 
-    - schedule: every weekday at the given UTC hours, minute :00
+    - schedule: every weekday at the given UTC hours + minutes
+    - minutes defaults to [0] (top of the hour)
     - request: POST to GH Actions workflow_dispatch endpoint with auth
     - body: JSON-stringified workflow_dispatch payload (ref + inputs)
     """
@@ -93,7 +95,7 @@ def build_job(
                 "expiresAt": 0,
                 "hours": hours_utc,
                 "mdays": [-1],     # every day of month
-                "minutes": [0],    # on the hour
+                "minutes": minutes or [0],
                 "months": [-1],    # every month
                 "wdays": [1, 2, 3, 4, 5],  # Mon-Fri
             },
@@ -158,6 +160,17 @@ JOBS = [
         "stock-tracker-backtest.yml",
         {"ref": "main"},
         [5, 11, 19, 23],
+    ),
+    # Daily health-check: KST 16:00 (UTC 07:00) = PT midnight just hit.
+    # Telegrams the user a 💚/🟡/🔴 status summary of the whole pipeline.
+    # Catches silent failures (poll worker dead, Alpaca outage, Gemini
+    # quota burned, watchlist symbols going stale) before they degrade
+    # the next user-facing digest.
+    (
+        "stock-tracker-health-check",
+        "stock-tracker-health-check.yml",
+        {"ref": "main"},
+        [7],
     ),
 ]
 
