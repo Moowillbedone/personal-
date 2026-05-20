@@ -559,15 +559,89 @@ def send_telegram(text: str) -> bool:
         return False
 
 
+def _pt_day_quota_used(sb) -> int:
+    """Count ai_analysis rows inserted since the current PT midnight.
+
+    Each row = one SUCCESSFUL gemini-2.5-flash call (the analyze route
+    inserts on success only). Gemini free-tier RPD resets at PT midnight
+    (PDT during May-Nov = UTC 07:00 = KST 16:00; PST in winter = UTC 08:00).
+
+    This is our self-protection signal: if we've already consumed close
+    to the 20-RPD ceiling earlier in the day, the scan should auto-shrink
+    its budget (or skip the Gemini calls entirely) so it doesn't blow
+    through whatever's left and leave the next scan with zero quota.
+    """
+    from datetime import datetime, timezone, timedelta as td
+    now = datetime.now(timezone.utc)
+    # PDT midnight in UTC = 07:00. Approximate (don't need exactness — being
+    # off by 1h just means our count window is 1h short, which is conservative).
+    pt_midnight = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    if now < pt_midnight:
+        pt_midnight -= td(days=1)
+    cutoff = pt_midnight.strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        res = (
+            sb.table("ai_analysis")
+            .select("id", count="exact")
+            .gte("created_at", cutoff)
+            .limit(1)
+            .execute()
+        )
+        return int(res.count or 0)
+    except Exception as e:
+        print(f"  quota usage lookup failed: {e}", file=sys.stderr)
+        return 0  # fail-open: don't block the scan on a DB hiccup
+
+
+# Hard free-tier RPD ceiling for gemini-2.5-flash on this project
+# (live-verified 2026-05-20 via 429 body: "limit: 20").
+GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "20"))
+
+# Margin to preserve for user manual /api/analyze clicks during the day.
+# User reported typical usage is 1-2 clicks/day, so 3 gives a 50% headroom.
+MANUAL_CLICK_RESERVE = int(os.getenv("AI_SCAN_MANUAL_RESERVE", "3"))
+
+
 def main() -> int:
     load_dotenv()
     sb = db.client()
 
     targets, watchlist, signals, signals_selected = collect_target_symbols(sb)
+
+    # ─── Self-protecting budget ────────────────────────────────────────────
+    # Check actual PT-day Gemini consumption from ai_analysis and shrink
+    # this scan's budget so we never exceed GEMINI_FREE_RPD - MANUAL_RESERVE,
+    # regardless of how SCAN_BUDGET is configured. This is the safety net
+    # that prevents a misconfigured SCAN_BUDGET (or yesterday's lingering
+    # bad config) from blowing through quota and starving the next scan.
+    used = _pt_day_quota_used(sb)
+    available = GEMINI_FREE_RPD - MANUAL_CLICK_RESERVE - used
+    if available <= 0:
+        print(
+            f"ai_scan: quota guard — {used}/{GEMINI_FREE_RPD} already used "
+            f"this PT day, {MANUAL_CLICK_RESERVE} reserved for manual clicks. "
+            f"Entering stale-only mode for this entire scan to preserve "
+            f"remaining quota for user clicks and the next scheduled scan.",
+            file=sys.stderr,
+        )
+        effective_budget = 0
+    elif available < len(targets):
+        print(
+            f"ai_scan: quota guard — {used}/{GEMINI_FREE_RPD} already used, "
+            f"shrinking this scan's fresh-call budget from {len(targets)} "
+            f"to {available} (rest will be served from ai_analysis cache).",
+            file=sys.stderr,
+        )
+        effective_budget = available
+    else:
+        effective_budget = len(targets)
+
     print(
         f"ai_scan: {len(targets)} target symbols "
         f"(watchlist={len(watchlist)} + {signals_selected} of {len(signals)} "
-        f"signals_24h by conviction score, budget={SCAN_BUDGET})"
+        f"signals_24h by conviction score, budget={SCAN_BUDGET}, "
+        f"effective_fresh_budget={effective_budget}, "
+        f"pt_day_used={used}/{GEMINI_FREE_RPD})"
     )
 
     if not targets:
@@ -597,7 +671,8 @@ def main() -> int:
     verdicts: list[dict] = []
     missing: list[str] = []  # no fresh AND no stale verdict — truly dropped
     consecutive_failures = 0
-    stale_only_mode = False
+    # Enter stale-only mode immediately if quota guard says we have no budget.
+    stale_only_mode = effective_budget == 0
     fresh_count = 0
     stale_count = 0
     started = time.time()
@@ -606,6 +681,20 @@ def main() -> int:
         elapsed = int(time.time() - started)
         analysis: dict | None = None
         used_stale = False
+
+        # Pre-emptive budget check: if we've already made effective_budget
+        # fresh calls, switch to stale-only for the rest. This is the
+        # belt-and-suspenders complement to the quota-guard at scan start.
+        if fresh_count >= effective_budget and not stale_only_mode:
+            stale_only_mode = True
+            remaining = len(targets) - i + 1
+            print(
+                f"  ⏹ reached effective_fresh_budget={effective_budget}; "
+                f"remaining {remaining} symbols → stale-only (preserves "
+                f"quota for manual clicks and next scan)",
+                file=sys.stderr,
+                flush=True,
+            )
 
         if not stale_only_mode:
             print(
