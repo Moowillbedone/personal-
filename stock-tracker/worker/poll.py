@@ -22,9 +22,18 @@ from lib import alpaca, data, db, news, notify, signals as sig
 BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
 
 # Skip signals where the latest bar is older than this. Prevents stale-data
-# fires e.g. running pre-market polls on Friday's last bar (when IEX hasn't
-# emitted a Monday bar yet for that symbol).
-MAX_AGE_MIN = int(os.getenv("MAX_AGE_MIN", "15"))
+# fires e.g. running pre-market polls on Friday's last bar (when the feed
+# hasn't emitted a Monday bar yet for that symbol).
+#
+# 2026-05-20 bumped 15→25min. When we switched alpaca.py off feed=iex
+# (which dropped a near-real-time but sparse data path) the consolidated
+# free-tier feed has a built-in ~15min historical cutoff — fresh bars
+# typically arrive 15-18min old by the time poll.py sees them. With
+# MAX_AGE_MIN=15, every bar was just over the cutoff and gated out, so
+# the poll worker logged "bars=75000 fired=0" all day with zero signals
+# making it into the DB. 25min gives ~10min margin past the feed's
+# delay while still rejecting truly stale data (e.g. weekend gaps).
+MAX_AGE_MIN = int(os.getenv("MAX_AGE_MIN", "25"))
 
 # Loop-mode controls
 LOOP_MIN = int(os.getenv("LOOP_MIN", "0"))                # 0 = single shot
