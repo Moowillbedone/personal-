@@ -1,4 +1,4 @@
-"""Thrice-daily AI scan: call /api/analyze on the union of watchlist symbols
+"""Twice-daily AI scan: call /api/analyze on the union of watchlist symbols
 and the top-conviction signals_24h, then telegram-digest the resulting
 BUY / SELL / HOLD verdicts.
 
@@ -24,11 +24,9 @@ Cost & graceful degradation:
     by the same top-tier model chain a few hours ago. The user gets a
     COMPLETE digest instead of the old "부분 결과 — 조기 중단" banner.
 
-Schedule (GH Actions cron, .github/workflows/stock-tracker-ai-scan.yml):
-  - 08:00 UTC = ET 04:00 = KST 17:00 (premarket session start)
-  - 13:00 UTC = ET 09:00 = KST 22:00 (regular open in 30m)
-  - 21:00 UTC = ET 17:00 = KST 06:00 (after-hours done, next-day planning)
-All weekdays only.
+Schedule (cron-job.org → workflow_dispatch, weekdays only):
+  - 13:00 UTC = ET 09:00 = KST 22:00 (regular open in 30m)  ← primary
+  - 21:00 UTC = ET 17:00 = KST 06:00 (after-hours done, next-day plan)
 """
 from __future__ import annotations
 

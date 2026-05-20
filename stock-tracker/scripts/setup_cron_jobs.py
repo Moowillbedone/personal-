@@ -125,15 +125,22 @@ JOBS = [
         {"ref": "main", "inputs": {"loop_min": "320"}},
         [6, 11, 16, 21],
     ),
-    # AI scan: 3× per US weekday at each session boundary.
-    #   08 UTC = KST 17:00  pre-market start
-    #   13 UTC = KST 22:00  regular open (30m prior)
-    #   21 UTC = KST 06:00  after-hours mid (next-day plan)
+    # AI scan: 2× per US weekday at the two most decision-critical boundaries.
+    # Dropped to 2x (was 3x) on 2026-05-20 after discovering this project's
+    # gemini-2.5-flash free-tier RPD is 20 (not the documented 250). Three
+    # scans × 6-symbol watchlist = 18 calls/day left no headroom for manual
+    # /api/analyze clicks (~1-2/day from user). Two scans = 12 calls/day
+    # (60% of quota) leaves 8-call margin = comfortably safe.
+    #   13 UTC = KST 22:00  regular open in 30m  ← most actionable digest
+    #   21 UTC = KST 06:00  after-hours done, next-day plan
+    # Dropped: 08 UTC = KST 17:00 (premarket start) — least decision value
+    # of the three; user's matinal pre-market signals come through poll.py
+    # signals_24h anyway. Skipping it eliminates 1/3 of Gemini consumption.
     (
         "stock-tracker-ai-scan",
         "stock-tracker-ai-scan.yml",
         {"ref": "main"},
-        [8, 13, 21],
+        [13, 21],
     ),
     # Earnings alert: once daily at KST 22:00 (before US regular open).
     (
