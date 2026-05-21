@@ -276,8 +276,45 @@ def _classify_failure(status: int | None, body: str) -> str:
     return FAIL_REASON_UNKNOWN
 
 
+# When Gemini returns 503 ("Gemini 서버가 일시적으로 과부하"), the burst
+# usually clears within 30-60s. Pre-2026-05-22 the worker treated every
+# 5xx as a hard fail → 5 consecutive 5xx (which can happen in 20 seconds
+# during a Google datacenter blip) flipped us to stale-only mode for the
+# rest of the scan even though quota was untouched. This wasted the chance
+# to recover and produced the user-visible "fresh=0" digest that triggered
+# this fix.
+#
+# Strategy: do ONE inline retry per symbol on 5xx after a short sleep.
+# Quota 429s and other reasons get NO retry (waste of quota / no recovery
+# expected). Worker-level consecutive_failures still counts retries-then-
+# fails as a single failure, so the burst doesn't snowball.
+TRANSIENT_RETRY_WAIT_SEC = int(os.getenv("AI_SCAN_TRANSIENT_RETRY_WAIT", "8"))
+
+
+def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int | None, str]:
+    """Single POST attempt. Returns (analysis | None, fail_reason | None,
+    http_status, body_snippet). Used by call_analyze for both initial + retry."""
+    try:
+        r = requests.post(url, json={"symbol": symbol}, timeout=ANALYZE_TIMEOUT_SEC)
+    except requests.Timeout:
+        return None, FAIL_REASON_TIMEOUT, None, ""
+    except requests.RequestException as e:
+        return None, FAIL_REASON_NETWORK, None, str(e)[:200]
+    except Exception as e:
+        return None, FAIL_REASON_UNKNOWN, None, str(e)[:200]
+
+    if r.status_code == 200:
+        try:
+            return r.json().get("analysis"), None, 200, ""
+        except Exception as e:
+            return None, FAIL_REASON_UNKNOWN, 200, f"bad JSON: {e}"
+
+    body = r.text[:500]
+    return None, _classify_failure(r.status_code, body), r.status_code, body
+
+
 def call_analyze(symbol: str) -> tuple[dict | None, str | None]:
-    """POST /api/analyze. Returns (analysis_dict, fail_reason).
+    """POST /api/analyze with inline retry on transient 5xx.
 
     On success: (analysis, None)
     On failure: (None, one of FAIL_REASON_* constants)
@@ -285,31 +322,37 @@ def call_analyze(symbol: str) -> tuple[dict | None, str | None]:
     The caller uses fail_reason to bucket per-symbol outcomes so the digest
     header can show e.g. "1건은 신규 종목 + Gemini 한도 도달" vs
     "1건은 신규 종목 + Gemini 일시 서버 오류" with truthful copy.
+
+    2026-05-22 added inline retry: when Gemini returns server_5xx, sleep
+    TRANSIENT_RETRY_WAIT_SEC seconds and try once more before bubbling the
+    failure. This eliminates the most common stale-only trigger pattern
+    (Google datacenter blip lasting 20-60s causes 4-5 consecutive 5xx
+    even though quota is wide open).
     """
     url = f"{FRONT_URL}/api/analyze"
-    try:
-        r = requests.post(url, json={"symbol": symbol}, timeout=ANALYZE_TIMEOUT_SEC)
-    except requests.Timeout:
-        print(f"    analyze({symbol}) timeout after {ANALYZE_TIMEOUT_SEC}s", file=sys.stderr)
-        return None, FAIL_REASON_TIMEOUT
-    except requests.RequestException as e:
-        print(f"    analyze({symbol}) network error: {e}", file=sys.stderr)
-        return None, FAIL_REASON_NETWORK
-    except Exception as e:
-        print(f"    analyze({symbol}) failed: {e}", file=sys.stderr)
-        return None, FAIL_REASON_UNKNOWN
+    analysis, reason, status, body = _http_post_once(url, symbol)
 
-    if r.status_code == 200:
-        try:
-            return r.json().get("analysis"), None
-        except Exception as e:
-            print(f"    analyze({symbol}) bad JSON: {e}", file=sys.stderr)
-            return None, FAIL_REASON_UNKNOWN
+    if analysis or reason != FAIL_REASON_5XX:
+        if not analysis:
+            print(f"    HTTP {status} reason={reason}: {body[:200]}", file=sys.stderr)
+        return analysis, reason
 
-    body = r.text[:500]
-    reason = _classify_failure(r.status_code, body)
-    print(f"    HTTP {r.status_code} reason={reason}: {body[:200]}", file=sys.stderr)
-    return None, reason
+    # Transient 5xx — single retry after short wait.
+    print(
+        f"    HTTP {status} reason={reason} on {symbol} — retrying once in "
+        f"{TRANSIENT_RETRY_WAIT_SEC}s",
+        file=sys.stderr,
+    )
+    time.sleep(TRANSIENT_RETRY_WAIT_SEC)
+    analysis2, reason2, status2, body2 = _http_post_once(url, symbol)
+    if analysis2:
+        print(f"    ✓ retry on {symbol} succeeded", file=sys.stderr)
+        return analysis2, None
+    # Retry also failed — use the second attempt's reason (often same).
+    print(
+        f"    HTTP {status2} reason={reason2} (retry): {body2[:200]}", file=sys.stderr
+    )
+    return None, reason2
 
 
 # How far back we'll reach into ai_analysis when a fresh Gemini call fails.
