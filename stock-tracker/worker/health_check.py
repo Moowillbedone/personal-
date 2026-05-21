@@ -277,6 +277,17 @@ def check_watchlist_coverage(sb) -> CheckResult:
 
 # ─── Telegram delivery ─────────────────────────────────────────────────────
 def send_telegram(text: str) -> bool:
+    """Send a plain-text telegram. NO parse_mode — health-check messages
+    contain shell snippets, file paths, and quota strings that include
+    backticks/asterisks/underscores. Markdown mode rejects unbalanced
+    entities and silently fails the whole alert (the very thing we're
+    trying to surface). Plain text always delivers.
+
+    2026-05-21: switched from parse_mode='Markdown' after a 🔴 error
+    payload was dropped because the hint contained `gh run list ...`
+    with single backticks — Markdown parser saw an unclosed code entity
+    at the message boundary and returned HTTP 400.
+    """
     if not TG_TOKEN or not TG_CHAT_ID:
         print("  TELEGRAM_BOT_TOKEN/CHAT_ID not set — skipping send", file=sys.stderr)
         return False
@@ -287,7 +298,7 @@ def send_telegram(text: str) -> bool:
             json={
                 "chat_id": TG_CHAT_ID,
                 "text": text,
-                "parse_mode": "Markdown",
+                # No parse_mode — see docstring.
                 "disable_web_page_preview": True,
             },
             timeout=15,
@@ -302,7 +313,9 @@ def send_telegram(text: str) -> bool:
 
 
 def _format_message(results: list[CheckResult]) -> str:
-    """Build the telegram payload. Concise on success, detailed on failure."""
+    """Build the telegram payload. Plain text (no parse_mode) — see
+    send_telegram() for why. Emoji do the visual structuring instead of
+    markdown bold/italic."""
     now_kst = datetime.now(timezone(timedelta(hours=9)))
     ts = now_kst.strftime("%m-%d %H:%M KST")
     errors = [r for r in results if not r.ok and r.severity == "error"]
@@ -310,27 +323,27 @@ def _format_message(results: list[CheckResult]) -> str:
 
     if not errors and not warnings:
         # All OK — short heartbeat
-        ok_lines = [f"💚 *시스템 헬스체크* ({ts})", f"전체 {len(results)}개 항목 정상"]
+        ok_lines = [f"💚 시스템 헬스체크 ({ts})", f"전체 {len(results)}개 항목 정상"]
         for r in results:
             ok_lines.append(f"  ✓ {r.name}: {r.msg}")
         return "\n".join(ok_lines)
 
     header = "🔴" if errors else "🟡"
     lines = [
-        f"{header} *시스템 헬스체크* ({ts})",
+        f"{header} 시스템 헬스체크 ({ts})",
         f"errors={len(errors)} warnings={len(warnings)}",
         "",
     ]
     for r in errors + warnings:
         marker = "❌" if r.severity == "error" else "⚠️"
-        lines.append(f"{marker} *{r.name}*")
+        lines.append(f"{marker} [{r.name}]")
         lines.append(f"  {r.msg}")
         lines.append("")
 
     # Also show the OK items in compact form so user can see what IS working
     ok_items = [r.name for r in results if r.ok]
     if ok_items:
-        lines.append(f"_정상: {', '.join(ok_items)}_")
+        lines.append(f"정상: {', '.join(ok_items)}")
 
     return "\n".join(lines)
 
