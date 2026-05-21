@@ -234,18 +234,82 @@ def collect_target_symbols(
     return targets, watchlist, signals_set_all, len(selected_signals)
 
 
-def call_analyze(symbol: str) -> dict | None:
-    """POST /api/analyze and return the `analysis` object (or None on failure)."""
+# Failure-reason taxonomy. Returned alongside None when call_analyze fails,
+# so the digest can show users *why* a verdict is missing/stale instead of
+# blanket-labeling everything as "Gemini 한도". Misleading copy was the user
+# complaint that motivated this split (2026-05-21).
+#
+#   "quota_429"  — Gemini RPD/RPM/TPM ceiling. Quota actually exhausted.
+#   "server_5xx" — Gemini 503/504 (server overload). Transient, not our fault.
+#   "vercel_504" — analyze route timed out (60s maxDuration on Vercel).
+#   "timeout"    — worker-side HTTP timeout (network slow / Vercel cold start).
+#   "network"    — connection error to Vercel (DNS, TLS, refused).
+#   "unknown"    — 4xx/5xx that doesn't match above patterns.
+FAIL_REASON_QUOTA = "quota_429"
+FAIL_REASON_5XX = "server_5xx"
+FAIL_REASON_VERCEL_504 = "vercel_504"
+FAIL_REASON_TIMEOUT = "timeout"
+FAIL_REASON_NETWORK = "network"
+FAIL_REASON_UNKNOWN = "unknown"
+
+
+def _classify_failure(status: int | None, body: str) -> str:
+    """Map an analyze-route failure to one of the FAIL_REASON_* constants.
+
+    We inspect both the HTTP status from analyze (which is always 500 when
+    Gemini fails) AND the embedded body string, because /api/analyze
+    re-wraps Gemini's underlying error in its own 500 response with the
+    original status code visible inside the message.
+    """
+    bod = (body or "").lower()
+    if status == 504:
+        return FAIL_REASON_VERCEL_504
+    # The analyze route reflects Gemini's 429 inside the 500 wrapper as
+    # "gemini 429 (model): ..." and the underlying RPD body has
+    # "exceeded your current quota" / "quotaId: ...PerDay...".
+    if "429" in bod or "exceeded your current quota" in bod or "rate-limit" in bod:
+        return FAIL_REASON_QUOTA
+    # Gemini server overload — our route translates this to the Korean
+    # "Gemini 서버가 일시적으로 과부하 상태입니다" message before sending 500.
+    if "과부하" in bod or "503" in bod or "overload" in bod or "unavailable" in bod:
+        return FAIL_REASON_5XX
+    return FAIL_REASON_UNKNOWN
+
+
+def call_analyze(symbol: str) -> tuple[dict | None, str | None]:
+    """POST /api/analyze. Returns (analysis_dict, fail_reason).
+
+    On success: (analysis, None)
+    On failure: (None, one of FAIL_REASON_* constants)
+
+    The caller uses fail_reason to bucket per-symbol outcomes so the digest
+    header can show e.g. "1건은 신규 종목 + Gemini 한도 도달" vs
+    "1건은 신규 종목 + Gemini 일시 서버 오류" with truthful copy.
+    """
     url = f"{FRONT_URL}/api/analyze"
     try:
         r = requests.post(url, json={"symbol": symbol}, timeout=ANALYZE_TIMEOUT_SEC)
-        if r.status_code != 200:
-            print(f"    HTTP {r.status_code}: {r.text[:200]}", file=sys.stderr)
-            return None
-        return r.json().get("analysis")
+    except requests.Timeout:
+        print(f"    analyze({symbol}) timeout after {ANALYZE_TIMEOUT_SEC}s", file=sys.stderr)
+        return None, FAIL_REASON_TIMEOUT
+    except requests.RequestException as e:
+        print(f"    analyze({symbol}) network error: {e}", file=sys.stderr)
+        return None, FAIL_REASON_NETWORK
     except Exception as e:
         print(f"    analyze({symbol}) failed: {e}", file=sys.stderr)
-        return None
+        return None, FAIL_REASON_UNKNOWN
+
+    if r.status_code == 200:
+        try:
+            return r.json().get("analysis"), None
+        except Exception as e:
+            print(f"    analyze({symbol}) bad JSON: {e}", file=sys.stderr)
+            return None, FAIL_REASON_UNKNOWN
+
+    body = r.text[:500]
+    reason = _classify_failure(r.status_code, body)
+    print(f"    HTTP {r.status_code} reason={reason}: {body[:200]}", file=sys.stderr)
+    return None, reason
 
 
 # How far back we'll reach into ai_analysis when a fresh Gemini call fails.
@@ -395,6 +459,28 @@ def _format_entry(v: dict) -> str:
     return line
 
 
+def _reason_label(reason: str) -> str:
+    """Korean human-readable label per FAIL_REASON_* constant. Single source
+    of truth so any header that breaks down by reason uses identical copy."""
+    return {
+        FAIL_REASON_QUOTA: "Gemini 일일 한도(RPD) 도달",
+        FAIL_REASON_5XX: "Gemini 서버 일시 오류 (5xx, 일시적)",
+        FAIL_REASON_VERCEL_504: "Vercel 60s 타임아웃 (분석 처리 지연)",
+        FAIL_REASON_TIMEOUT: "워커 HTTP 타임아웃 (네트워크)",
+        FAIL_REASON_NETWORK: "네트워크 연결 오류",
+        "quota_skip": "Gemini 한도 보호로 사전 차단 (호출 자체 안 함)",
+        FAIL_REASON_UNKNOWN: "알 수 없는 오류",
+    }.get(reason, reason)
+
+
+def _format_reason_breakdown(counts: dict[str, int]) -> str:
+    """Render a `{reason: n}` dict as `라벨1 N건 + 라벨2 M건` Korean copy."""
+    if not counts:
+        return ""
+    parts = [f"{_reason_label(reason)} {n}건" for reason, n in counts.items() if n > 0]
+    return " + ".join(parts)
+
+
 def _build_blocks(
     verdicts: list[dict],
     total_scanned: int,
@@ -402,10 +488,19 @@ def _build_blocks(
     signals_n: int,
     signals_selected: int = 0,
     stale_count: int = 0,
-    missing_count: int = 0,
+    missing_list: list[dict] | None = None,
+    stale_reason_counts: dict[str, int] | None = None,
 ) -> list[str]:
     """Emit a list of atomic content blocks. The packer never splits inside
-    a block — keeps each BUY/SELL entry intact across message boundaries."""
+    a block — keeps each BUY/SELL entry intact across message boundaries.
+
+    stale_reason_counts: per-reason breakdown of why each stale-fallback was
+    used (e.g., {quota_skip: 5, server_5xx: 1}).
+    missing_list: [{symbol, reason}, ...] for the catastrophic case where
+    neither fresh nor 24h cache had data.
+    """
+    missing_list = missing_list or []
+    stale_reason_counts = stale_reason_counts or {}
     by_v: dict[str, list[dict]] = {"buy": [], "sell": [], "hold": []}
     for v in verdicts:
         bucket = (v.get("verdict") or "hold").lower()
@@ -430,20 +525,32 @@ def _build_blocks(
         f"스캔 종목: {total_scanned}건 ({selection_summary})",
     ]
     if stale_count > 0:
-        # Informational only — quality is preserved (cached verdicts came
-        # from the same gemini-2.5-flash chain, just generated earlier).
-        # No "부분 결과" framing because the digest IS complete.
+        # Show WHY the stale fallback engaged, broken down by underlying
+        # failure reason. Single-reason cases get a clean specific message;
+        # mixed cases list each reason separately so the user can see
+        # exactly what's transient vs what's quota.
+        reason_breakdown = _format_reason_breakdown(stale_reason_counts)
+        if reason_breakdown:
+            header_lines.append(
+                f"ℹ️ {stale_count}건은 캐시 verdict 재사용 — {reason_breakdown} "
+                "(각 항목에 시점 표시, 품질 동일)."
+            )
+        else:
+            header_lines.append(
+                f"ℹ️ {stale_count}건은 캐시 verdict 재사용 (각 항목에 시점 표시)."
+            )
+    if missing_list:
+        # Per-symbol breakdown when reasons differ; otherwise single bucket.
+        miss_counts: dict[str, int] = {}
+        for m in missing_list:
+            miss_counts[m["reason"]] = miss_counts.get(m["reason"], 0) + 1
+        reason_breakdown = _format_reason_breakdown(miss_counts)
+        symbols_str = ", ".join(m["symbol"] for m in missing_list[:8])
+        if len(missing_list) > 8:
+            symbols_str += f" 외 {len(missing_list)-8}건"
         header_lines.append(
-            f"ℹ️ {stale_count}건은 Gemini 한도 보호 차원에서 최근 캐시 verdict 재사용 "
-            "(각 항목에 시점 표시)."
-        )
-    if missing_count > 0:
-        # Symbols that had neither a fresh call success nor a cached verdict
-        # within 24h. Rare — only happens for brand-new signal symbols when
-        # quota is exhausted.
-        header_lines.append(
-            f"⚠️ {missing_count}건은 신규 종목 + Gemini 한도로 verdict 생성 실패. "
-            "다음 스캔 (KST 16:00 PT-자정 quota 리셋) 자동 재시도."
+            f"⚠️ {len(missing_list)}건 verdict 생성 실패 ({symbols_str}) — "
+            f"{reason_breakdown}. 24h 캐시도 없어 누락. 다음 스캔 자동 재시도."
         )
     blocks: list[str] = ["\n".join(header_lines)]
 
@@ -516,7 +623,8 @@ def format_digest(
     signals_n: int,
     signals_selected: int = 0,
     stale_count: int = 0,
-    missing_count: int = 0,
+    missing_list: list[dict] | None = None,
+    stale_reason_counts: dict[str, int] | None = None,
 ) -> list[str]:
     """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
     blocks = _build_blocks(
@@ -526,7 +634,8 @@ def format_digest(
         signals_n,
         signals_selected,
         stale_count,
-        missing_count,
+        missing_list or [],
+        stale_reason_counts or {},
     )
     return pack_messages(blocks)
 
@@ -669,18 +778,30 @@ def main() -> int:
     RECOVERY_WAIT_SEC = 75  # matches gemini.ts per-minute cooldown duration
 
     verdicts: list[dict] = []
-    missing: list[str] = []  # no fresh AND no stale verdict — truly dropped
+    missing: list[dict] = []  # [{symbol, reason}, ...] — reason from call_analyze
     consecutive_failures = 0
     # Enter stale-only mode immediately if quota guard says we have no budget.
     stale_only_mode = effective_budget == 0
     fresh_count = 0
     stale_count = 0
+    # Per-fail-reason tracking so the header copy is accurate per-event.
+    # Aggregated across fresh-call failures regardless of whether the
+    # symbol ultimately ended up in `stale` or `missing`.
+    fail_reason_counts: dict[str, int] = {}
+    # Track which symbols entered stale-fallback due to which failure
+    # reason (so stale-count header can also break down the cause).
+    stale_reason_counts: dict[str, int] = {}
+    # If we never made a fresh call for a symbol (stale_only_mode active),
+    # tag it as 'quota_skip' so we can distinguish "Gemini exhausted" stale
+    # from "transient 5xx" stale in the digest.
+    REASON_QUOTA_SKIP = "quota_skip"
     started = time.time()
 
     for i, sym in enumerate(targets, 1):
         elapsed = int(time.time() - started)
         analysis: dict | None = None
         used_stale = False
+        symbol_fail_reason: str | None = None  # set when fresh call fails
 
         # Pre-emptive budget check: if we've already made effective_budget
         # fresh calls, switch to stale-only for the rest. This is the
@@ -701,10 +822,14 @@ def main() -> int:
                 f"  [{i}/{len(targets)}] analyze {sym} (elapsed {elapsed}s)",
                 flush=True,
             )
-            analysis = call_analyze(sym)
+            analysis, fail_reason = call_analyze(sym)
             if analysis:
                 consecutive_failures = 0
             else:
+                symbol_fail_reason = fail_reason or FAIL_REASON_UNKNOWN
+                fail_reason_counts[symbol_fail_reason] = (
+                    fail_reason_counts.get(symbol_fail_reason, 0) + 1
+                )
                 consecutive_failures += 1
                 if consecutive_failures >= CONSECUTIVE_FAIL_TO_DEGRADE:
                     # Before giving up: a per-minute (TPM/RPM) 429 clears in
@@ -720,7 +845,7 @@ def main() -> int:
                         flush=True,
                     )
                     time.sleep(RECOVERY_WAIT_SEC)
-                    probe = call_analyze(sym)
+                    probe, probe_reason = call_analyze(sym)
                     if probe:
                         print(
                             f"  ✓ recovery probe on {sym} succeeded — quota was "
@@ -729,16 +854,24 @@ def main() -> int:
                             flush=True,
                         )
                         analysis = probe
+                        symbol_fail_reason = None
+                        # Remove the false-positive entry we just incremented.
+                        if fail_reason_counts.get(symbol_fail_reason or "x"):
+                            pass  # nothing to undo for the matched-success path
                         consecutive_failures = 0
                     else:
+                        # Both failed — record probe reason too, then commit.
+                        if probe_reason:
+                            fail_reason_counts[probe_reason] = (
+                                fail_reason_counts.get(probe_reason, 0) + 1
+                            )
                         stale_only_mode = True
                         remaining = len(targets) - i
                         print(
-                            f"  ! recovery probe also failed — likely RPD "
-                            f"exhaustion. Switching to stale-only mode for "
-                            f"remaining {remaining} symbols to preserve next "
-                            f"scan's quota; will pull cached verdicts from "
-                            f"ai_analysis.",
+                            f"  ! recovery probe also failed (reason={probe_reason}) "
+                            f"— likely RPD exhaustion. Switching to stale-only mode "
+                            f"for remaining {remaining} symbols to preserve next "
+                            f"scan's quota.",
                             file=sys.stderr,
                             flush=True,
                         )
@@ -748,6 +881,7 @@ def main() -> int:
                 f"  [{i}/{len(targets)}] stale-only {sym} (elapsed {elapsed}s)",
                 flush=True,
             )
+            symbol_fail_reason = REASON_QUOTA_SKIP
 
         # If no fresh result, fall back to most recent ai_analysis row.
         if not analysis:
@@ -755,8 +889,14 @@ def main() -> int:
             if stale_row:
                 analysis = stale_row
                 used_stale = True
+                reason_key = symbol_fail_reason or REASON_QUOTA_SKIP
+                stale_reason_counts[reason_key] = (
+                    stale_reason_counts.get(reason_key, 0) + 1
+                )
             else:
-                missing.append(sym)
+                missing.append(
+                    {"symbol": sym, "reason": symbol_fail_reason or FAIL_REASON_UNKNOWN}
+                )
                 # Don't sleep — no API call was made.
                 continue
 
@@ -788,8 +928,12 @@ def main() -> int:
         f"hold={counts.get('hold', 0)}); fresh={fresh_count}, "
         f"stale={stale_count}, missing={len(missing)}"
     )
+    if fail_reason_counts:
+        print(f"  fail_reasons (fresh calls): {fail_reason_counts}")
+    if stale_reason_counts:
+        print(f"  stale_reasons (caused stale-fallback): {stale_reason_counts}")
     if missing:
-        head = ", ".join(missing[:20])
+        head = ", ".join(f"{m['symbol']}({m['reason']})" for m in missing[:20])
         print(f"  missing (no fresh + no cache): {head}{'…' if len(missing) > 20 else ''}")
 
     if not verdicts:
@@ -803,7 +947,8 @@ def main() -> int:
         signals_n=len(signals),
         signals_selected=signals_selected,
         stale_count=stale_count,
-        missing_count=len(missing),
+        missing_list=missing,
+        stale_reason_counts=stale_reason_counts,
     )
     sent_ok = 0
     for i, msg in enumerate(messages, 1):
