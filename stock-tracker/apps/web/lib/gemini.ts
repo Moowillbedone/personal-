@@ -34,8 +34,16 @@
 // If primary exhausts (rare with current pacing), the analyze call throws
 // and ai-scan's stale-fallback ships the last fresh verdict per symbol
 // (≤24h old) with a "(N시간 전 · cached)" marker. Quality preserved.
+// 2026-05-23 fallback 복원: 라이브 probe 결과 gemini-flash-latest는 200 OK
+// (별도 quota bucket). 이전 5/19 commit에서 "flash-latest = 20 RPD" 잘못된
+// 진단으로 제거했던 게 결정적 실수. 5/11-15 정상 시기 매일 70-90건 verdict
+// 처리했던 4-model chain 핵심 fallback이었음. flash-latest 복원으로
+// quota headroom 대폭 확보 (2.5-flash + flash-latest = 최소 2개 별도
+// RPD bucket).
+//
+// lite와 2.0-flash는 사용자가 명시적으로 거부 (품질 우려) — 추가하지 않음.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const FALLBACK_MODELS: string[] = [];
+const FALLBACK_MODELS: string[] = ["gemini-flash-latest"];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
