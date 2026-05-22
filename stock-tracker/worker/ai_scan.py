@@ -75,7 +75,7 @@ MAX_SYMBOLS_PER_RUN = int(os.getenv("AI_SCAN_MAX_SYMBOLS", "100"))
 # Composition (priority order, unchanged):
 #   1. watchlist (all)              — user's active focus
 #   2. signals_24h by conviction    — fill remainder up to SCAN_BUDGET
-SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "8"))
+SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "6"))
 
 # Conviction-score weights for signal-24h selection. Computed per signal
 # row as:
@@ -751,7 +751,7 @@ GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "20"))
 
 # Margin to preserve for user manual /api/analyze clicks during the day.
 # User reported typical usage is 1-2 clicks/day, so 3 gives a 50% headroom.
-MANUAL_CLICK_RESERVE = int(os.getenv("AI_SCAN_MANUAL_RESERVE", "2"))
+MANUAL_CLICK_RESERVE = int(os.getenv("AI_SCAN_MANUAL_RESERVE", "3"))
 
 
 def main() -> int:
