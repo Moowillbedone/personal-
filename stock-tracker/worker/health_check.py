@@ -65,6 +65,24 @@ def _is_us_weekday() -> bool:
     return now_et.weekday() < 5
 
 
+def _is_us_market_session() -> bool:
+    """현재 시각이 미국 거래 세션 (premarket~afterhours) 범위인지.
+
+    premarket 04:00 ET ~ afterhours 마감 20:00 ET = 16시간 윈도우.
+    이 범위 밖에선 fresh 5분봉이 발생하지 않는 게 *정상*이므로 staleness
+    체크가 false alarm을 만든다.
+
+    2026-05-22 추가: 헬스체크가 KST 16:00 (= UTC 07:00 = ET 03:00 새벽
+    휴장 시간)에 발동되면서 매일 'price_snapshots stale', 'alpaca delay'
+    false alarm을 보내던 문제 fix. 시각만 보고 평일 가정 X → 시간대 합산.
+    """
+    now_et = datetime.now(timezone.utc) - timedelta(hours=5)
+    if now_et.weekday() >= 5:
+        return False  # 주말
+    h = now_et.hour
+    return 4 <= h < 20
+
+
 # ─── Individual checks ─────────────────────────────────────────────────────
 def check_signals_freshness(sb) -> CheckResult:
     """poll worker should fire at least some signals per US trading day."""
@@ -120,9 +138,10 @@ def check_price_snapshots(sb) -> CheckResult:
 
     last_dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
     age_h = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
-    is_trading_day = _is_us_weekday()
+    # 휴장 시간엔 새 bar 자체가 안 나옴. 시장 세션 중일 때만 stale 체크.
+    in_session = _is_us_market_session()
 
-    if age_h > PRICE_BARS_STALE_HOURS and is_trading_day:
+    if age_h > PRICE_BARS_STALE_HOURS and in_session:
         return CheckResult(
             "price_snapshots",
             False,
@@ -131,8 +150,9 @@ def check_price_snapshots(sb) -> CheckResult:
             f"`gh run list --workflow=stock-tracker-poll.yml` 로 워커 상태 확인.",
             "error",
         )
+    note = "" if in_session else " (휴장 중)"
     return CheckResult(
-        "price_snapshots", True, f"최근 bar {age_h:.1f}h 전 정상", "info"
+        "price_snapshots", True, f"최근 bar {age_h:.1f}h 전 정상{note}", "info"
     )
 
 
@@ -217,8 +237,9 @@ def check_alpaca_alive() -> CheckResult:
 
     last = df.index[-1]
     age_m = (datetime.now(timezone.utc) - last.to_pydatetime()).total_seconds() / 60
-    is_trading_day = _is_us_weekday()
-    if age_m > ALPACA_LATEST_BAR_STALE_MIN and is_trading_day:
+    # 휴장 시간엔 fresh bar 없음 — 시장 세션 중일 때만 stale 체크.
+    in_session = _is_us_market_session()
+    if age_m > ALPACA_LATEST_BAR_STALE_MIN and in_session:
         return CheckResult(
             "alpaca",
             False,
@@ -226,7 +247,8 @@ def check_alpaca_alive() -> CheckResult:
             f"Alpaca delay 또는 outage. lib/alpaca.py의 end/feed 파라미터 점검.",
             "warning",
         )
-    return CheckResult("alpaca", True, f"AAPL last bar {age_m:.0f}m 전 정상", "info")
+    note = "" if in_session else " (휴장 중)"
+    return CheckResult("alpaca", True, f"AAPL last bar {age_m:.0f}m 전 정상{note}", "info")
 
 
 def check_watchlist_coverage(sb) -> CheckResult:
