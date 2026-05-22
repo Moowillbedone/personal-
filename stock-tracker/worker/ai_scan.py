@@ -288,7 +288,11 @@ def _classify_failure(status: int | None, body: str) -> str:
 # Quota 429s and other reasons get NO retry (waste of quota / no recovery
 # expected). Worker-level consecutive_failures still counts retries-then-
 # fails as a single failure, so the burst doesn't snowball.
-TRANSIENT_RETRY_WAIT_SEC = int(os.getenv("AI_SCAN_TRANSIENT_RETRY_WAIT", "8"))
+# 90초로 늘림 (이전 8초). gemini.ts의 PerMinute 쿨다운이 75초라
+# 8초 후 retry하면 모델이 여전히 쿨다운 상태 → "gemini call failed" 즉시 반환.
+# 90초 wait면 쿨다운 끝난 후 진짜 retry 가능. 2026-05-22 사례 (17:00 scan
+# 모든 retry가 쿨다운 중 fast fail로 끝남) 직접 fix.
+TRANSIENT_RETRY_WAIT_SEC = int(os.getenv("AI_SCAN_TRANSIENT_RETRY_WAIT", "90"))
 
 
 def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int | None, str]:
@@ -332,7 +336,11 @@ def call_analyze(symbol: str) -> tuple[dict | None, str | None]:
     url = f"{FRONT_URL}/api/analyze"
     analysis, reason, status, body = _http_post_once(url, symbol)
 
-    if analysis or reason != FAIL_REASON_5XX:
+    # Transient로 회복 가능한 reason만 retry. quota_429는 즉시 fail (waste).
+    # unknown 추가 (2026-05-22): 5xx 이후 같은 모델 cooldown 중 "gemini call
+    # failed"가 unknown으로 분류되는데 실제론 cooldown 끝나면 회복 가능.
+    RETRYABLE = {FAIL_REASON_5XX, FAIL_REASON_UNKNOWN}
+    if analysis or reason not in RETRYABLE:
         if not analysis:
             print(f"    HTTP {status} reason={reason}: {body[:200]}", file=sys.stderr)
         return analysis, reason
