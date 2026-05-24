@@ -259,10 +259,28 @@ h2.section-title{
 }
 
 @media print{
-  body{background:#fff}
-  .page{max-width:none;padding:24px}
-  .hero,.why,.case,.skills-block,.about,.comp-card{break-inside:avoid;page-break-inside:avoid}
-  .section{margin:32px 0}
+  @page{size:A4 portrait;margin:14mm 12mm}
+  html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+  body{font-size:12.5px}
+  .page{max-width:none;padding:0;margin:0}
+  .section{margin:20mm 0;page-break-inside:auto}
+  .section:first-of-type{margin-top:0}
+  h2.section-title{font-size:24px;page-break-after:avoid;break-after:avoid}
+  .eyebrow{page-break-after:avoid;break-after:avoid}
+  .hero{padding:32px 28px;border-radius:12px;margin-bottom:30px;page-break-inside:avoid;break-inside:avoid;page-break-after:auto}
+  .hero h1{font-size:42px}
+  .hero h1 small{font-size:15px;margin-top:10px}
+  .hero-tag{font-size:14px;margin:18px 0 22px}
+  .why,.about,.skills-block,.comp-card,.comp-card,.principle{page-break-inside:avoid;break-inside:avoid}
+  .case{page-break-inside:avoid;break-inside:avoid;padding:22px 26px;margin-bottom:10px}
+  .case-head{page-break-after:avoid;break-after:avoid}
+  .case-section{page-break-inside:avoid;break-inside:avoid}
+  .impact-row,.case-actions{page-break-inside:avoid;break-inside:avoid}
+  .case-lesson{page-break-inside:avoid;break-inside:avoid}
+  .tl-item{page-break-inside:avoid;break-inside:avoid}
+  .footer{page-break-inside:avoid;break-inside:avoid;margin-top:30px}
+  .comp-grid{gap:10px}
+  .cases{gap:14px}
 }
 </style>
 </head>
@@ -284,7 +302,6 @@ h2.section-title{
     <div class="hero-contact">
       <div class="item"><span class="label">Email</span><span class="value"><a href="mailto:dlrjsan9090@gmail.com">dlrjsan9090@gmail.com</a></span></div>
       <div class="item"><span class="label">Phone</span><span class="value">010 · 3900 · 2917</span></div>
-      <div class="item"><span class="label">Github</span><span class="value"><a href="https://github.com/Moowillbedone" target="_blank" rel="noopener">@Moowillbedone</a></span></div>
     </div>
   </section>
 
@@ -956,8 +973,7 @@ h2.section-title{
       <div class="role">이그나이트 시니어 서비스 기획자 포지션 지원</div>
     </div>
     <div class="footer-right">
-      <a href="mailto:dlrjsan9090@gmail.com">dlrjsan9090@gmail.com</a> · 010 · 3900 · 2917<br/>
-      <a href="https://github.com/Moowillbedone" target="_blank">GitHub</a>
+      <a href="mailto:dlrjsan9090@gmail.com">dlrjsan9090@gmail.com</a> · 010 · 3900 · 2917
     </div>
   </footer>
 
