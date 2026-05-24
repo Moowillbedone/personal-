@@ -20,8 +20,9 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;backgr
 .tab .count{font-size:11px;color:#555;margin-left:6px;font-weight:500}
 .tab.active .count{color:#ff2d55}
 .list{display:flex;flex-direction:column;gap:12px}
-.list.show-work .card[data-cat="personal"]{display:none}
-.list.show-personal .card[data-cat="work"]{display:none}
+.list.show-work .card:not([data-cat="work"]){display:none}
+.list.show-portfolio .card:not([data-cat="portfolio"]){display:none}
+.list.show-personal .card:not([data-cat="personal"]){display:none}
 .card{display:block;background:#1a1a1a;border:1px solid #282828;border-radius:12px;padding:20px;text-decoration:none;color:#fff;transition:all .2s;position:relative}
 .card:hover{background:#222;border-color:#444;transform:translateY(-2px)}
 .card .name{font-size:16px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
@@ -31,6 +32,9 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;backgr
 .card .badge{position:absolute;top:18px;right:18px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#252525;color:#888;letter-spacing:.02em}
 .card.featured{background:linear-gradient(135deg,#1a1a1a,#2a1a2e);border-color:#ff2d55}
 .card.featured .meta{color:#ff2d55}
+.card.featured-ignite{background:linear-gradient(135deg,#0a1a2e,#1a2438);border-color:#1e40af}
+.card.featured-ignite .meta{color:#60a5fa}
+.card.featured-ignite .badge{background:#1e40af;color:#fff}
 .card.external::after{content:"↗";position:absolute;top:18px;right:18px;color:#555;font-size:14px}
 .card.external.has-badge::after{top:42px}
 .footer{margin-top:40px;padding-top:20px;border-top:1px solid #222;font-size:11px;color:#555;text-align:center}
@@ -47,19 +51,28 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;backgr
 
 <div class="tabs">
 <button class="tab active" data-tab="work" onclick="filt(this,'work')">회사용<span class="count">6</span></button>
-<button class="tab" data-tab="personal" onclick="filt(this,'personal')">개인용<span class="count">3</span></button>
+<button class="tab" data-tab="portfolio" onclick="filt(this,'portfolio')">포트폴리오<span class="count">2</span></button>
+<button class="tab" data-tab="personal" onclick="filt(this,'personal')">개인용<span class="count">2</span></button>
 </div>
 
 <div class="list show-work" id="list">
 
-<!-- ===== Personal (포트폴리오 핀 + 최신순) ===== -->
-<a class="card featured" data-cat="personal" href="portfolio/">
-<div class="badge">개인</div>
-<div class="name"><span class="icon">📁</span>이건무 — Product Owner 포트폴리오</div>
-<div class="desc">광고·커머스·커뮤니티·라이브·헬스케어 6년+ 케이스 스터디 14페이지. 500만 MAU · 월 1억+ 광고 BM · 월 3억 커머스 · 월 4천만 도네이션 BM</div>
-<div class="meta">2026년 5월 24일 · Portfolio</div>
+<!-- ===== Portfolio (메인 + 회사별 맞춤) ===== -->
+<a class="card featured" data-cat="portfolio" href="portfolio/">
+<div class="badge">포트폴리오</div>
+<div class="name"><span class="icon">📁</span>이건무 — Product Owner 메인 포트폴리오</div>
+<div class="desc">광고·커머스·커뮤니티·라이브·헬스케어 7년+ 케이스 스터디 14페이지. 500만 MAU · 월 1억+ 광고 BM · 월 3억 커머스 · 월 4천만 도네이션 BM</div>
+<div class="meta">2026년 5월 25일 · Master Portfolio · 14p</div>
 </a>
 
+<a class="card featured-ignite" data-cat="portfolio" href="portfolio-ignite/">
+<div class="badge">포트폴리오</div>
+<div class="name"><span class="icon">🔥</span>이그나이트(Ignite) 시니어 서비스기획자 지원용</div>
+<div class="desc">모빌리티 산업 맞춤. End-to-End 오너십·데이터·다부처 협업·AI·B2B2C 키워드와 매칭. 경력기술서 + 케이스 스터디 7건 통합.</div>
+<div class="meta">2026년 5월 25일 · Targeted · Ignite</div>
+</a>
+
+<!-- ===== Personal Apps ===== -->
 <a class="card external has-badge" data-cat="personal" href="https://stock-tracker-khaki-mu.vercel.app" target="_blank" rel="noopener">
 <div class="badge">개인</div>
 <div class="name"><span class="icon">📈</span>Stock Signal Tracker — 미국 주식 시그널</div>
@@ -126,9 +139,8 @@ function filt(btn, t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   const list=document.getElementById('list');
-  list.classList.remove('show-work','show-personal');
-  if(t==='work')list.classList.add('show-work');
-  if(t==='personal')list.classList.add('show-personal');
+  list.classList.remove('show-work','show-portfolio','show-personal');
+  list.classList.add('show-'+t);
 }
 </script>
 </body>
