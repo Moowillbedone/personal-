@@ -646,6 +646,77 @@ strong{font-weight:700;color:var(--ink);}
 }
 
 /* =========================================================
+   PAGE 5 — CASE STUDIES INDEX (대제목 페이지)
+   ========================================================= */
+.page-case-index{}
+.case-index-lead{
+  font-size:14.5px;
+  line-height:1.7;
+  color:#1F2937;
+  max-width:170mm;
+  margin: 0 0 8mm;
+}
+.case-index-lead em{
+  font-style:normal;
+  background: linear-gradient(180deg, transparent 60%, rgba(255,45,85,0.18) 60%);
+  padding: 0 2px;
+}
+.case-index-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.ci-card{
+  border:1px solid var(--line);
+  border-top: 3px solid var(--brand, var(--ink));
+  border-radius:8px;
+  padding: 12px 14px;
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+  gap: 4px;
+  min-height: 130px;
+}
+.ci-num{
+  color: var(--brand, var(--ink));
+  font-size:10.5px;
+  font-weight:700;
+  letter-spacing:0.08em;
+}
+.ci-tag{
+  font-size:9.5px;
+  color: var(--muted);
+  letter-spacing:0.08em;
+  font-weight:600;
+  margin-bottom: 2px;
+}
+.ci-h{
+  font-size:13.5px;
+  font-weight:800;
+  letter-spacing:-0.01em;
+  line-height:1.3;
+  color:var(--ink);
+  margin: 2px 0 4px;
+}
+.ci-meta{
+  font-size:10.5px;
+  color: var(--muted);
+  line-height:1.4;
+  margin-bottom: auto;
+}
+.ci-impact{
+  font-size:10px;
+  font-family:'Space Grotesk',monospace;
+  color: var(--brand, var(--ink));
+  letter-spacing:0.03em;
+  font-weight:700;
+  padding-top:6px;
+  border-top:1px dashed var(--line);
+  margin-top:6px;
+  line-height:1.4;
+}
+
+/* =========================================================
    CASE STUDY — shared
    ========================================================= */
 .page-case{
