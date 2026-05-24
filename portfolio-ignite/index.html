@@ -281,6 +281,8 @@ h2.section-title{
   .footer{page-break-inside:avoid;break-inside:avoid;margin-top:30px}
   .comp-grid{gap:10px}
   .cases{gap:14px}
+  /* Career 섹션 헤더가 페이지 하단에 고립되지 않도록 강제로 새 페이지에서 시작 */
+  .page-break-section{page-break-before:always;break-before:page}
 }
 </style>
 </head>
@@ -396,7 +398,7 @@ h2.section-title{
   </section>
 
   <!-- ============ CAREER TIMELINE ============ -->
-  <section class="section">
+  <section class="section page-break-section">
     <div class="eyebrow">Career</div>
     <h2 class="section-title">경력 요약 · 8년+</h2>
     <p class="section-lead">
