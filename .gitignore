@@ -1,0 +1,19 @@
+# --- Sensitive ---
+# Figma MCP config (contains API key)
+.mcp.json
+
+# --- Editor / OS ---
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Build / temp ---
+node_modules/
+dist/
+*.log
+*.bak
+
+# --- PDF backups ---
+*.bak.pdf
