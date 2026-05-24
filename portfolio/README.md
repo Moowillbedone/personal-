@@ -1,6 +1,6 @@
 # 이건무 — Product Owner Portfolio
 
-광고·커머스·커뮤니티·라이브·헬스케어 도메인에서 6년+ 동안 프로덕트를 만들어온 PO의 포트폴리오입니다.
+광고·커머스·커뮤니티·라이브·헬스케어 도메인에서 8년+ 동안 프로덕트를 만들어온 PO의 포트폴리오입니다.
 
 🔗 **Live**: <https://moowillbedone.github.io/personal-/>
 📄 **PDF**: [이건무_포트폴리오.pdf](./이건무_포트폴리오.pdf)
