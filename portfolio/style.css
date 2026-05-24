@@ -1,5 +1,5 @@
 /* ============================================================
-   LEE GEONMOO — PORTFOLIO STYLES
+   LEE KUNMOO — PORTFOLIO STYLES
    ============================================================ */
 
 :root{
@@ -256,8 +256,7 @@ strong{font-weight:700;color:var(--ink);}
 }
 .cover-sep{color:#4B5563;}
 .cover-arrow{
-  font-size:22px;
-  color:var(--accent);
+  display:none;
 }
 
 /* =========================================================
@@ -277,6 +276,14 @@ strong{font-weight:700;color:var(--ink);}
   overflow:hidden;
   background:var(--bg-soft);
   border:1px solid var(--line);
+  position:relative;
+}
+.about-photo-img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center 30%;
+  display:block;
 }
 .photo-placeholder{
   width:100%;
