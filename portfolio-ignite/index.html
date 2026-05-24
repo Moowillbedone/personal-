@@ -259,88 +259,28 @@ h2.section-title{
 }
 
 @media print{
-  @page{size:A4 portrait;margin:12mm 10mm}
+  @page{size:A4 portrait;margin:14mm 12mm}
   html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
-  body{font-size:11.5px;widows:3;orphans:3}
-  a{color:inherit;text-decoration:none}
-  .hero-contact .value a{color:#e2e8f0;border-bottom:0}
+  body{font-size:12.5px}
   .page{max-width:none;padding:0;margin:0}
-
-  /* Sections — tighter spacing */
-  .section{margin:10mm 0;page-break-inside:auto;break-inside:auto}
+  .section{margin:20mm 0;page-break-inside:auto}
   .section:first-of-type{margin-top:0}
-  .section-lead{margin-bottom:14px;font-size:12.5px}
-  h2.section-title{font-size:22px;margin-bottom:14px;page-break-after:avoid;break-after:avoid}
-  .eyebrow{margin-bottom:10px;page-break-after:avoid;break-after:avoid}
-
-  /* Hero compact */
-  .hero{padding:24px 22px;border-radius:10px;margin-bottom:14mm;page-break-after:auto}
-  .hero-mark{margin-bottom:14px}
-  .hero h1{font-size:34px;margin-bottom:10px}
-  .hero h1 small{font-size:13px;margin-top:8px}
-  .hero-tag{font-size:12.5px;margin:14px 0 18px;line-height:1.55}
-  .hero-contact{padding-top:14px;gap:10px 22px}
-  .hero-contact .label{font-size:9px}
-  .hero-contact .value{font-size:12px}
-
-  /* Why — compact card */
-  .why{padding:22px 26px;margin-bottom:0}
-  .why p{font-size:12.5px;line-height:1.7;margin-bottom:10px}
-  .match-grid{margin-top:14px;padding-top:14px;gap:8px}
-  .match-item{font-size:12px}
-
-  /* Competencies */
-  .comp-grid{gap:8px}
-  .comp-card{padding:18px 20px}
-  .comp-card{page-break-inside:avoid;break-inside:avoid}
-  .comp-title{font-size:15px;margin-bottom:8px}
-  .comp-desc{font-size:11.5px;margin-bottom:10px;line-height:1.55}
-  .comp-proof{font-size:11px}
-
-  /* Timeline */
-  .tl-item{padding:14px 0;page-break-inside:avoid;break-inside:avoid}
-  .tl-right .company{font-size:14px}
-  .tl-right .summary{font-size:12px;margin-top:6px;line-height:1.55}
-
-  /* About */
-  .about{padding:22px 26px;page-break-inside:avoid;break-inside:avoid}
-  .about p{font-size:12.5px;line-height:1.7}
-  .about-principles{gap:8px;margin-top:14px;padding-top:14px}
-  .principle{padding:12px 14px}
-  .principle .p-h{font-size:12px}
-  .principle .p-p{font-size:11px}
-
-  /* Cases — flow naturally, only protect inner sub-blocks */
-  .cases{gap:8px}
-  .case{
-    padding:18px 22px;
-    margin-bottom:0;
-    /* allow breaking */
-    page-break-inside:auto;break-inside:auto
-  }
-  .case-head{padding-bottom:12px;margin-bottom:14px;page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid}
-  .case-title{font-size:18px}
-  .case-meta{font-size:11.5px}
-  .case-section{margin:12px 0;page-break-inside:avoid;break-inside:avoid}
-  .case-label{margin-bottom:6px}
-  .case-text{font-size:12.5px;line-height:1.65}
-  .impact-row,.case-actions{gap:6px;page-break-inside:avoid;break-inside:avoid}
-  .case-action{padding:10px 12px;page-break-inside:avoid;break-inside:avoid}
-  .case-action .t{font-size:12px}
-  .case-action .d{font-size:11px}
-  .impact-cell{padding:10px 12px;page-break-inside:avoid;break-inside:avoid}
-  .impact-cell .num{font-size:18px}
-  .impact-cell .num.small{font-size:14px}
-  .impact-cell .lbl{font-size:10.5px}
-  .case-lesson{padding:12px 14px;margin-top:8px;page-break-inside:avoid;break-inside:avoid}
-  .case-lesson .case-text{font-size:11.5px}
-
-  /* Skills */
-  .skills-grid{gap:12px}
-  .skills-block{padding:18px 20px;page-break-inside:avoid;break-inside:avoid}
-
-  /* Footer */
-  .footer{margin-top:14mm;padding-top:18px;page-break-inside:avoid;break-inside:avoid}
+  h2.section-title{font-size:24px;page-break-after:avoid;break-after:avoid}
+  .eyebrow{page-break-after:avoid;break-after:avoid}
+  .hero{padding:32px 28px;border-radius:12px;margin-bottom:30px;page-break-inside:avoid;break-inside:avoid;page-break-after:auto}
+  .hero h1{font-size:42px}
+  .hero h1 small{font-size:15px;margin-top:10px}
+  .hero-tag{font-size:14px;margin:18px 0 22px}
+  .why,.about,.skills-block,.comp-card,.comp-card,.principle{page-break-inside:avoid;break-inside:avoid}
+  .case{page-break-inside:avoid;break-inside:avoid;padding:22px 26px;margin-bottom:10px}
+  .case-head{page-break-after:avoid;break-after:avoid}
+  .case-section{page-break-inside:avoid;break-inside:avoid}
+  .impact-row,.case-actions{page-break-inside:avoid;break-inside:avoid}
+  .case-lesson{page-break-inside:avoid;break-inside:avoid}
+  .tl-item{page-break-inside:avoid;break-inside:avoid}
+  .footer{page-break-inside:avoid;break-inside:avoid;margin-top:30px}
+  .comp-grid{gap:10px}
+  .cases{gap:14px}
 }
 </style>
 </head>
