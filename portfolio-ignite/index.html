@@ -214,6 +214,45 @@ h2.section-title{
 .case-lesson .case-text{color:#e2e8f0;font-size:13.5px}
 .case-lesson .case-text strong{color:#fff}
 
+/* ===== Flow Diagrams ===== */
+.flow{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:18px 20px;background:#fafafa;border-radius:10px;
+  border:1px solid #e8eaed;margin-top:8px
+}
+.flow-step{
+  flex:0 0 auto;padding:10px 14px;background:#fff;
+  border:1px solid #e8eaed;border-radius:8px;
+  min-width:78px;max-width:170px;text-align:center
+}
+.flow-step.start{background:#f1f5f9;border-color:#cbd5e1}
+.flow-step.accent{background:#dbeafe;border-color:#bfdbfe}
+.flow-step.accent .flow-h{color:#1e40af}
+.flow-step.gold{background:#fef3c7;border-color:#fde68a}
+.flow-step.gold .flow-h{color:#92400e}
+.flow-step.dark{background:#0a0e1a;border-color:#0a0e1a}
+.flow-step.dark .flow-h{color:#fff}
+.flow-step.dark .flow-d{color:#cbd5e1}
+.flow-h{font-size:12.5px;font-weight:800;line-height:1.3;letter-spacing:-0.01em;color:#0a0a0a}
+.flow-d{font-size:10.5px;color:#525860;margin-top:3px;line-height:1.4}
+.flow-arrow{font-size:16px;color:#8b92a0;font-weight:700;flex:0 0 auto;padding:0 2px}
+.flow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.flow-lane{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 12px;background:#fff;border-radius:8px;border:1px dashed #e8eaed;width:100%
+}
+.flow-lane .lane-label{
+  font-size:10px;font-weight:800;color:#1e40af;letter-spacing:.08em;
+  text-transform:uppercase;flex:0 0 auto;margin-right:4px;
+  padding:3px 8px;background:#dbeafe;border-radius:4px
+}
+.flow-lane.b2b .lane-label{color:#92400e;background:#fef3c7}
+.flow-branch{
+  display:flex;flex-direction:column;gap:4px;flex:0 0 auto;
+  padding:8px 12px;background:#fff;border:1px solid #e8eaed;border-radius:8px;min-width:120px
+}
+.flow-branch .branch-item{font-size:11px;color:#363c46;font-weight:600;padding:2px 0}
+
 /* ===== Skills ===== */
 .skills-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .skills-block{background:#fff;border:1px solid #e8eaed;border-radius:12px;padding:24px 26px}
@@ -283,6 +322,13 @@ h2.section-title{
   .cases{gap:14px}
   /* Career 섹션 헤더가 페이지 하단에 고립되지 않도록 강제로 새 페이지에서 시작 */
   .page-break-section{page-break-before:always;break-before:page}
+  /* Flow 다이어그램 인쇄 보정 */
+  .flow{page-break-inside:avoid;break-inside:avoid;padding:12px 14px;gap:6px}
+  .flow-step{padding:8px 10px;min-width:70px}
+  .flow-h{font-size:11px}
+  .flow-d{font-size:9.5px}
+  .flow-arrow{font-size:14px}
+  .flow-lane{padding:8px 10px}
 }
 </style>
 </head>
@@ -573,6 +619,21 @@ h2.section-title{
         </div>
 
         <div class="case-section">
+          <div class="case-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">시청 흐름</div><div class="flow-d">라이브 채팅</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">도네이션</div><div class="flow-d">채팅 옆 1탭 통합</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">크리에이터</div><div class="flow-d">노출 · 리워드</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">팔로워 ↑</div><div class="flow-d">+200%</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">월 4천만</div><div class="flow-d">매출 + 재시청 루프</div></div>
+          </div>
+        </div>
+
+        <div class="case-section">
           <div class="case-label">결과 · Impact</div>
           <div class="impact-row">
             <div class="impact-cell"><div class="num">월 4천만</div><div class="lbl">신규 도네이션 BM 매출 (DAU 3만)</div></div>
@@ -622,6 +683,26 @@ h2.section-title{
             <div class="case-action"><span class="n">A2</span><span class="t">광고 수익화 다각화</span><span class="d">SSP · DSP · Offerwall · CRM 광고 상품을 4가지 광고 모델로 디벨롭</span></div>
             <div class="case-action"><span class="n">A3</span><span class="t">자체 광고 Admin</span><span class="d">지면·소재·타겟·효율을 한 화면에서 보는 광고지표 모니터링 Admin</span></div>
             <div class="case-action"><span class="n">A4</span><span class="t">SaaS형 BM 확장</span><span class="d">구축한 광고 인프라를 외부 파트너에게 SaaS로 제공하는 신규 수익 라인 설계</span></div>
+          </div>
+        </div>
+
+        <div class="case-section">
+          <div class="case-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">500만 MAU</div><div class="flow-d">대규모 트래픽</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">통합 커뮤니티</div><div class="flow-d">체류 + SEO</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-branch">
+              <div class="branch-item">· SSP</div>
+              <div class="branch-item">· DSP</div>
+              <div class="branch-item">· Offerwall</div>
+              <div class="branch-item">· CRM</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">자체 Admin</div><div class="flow-d">효율 모니터링</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">월 1억+</div><div class="flow-d">+ SaaS화 확장</div></div>
           </div>
         </div>
 
@@ -678,6 +759,21 @@ h2.section-title{
         </div>
 
         <div class="case-section">
+          <div class="case-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">뷰티 리뷰</div><div class="flow-d">UGC + 커뮤니티</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">포토 리뷰 가중치</div><div class="flow-d">정책 + 리스팅 로직</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">신뢰 리뷰 ↑</div><div class="flow-d">양질 포토 리뷰 확보</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">[언니딜]</div><div class="flow-d">앱 내 커머스</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">월 3억 · #1</div><div class="flow-d">CVR +15% / 카테고리 1위</div></div>
+          </div>
+        </div>
+
+        <div class="case-section">
           <div class="case-label">결과</div>
           <div class="impact-row">
             <div class="impact-cell"><div class="num">월 3억</div><div class="lbl">[언니딜] 커머스 매출</div></div>
@@ -730,6 +826,33 @@ h2.section-title{
         </div>
 
         <div class="case-section">
+          <div class="case-label">구조 · B2C + B2B 이중 파이프라인</div>
+          <div class="flow" style="flex-direction:column;align-items:stretch">
+            <div class="flow-lane">
+              <span class="lane-label">B2C</span>
+              <div class="flow-step"><div class="flow-h">유저</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step accent"><div class="flow-h">매칭 알고리즘</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step"><div class="flow-h">전문가</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step gold"><div class="flow-h">B2C 결제</div></div>
+            </div>
+            <div class="flow-lane b2b">
+              <span class="lane-label">B2B</span>
+              <div class="flow-step"><div class="flow-h">기업</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step accent"><div class="flow-h">EAP 계약</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step"><div class="flow-h">임직원 풀</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step gold"><div class="flow-h">B2B 매출</div></div>
+            </div>
+            <div style="text-align:center;font-size:11px;color:#525860;padding:4px 0">↑ 같은 전문가 풀 위에 두 매출 라인 — <strong>이그나이트의 B2B2C 모빌리티 구조와 직결</strong></div>
+          </div>
+        </div>
+
+        <div class="case-section">
           <div class="case-label">결과</div>
           <div class="impact-row">
             <div class="impact-cell"><div class="num">MAU 20만</div><div class="lbl">C2C 매칭 안정 운영</div></div>
@@ -777,6 +900,24 @@ h2.section-title{
             <div class="case-action"><span class="n">A1</span><span class="t">라이브 컨텍스트 광고 상품 3종 설계</span><span class="d">Offerwall · 리워드 광고 · 지면 광고 — 시청 흐름을 끊지 않는 위치·타이밍 정의</span></div>
             <div class="case-action"><span class="n">A2</span><span class="t">광고 Admin 분리 구축</span><span class="d">지면별 설정·노출 정책·효율 모니터링 화면을 광고주·내부 운영자용으로 이원화</span></div>
             <div class="case-action"><span class="n">A3</span><span class="t">스마트 메시징 시스템</span><span class="d">유저 행동 시그널(시청·찜·이탈)을 트리거로 한 자동 타겟팅 + 메시지 발송 인프라</span></div>
+          </div>
+        </div>
+
+        <div class="case-section">
+          <div class="case-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">라이브 컨텍스트</div><div class="flow-d">시청·결제·반응 동시</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-branch">
+              <div class="branch-item">· Offerwall</div>
+              <div class="branch-item">· 리워드 광고</div>
+              <div class="branch-item">· 지면 광고</div>
+              <div class="branch-item">+ 스마트 메시징</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">광고 Admin</div><div class="flow-d">광고주·운영자 분리</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">ROAS ↑</div><div class="flow-d">시청 흐름 보존</div></div>
           </div>
         </div>
 
@@ -833,6 +974,21 @@ h2.section-title{
         </div>
 
         <div class="case-section">
+          <div class="case-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">광고주</div><div class="flow-d">기업 · 지자체</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">B2B SaaS Admin</div><div class="flow-d">자체 캠페인 운영</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">미션 캠페인</div><div class="flow-d">걷기 · 스탬프</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">유저 참여</div><div class="flow-d">행동 단위 보상</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">월 1억</div><div class="flow-d">광고주 만족 + 유저 참여 정렬</div></div>
+          </div>
+        </div>
+
+        <div class="case-section">
           <div class="case-label">결과</div>
           <div class="impact-row">
             <div class="impact-cell"><div class="num">월 1억</div><div class="lbl">미션형 광고 BM 매출</div></div>
@@ -881,6 +1037,21 @@ h2.section-title{
             <div class="case-action"><span class="n">A1</span><span class="t">AI 스켈레톤 기반 운동 UIUX</span><span class="d">"얼마나 정확한가"를 시각적·즉각적 피드백으로 — 카운트·각도·자세 가이드 통합</span></div>
             <div class="case-action"><span class="n">A2</span><span class="t">라이브 클래스 유료 BM</span><span class="d">녹화 콘텐츠를 넘어 라이브 클래스로 객단가·충성도를 모두 잡는 유료 채널 신설</span></div>
             <div class="case-action"><span class="n">A3</span><span class="t">기술 → 사용성 번역</span><span class="d">모션 인식 정확도·지연·각도 한계를 UX·문구로 보정 — 기술 실패가 유저 실패가 되지 않도록</span></div>
+          </div>
+        </div>
+
+        <div class="case-section">
+          <div class="case-label">구조 · Flow (기술 → 사용성)</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="flow-h">유저 동작</div><div class="flow-d">카메라 입력</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step dark"><div class="flow-h">AI 스켈레톤</div><div class="flow-d">관절 인식</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="flow-h">정확도 측정</div><div class="flow-d">각도 · 자세 분석</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="flow-h">UX 피드백</div><div class="flow-d">카운트 · 가이드 · 문구 보정</div></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="flow-h">사용성 ↑</div><div class="flow-d">최우수상 · 라이브 BM</div></div>
           </div>
         </div>
 
