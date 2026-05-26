@@ -83,6 +83,38 @@ def _is_us_market_session() -> bool:
     return 4 <= h < 20
 
 
+def _yesterday_was_us_trading_day() -> bool:
+    """어제 ET 기준이 미국 거래일이었는지 — Alpaca calendar로 정확히.
+
+    2026-05-26 추가: Memorial Day 같은 휴일 다음 날 헬스체크가 KST 16:00
+    (= ET 03:00 새벽)에 발동되면, 24h cutoff 안에는 어제 휴일만 있고
+    오늘 거래는 아직 시작 안 됨 → signals 0건 정상인데 false alarm.
+
+    어제 ET 날짜 1개만 Alpaca calendar에 물어서 거래일이었는지 정확히
+    판정. (calendar API는 거래일만 반환 — 휴일은 응답 list가 빔).
+    """
+    try:
+        import os, requests as _r
+        headers = {
+            "APCA-API-KEY-ID": os.getenv("ALPACA_KEY_ID", ""),
+            "APCA-API-SECRET-KEY": os.getenv("ALPACA_SECRET", ""),
+        }
+        now = datetime.now(timezone.utc)
+        et_yesterday = ((now - timedelta(hours=5)) - timedelta(days=1)).date()
+        r = _r.get(
+            "https://api.alpaca.markets/v2/calendar",
+            headers=headers,
+            params={"start": et_yesterday.isoformat(), "end": et_yesterday.isoformat()},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            return True  # API fail → 보수적으로 거래일이라 가정 (false alarm OK)
+        days = r.json() or []
+        return len(days) > 0
+    except Exception:
+        return True  # 에러 시 보수적 가정
+
+
 # ─── Individual checks ─────────────────────────────────────────────────────
 def check_signals_freshness(sb) -> CheckResult:
     """poll worker should fire at least some signals per US trading day."""
@@ -99,6 +131,16 @@ def check_signals_freshness(sb) -> CheckResult:
         count = res.count or 0
     except Exception as e:
         return CheckResult("signals", False, f"DB query failed: {e}", "error")
+
+    # 휴일 가드: 어제 ET가 미국 거래일이 아니었으면 (Memorial Day 등)
+    # signals 0건 정상. Alpaca calendar로 정확 체크.
+    if not _yesterday_was_us_trading_day():
+        return CheckResult(
+            "signals",
+            True,
+            f"시그널 {SIGNALS_STALE_HOURS}h: {count}건 (어제 미국 휴장 — 정상)",
+            "info",
+        )
 
     is_trading_day = _is_us_weekday()
     if count == 0 and is_trading_day:
@@ -225,15 +267,20 @@ def check_gemini_quota_remaining(sb) -> CheckResult:
 
 
 def check_alpaca_alive() -> CheckResult:
-    """라이브 호출로 Alpaca가 fresh bar 주는지 검증."""
+    """라이브 호출로 Alpaca가 fresh bar 주는지 검증.
+
+    2026-05-26 fix: lookback 1d → 5d. 1d로 호출하면 휴일+주말 연속
+    (예: Memorial Day + 토일 = 3일 휴장)일 때 false alarm. 5d면 직전
+    거래일 데이터 무조건 포함.
+    """
     try:
-        bars = alpaca.fetch_recent_bars(["AAPL"], interval="5m", lookback="1d")
+        bars = alpaca.fetch_recent_bars(["AAPL"], interval="5m", lookback="5d")
         df = bars.get("AAPL")
     except Exception as e:
         return CheckResult("alpaca", False, f"호출 실패: {e}", "error")
 
     if df is None or df.empty:
-        return CheckResult("alpaca", False, "AAPL bars 0건 반환 — Alpaca 정책 변경 의심", "error")
+        return CheckResult("alpaca", False, "AAPL bars 0건 반환 (5d window) — Alpaca 정책 변경 의심", "error")
 
     last = df.index[-1]
     age_m = (datetime.now(timezone.utc) - last.to_pydatetime()).total_seconds() / 60
