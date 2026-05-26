@@ -344,6 +344,76 @@ def check_watchlist_coverage(sb) -> CheckResult:
     )
 
 
+# 6-12h 윈도우는 backtest 발동 cycle (4회/일 = 6h 간격) 한 번 이상 지난 시간대.
+# 그 시간대 시그널이 expected_* NULL이면 backtest 워커 또는 GitHub Actions
+# 트리거 실패 의심 — 사후 backfill이 안 되고 있는 상태.
+BACKTEST_CHECK_MIN_HOURS = int(os.getenv("HC_BACKFILL_MIN_H", "6"))
+BACKTEST_CHECK_MAX_HOURS = int(os.getenv("HC_BACKFILL_MAX_H", "12"))
+BACKTEST_NULL_WARN_PCT = int(os.getenv("HC_BACKFILL_WARN_PCT", "50"))   # >= warn
+BACKTEST_NULL_ERROR_PCT = int(os.getenv("HC_BACKFILL_ERROR_PCT", "80")) # >= error
+
+
+def check_backtest_freshness(sb) -> CheckResult:
+    """6-12h 이전 시그널 중 expected_1d NULL 비율 — backtest 백필 동작 여부.
+
+    2026-05-26 추가: GitHub API outage로 11:00 UTC cron-job.org→workflow_
+    dispatch가 HTTP 500 받아서 backtest 발동 실패. 결과 17:00 KST 시그널
+    11건 모두 expected_1d/3d/5d NULL 상태 7시간 지속. 사용자 발견 전까지
+    헬스체크가 못 잡았음 → 이 check 추가.
+
+    윈도우: now-12h ~ now-6h 사이 시그널.
+    - 6h 이상 지났으면 4회/일 backtest 중 적어도 1번 발동 후
+    - 12h 이전이면 너무 옛날 (이미 별도 cycle로 처리됐을 거)
+    - 이 시간대 시그널 NULL 비율 = backtest 동작 건강 지표
+    """
+    now = datetime.now(timezone.utc)
+    window_end = (now - timedelta(hours=BACKTEST_CHECK_MIN_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    window_start = (now - timedelta(hours=BACKTEST_CHECK_MAX_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        # 윈도우 안 전체
+        total_res = sb.table("signals").select("id", count="exact").gte("ts", window_start).lt("ts", window_end).limit(1).execute()
+        total = total_res.count or 0
+        # 그 중 expected_1d NULL
+        null_res = sb.table("signals").select("id", count="exact").gte("ts", window_start).lt("ts", window_end).is_("expected_1d", "null").limit(1).execute()
+        null_count = null_res.count or 0
+    except Exception as e:
+        return CheckResult("backtest", False, f"DB query failed: {e}", "error")
+
+    if total == 0:
+        # 휴장 후 또는 quiet day — 분모 0이면 체크 의미 없음
+        return CheckResult(
+            "backtest",
+            True,
+            f"backtest 윈도우 ({BACKTEST_CHECK_MIN_HOURS}-{BACKTEST_CHECK_MAX_HOURS}h ago): 시그널 0건 (체크 스킵)",
+            "info",
+        )
+
+    null_pct = round(100 * null_count / total)
+    if null_pct >= BACKTEST_NULL_ERROR_PCT:
+        return CheckResult(
+            "backtest",
+            False,
+            f"{BACKTEST_CHECK_MIN_HOURS}-{BACKTEST_CHECK_MAX_HOURS}h 전 시그널 {null_count}/{total}건 "
+            f"expected_* NULL ({null_pct}%). backtest 워커 또는 GitHub Actions "
+            f"트리거 실패 의심. `gh run list --workflow=stock-tracker-backtest.yml` 확인.",
+            "error",
+        )
+    if null_pct >= BACKTEST_NULL_WARN_PCT:
+        return CheckResult(
+            "backtest",
+            False,
+            f"{BACKTEST_CHECK_MIN_HOURS}-{BACKTEST_CHECK_MAX_HOURS}h 전 시그널 {null_count}/{total}건 "
+            f"expected_* NULL ({null_pct}%). backtest 백필 지연.",
+            "warning",
+        )
+    return CheckResult(
+        "backtest",
+        True,
+        f"backtest 백필: {total - null_count}/{total}건 채워짐 ({100-null_pct}%)",
+        "info",
+    )
+
+
 # ─── Telegram delivery ─────────────────────────────────────────────────────
 def send_telegram(text: str) -> bool:
     """Send a plain-text telegram. NO parse_mode — health-check messages
@@ -428,6 +498,7 @@ def main() -> int:
         check_gemini_quota_remaining,
         check_alpaca_alive,
         check_watchlist_coverage,
+        check_backtest_freshness,
     ]
 
     results: list[CheckResult] = []
