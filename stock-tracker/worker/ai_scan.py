@@ -596,9 +596,10 @@ def _build_blocks(
         for m in missing_list:
             miss_counts[m["reason"]] = miss_counts.get(m["reason"], 0) + 1
         reason_breakdown = _format_reason_breakdown(miss_counts)
-        symbols_str = ", ".join(m["symbol"] for m in missing_list[:8])
-        if len(missing_list) > 8:
-            symbols_str += f" 외 {len(missing_list)-8}건"
+        # 2026-05-28: 사용자 요청 — "외 N건" 축약 제거, 모든 티커 노출.
+        # missing은 SCAN_BUDGET(최대 25) 이내라 티커 전부 나열해도 telegram
+        # 4096자 한도 안전 (25 × ~6자 = 150자).
+        symbols_str = ", ".join(m["symbol"] for m in missing_list)
         header_lines.append(
             f"⚠️ {len(missing_list)}건 verdict 생성 실패 ({symbols_str}) — "
             f"{reason_breakdown}. 24h 캐시도 없어 누락. 다음 스캔 자동 재시도."
