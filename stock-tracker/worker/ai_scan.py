@@ -339,7 +339,10 @@ def call_analyze(symbol: str) -> tuple[dict | None, str | None]:
     # Transient로 회복 가능한 reason만 retry. quota_429는 즉시 fail (waste).
     # unknown 추가 (2026-05-22): 5xx 이후 같은 모델 cooldown 중 "gemini call
     # failed"가 unknown으로 분류되는데 실제론 cooldown 끝나면 회복 가능.
-    RETRYABLE = {FAIL_REASON_5XX, FAIL_REASON_UNKNOWN}
+    # vercel_504 추가 (2026-05-28): analyze route 60s timeout. Gemini가
+    # 일시적으로 느렸던 것이라 90s 후 재시도하면 대부분 회복 (5/28 17시
+    # VST/NBIS가 504로 missing 됐던 케이스 fix).
+    RETRYABLE = {FAIL_REASON_5XX, FAIL_REASON_UNKNOWN, FAIL_REASON_VERCEL_504}
     if analysis or reason not in RETRYABLE:
         if not analysis:
             print(f"    HTTP {status} reason={reason}: {body[:200]}", file=sys.stderr)

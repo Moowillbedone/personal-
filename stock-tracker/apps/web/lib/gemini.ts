@@ -27,23 +27,26 @@
 // get a 75s cooldown via the smart-classifier and recover within the
 // next call.
 //
-// Intentionally NOT in the chain:
-//   gemini-flash-latest    (preview alias, tiny free RPD — cascaded burnout)
-//   gemini-2.5-flash-lite  (1000 RPD but noticeably lighter reasoning)
-//   gemini-2.0-flash       (older generation)
-// If primary exhausts (rare with current pacing), the analyze call throws
-// and ai-scan's stale-fallback ships the last fresh verdict per symbol
-// (≤24h old) with a "(N시간 전 · cached)" marker. Quality preserved.
-// 2026-05-23 fallback 복원: 라이브 probe 결과 gemini-flash-latest는 200 OK
-// (별도 quota bucket). 이전 5/19 commit에서 "flash-latest = 20 RPD" 잘못된
-// 진단으로 제거했던 게 결정적 실수. 5/11-15 정상 시기 매일 70-90건 verdict
-// 처리했던 4-model chain 핵심 fallback이었음. flash-latest 복원으로
-// quota headroom 대폭 확보 (2.5-flash + flash-latest = 최소 2개 별도
-// RPD bucket).
+// Model chain (2026-05-28 최종 — 사용자 승인):
+//   1. gemini-2.5-flash      (20 RPD, 최고 품질) — primary, 매 호출 먼저 시도
+//   2. gemini-flash-latest   (별도 quota bucket) — primary 소진 시
+//   3. gemini-2.5-flash-lite (1,000 RPD, 중품질) — 최후 안전망
 //
-// lite와 2.0-flash는 사용자가 명시적으로 거부 (품질 우려) — 추가하지 않음.
+// 동작: 매 호출은 항상 primary(고품질)부터. primary가 429(20 RPD 소진)면
+// flash-latest, 그것도 막히면 lite로 폴백. 즉 하루 첫 ~40개(2.5-flash +
+// flash-latest)는 최고 품질, 그 이후만 lite. 평소 운영(25×2=50 calls/day)
+// 에선 대부분 고품질 모델이 처리하고 lite는 진짜 안전망 역할.
+//
+// lite를 최후 fallback에 둔 이유: 2025-12-07 Google이 free tier 2.5-flash를
+// 250→20 RPD로 80% 축소. lite만 1,000 RPD 유지. lite가 chain 맨 뒤에
+// 있으면 quota 소진으로 인한 verdict 실패(missing/stale)가 사실상 0이 됨
+// (1,000 RPD는 우리 사용량의 20배). 옛 5/11-15 정상 시기 매일 70-90건
+// 처리했던 게 바로 이 lite 포함 chain 덕분이었음.
+//
+// 품질 영향 최소: 평소엔 2.5-flash로 고품질 유지. lite는 2.5-flash +
+// flash-latest 둘 다 소진된 극단에서만 발동.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const FALLBACK_MODELS: string[] = ["gemini-flash-latest"];
+const FALLBACK_MODELS: string[] = ["gemini-flash-latest", "gemini-2.5-flash-lite"];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
