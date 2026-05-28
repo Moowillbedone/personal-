@@ -39,13 +39,16 @@ from lib import alpaca, db
 # ─── Config ────────────────────────────────────────────────────────────────
 TG_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 TG_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "20"))
+# chain 전체 안전망(flash-lite 1,000 RPD) 기준 — ai_scan.py와 정합.
+# 하루 50 calls(25×2)는 1,000 한도의 5%라 정상. 2.5-flash 20 RPD 기준이
+# 아니라 chain 가용량 기준으로 봐야 false alarm 안 뜸 (2026-05-28).
+GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "1000"))
 
 # Per-check thresholds (env-overridable so we can tune without redeploying).
 SIGNALS_STALE_HOURS = int(os.getenv("HC_SIGNALS_STALE_H", "24"))
 PRICE_BARS_STALE_HOURS = int(os.getenv("HC_PRICE_STALE_H", "6"))
 AI_ANALYSIS_STALE_HOURS = int(os.getenv("HC_AI_STALE_H", "30"))
-QUOTA_WARN_THRESHOLD = int(os.getenv("HC_QUOTA_WARN", "17"))
+QUOTA_WARN_THRESHOLD = int(os.getenv("HC_QUOTA_WARN", "900"))  # chain 1000 기준 90%
 ALPACA_LATEST_BAR_STALE_MIN = int(os.getenv("HC_ALPACA_STALE_M", "60"))
 WATCHLIST_STALE_HOURS = int(os.getenv("HC_WATCHLIST_STALE_H", "30"))
 

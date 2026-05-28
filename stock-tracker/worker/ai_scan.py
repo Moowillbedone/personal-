@@ -757,12 +757,21 @@ def _pt_day_quota_used(sb) -> int:
         return 0  # fail-open: don't block the scan on a DB hiccup
 
 
-# Hard free-tier RPD ceiling for gemini-2.5-flash on this project
-# (live-verified 2026-05-20 via 429 body: "limit: 20").
-GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "20"))
+# Effective RPD ceiling for the WHOLE model chain, not just primary.
+# 2026-05-28: gemini.ts chain은 2.5-flash(20) → flash-latest(별도) →
+# flash-lite(1,000)로 3중. /api/analyze는 primary가 429면 자동으로 다음
+# 모델로 폴백하므로, 실질 가용량은 chain 최후 안전망인 flash-lite의
+# 1,000 RPD가 기준. quota guard는 이제 "primary 20 보호"가 아니라
+# "chain 전체가 고갈되지 않게" 하는 역할 → 1,000으로 설정.
+#
+# 효과: effective_budget = 1000 - 5(reserve) - used = 항상 SCAN_BUDGET(25)
+# 초과 → 매 scan 25개 전부 fresh 시도 → chain이 끝까지(lite) 폴백하며
+# 거의 100% 성공 → missing/stale 사실상 0. 평소 하루 50 calls 중 첫
+# ~20개는 2.5-flash 고품질, 나머지는 flash-latest/lite로 자동 분산.
+GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "1000"))
 
 # Margin to preserve for user manual /api/analyze clicks during the day.
-# User reported typical usage is 1-2 clicks/day, so 3 gives a 50% headroom.
+# chain 안전망(lite 1000)이 충분히 크므로 reserve는 형식적. 5 유지.
 MANUAL_CLICK_RESERVE = int(os.getenv("AI_SCAN_MANUAL_RESERVE", "5"))
 
 
