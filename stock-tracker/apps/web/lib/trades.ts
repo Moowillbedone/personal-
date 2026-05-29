@@ -163,6 +163,20 @@ export interface Position {
   /** All non-empty notes from trades in this position, recent-first.
    *  Surfaced on /stats so the user can review entry/exit rationale. */
   notedTrades: PositionTradeNote[];
+  // ─── live mark-to-market (filled by the API route, not computePosition) ───
+  /** Latest price for the held symbol, or null if pricing failed. */
+  currentPrice?: number | null;
+  /** openQty × currentPrice. */
+  marketValue?: number | null;
+  /** marketValue − costBasisOpen. */
+  unrealizedPnl?: number | null;
+  /** unrealizedPnl / costBasisOpen. */
+  unrealizedPct?: number | null;
+  /** When the quote was taken (lastTradeTs). */
+  priceAsOf?: string | null;
+  /** true when the quote fell back to IEX during a non-regular session
+   *  (i.e. it's a stale regular-close, not a live extended-hours price). */
+  priceStale?: boolean;
 }
 
 /**
@@ -250,6 +264,63 @@ export function aggregatePositions(trades: Trade[]): Position[] {
   return out;
 }
 
+/** One vertex of the cumulative realized-P&L curve. */
+export interface RealizedPoint {
+  /** ISO timestamp of the sell event (or the leading baseline). */
+  ts: string;
+  /** Cumulative realized P&L up to and including this event. */
+  cumulative: number;
+}
+
+/**
+ * Chronological cumulative realized-P&L curve over the given trades.
+ *
+ * Realizes each sell against that symbol's weighted-average buy price taken
+ * over the WHOLE set (identical basis to computePosition). Because
+ *   Σ_sells (sellPrice − avgBuy) · qty  ≡  totalSellRevenue − avgBuy · totalSellQty,
+ * the final cumulative value ties out exactly to the sum of per-symbol
+ * realizedPnl — i.e. the curve's endpoint equals the headline 실현 손익.
+ *
+ * One point per sell event, with a leading 0 baseline so the curve starts
+ * flat at zero. Returns [] when there are no realizing sells (nothing to plot).
+ */
+export function computeRealizedTimeline(trades: Trade[]): RealizedPoint[] {
+  if (trades.length === 0) return [];
+
+  // Per-symbol global average buy price (across the entire set).
+  const buyQty = new Map<string, number>();
+  const buyCost = new Map<string, number>();
+  for (const t of trades) {
+    if (t.action === "buy") {
+      buyQty.set(t.symbol, (buyQty.get(t.symbol) ?? 0) + t.qty);
+      buyCost.set(t.symbol, (buyCost.get(t.symbol) ?? 0) + t.qty * t.price);
+    }
+  }
+  const avgBuy = (sym: string): number | null => {
+    const q = buyQty.get(sym) ?? 0;
+    return q > 0 ? (buyCost.get(sym) ?? 0) / q : null;
+  };
+
+  const sorted = [...trades].sort((a, b) =>
+    a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0,
+  );
+
+  let cumulative = 0;
+  const points: RealizedPoint[] = [
+    // Baseline: 0 at the first trade so the curve opens flat at zero.
+    { ts: sorted[0].ts, cumulative: 0 },
+  ];
+  for (const t of sorted) {
+    if (t.action !== "sell") continue;
+    const a = avgBuy(t.symbol);
+    if (a == null) continue; // sold with no buy basis → contributes 0
+    cumulative += (t.price - a) * t.qty;
+    points.push({ ts: t.ts, cumulative });
+  }
+
+  return points.length > 1 ? points : [];
+}
+
 export interface PnlSummary {
   mode: TradeMode | "all";
   windowDays: number | null;
@@ -259,6 +330,19 @@ export interface PnlSummary {
   closedPositionCount: number;
   /** Of closed positions, fraction that finished profitable. */
   winRate: number | null;
+  // ─── live mark-to-market roll-ups (filled by the API route) ───
+  /** Open positions (openQty > 0). */
+  openPositionCount?: number;
+  /** Of openPositionCount, how many got a live quote. */
+  pricedPositionCount?: number;
+  /** Σ costBasisOpen across open positions. */
+  totalCostBasisOpen?: number;
+  /** Σ marketValue across priced open positions, or null if none priced. */
+  totalMarketValue?: number | null;
+  /** Σ unrealizedPnl across priced open positions, or null if none priced. */
+  totalUnrealizedPnl?: number | null;
+  /** realizedPnl + totalUnrealizedPnl (when any unrealized is available). */
+  totalPnl?: number | null;
 }
 
 /** Aggregate realized P&L across all trades in scope. */

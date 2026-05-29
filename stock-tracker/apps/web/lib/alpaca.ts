@@ -256,6 +256,179 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Average daily volume (for relative-volume / RVOL calculations)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fraction of the regular session (09:30–16:00 ET = 390 min) elapsed right now.
+ *   pre-open / before 09:30  → 0
+ *   mid-session              → (elapsed / 390)
+ *   after 16:00 / weekend    → 1  (session complete)
+ * Used to project a partial intraday volume to a full-day pace so it can be
+ * compared against a full-day average ("이 속도면 평균의 N배").
+ */
+export function regularSessionElapsedFraction(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+  }).formatToParts(now);
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  if (weekday === "Sat" || weekday === "Sun") return 1;
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const mins = hour * 60 + minute;
+  const start = 9 * 60 + 30;
+  const end = 16 * 60;
+  if (mins <= start) return 0;
+  if (mins >= end) return 1;
+  return (mins - start) / (end - start);
+}
+
+export interface DailyVolumeStat {
+  /**
+   * Most recent daily bar's volume from the CONSOLIDATED tape — today's
+   * accumulating bar during regular hours (≈15-min delayed on free tier), or
+   * the last complete session when closed. NOT the snapshot's dailyBar.v,
+   * which is IEX-only (~3% of true volume) and unusable for this.
+   */
+  latest: number | null;
+  /** Mean volume of up to `lookback` sessions BEFORE the latest bar (baseline). */
+  avg: number | null;
+}
+
+/**
+ * Per-symbol daily-volume stats (consolidated tape) for relative-volume work:
+ * the latest bar's volume + the average of the prior `lookback` sessions. We
+ * deliberately read BOTH the numerator and the baseline from the same daily
+ * bars source so the ratio is apples-to-apples — the free snapshot endpoint
+ * reports IEX-only volume (a small, variable fraction of the real tape), which
+ * would make any ratio against a consolidated average meaningless.
+ *
+ * Best-effort: any fetch failure just drops the affected symbols (caller
+ * degrades to "no volume / no baseline") rather than throwing.
+ */
+export async function getDailyVolumeStats(
+  symbols: string[],
+  lookback = 20,
+): Promise<Record<string, DailyVolumeStat>> {
+  const list = Array.from(new Set(symbols.map((s) => s.toUpperCase()))).filter(Boolean);
+  if (list.length === 0) return {};
+  // Pull a bit more than `lookback` calendar days to clear weekends/holidays.
+  const start = new Date(Date.now() - (lookback + 18) * 24 * 3600 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, "Z");
+
+  const out: Record<string, DailyVolumeStat> = {};
+  const CHUNK_SYMS = 20;
+  const chunks: string[][] = [];
+  for (let i = 0; i < list.length; i += CHUNK_SYMS) chunks.push(list.slice(i, i + CHUNK_SYMS));
+
+  await Promise.all(
+    chunks.map(async (group) => {
+      const params = new URLSearchParams({
+        symbols: group.join(","),
+        timeframe: "1Day",
+        start,
+        limit: "10000",
+        adjustment: "raw",
+        // omit end + feed — free-tier consolidated tape (see fetchBars notes)
+      });
+      try {
+        const r = await fetch(`${DATA_BASE}/stocks/bars?${params}`, {
+          headers: headers(),
+          cache: "no-store",
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as {
+          bars?: Record<string, Array<{ t: string; v: number }>>;
+        };
+        const bySym = data.bars ?? {};
+        for (const [sym, bars] of Object.entries(bySym)) {
+          if (!Array.isArray(bars) || bars.length === 0) continue;
+          // Bars arrive ascending; the last is the latest (today's partial or
+          // the last complete session), the rest are the baseline.
+          const latest = Number(bars[bars.length - 1]?.v);
+          const prior = bars
+            .slice(0, -1)
+            .slice(-lookback)
+            .map((b) => Number(b.v))
+            .filter((v) => isFinite(v) && v > 0);
+          out[sym] = {
+            latest: isFinite(latest) && latest > 0 ? latest : null,
+            avg: prior.length >= 5 ? prior.reduce((a, b) => a + b, 0) / prior.length : null,
+          };
+        }
+      } catch {
+        // drop this chunk on timeout/error — caller degrades gracefully
+      }
+    }),
+  );
+  return out;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Multi-symbol news (for sector context headlines)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface SymbolNewsItem {
+  headline: string;
+  source: string;
+  url: string;
+  createdAt: string;
+  summary: string;
+  /** Tickers this article is tagged with (used to bucket headlines per sector). */
+  symbols: string[];
+}
+
+/**
+ * Recent news across several symbols in ONE call, preserving each article's
+ * symbol tags so callers can bucket headlines by sector. Best-effort: returns
+ * [] on any failure (news access varies by Alpaca plan).
+ */
+export async function getNewsForSymbols(
+  symbols: string[],
+  limit = 50,
+): Promise<SymbolNewsItem[]> {
+  const list = Array.from(new Set(symbols.map((s) => s.toUpperCase()))).filter(Boolean);
+  if (list.length === 0) return [];
+  const url = `https://data.alpaca.markets/v1beta1/news?symbols=${encodeURIComponent(
+    list.join(","),
+  )}&limit=${limit}&sort=desc`;
+  try {
+    const r = await fetch(url, {
+      headers: headers(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const data = (await r.json()) as {
+      news?: Array<{
+        headline: string;
+        summary: string;
+        source: string;
+        url: string;
+        created_at: string;
+        symbols?: string[];
+      }>;
+    };
+    return (data.news ?? []).map((n) => ({
+      headline: n.headline,
+      source: n.source,
+      url: n.url,
+      createdAt: n.created_at,
+      summary: n.summary,
+      symbols: n.symbols ?? [],
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Options snapshot — ATM IV + put-call volume ratio.
 // Free Alpaca options data is OPRA-delayed; ok for context, not for execution.
 // ────────────────────────────────────────────────────────────────────────────
