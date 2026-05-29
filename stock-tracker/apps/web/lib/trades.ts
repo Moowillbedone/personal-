@@ -54,7 +54,7 @@ export async function insertTrade(t: NewTradeInput): Promise<Trade> {
       action: t.action,
       qty: t.qty,
       price: t.price,
-      mode: t.mode ?? "paper",
+      mode: t.mode ?? "real",
       ts: t.ts ?? new Date().toISOString(),
       notes: t.notes ?? null,
       ai_analysis_id: t.ai_analysis_id ?? null,
@@ -287,18 +287,23 @@ export interface RealizedPoint {
 export function computeRealizedTimeline(trades: Trade[]): RealizedPoint[] {
   if (trades.length === 0) return [];
 
-  // Per-symbol global average buy price (across the entire set).
+  // Global average buy price per (symbol, mode) — keyed identically to
+  // computePosition so the cumulative endpoint ties out to summary.realizedPnl
+  // even when the same symbol is traded in BOTH paper and real mode (this fn is
+  // commonly called with mode-mixed trades from /api/trades/positions).
+  const key = (t: Trade) => `${t.symbol}|${t.mode}`;
   const buyQty = new Map<string, number>();
   const buyCost = new Map<string, number>();
   for (const t of trades) {
     if (t.action === "buy") {
-      buyQty.set(t.symbol, (buyQty.get(t.symbol) ?? 0) + t.qty);
-      buyCost.set(t.symbol, (buyCost.get(t.symbol) ?? 0) + t.qty * t.price);
+      const k = key(t);
+      buyQty.set(k, (buyQty.get(k) ?? 0) + t.qty);
+      buyCost.set(k, (buyCost.get(k) ?? 0) + t.qty * t.price);
     }
   }
-  const avgBuy = (sym: string): number | null => {
-    const q = buyQty.get(sym) ?? 0;
-    return q > 0 ? (buyCost.get(sym) ?? 0) / q : null;
+  const avgBuy = (k: string): number | null => {
+    const q = buyQty.get(k) ?? 0;
+    return q > 0 ? (buyCost.get(k) ?? 0) / q : null;
   };
 
   const sorted = [...trades].sort((a, b) =>
@@ -312,7 +317,7 @@ export function computeRealizedTimeline(trades: Trade[]): RealizedPoint[] {
   ];
   for (const t of sorted) {
     if (t.action !== "sell") continue;
-    const a = avgBuy(t.symbol);
+    const a = avgBuy(key(t));
     if (a == null) continue; // sold with no buy basis → contributes 0
     cumulative += (t.price - a) * t.qty;
     points.push({ ts: t.ts, cumulative });

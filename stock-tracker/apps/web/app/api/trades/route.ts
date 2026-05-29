@@ -68,7 +68,9 @@ export async function POST(req: NextRequest) {
   if (!isFinite(price) || price <= 0) {
     return NextResponse.json({ error: "price must be > 0" }, { status: 400 });
   }
-  const mode = body.mode === "real" ? "real" : "paper";
+  // Default to real: the user trades real money only (no paper-mode UI).
+  // Explicit mode:"paper" is still honored for back-compat.
+  const mode = body.mode === "paper" ? "paper" : "real";
 
   // Optional underlying — when present, validate and treat as the asset the
   // AI/signal pipeline analyzed (e.g. TSLA), even though `symbol` is the

@@ -146,14 +146,22 @@ export async function GET() {
   };
 
   const sectors: SectorRow[] = SECTOR_BASKETS.map((b) => {
+    // Volume-bearing rows (price + consolidated volume) drive the TOP-N
+    // volume/dollar lists and totalDollarVolume.
     const rows: StockRow[] = [];
     for (const sym of b.constituents) {
       const row = buildRow(sym);
       if (row) rows.push(row);
     }
-    const returns = rows
-      .map((r) => r.changePct)
-      .filter((v): v is number => v != null && isFinite(v));
+    // Strength & breadth are computed from SNAPSHOTS (price only) over every
+    // constituent — NOT from `rows`. Volume comes from a separate best-effort
+    // fetch (getDailyVolumeStats drops chunks on timeout); deriving the ranking
+    // signal from rows would let a volume hiccup silently distort strength.
+    const returns: number[] = [];
+    for (const sym of b.constituents) {
+      const cp = snap[sym.toUpperCase()]?.changePct;
+      if (cp != null && isFinite(cp)) returns.push(cp);
+    }
     const breadthUp = returns.filter((v) => v > 0).length;
     const totalDollarVolume = rows.reduce((a, r) => a + r.dollarVolume, 0);
     const etfReturn = b.etf ? snap[b.etf.toUpperCase()]?.changePct ?? null : null;
@@ -190,7 +198,9 @@ export async function GET() {
       breadthTotal: returns.length,
       totalDollarVolume,
       relVol,
-      pricedCount: rows.length,
+      // Constituents evaluated for strength (= breadthTotal): those with a
+      // live price. Volume-only data gaps don't reduce this.
+      pricedCount: returns.length,
       topByVolume: [...rows].sort((a, b) => b.volume - a.volume).slice(0, 5),
       topByDollarVolume: [...rows].sort((a, b) => b.dollarVolume - a.dollarVolume).slice(0, 5),
       headline: null,
