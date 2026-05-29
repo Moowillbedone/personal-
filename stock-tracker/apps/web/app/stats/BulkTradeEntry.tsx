@@ -498,7 +498,7 @@ export default function BulkTradeEntry({ onDone }: { onDone?: () => void }) {
                         />
                       </td>
                     )}
-                    <td className="px-1">
+                    <td className="px-1 text-right">
                       <input
                         type="number"
                         step="any"
@@ -516,7 +516,7 @@ export default function BulkTradeEntry({ onDone }: { onDone?: () => void }) {
                         className={`${inputBase} ${errCls(errs.qty)} w-[72px] text-right text-neutral-200`}
                       />
                     </td>
-                    <td className="px-1">
+                    <td className="px-1 text-right">
                       <input
                         type="number"
                         step="any"

@@ -27,12 +27,13 @@ interface StatsResponse {
   byTypeAndNews: Record<string, { withNews: Stats; noNews: Stats }>;
 }
 
-interface PositionTradeNote {
+interface PositionTrade {
+  id: string;
   ts: string;
   action: "buy" | "sell";
   qty: number;
   price: number;
-  note: string;
+  note: string | null;
 }
 
 interface Position {
@@ -45,7 +46,7 @@ interface Position {
   totalBuyQty: number;
   totalSellQty: number;
   tradeCount: number;
-  notedTrades: PositionTradeNote[];
+  trades: PositionTrade[];
   currentPrice?: number | null;
   marketValue?: number | null;
   unrealizedPnl?: number | null;
@@ -448,6 +449,10 @@ export default function StatsPage() {
           {/* Hero KPI band — at-a-glance health, always visible across tabs */}
           <HeroBand trades={trades} rec={rec} />
 
+          {/* 누적 실현 손익 — pulled above the tab bar so it's the first chart
+              seen, sitting directly atop the 내 성과/AI 정확도/시그널 통계 tabs. */}
+          <RealizedPnlSection points={trades?.realizedTimeline} />
+
           {/* Tab nav */}
           <div className="flex items-center gap-1 border-b border-neutral-800 text-sm">
             {(
@@ -478,8 +483,6 @@ export default function StatsPage() {
 
               <InsightsPanel rec={rec} trades={trades} ai={ai} />
 
-              <RealizedPnlSection points={trades?.realizedTimeline} />
-
               {rec && (
                 <section className="border border-sky-900/60 bg-sky-950/10 rounded-lg p-4">
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
@@ -506,7 +509,7 @@ export default function StatsPage() {
               {trades && (
                 <section className="border border-neutral-800 rounded-lg p-4">
                   <h2 className="text-xs uppercase text-neutral-400 mb-3">📝 내 매매 성과 ({lookback}일)</h2>
-                  <TradePnlPanel data={trades} />
+                  <TradePnlPanel data={trades} onChanged={loadAll} />
                 </section>
               )}
             </div>
@@ -644,7 +647,13 @@ function Tile({ label, value, className }: { label: string; value: string; class
   );
 }
 
-function TradePnlPanel({ data }: { data: PositionsResponse }) {
+function TradePnlPanel({
+  data,
+  onChanged,
+}: {
+  data: PositionsResponse;
+  onChanged?: () => void;
+}) {
   const { positions, summary } = data;
   const paperPos = positions.filter((p) => p.mode === "paper");
   const realPos = positions.filter((p) => p.mode === "real");
@@ -703,10 +712,10 @@ function TradePnlPanel({ data }: { data: PositionsResponse }) {
         />
       </div>
       {realPos.length > 0 && (
-        <PositionsTable label="💵 실전 포지션" rows={realPos} />
+        <PositionsTable label="💵 실전 포지션" rows={realPos} onChanged={onChanged} />
       )}
       {paperPos.length > 0 && (
-        <PositionsTable label="📄 페이퍼 포지션" rows={paperPos} />
+        <PositionsTable label="📄 페이퍼 포지션" rows={paperPos} onChanged={onChanged} />
       )}
     </div>
   );
@@ -1240,10 +1249,95 @@ function AiAccuracyPanel({ data }: { data: AiStatsResponse }) {
   );
 }
 
-function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
+function PositionsTable({
+  label,
+  rows,
+  onChanged,
+}: {
+  label: string;
+  rows: Position[];
+  onChanged?: () => void;
+}) {
+  // Per-fill selection for deletion. Keyed by trade id (globally unique), so a
+  // single Set is safe even though real/paper tables are separate instances.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setDelErr(null);
+  }
+
+  async function deleteSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `선택한 매매 ${ids.length}건을 삭제할까요?\n되돌릴 수 없으며, 삭제 후 대시보드 전체(누적 곡선·KPI·개선 포인트·AI 추천 성과)가 다시 계산됩니다.`,
+      )
+    )
+      return;
+    setDeleting(true);
+    setDelErr(null);
+    try {
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/trades?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+            .then(async (r) => ({
+              ok: r.ok,
+              err: r.ok ? null : ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`,
+            }))
+            .catch((e) => ({ ok: false, err: (e as Error).message })),
+        ),
+      );
+      const failed = results.filter((r) => !r.ok);
+      setSelected(new Set());
+      if (failed.length > 0) {
+        setDelErr(`${failed.length}/${ids.length}건 삭제 실패: ${failed[0].err}`);
+      }
+      // Refresh every panel so the realized curve, KPIs and insights re-derive
+      // from the new trade set (cascade requirement).
+      onChanged?.();
+    } catch (e) {
+      setDelErr((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
-      <h3 className="text-sm font-semibold text-neutral-300 mb-1">{label}</h3>
+      <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+        <h3 className="text-sm font-semibold text-neutral-300">{label}</h3>
+        {(selected.size > 0 || delErr) && (
+          <div className="flex items-center gap-2">
+            {delErr && <span className="text-[11px] text-rose-400">{delErr}</span>}
+            {selected.size > 0 && (
+              <>
+                <button
+                  onClick={deleteSelected}
+                  disabled={deleting}
+                  className="px-2 py-1 text-[11px] rounded border border-rose-800/70 text-rose-300 hover:bg-rose-950/40 disabled:opacity-40"
+                >
+                  {deleting ? "삭제 중…" : `선택 ${selected.size}건 삭제`}
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="text-[11px] text-neutral-500 hover:text-neutral-300"
+                >
+                  선택 해제
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="text-neutral-500 border-b border-neutral-800">
@@ -1264,7 +1358,7 @@ function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
               >
                 <td className="py-1.5 pr-2 text-sky-300 font-semibold">{p.symbol}</td>
                 <td className="text-right py-1.5 px-2 text-neutral-200">
-                  {p.openQty.toFixed(p.openQty < 1 ? 4 : 2)}
+                  {p.openQty.toFixed(Math.abs(p.openQty) < 1 ? 4 : 2)}
                 </td>
                 <td className="text-right py-1.5 px-2 text-neutral-200">
                   {p.avgBuyPrice != null ? `$${p.avgBuyPrice.toFixed(2)}` : "—"}
@@ -1295,18 +1389,27 @@ function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
                   {p.realizedPnl !== 0 ? fmtPnl(p.realizedPnl) : "—"}
                 </td>
               </tr>
-              {/* Notes from the trades that built this position. Inline,
-                  always visible so the user can review every entry/exit
-                  rationale without round-tripping back to the trade page. */}
-              {p.notedTrades.length > 0 && (
+              {/* Per-fill breakdown — EVERY trade (noted or not) so bulk
+                  backfills with empty notes are still visible, each with a
+                  checkbox to delete an erroneous/duplicate fill in place. */}
+              {p.trades.length > 0 && (
                 <tr>
                   <td colSpan={6} className="pb-3 px-2 bg-neutral-950/40">
                     <ul className="space-y-1.5 text-[11px]">
-                      {p.notedTrades.map((n, i) => (
+                      {p.trades.map((n) => (
                         <li
-                          key={i}
-                          className="flex flex-wrap items-start gap-2 leading-relaxed"
+                          key={n.id}
+                          className={`flex flex-wrap items-center gap-2 leading-relaxed rounded px-1 ${
+                            selected.has(n.id) ? "bg-rose-950/30" : ""
+                          }`}
                         >
+                          <input
+                            type="checkbox"
+                            checked={selected.has(n.id)}
+                            onChange={() => toggle(n.id)}
+                            title="이 매매를 선택 (삭제용)"
+                            className="shrink-0 accent-rose-500 cursor-pointer"
+                          />
                           <span className="text-neutral-500 shrink-0 font-mono">
                             {new Date(n.ts).toLocaleString("ko-KR", {
                               month: "2-digit",
@@ -1324,12 +1427,14 @@ function PositionsTable({ label, rows }: { label: string; rows: Position[] }) {
                           >
                             {n.action === "buy" ? "매수" : "매도"}
                           </span>
-                          <span className="shrink-0 text-neutral-400">
+                          <span className="shrink-0 text-neutral-400 tabular-nums">
                             {n.qty} @ ${n.price.toFixed(2)}
                           </span>
-                          <span className="text-neutral-200 break-words italic">
-                            “{n.note}”
-                          </span>
+                          {n.note && (
+                            <span className="text-neutral-200 break-words italic">
+                              “{n.note}”
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>

@@ -131,17 +131,19 @@ export async function deleteTrade(id: string): Promise<void> {
 // ─── position math ─────────────────────────────────────────────────────────
 
 /**
- * Lightweight per-trade record bundled into Position for the stats page —
- * lets the user see the rationale they wrote at trade time without
- * round-tripping back to the trade page. Only includes trades that had a
- * non-empty note (silence speaks for itself).
+ * Per-trade record bundled into each Position for the stats page — lets the
+ * user review every entry/exit (date, side, qty, price, optional note) and,
+ * crucially, delete a specific erroneous fill by `id` without leaving the
+ * dashboard. Includes ALL trades (noted or not): a bulk-backfilled trade with
+ * an empty note must still be visible and deletable.
  */
-export interface PositionTradeNote {
+export interface PositionTrade {
+  id: string;            // trade_log row id (for per-trade delete)
   ts: string;            // ISO timestamp
   action: TradeAction;
   qty: number;
   price: number;
-  note: string;          // trimmed, guaranteed non-empty
+  note: string | null;   // trimmed note, or null when empty
 }
 
 export interface Position {
@@ -160,9 +162,9 @@ export interface Position {
   /** Total qty sold across history (for context). */
   totalSellQty: number;
   tradeCount: number;
-  /** All non-empty notes from trades in this position, recent-first.
-   *  Surfaced on /stats so the user can review entry/exit rationale. */
-  notedTrades: PositionTradeNote[];
+  /** Every trade that makes up this position, recent-first (id included so the
+   *  stats page can delete a specific erroneous fill). Surfaced on /stats. */
+  trades: PositionTrade[];
   // ─── live mark-to-market (filled by the API route, not computePosition) ───
   /** Latest price for the held symbol, or null if pricing failed. */
   currentPrice?: number | null;
@@ -207,16 +209,16 @@ export function computePosition(
   const openQty = totalBuyQty - totalSellQty;
   const costBasisOpen = avgBuyPrice != null ? Math.max(0, openQty) * avgBuyPrice : 0;
 
-  // Collect only trades that carry a real note. Sorted recent-first so the
-  // stats page shows the latest rationale at the top.
-  const notedTrades: PositionTradeNote[] = trades
-    .filter((t) => t.notes && t.notes.trim().length > 0)
+  // Bundle EVERY trade (noted or not), recent-first, so the stats page can
+  // show the full entry/exit breakdown and delete a specific fill by id.
+  const tradeList: PositionTrade[] = trades
     .map((t) => ({
+      id: t.id,
       ts: t.ts,
       action: t.action,
       qty: t.qty,
       price: t.price,
-      note: t.notes!.trim(),
+      note: t.notes && t.notes.trim().length > 0 ? t.notes.trim() : null,
     }))
     .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
 
@@ -230,7 +232,7 @@ export function computePosition(
     totalBuyQty,
     totalSellQty,
     tradeCount: trades.length,
-    notedTrades,
+    trades: tradeList,
   };
 }
 
