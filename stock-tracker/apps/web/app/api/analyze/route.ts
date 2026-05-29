@@ -12,7 +12,7 @@ import {
   type CorporateActionsItem,
 } from "@/lib/alpaca";
 import { getPrimarySnapshot, getPrimaryRecentBars } from "@/lib/marketData";
-import { generateVerdict, ACTIVE_MODEL } from "@/lib/gemini";
+import { generateVerdict, ACTIVE_MODEL, type GeminiVerdict } from "@/lib/gemini";
 import { computeAll, type IndicatorBundle } from "@/lib/indicators";
 import { getSectorInfo, MARKET_TICKERS, type SectorInfo } from "@/lib/sectorMap";
 import { fetchTickerNews, fetchMacroNews, type HeadlineItem } from "@/lib/macroNews";
@@ -38,6 +38,11 @@ interface PositionInput {
 interface AnalyzeBody {
   symbol?: string;
   position?: PositionInput;
+  // Interactive callers (the trade page) set this so that when Gemini is
+  // rate-limited/cooled we degrade to the most recent stored analysis instead
+  // of erroring. The ai_scan worker omits it → it still gets a hard failure
+  // and reports the symbol as "missing" (preserving its always-fresh digest).
+  allowStale?: boolean;
 }
 
 // Wrapper that never rejects — returns null on failure. Keeps Promise.all happy.
@@ -224,7 +229,46 @@ export async function POST(req: NextRequest) {
         insider: insider ?? null,
       });
 
-      const verdict = await generateVerdict(prompt);
+      let verdict: GeminiVerdict;
+      try {
+        verdict = await generateVerdict(prompt);
+      } catch (genErr) {
+        // Gemini unavailable (rate-limit / cooldown / 5xx / timeout). For
+        // interactive callers, degrade to the most recent stored analysis
+        // (any age) so the user sees the last verdict + a staleness note
+        // rather than a bare error. The worker omits allowStale → this
+        // re-throws and the symbol is reported as "missing" as before.
+        if (body?.allowStale) {
+          const { data: lastRow } = await supabaseAdmin
+            .from("ai_analysis")
+            .select("*")
+            .eq("symbol", symbol)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastRow) {
+            const ageHours = Math.round(
+              (Date.now() - new Date(lastRow.created_at).getTime()) / 3.6e6,
+            );
+            return NextResponse.json({
+              cached: true,
+              stale: true,
+              stale_reason: (genErr as Error).message ?? "gemini unavailable",
+              stale_age_hours: ageHours,
+              analysis: lastRow,
+              snapshot, // fresh snapshot already fetched above
+              news: newsCombined.slice(0, 20),
+              sources_used: countSources(newsCombined),
+              sizing: computeSizing(
+                lastRow.verdict,
+                Number(lastRow.confidence),
+                body?.position,
+              ),
+            });
+          }
+        }
+        throw genErr;
+      }
 
       // 3) Persist
       const { data: inserted, error: insErr } = await supabaseAdmin

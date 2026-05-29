@@ -45,6 +45,20 @@
 //
 // 품질 영향 최소: 평소엔 2.5-flash로 고품질 유지. lite는 2.5-flash +
 // flash-latest 둘 다 소진된 극단에서만 발동.
+//
+// 2026-05-30 운영 진단 (22:00 KST 스캔 16/25 실패 사례):
+//   - 실패의 본질은 RPD(일일) 소진이 아니라 "분당(per-minute) 버스트 429".
+//     동일 키로 같은 날 ~4h 뒤 직접 probe 시 3개 모델 모두 200 정상 →
+//     일일 한도였다면 PT 자정까지 안 풀렸을 것. 즉 분당 한도였다.
+//   - 증폭된 원인(버그): per-minute 429를 markModelCooled가 per-day로
+//     오분류 → 3개 모델 전부 1h 쿨다운 → 스캔 나머지가 요청조차 못 보내고
+//     fast-fail("gemini call failed" → 워커가 "unknown" 집계 → 90s retry
+//     14회 = 27분 전멸). 아래 markModelCooled가 retryDelay/PerDay/PerMinute를
+//     구분하고, 미분류 시 1h가 아닌 90s만 쿨다운하도록 고침. generateVerdict는
+//     all-cooled 시 분류 가능한 메시지를 던지도록 고침.
+//   - 미해결 가설: free tier 한도가 모델별이 아니라 프로젝트 공유일 수 있음
+//     (그렇다면 3-chain이 쿼터를 늘려주지 못함). 다음 429 발생 시
+//     gemini_429_body 로그의 quotaId로 확정할 것.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const FALLBACK_MODELS: string[] = ["gemini-flash-latest", "gemini-2.5-flash-lite"];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
@@ -72,8 +86,10 @@ const MAX_ATTEMPTS_PER_MODEL = 2;
 // pacing = 300-450K TPM, blowing past 250K). Bumped delay to 15s and
 // added this smart cooldown so transient TPM hits don't lock the model
 // for a full hour.
-const COOLDOWN_SHORT_MS = 75 * 1000;       // per-minute quotas (TPM, RPM)
-const COOLDOWN_LONG_MS = 60 * 60 * 1000;   // per-day quotas (RPD), unknown
+const COOLDOWN_SHORT_MS = 75 * 1000;        // per-minute quotas (TPM, RPM): clear ~60s
+const COOLDOWN_DAY_MS = 30 * 60 * 1000;     // per-day quotas (RPD): re-check every 30m
+const COOLDOWN_UNKNOWN_MS = 90 * 1000;      // unclassifiable: favor recovery, not lockout
+const COOLDOWN_MAX_MS = 5 * 60 * 1000;      // cap any server-hinted retryDelay
 const modelCooldownUntil = new Map<string, number>();
 
 function isModelCooled(model: string): boolean {
@@ -84,16 +100,46 @@ function isModelCooled(model: string): boolean {
   return false;
 }
 
+// Parse Gemini's own retry hint (RetryInfo.retryDelay, e.g. `"retryDelay": "26s"`)
+// out of a 429 body. It's authoritative and accompanies virtually every
+// per-minute (TPM/RPM) 429 — honoring it beats guessing. Returns ms or null.
+function parseRetryDelayMs(body: string | undefined): number | null {
+  if (!body) return null;
+  const m = body.match(/"?retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s"?/i);
+  if (!m) return null;
+  const secs = Number(m[1]);
+  return Number.isFinite(secs) ? Math.round(secs * 1000) : null;
+}
+
 function markModelCooled(model: string, errorBody: string | undefined): void {
-  // PerMinute clears in ~60s; PerDay needs hours. Default to long if we
-  // can't parse — safer to over-cooldown than to keep hammering a depleted
-  // daily bucket.
-  const isPerMinute = errorBody != null && /PerMinute/i.test(errorBody);
-  const ms = isPerMinute ? COOLDOWN_SHORT_MS : COOLDOWN_LONG_MS;
+  // Pick a cooldown that matches WHICH quota was actually hit. Getting this
+  // wrong is expensive: a per-minute burst mis-tagged as per-day used to lock
+  // all 3 models for a full hour, fast-failing the rest of a scan (observed
+  // 2026-05-29 — one burst at symbol 9 cost 14/16 remaining symbols).
+  const body = errorBody ?? "";
+  let ms: number;
+  let kind: string;
+  const hinted = parseRetryDelayMs(body);
+  if (hinted != null) {
+    // Server told us exactly how long to wait — trust it (clamped to a sane
+    // floor/ceiling so a bogus value can't lock us out or hammer instantly).
+    ms = Math.min(Math.max(hinted + 2000, COOLDOWN_SHORT_MS), COOLDOWN_MAX_MS);
+    kind = `retryDelay~${Math.round(hinted / 1000)}s`;
+  } else if (/PerDay|RequestsPerDay/i.test(body)) {
+    ms = COOLDOWN_DAY_MS;
+    kind = "per-day";
+  } else if (/PerMinute|TokensPerMin|RequestsPerMin/i.test(body)) {
+    ms = COOLDOWN_SHORT_MS;
+    kind = "per-minute";
+  } else {
+    // Unclassifiable 429. Favor recovery with a short cooldown: our observed
+    // 429s recover within minutes (same-day), so a long lockout does far more
+    // harm (poisons a whole scan) than a short one (one extra retry next call).
+    ms = COOLDOWN_UNKNOWN_MS;
+    kind = "unknown-short";
+  }
   modelCooldownUntil.set(model, Date.now() + ms);
-  console.log(
-    `gemini_cooldown model=${model} ms=${ms} kind=${isPerMinute ? "per-minute" : "per-day-or-unknown"}`,
-  );
+  console.log(`gemini_cooldown model=${model} ms=${ms} kind=${kind}`);
 }
 
 function endpointFor(model: string): string {
@@ -178,10 +224,10 @@ async function callOnce(model: string, apiKey: string, prompt: string): Promise<
   });
   if (!r.ok) {
     const t = await r.text();
-    // Preserve enough body to capture QuotaFailure.details on 429 (the
-    // "PerMinute" vs "PerDay" marker we use for adaptive cooldown lives
-    // ~600 bytes deep in the JSON). 1200 is generous but bounded.
-    const err = new Error(`gemini ${r.status} (${model}): ${t.slice(0, 1200)}`);
+    // Preserve enough body to capture QuotaFailure.details on 429. The
+    // quotaId ("PerMinute" vs "PerDay" marker) lives ~600 bytes deep; the
+    // RetryInfo.retryDelay hint can sit deeper still. 2000 captures both.
+    const err = new Error(`gemini ${r.status} (${model}): ${t.slice(0, 2000)}`);
     (err as Error & { status?: number }).status = r.status;
     throw err;
   }
@@ -258,10 +304,24 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
   }
 
   if (!text) {
+    // No model produced text. Distinguish two very different causes so
+    // callers (ai_scan worker, manual UI) can react correctly:
+    if (!lastErr) {
+      // Every model was SKIPPED on cooldown — no request was even sent.
+      // The old bare "gemini call failed" got classified "unknown" by the
+      // worker, which then wasted a 90s retry per symbol (the 27-min,
+      // all-fail scan on 2026-05-29). Emit explicit rate-limit markers so
+      // it's classified as a transient limit (no pointless retry) and the
+      // UI shows a meaningful message instead of a bare "gemini error".
+      throw new Error(
+        "Gemini 모든 모델이 요청 한도(rate-limit)로 일시 쿨다운 중입니다. " +
+          "잠시 후 자동 재시도됩니다. [all_models_cooldown]",
+      );
+    }
     throw new Error(
-      lastErr?.message?.includes("503")
+      lastErr.message?.includes("503")
         ? "Gemini 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요."
-        : lastErr?.message ?? "gemini call failed",
+        : lastErr.message ?? "gemini call failed",
     );
   }
 

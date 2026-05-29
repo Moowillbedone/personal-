@@ -101,6 +101,11 @@ interface AnalyzeResponse {
   news: NewsItem[];
   sources_used?: Record<string, number>;
   sizing: Sizing;
+  // Set when Gemini was unavailable and the server fell back to the most
+  // recent stored analysis (opt-in via allowStale).
+  stale?: boolean;
+  stale_reason?: string;
+  stale_age_hours?: number;
 }
 
 interface PositionSetting {
@@ -402,7 +407,7 @@ export default function TradePage() {
       const r = await fetch("/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol: selected, position: positionPayload }),
+        body: JSON.stringify({ symbol: selected, position: positionPayload, allowStale: true }),
       });
       const data = (await r.json()) as AnalyzeResponse | { error: string };
       if ("error" in data) {
@@ -720,7 +725,7 @@ export default function TradePage() {
               >
                 {analyzing ? "분석 중…" : "📊 매수/매도 근거 분석"}
               </button>
-              {result?.cached && (
+              {result?.cached && !result?.stale && (
                 <span className="text-xs text-neutral-500">(5분 캐시 결과)</span>
               )}
             </div>
@@ -733,9 +738,18 @@ export default function TradePage() {
 
             {result && (
               <div className="space-y-4">
+                {result.stale && (
+                  <div className="border border-amber-800 bg-amber-950/50 text-amber-200 rounded p-3 text-sm">
+                    ⚠️ Gemini 호출 한도(rate-limit)로 새 분석을 받지 못해
+                    {typeof result.stale_age_hours === "number"
+                      ? ` 약 ${result.stale_age_hours}시간 전`
+                      : " 직전"}{" "}
+                    분석을 표시합니다. 잠시 후 다시 시도하면 최신 분석이 생성됩니다.
+                  </div>
+                )}
                 {/* Prominent verdict callout — the BUY/SELL/HOLD call is now
                     the visual headline, not a side-label. */}
-                <VerdictBanner verdict={result.analysis} fresh />
+                <VerdictBanner verdict={result.analysis} fresh={!result.stale} />
                 {result.analysis.summary && (
                   <div className="border border-neutral-800 rounded-lg p-4">
                     <div className="text-xs uppercase tracking-wider text-neutral-500 mb-2">

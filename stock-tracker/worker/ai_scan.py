@@ -224,6 +224,7 @@ def collect_target_symbols(
 #   "network"    — connection error to Vercel (DNS, TLS, refused).
 #   "unknown"    — 4xx/5xx that doesn't match above patterns.
 FAIL_REASON_QUOTA = "quota_429"
+FAIL_REASON_COOLDOWN = "cooldown"
 FAIL_REASON_5XX = "server_5xx"
 FAIL_REASON_VERCEL_504 = "vercel_504"
 FAIL_REASON_TIMEOUT = "timeout"
@@ -242,6 +243,13 @@ def _classify_failure(status: int | None, body: str) -> str:
     bod = (body or "").lower()
     if status == 504:
         return FAIL_REASON_VERCEL_504
+    # All chain models were skipped on cooldown — gemini.ts emits an explicit
+    # [all_models_cooldown] marker. This is a transient per-minute limit that
+    # recovers within ~60-90s; the main loop takes a "breather" so the next
+    # symbols can succeed. Checked BEFORE the generic 429 test because the
+    # cooldown message also contains "rate-limit".
+    if "all_models_cooldown" in bod or "쿨다운" in bod:
+        return FAIL_REASON_COOLDOWN
     # The analyze route reflects Gemini's 429 inside the 500 wrapper as
     # "gemini 429 (model): ..." and the underlying RPD body has
     # "exceeded your current quota" / "quotaId: ...PerDay...".
@@ -268,6 +276,18 @@ def _classify_failure(status: int | None, body: str) -> str:
 # 90초 wait면 쿨다운 끝난 후 진짜 retry 가능. 2026-05-22 사례 (17:00 scan
 # 모든 retry가 쿨다운 중 fast fail로 끝남) 직접 fix.
 TRANSIENT_RETRY_WAIT_SEC = int(os.getenv("AI_SCAN_TRANSIENT_RETRY_WAIT", "90"))
+
+# When a per-minute quota burst trips the whole Gemini chain into cooldown,
+# the remaining symbols would otherwise rapid-fire (the main loop skips the
+# inter-call delay on failure) and all fast-fail while the chain is still
+# cooled. Instead, pause ONCE per occurrence to let the per-minute window
+# clear, then continue — subsequent symbols then succeed. Capped via
+# MAX_QUOTA_BREATHERS so a genuine per-DAY exhaustion doesn't make us sleep
+# through the whole remaining list for nothing. (2026-05-30 fix: the 05-29
+# 22:00 scan lost 14/16 remaining symbols when one burst at symbol 9 cooled
+# all models for an hour and the rest rapid-fast-failed as "unknown".)
+QUOTA_BREATHER_SEC = int(os.getenv("AI_SCAN_QUOTA_BREATHER", "75"))
+MAX_QUOTA_BREATHERS = int(os.getenv("AI_SCAN_MAX_QUOTA_BREATHERS", "3"))
 
 
 def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int | None, str]:
@@ -408,6 +428,7 @@ def _reason_label(reason: str) -> str:
     of truth so any header that breaks down by reason uses identical copy."""
     return {
         FAIL_REASON_QUOTA: "Gemini 일일 한도(RPD) 도달",
+        FAIL_REASON_COOLDOWN: "Gemini 호출 한도·쿨다운 (일시적, 다음 스캔 재시도)",
         FAIL_REASON_5XX: "Gemini 서버 일시 오류 (5xx, 일시적)",
         FAIL_REASON_VERCEL_504: "Vercel 60s 타임아웃 (분석 처리 지연)",
         FAIL_REASON_TIMEOUT: "워커 HTTP 타임아웃 (네트워크)",
@@ -616,6 +637,7 @@ def main() -> int:
     missing: list[dict] = []  # [{symbol, reason}, ...] — reason from call_analyze
     fail_reason_counts: dict[str, int] = {}
     fresh_count = 0
+    breathers_used = 0  # quota/cooldown breathers taken this scan (capped)
     started = time.time()
 
     for i, sym in enumerate(targets, 1):
@@ -629,7 +651,25 @@ def main() -> int:
             reason = fail_reason or FAIL_REASON_UNKNOWN
             fail_reason_counts[reason] = fail_reason_counts.get(reason, 0) + 1
             missing.append({"symbol": sym, "reason": reason})
-            continue  # no successful call → no inter-call delay needed
+            # Per-minute quota/cooldown recovers within ~60-90s. Rather than
+            # rapid-firing the rest of the list (which all fast-fail while the
+            # chain is still cooled), pause once to let the window clear, then
+            # keep going so later symbols succeed. Capped so a genuine per-day
+            # exhaustion doesn't sleep through the whole remaining list.
+            if (
+                reason in (FAIL_REASON_QUOTA, FAIL_REASON_COOLDOWN)
+                and breathers_used < MAX_QUOTA_BREATHERS
+                and i < len(targets)
+            ):
+                breathers_used += 1
+                print(
+                    f"    quota/cooldown — breather {breathers_used}/"
+                    f"{MAX_QUOTA_BREATHERS}, sleeping {QUOTA_BREATHER_SEC}s for "
+                    f"per-minute window to clear",
+                    file=sys.stderr,
+                )
+                time.sleep(QUOTA_BREATHER_SEC)
+            continue  # no successful verdict → no normal inter-call delay
 
         verdicts.append(
             {
