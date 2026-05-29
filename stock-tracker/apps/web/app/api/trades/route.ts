@@ -10,122 +10,32 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-  insertTrade,
   getTradesForSymbol,
   getTradesByUnderlying,
   getAllTrades,
   deleteTrade,
-  type TradeAction,
   type TradeMode,
 } from "@/lib/trades";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recordTrade, type TradeInputBody } from "@/lib/recordTrade";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Auto-link window: when the user records a trade without explicitly passing
-// ai_analysis_id, look back this far for a verdict on the same symbol and
-// link it. 24h matches the daily AI-scan cadence — if it's older than this,
-// it's probably stale enough that linking would be misleading.
-const AUTOLINK_LOOKBACK_HOURS = 24;
-
-const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
-
-interface PostBody {
-  symbol?: string;
-  action?: TradeAction;
-  qty?: number | string;
-  price?: number | string;
-  mode?: TradeMode;
-  ts?: string;
-  notes?: string;
-  ai_analysis_id?: string;
-  signal_id?: string;
-  /** Analyzed/underlying symbol when trading a derivative — see lib/trades.ts. */
-  underlying_symbol?: string;
-}
-
 export async function POST(req: NextRequest) {
-  let body: PostBody;
+  let body: TradeInputBody;
   try {
-    body = (await req.json()) as PostBody;
+    body = (await req.json()) as TradeInputBody;
   } catch {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const symbol = body.symbol?.trim().toUpperCase();
-  if (!symbol || !SYMBOL_RE.test(symbol)) {
-    return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
+  // Validation, AI-analysis auto-link, and insert all live in recordTrade so
+  // this route and /api/trades/bulk can't drift apart.
+  const result = await recordTrade(body);
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  if (body.action !== "buy" && body.action !== "sell") {
-    return NextResponse.json({ error: "action must be buy or sell" }, { status: 400 });
-  }
-  const qty = Number(body.qty);
-  const price = Number(body.price);
-  if (!isFinite(qty) || qty <= 0) {
-    return NextResponse.json({ error: "qty must be > 0" }, { status: 400 });
-  }
-  if (!isFinite(price) || price <= 0) {
-    return NextResponse.json({ error: "price must be > 0" }, { status: 400 });
-  }
-  // Default to real: the user trades real money only (no paper-mode UI).
-  // Explicit mode:"paper" is still honored for back-compat.
-  const mode = body.mode === "paper" ? "paper" : "real";
-
-  // Optional underlying — when present, validate and treat as the asset the
-  // AI/signal pipeline analyzed (e.g. TSLA), even though `symbol` is the
-  // actually-traded derivative (e.g. TSLL). When equal to symbol or empty,
-  // store as null since it adds no new info.
-  let underlyingSymbol: string | null = null;
-  const rawUnderlying = body.underlying_symbol?.trim().toUpperCase();
-  if (rawUnderlying && rawUnderlying !== symbol) {
-    if (!SYMBOL_RE.test(rawUnderlying)) {
-      return NextResponse.json(
-        { error: "invalid underlying_symbol" },
-        { status: 400 },
-      );
-    }
-    underlyingSymbol = rawUnderlying;
-  }
-
-  // Auto-link to the most recent AI analysis if the caller didn't supply one.
-  // CRITICAL: when underlying_symbol is set, look up the analysis on the
-  // UNDERLYING (TSLA), not the traded derivative (TSLL) — the AI never
-  // analyzed the leveraged ETF, only the underlying asset.
-  let aiAnalysisId = body.ai_analysis_id ?? null;
-  if (!aiAnalysisId) {
-    const lookupSymbol = underlyingSymbol ?? symbol;
-    const cutoff = new Date(
-      Date.now() - AUTOLINK_LOOKBACK_HOURS * 3600 * 1000,
-    ).toISOString();
-    const { data: recent } = await supabaseAdmin
-      .from("ai_analysis")
-      .select("id")
-      .eq("symbol", lookupSymbol)
-      .gte("created_at", cutoff)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (recent?.id) aiAnalysisId = recent.id as string;
-  }
-
-  try {
-    const trade = await insertTrade({
-      symbol,
-      action: body.action,
-      qty,
-      price,
-      mode,
-      ts: body.ts,
-      notes: body.notes ?? null,
-      ai_analysis_id: aiAnalysisId,
-      signal_id: body.signal_id ?? null,
-      underlying_symbol: underlyingSymbol,
-    });
-    return NextResponse.json({ trade });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
+  return NextResponse.json({ trade: result.trade });
 }
 
 export async function GET(req: NextRequest) {

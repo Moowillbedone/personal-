@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, ColorType, IChartApi, ISeriesApi } from "lightweight-charts";
 import SectorStrengthPanel from "./SectorStrengthPanel";
+import BulkTradeEntry from "./BulkTradeEntry";
 
 interface Stats {
   count: number;
@@ -369,7 +370,9 @@ export default function StatsPage() {
   const [ai, setAi] = useState<AiStatsResponse | null>(null);
   const [rec, setRec] = useState<RecPerfResponse | null>(null);
 
-  useEffect(() => {
+  // Hoisted so the bulk-entry tool can re-run it via onDone after a backfill,
+  // refreshing every panel (positions, realized curve, rec-performance) at once.
+  const loadAll = useCallback(() => {
     setLoading(true);
     setError(null);
     Promise.all([
@@ -395,6 +398,10 @@ export default function StatsPage() {
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
   }, [lookback]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -492,6 +499,9 @@ export default function StatsPage() {
                   <RecPerformancePanel data={rec} />
                 </section>
               )}
+
+              {/* Backfill tool: log skipped trades in bulk, then refresh all panels. */}
+              <BulkTradeEntry onDone={loadAll} />
 
               {trades && (
                 <section className="border border-neutral-800 rounded-lg p-4">
