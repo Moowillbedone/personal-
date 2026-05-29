@@ -217,7 +217,8 @@ def collect_target_symbols(
 # blanket-labeling everything as "Gemini 한도". Misleading copy was the user
 # complaint that motivated this split (2026-05-21).
 #
-#   "quota_429"  — Gemini RPD/RPM/TPM ceiling. Quota actually exhausted.
+#   "quota_429"  — Gemini quota 429. Almost always per-minute TPM (recovers
+#                  in ~75-90s); a true per-day RPD ceiling is rare.
 #   "server_5xx" — Gemini 503/504 (server overload). Transient, not our fault.
 #   "vercel_504" — analyze route timed out (60s maxDuration on Vercel).
 #   "timeout"    — worker-side HTTP timeout (network slow / Vercel cold start).
@@ -251,8 +252,10 @@ def _classify_failure(status: int | None, body: str) -> str:
     if "all_models_cooldown" in bod or "쿨다운" in bod:
         return FAIL_REASON_COOLDOWN
     # The analyze route reflects Gemini's 429 inside the 500 wrapper as
-    # "gemini 429 (model): ..." and the underlying RPD body has
-    # "exceeded your current quota" / "quotaId: ...PerDay...".
+    # "gemini 429 (model): ...". In practice this is almost always the
+    # per-minute TPM quota (quotaId GenerateContentInputTokensPerModelPerMinute
+    # -FreeTier), NOT per-day RPD — it recovers within ~75-90s, so the scan
+    # loop breathers + retries the symbol rather than treating it as terminal.
     if "429" in bod or "exceeded your current quota" in bod or "rate-limit" in bod:
         return FAIL_REASON_QUOTA
     # Gemini server overload — our route translates this to the Korean
@@ -269,25 +272,30 @@ def _classify_failure(status: int | None, body: str) -> str:
 # digest.
 #
 # Strategy: do ONE inline retry per symbol on 5xx/504 after a short sleep.
-# Quota 429s and other reasons get NO retry (waste of quota / no recovery
-# expected) — though with the 3-model chain a real RPD 429 is rare.
+# Quota 429s are NOT retried *here* — instead the scan loop takes a per-minute
+# breather and retries the symbol once the rolling token window clears (a real
+# per-DAY RPD 429 is rare with the 3-model chain; the common case is TPM).
 # 90초로 늘림 (이전 8초). gemini.ts의 PerMinute 쿨다운이 75초라
 # 8초 후 retry하면 모델이 여전히 쿨다운 상태 → "gemini call failed" 즉시 반환.
 # 90초 wait면 쿨다운 끝난 후 진짜 retry 가능. 2026-05-22 사례 (17:00 scan
 # 모든 retry가 쿨다운 중 fast fail로 끝남) 직접 fix.
 TRANSIENT_RETRY_WAIT_SEC = int(os.getenv("AI_SCAN_TRANSIENT_RETRY_WAIT", "90"))
 
-# When a per-minute quota burst trips the whole Gemini chain into cooldown,
-# the remaining symbols would otherwise rapid-fire (the main loop skips the
-# inter-call delay on failure) and all fast-fail while the chain is still
-# cooled. Instead, pause ONCE per occurrence to let the per-minute window
-# clear, then continue — subsequent symbols then succeed. Capped via
-# MAX_QUOTA_BREATHERS so a genuine per-DAY exhaustion doesn't make us sleep
-# through the whole remaining list for nothing. (2026-05-30 fix: the 05-29
-# 22:00 scan lost 14/16 remaining symbols when one burst at symbol 9 cooled
-# all models for an hour and the rest rapid-fast-failed as "unknown".)
-QUOTA_BREATHER_SEC = int(os.getenv("AI_SCAN_QUOTA_BREATHER", "75"))
-MAX_QUOTA_BREATHERS = int(os.getenv("AI_SCAN_MAX_QUOTA_BREATHERS", "3"))
+# The binding free-tier limit in practice is per-minute TPM (input tokens /
+# min / model — quotaId GenerateContentInputTokensPerModelPerMinute-FreeTier,
+# confirmed from a real 429 body 2026-05-19), NOT per-day RPD. Proven again
+# 2026-05-30: after a 75s pause, 4 consecutive symbols succeeded — a per-DAY
+# ceiling cannot replenish in 75s. So when a call trips quota/cooldown we
+# sleep for the rolling window to clear and RETRY THE SAME SYMBOL once (see
+# the scan loop). 90s > gemini.ts's 75s per-minute cooldown so the model is
+# actually un-cooled by the time we retry. Capped via MAX_QUOTA_BREATHERS so a
+# genuine per-DAY exhaustion (rare) can't make us sleep through the whole list.
+# Budget raised 3→8 on 2026-05-30: at SCAN_BUDGET 25 the per-minute window
+# trips ~every 4 calls, so 3 breathers ran out by symbol 7 and the trailing 13
+# symbols rapid-fast-failed as [all_models_cooldown] (the 05-29 22:00 / 05-30
+# 02:33 scans lost 17/25 verdicts exactly this way).
+QUOTA_BREATHER_SEC = int(os.getenv("AI_SCAN_QUOTA_BREATHER", "90"))
+MAX_QUOTA_BREATHERS = int(os.getenv("AI_SCAN_MAX_QUOTA_BREATHERS", "8"))
 
 
 def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int | None, str]:
@@ -427,8 +435,8 @@ def _reason_label(reason: str) -> str:
     """Korean human-readable label per FAIL_REASON_* constant. Single source
     of truth so any header that breaks down by reason uses identical copy."""
     return {
-        FAIL_REASON_QUOTA: "Gemini 일일 한도(RPD) 도달",
-        FAIL_REASON_COOLDOWN: "Gemini 호출 한도·쿨다운 (일시적, 다음 스캔 재시도)",
+        FAIL_REASON_QUOTA: "Gemini 분당 토큰 한도(TPM, 일시적)",
+        FAIL_REASON_COOLDOWN: "Gemini 분당 호출 한도·쿨다운 (일시적)",
         FAIL_REASON_5XX: "Gemini 서버 일시 오류 (5xx, 일시적)",
         FAIL_REASON_VERCEL_504: "Vercel 60s 타임아웃 (분석 처리 지연)",
         FAIL_REASON_TIMEOUT: "워커 HTTP 타임아웃 (네트워크)",
@@ -628,8 +636,9 @@ def main() -> int:
 
     # Always-fresh: every target gets a live /api/analyze call (3-model
     # Gemini chain). No quota guard, no stale-only mode, no cache reuse —
-    # the chain's flash-lite tier (~1,000 RPD) makes real exhaustion a
-    # non-issue, and a 24h-old verdict is misleading for twice-daily
+    # genuine per-DAY (RPD) exhaustion is rare (flash-lite tier ~1,000 RPD);
+    # the limit hit in practice is per-minute TPM, absorbed by the scan loop's
+    # breather + same-symbol retry. A 24h-old verdict is misleading for twice-daily
     # trading decisions. call_analyze already does one inline retry on a
     # transient 5xx/504; anything that still fails is reported as missing
     # and picked up by the next scheduled scan.
@@ -647,28 +656,36 @@ def main() -> int:
             flush=True,
         )
         analysis, fail_reason = call_analyze(sym)
+
+        # Per-minute TPM/cooldown trips recover within ~75-90s. When one trips,
+        # take a breather to let the rolling token window clear, then RETRY THE
+        # SAME SYMBOL once instead of dropping it. This recovers both the symbol
+        # that tripped the limit AND stops the rest of the list from rapid-fast-
+        # failing: the failure path skips INTER_CALL_DELAY, so without a pause
+        # the trailing symbols fire ~2s apart and every one bounces off the
+        # still-cooled chain as [all_models_cooldown] (that lost 13 symbols on
+        # the 05-29 22:00 / 05-30 02:33 scans). Capped via MAX_QUOTA_BREATHERS.
+        if (
+            not analysis
+            and fail_reason in (FAIL_REASON_QUOTA, FAIL_REASON_COOLDOWN)
+            and breathers_used < MAX_QUOTA_BREATHERS
+        ):
+            breathers_used += 1
+            print(
+                f"    quota/cooldown on {sym} — breather {breathers_used}/"
+                f"{MAX_QUOTA_BREATHERS}, sleeping {QUOTA_BREATHER_SEC}s for the "
+                f"per-minute window to clear, then retrying {sym}",
+                file=sys.stderr,
+            )
+            time.sleep(QUOTA_BREATHER_SEC)
+            analysis, fail_reason = call_analyze(sym)
+            if analysis:
+                print(f"    ✓ post-breather retry on {sym} succeeded", file=sys.stderr)
+
         if not analysis:
             reason = fail_reason or FAIL_REASON_UNKNOWN
             fail_reason_counts[reason] = fail_reason_counts.get(reason, 0) + 1
             missing.append({"symbol": sym, "reason": reason})
-            # Per-minute quota/cooldown recovers within ~60-90s. Rather than
-            # rapid-firing the rest of the list (which all fast-fail while the
-            # chain is still cooled), pause once to let the window clear, then
-            # keep going so later symbols succeed. Capped so a genuine per-day
-            # exhaustion doesn't sleep through the whole remaining list.
-            if (
-                reason in (FAIL_REASON_QUOTA, FAIL_REASON_COOLDOWN)
-                and breathers_used < MAX_QUOTA_BREATHERS
-                and i < len(targets)
-            ):
-                breathers_used += 1
-                print(
-                    f"    quota/cooldown — breather {breathers_used}/"
-                    f"{MAX_QUOTA_BREATHERS}, sleeping {QUOTA_BREATHER_SEC}s for "
-                    f"per-minute window to clear",
-                    file=sys.stderr,
-                )
-                time.sleep(QUOTA_BREATHER_SEC)
             continue  # no successful verdict → no normal inter-call delay
 
         verdicts.append(
