@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 
 from lib import backtest as bt, db
 
+# Cap rows pulled per run so the unbounded signals-table SELECT can't egress
+# the whole table (matches realize.py / ai_realize.py). Backfill is idempotent
+# and oldest-first, so any overflow is handled by the next scheduled run.
+MAX_TARGETS_PER_RUN = 2000
+
 
 def _to_pd_ts(iso: str) -> pd.Timestamp:
     return pd.Timestamp(iso)
@@ -27,15 +32,22 @@ def main() -> int:
     pool = bt.collect_historical(symbols, lookback_days=60)
     print(f"  found {len(pool)} historical signals in pool")
 
-    # 2. Pull all signals that need backfilling.
+    # 2. Pull signals that need backfilling. Bounded by MAX_TARGETS_PER_RUN +
+    # oldest-first ordering so one run can't egress the entire signals table
+    # (the unbounded SELECT here was a top Supabase-egress offender — the table
+    # grows ~continuously from poll.py, so a null-expected_1d backlog could
+    # pull tens of thousands of rows every run). Any remainder is simply picked
+    # up by the next scheduled run; backfill is idempotent and order-stable.
     res = (
         sb.table("signals")
         .select("id,symbol,ts,signal_type,pct_change,volume_ratio,expected_1d")
         .is_("expected_1d", "null")
+        .order("ts", desc=False)
+        .limit(MAX_TARGETS_PER_RUN)
         .execute()
     )
     targets = res.data
-    print(f"backfilling {len(targets)} signals with null expected_*")
+    print(f"backfilling {len(targets)} signals with null expected_* (capped at {MAX_TARGETS_PER_RUN})")
 
     if not targets:
         print("nothing to do")

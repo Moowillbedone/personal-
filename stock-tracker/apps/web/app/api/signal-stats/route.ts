@@ -159,15 +159,28 @@ export async function GET(req: NextRequest) {
   // statistically meaningful.
   const enrichedCount = rows.filter((r) => r.recent_news_count != null).length;
 
-  return NextResponse.json({
-    lookbackDays: lookback,
-    asOf: new Date().toISOString(),
-    totalSignalsInWindow: totalRecent ?? rows.length,
-    measuredSignals: rows.length,
-    newsEnrichedSignals: enrichedCount,
-    overall: compute(rows),
-    byType,
-    byTypeAndSession,
-    byTypeAndNews,
-  });
+  return NextResponse.json(
+    {
+      lookbackDays: lookback,
+      asOf: new Date().toISOString(),
+      totalSignalsInWindow: totalRecent ?? rows.length,
+      measuredSignals: rows.length,
+      newsEnrichedSignals: enrichedCount,
+      overall: compute(rows),
+      byType,
+      byTypeAndSession,
+      byTypeAndNews,
+    },
+    {
+      // CDN-cache for 30 min — same rationale as /api/ai-stats. This endpoint
+      // pulls up to 10k `signals` rows (the table grows continuously from
+      // poll.py) and /stats refetches on every open + lookback toggle, making
+      // it a top egress source. It aggregates ONLY the signals table (worker-
+      // measured forward returns) — independent of the user's trade_log — so a
+      // 30-min stale window never delays a trade or bulk-backfill from showing.
+      headers: {
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=600",
+      },
+    },
+  );
 }

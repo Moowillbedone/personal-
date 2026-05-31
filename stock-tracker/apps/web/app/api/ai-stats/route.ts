@@ -167,12 +167,31 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({
-    lookbackDays: lookback,
-    asOf: new Date().toISOString(),
-    totalAnalysesInWindow: totalAnalyses ?? rows.length,
-    measuredAnalyses: rows.length,
-    byVerdict,
-    confidenceCalibrationBuy: calibrationBuy,
-  });
+  return NextResponse.json(
+    {
+      lookbackDays: lookback,
+      asOf: new Date().toISOString(),
+      totalAnalysesInWindow: totalAnalyses ?? rows.length,
+      measuredAnalyses: rows.length,
+      byVerdict,
+      confidenceCalibrationBuy: calibrationBuy,
+    },
+    {
+      // CDN-cache this aggregate for 30 min (Vercel edge honors s-maxage even
+      // with dynamic="force-dynamic" once we set the header explicitly). This
+      // is the #1 Supabase-egress reduction: ai-stats pulls up to 10k
+      // ai_analysis rows, and /stats refetches it on every open + lookback
+      // toggle. The numbers (AI verdict accuracy over a rolling 30d window)
+      // don't change minute-to-minute, so a 30-min stale window is invisible
+      // to the user. CRITICAL: this endpoint depends ONLY on ai_analysis +
+      // worker-measured returns — NOT on the user's trade_log — so caching it
+      // has zero effect on how fast a new buy/sell or bulk-backfill shows up
+      // (those drive /api/trades/positions + /api/rec-performance, both left
+      // uncached). stale-while-revalidate serves the old copy instantly while
+      // refreshing in the background after expiry.
+      headers: {
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=600",
+      },
+    },
+  );
 }
