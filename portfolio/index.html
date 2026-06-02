@@ -262,6 +262,8 @@ a{color:inherit}
 .shots{display:grid;gap:14px;margin-top:8px}
 .shots.cols-3{grid-template-columns:repeat(3,1fr)}
 .shots.cols-2{grid-template-columns:repeat(2,1fr)}
+.shots.cols-1{grid-template-columns:1fr}
+.shot-contain .shot-frame img{object-fit:contain;background:#fff}
 .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);display:flex;flex-direction:column}
 .shot-frame{position:relative;background:#f1f5f9;overflow:hidden}
 .shot-phone .shot-frame{aspect-ratio:9/18}
@@ -653,7 +655,7 @@ a{color:inherit}
         <div class="cs"><div class="cs-label">접근 · 어떻게 풀었나</div>
           <div class="actions">
             <div class="action"><span class="n">A1</span><span class="t">셀러 셀프서빙 광고 센터 설계</span><span class="d">가입·신청 → 상품 선택·충전 → 소재·타겟팅 설정 → 리포팅까지 셀러가 직접 운영하는 정형화 시스템을 BRD부터 단독 작성·리딩</span></div>
-            <div class="action"><span class="n">A2</span><span class="t">카카오 기반 메시징 광고 상품화</span><span class="d">톡커넥트(콜라보 채널·친구 확보·알림톡·브랜드메시지) · CRM톡·리마인드톡 · 부스트팩(CRM톡+지면+외부매체) 광고 상품군 설계</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">카카오 메시징 광고 상품화 + 세그먼트 라인업</span><span class="d">톡커넥트(콜라보 채널·친구 확보·알림톡·브랜드메시지) · CRM톡·리마인드톡 · 부스트팩(CRM톡+지면+외부매체) 등 상품군을, 고객 세그먼트별 주력 상품으로 묶어 셀러 <strong>'성장 사다리'</strong>를 설계</span></div>
             <div class="action"><span class="n">A3</span><span class="t">행동 기반 타겟팅 + 발송 자동화</span><span class="d">시청·구매·조회·장바구니 등 행동 세그먼트, 브랜드메시지 API 자동 발송, 카카오 광고 매체 연동</span></div>
             <div class="action"><span class="n">A4</span><span class="t">단계적 플랫폼화</span><span class="d">Phase1 셀프서빙·자동화 → Phase2 단가 비딩·외부매체 연동·머신러닝 자동 효율화</span></div>
           </div>
@@ -668,10 +670,9 @@ a{color:inherit}
           </div>
         </div>
         <div class="cs"><div class="cs-label">화면 · Screens</div>
-          <div class="shots cols-3">
-            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/grip-ad-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">셀러 광고 센터 — 상품·캠페인 집행</span><span class="f">grip-ad-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>셀러 광고 센터 — 상품·캠페인 집행</div></div>
-            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-ad-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">카카오 알림톡·브랜드메시지 광고</span><span class="f">grip-ad-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>카카오 알림톡·브랜드메시지 광고</div></div>
-            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-ad-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">행동 타겟팅·세그먼트 설정</span><span class="f">grip-ad-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>행동 타겟팅·세그먼트 설정</div></div>
+          <div class="shots cols-1">
+            <div class="shot shot-wide shot-contain"><div class="shot-frame"><img src="assets/screens/grip-ad-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📊</span><span class="t">그립애즈 상품 라인업 — 세그먼트별 주력 상품 전략</span><span class="f">grip-ad-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>그립애즈 상품 라인업 — 고객 세그먼트별 주력 상품 전략</div></div>
+            <div class="shot shot-wide shot-contain"><div class="shot-frame"><img src="assets/screens/grip-ad-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">💬</span><span class="t">카카오 CRM 광고 실행 — 채널 개설·심사 + 브랜드메시지(광고톡)</span><span class="f">grip-ad-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>카카오 CRM 광고 실행 — 채널 개설·심사 + 브랜드메시지(광고톡) 발송 결과</div></div>
           </div>
         </div>
         <div class="cs"><div class="cs-label">결과 · Impact</div>
