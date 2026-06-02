@@ -43,5 +43,5 @@
 
 ## Contact
 
-- **Email**: dlrjsan9090@gmail.com
+- **Email**: dlrjsan90@naver.com
 - **Phone**: 010 · 3900 · 2917
