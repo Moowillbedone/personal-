@@ -177,6 +177,9 @@ a{color:inherit}
 
 /* company logo chip — 단일 톤 */
 .logo-chip{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
+/* 경력 타임라인 회사 로고 — 2줄(회사명+직책) 높이에 맞춰 크게 */
+.co-logo{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line);padding:3px;flex-shrink:0;display:block}
+.co-logo-fallback{width:44px;height:44px;border-radius:10px;background:var(--navy);color:#fff;font-size:16px;font-weight:800;display:none;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
 
 /* ===== Impact ===== */
 .impact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -527,7 +530,7 @@ a{color:inherit}
       <div class="tl-item reveal">
         <div class="tl-left"><div class="period">2025.03 — NOW</div><div class="duration">진행중</div><div class="status">CURRENT</div></div>
         <div class="tl-right">
-          <div class="co"><span class="logo-chip">G</span><div><div class="company">그립컴퍼니 (Grip)</div><div class="role">Product Owner · 라이브 커머스</div></div></div>
+          <div class="co"><img class="co-logo" src="assets/logos/grip.png" alt="그립컴퍼니" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="co-logo-fallback">G</span><div><div class="company">그립컴퍼니 (Grip)</div><div class="role">Product Owner · 라이브 커머스</div></div></div>
           <ul class="tl-bullets">
             <li>라이브 커머스 광고 플랫폼 & 수익화 모델 기획 (Offerwall · 리워드 · 지면 광고)</li>
             <li>도네이션 BM 신규 출시 → DAU 3만 기준 <strong>월 4천만원 매출</strong> 달성</li>
@@ -538,7 +541,7 @@ a{color:inherit}
       <div class="tl-item reveal">
         <div class="tl-left"><div class="period">2021.10 — 2025.03</div><div class="duration">3년 6개월</div></div>
         <div class="tl-right">
-          <div class="co"><span class="logo-chip">캐</span><div><div class="company">넛지헬스케어 (캐시워크)</div><div class="role">Product Owner · 통합 커뮤니티 / 언니의파우치 / 트로스트 / 팀워크</div></div></div>
+          <div class="co"><img class="co-logo" src="assets/logos/cashwalk.png" alt="캐시워크" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="co-logo-fallback">캐</span><div><div class="company">넛지헬스케어 (캐시워크)</div><div class="role">Product Owner · 통합 커뮤니티 / 언니의파우치 / 트로스트 / 팀워크</div></div></div>
           <ul class="tl-bullets">
             <li><strong>MAU 500만+</strong> 통합 커뮤니티 · 광고 BM <strong>월 1억</strong> 매출</li>
             <li>언니딜 출시 · <strong>월 3억</strong> 매출 · Play Store 뷰티 카테고리 1위</li>
@@ -550,7 +553,7 @@ a{color:inherit}
       <div class="tl-item reveal">
         <div class="tl-left"><div class="period">2020.12 — 2021.10</div><div class="duration">11개월</div></div>
         <div class="tl-right">
-          <div class="co"><span class="logo-chip">하</span><div><div class="company">아이픽셀 (iPIXEL)</div><div class="role">Product Manager · 하우핏 (Howfit)</div></div></div>
+          <div class="co"><img class="co-logo" src="assets/logos/ipixel.png" alt="아이픽셀" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="co-logo-fallback">iP</span><div><div class="company">아이픽셀 (iPIXEL)</div><div class="role">Product Manager · 하우핏 (Howfit)</div></div></div>
           <ul class="tl-bullets">
             <li>AI 스켈레톤·모션 인식 기반 운동 콘텐츠 UIUX 기획</li>
             <li>구글플레이 <strong>[2021 올해를 빛낸 자기계발 앱] 최우수상</strong></li>
@@ -560,7 +563,7 @@ a{color:inherit}
       <div class="tl-item reveal">
         <div class="tl-left"><div class="period">2019.03 — 2020.12</div><div class="duration">1년 11개월</div></div>
         <div class="tl-right">
-          <div class="co"><span class="logo-chip">다</span><div><div class="company">다노 (DANO)</div><div class="role">Operation Manager · 온라인 피트니스 케어</div></div></div>
+          <div class="co"><img class="co-logo" src="assets/logos/dano.png" alt="다노" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="co-logo-fallback">다</span><div><div class="company">다노 (DANO)</div><div class="role">Operation Manager · 온라인 피트니스 케어</div></div></div>
           <ul class="tl-bullets">
             <li><strong>[베이직 케어] 출시 → 토탈케어 대비 가입률 +200%</strong></li>
             <li>코로나 시점 [방문 케어] PT 채널 신설 · 수익 확장</li>
@@ -570,7 +573,7 @@ a{color:inherit}
       <div class="tl-item reveal">
         <div class="tl-left"><div class="period">2018.07 — 2019.02</div><div class="duration">8개월</div></div>
         <div class="tl-right">
-          <div class="co"><span class="logo-chip">엔</span><div><div class="company">엔핏 (현 클래스유)</div><div class="role">Operation Manager · 모두의 트레이닝</div></div></div>
+          <div class="co"><img class="co-logo" src="assets/logos/classu.png" alt="엔핏 (현 클래스유)" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="co-logo-fallback">엔</span><div><div class="company">엔핏 (현 클래스유)</div><div class="role">Operation Manager · 모두의 트레이닝</div></div></div>
           <ul class="tl-bullets">
             <li>온/오프라인 신규 피트니스 서비스 기획·런칭, CRM 운영 개선, 코치 매칭 시스템 구축</li>
           </ul>
