@@ -3,1867 +3,1208 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>이건무 | Product Owner Portfolio</title>
+<title>이건무 — Product Owner Portfolio</title>
+<meta name="description" content="광고·커머스·커뮤니티·라이브·헬스케어 5개 도메인 8년+ End-to-End Product Owner. 500만 MAU 운영, 월 1억+ 광고 BM, 월 3억 커머스, 월 4천만 도네이션 BM 신설." />
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   LEE KUNMOO — MASTER PORTFOLIO
+   단일 스크롤 웹 + A4 인쇄. 단일 톤(네이비·블루·골드).
+   ============================================================ */
+:root{
+  --ink:#0a0a0a;
+  --ink-2:#363c46;
+  --muted:#525860;
+  --muted-2:#8b92a0;
+  --line:#e8eaed;
+  --line-2:#f3f4f6;
+  --bg:#fafafa;
+  --card:#ffffff;
+  --navy:#0a0e1a;
+  --navy-2:#1e293b;
+  --blue:#1e40af;
+  --blue-soft:#dbeafe;
+  --blue-border:#bfdbfe;
+  --gold:#fbbf24;
+  --gold-soft:#fef3c7;
+  --gold-border:#fde68a;
+  --gold-ink:#92400e;
+  --wrap:960px;
+}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html{scroll-behavior:smooth}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  font-feature-settings:"ss01","cv11";
+  letter-spacing:-0.01em;line-height:1.6;
+  color:var(--ink);background:var(--bg);
+}
+.mono{font-family:'Space Grotesk','Inter',monospace;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+strong{font-weight:700;color:var(--ink)}
+em{font-style:normal;background:linear-gradient(180deg,transparent 60%,rgba(30,64,175,.16) 60%);padding:0 2px}
+a{color:inherit}
+
+/* ===== Reading progress + Nav ===== */
+.progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--blue),var(--gold));z-index:60;transition:width .1s linear}
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(250,250,250,.82);backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{
+  max-width:var(--wrap);margin:0 auto;padding:0 24px;height:56px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px
+}
+.nav-brand{font-weight:800;letter-spacing:-0.02em;font-size:15px;white-space:nowrap;display:flex;align-items:center;gap:9px}
+.nav-brand .badge{font-family:'Space Grotesk',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--blue);background:var(--blue-soft);padding:3px 7px;border-radius:5px}
+.nav-links{display:flex;gap:2px;align-items:center;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{
+  font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;
+  padding:7px 11px;border-radius:8px;white-space:nowrap;transition:all .15s
+}
+.nav-links a:hover{color:var(--ink);background:var(--line-2)}
+.nav-links a.active{color:var(--blue);background:var(--blue-soft)}
+.nav-pdf{
+  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+  font-size:12.5px;font-weight:700;color:#fff;background:var(--navy);
+  padding:8px 14px;border-radius:9px;border:none;cursor:pointer;font-family:inherit;
+  letter-spacing:-0.01em;transition:all .15s
+}
+.nav-pdf:hover{background:var(--blue)}
+
+/* ===== Layout ===== */
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+.section{padding:72px 0;scroll-margin-top:72px}
+.section + .section{border-top:1px solid var(--line)}
+.eyebrow{
+  font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:600;color:var(--blue);margin-bottom:14px;
+  display:flex;align-items:center;gap:10px
+}
+.eyebrow::before{content:'';width:24px;height:2px;background:var(--blue);display:inline-block}
+.section-title{font-size:32px;font-weight:900;letter-spacing:-0.03em;line-height:1.2;margin:0 0 18px}
+.section-lead{font-size:15.5px;line-height:1.75;color:var(--ink-2);margin:0 0 36px;max-width:760px}
+
+/* ===== Reveal on scroll ===== */
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ===== HERO ===== */
+.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#0a0e1a 0%,#1e293b 100%);color:#fff}
+.hero::after{
+  content:'';position:absolute;top:-40%;right:-10%;width:680px;height:680px;
+  background:radial-gradient(circle,rgba(251,191,36,.12) 0%,transparent 60%);pointer-events:none
+}
+.hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
+  background-size:56px 56px;mask-image:radial-gradient(ellipse at 75% 25%,#000 20%,transparent 75%)
+}
+.hero-inner{max-width:var(--wrap);margin:0 auto;padding:84px 24px 76px;position:relative}
+.hero-mark{
+  display:inline-flex;align-items:center;gap:8px;font-family:'Space Grotesk',monospace;
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:26px;font-weight:600
+}
+.hero-mark .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(251,191,36,.18)}
+.hero h1{font-size:60px;font-weight:900;letter-spacing:-0.045em;line-height:1.02;margin:0;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.hero h1 .en{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:500;color:var(--muted-2);letter-spacing:0}
+.hero .role{display:block;font-size:18px;font-weight:500;color:#94a3b8;margin-top:16px;letter-spacing:-0.005em}
+.hero-tag{font-size:19px;line-height:1.6;color:#cbd5e1;margin:24px 0 0;max-width:620px}
+.hero-tag em{background:linear-gradient(180deg,transparent 60%,rgba(251,191,36,.4) 60%);color:#fff}
+.hero-contact{display:flex;flex-wrap:wrap;gap:14px 30px;padding-top:28px;margin-top:34px;border-top:1px solid rgba(255,255,255,.12)}
+.hero-contact .item{display:flex;flex-direction:column;gap:4px}
+.hero-contact .label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:600;font-family:'Space Grotesk',monospace}
+.hero-contact .value{font-size:14px;color:#e2e8f0;font-weight:500}
+.hero-contact .value a{color:#e2e8f0;text-decoration:none;border-bottom:1px solid #475569}
+.hero-contact .value a:hover{color:#fff;border-color:var(--gold)}
+
+/* ===== At a glance ===== */
+.glance{background:var(--navy);color:#fff;border-top:1px solid rgba(255,255,255,.08)}
+.glance-inner{max-width:var(--wrap);margin:0 auto;padding:30px 24px;display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.glance-cell{padding:4px 0}
+.glance-num{font-size:27px;font-weight:900;letter-spacing:-0.03em;line-height:1.05}
+.glance-num .u{font-size:14px;font-weight:600;color:var(--gold);margin-left:2px}
+.glance-lbl{font-size:11.5px;color:#94a3b8;margin-top:6px;line-height:1.4}
+
+/* ===== Cards (generic) ===== */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px}
+
+/* ===== About ===== */
+.about-hero{display:grid;grid-template-columns:168px 1fr;gap:32px;align-items:start}
+.about-photo{width:168px;height:206px;border-radius:12px;overflow:hidden;background:var(--line-2);border:1px solid var(--line);position:relative}
+.about-photo img{width:100%;height:100%;object-fit:cover;object-position:center 22%;display:block}
+.about-photo .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted-2);font-size:12px;background:repeating-linear-gradient(45deg,var(--bg) 0 8px,#f1f1f1 8px 16px)}
+.role-chip{display:inline-block;padding:6px 13px;background:var(--navy);color:#fff;font-family:'Space Grotesk',monospace;font-size:10.5px;letter-spacing:.1em;font-weight:600;border-radius:999px;margin-bottom:14px}
+.about-name{font-size:38px;font-weight:900;letter-spacing:-0.035em;margin:0 0 14px}
+.about-summary{font-size:15px;line-height:1.8;color:var(--ink-2);max-width:640px;margin:0}
+.about-bullets{list-style:none;padding:0;margin:22px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
+.about-bullets li{position:relative;padding-left:22px;font-size:13.5px;color:var(--ink-2);line-height:1.55}
+.about-bullets li::before{content:'';position:absolute;left:0;top:7px;width:7px;height:7px;background:var(--blue);border-radius:2px;transform:rotate(45deg)}
+.about-bullets li b{color:var(--ink);font-weight:700}
+
+.hiw{margin-top:44px}
+.hiw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.hiw-card{padding:22px 22px;background:var(--card);border:1px solid var(--line);border-radius:12px;border-left:3px solid var(--blue)}
+.hiw-num{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--blue);font-weight:700;letter-spacing:.1em;margin-bottom:12px}
+.hiw-h{font-weight:800;font-size:15.5px;letter-spacing:-0.01em;margin-bottom:9px}
+.hiw-p{font-size:13px;color:var(--muted);line-height:1.65;margin:0}
+
+.about-tags{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:40px;padding-top:32px;border-top:1px solid var(--line)}
+.tag-eye{font-family:'Space Grotesk',monospace;font-size:10px;letter-spacing:.1em;font-weight:700;color:var(--muted-2);margin-bottom:12px}
+.chip-row{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px}
+.chip.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chip.accent{background:var(--blue-soft);color:var(--blue);border-color:var(--blue-border)}
+
+/* ===== Career timeline ===== */
+.tl{position:relative}
+.tl-item{display:grid;grid-template-columns:210px 1fr;gap:28px;padding:24px 0;border-top:1px solid var(--line)}
+.tl-item:first-child{border-top:none;padding-top:0}
+.tl-left .period{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.04em}
+.tl-left .duration{font-size:11.5px;color:var(--muted-2);margin-top:3px}
+.tl-left .status{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em;margin-top:8px}
+.tl-right .co{display:flex;align-items:center;gap:10px}
+.tl-right .company{font-size:17px;font-weight:800;letter-spacing:-0.01em}
+.tl-right .role{font-size:13px;color:var(--muted);margin-top:3px}
+.tl-bullets{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:5px}
+.tl-bullets li{font-size:13.5px;color:var(--ink-2);line-height:1.6;padding-left:15px;position:relative}
+.tl-bullets li::before{content:'';position:absolute;left:0;top:8px;width:5px;height:5px;background:var(--gold);border-radius:50%}
+
+/* company logo chip — 단일 톤 */
+.logo-chip{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
+
+/* ===== Impact ===== */
+.impact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ig{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--card);display:flex;flex-direction:column;justify-content:space-between;min-height:96px}
+.ig-tag{font-family:'Space Grotesk',monospace;font-size:10px;letter-spacing:.1em;color:var(--muted-2);text-transform:uppercase}
+.ig-num{font-size:26px;font-weight:900;letter-spacing:-0.03em;line-height:1;margin-top:8px}
+.ig-num .u{font-size:14px;color:var(--muted);margin-left:2px;font-weight:700}
+.ig-sub{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.45}
+.ig-big{grid-column:span 4;background:linear-gradient(135deg,#0a0e1a,#1e293b);color:#fff;border-color:var(--navy);padding:26px 28px;min-height:auto}
+.ig-big .ig-tag{color:#94a3b8}
+.ig-huge{font-size:58px;font-weight:900;letter-spacing:-0.04em;line-height:1;margin-top:8px}
+.ig-huge .u{font-size:24px;color:var(--gold);margin-left:4px}
+.ig-big .ig-sub{color:#cbd5e1;font-size:12.5px;max-width:560px}
+.ig-bars{margin-top:18px;display:grid;gap:8px}
+.ig-bar{position:relative;height:22px;background:rgba(255,255,255,.07);border-radius:5px;overflow:hidden}
+.ig-bar span{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#1e40af,#3b82f6)}
+.ig-bar.gold span{background:linear-gradient(90deg,#b45309,#fbbf24)}
+.ig-bar em{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#fff;font-style:normal;font-size:10.5px;font-family:'Space Grotesk',monospace;letter-spacing:.04em;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.ig-award{background:var(--navy);color:#fff;border-color:var(--navy);grid-column:span 2;justify-content:center}
+.ig-award.gold{background:linear-gradient(135deg,#92400e,#b45309)}
+.ig-award .ig-tag{color:rgba(255,255,255,.7)}
+.ig-award-h{font-size:17px;font-weight:800;margin-top:6px}
+.ig-award-s{font-size:11.5px;color:rgba(255,255,255,.85);margin-top:4px}
+.ig-award-s strong{color:#fff}
+
+/* ===== Case index ===== */
+.case-index{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.ci{border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:10px;padding:14px 16px;background:var(--card);display:flex;flex-direction:column;gap:5px;min-height:128px;text-decoration:none;color:inherit;transition:all .15s}
+.ci:hover{box-shadow:0 8px 22px rgba(30,64,175,.08);transform:translateY(-2px)}
+.ci-num{font-family:'Space Grotesk',monospace;color:var(--blue);font-size:10.5px;font-weight:700;letter-spacing:.06em}
+.ci-tag{font-family:'Space Grotesk',monospace;font-size:9.5px;color:var(--muted-2);letter-spacing:.08em;font-weight:600}
+.ci-h{font-size:13.5px;font-weight:800;letter-spacing:-0.01em;line-height:1.32;margin:2px 0 4px}
+.ci-meta{font-size:10.5px;color:var(--muted);line-height:1.4;margin-bottom:auto;display:flex;align-items:center;gap:6px}
+.ci-impact{font-family:'Space Grotesk',monospace;font-size:9.5px;color:var(--blue);letter-spacing:.02em;font-weight:700;padding-top:8px;border-top:1px dashed var(--line);margin-top:8px;line-height:1.45}
+
+/* ===== Case detail ===== */
+.cases{display:flex;flex-direction:column;gap:22px;margin-top:36px}
+.case{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:34px 36px;scroll-margin-top:72px}
+.case-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px;padding-bottom:20px;border-bottom:1px dashed var(--line)}
+.case-num{font-family:'Space Grotesk',monospace;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.08em;margin-bottom:8px}
+.case-title{font-size:23px;font-weight:900;letter-spacing:-0.025em;margin:0;line-height:1.25}
+.case-meta{font-size:12.5px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.case-meta .pipe{color:#cbd5e1}
+.case-tags{display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.case-tag{font-family:'Space Grotesk',monospace;font-size:10px;letter-spacing:.06em;padding:5px 10px;border-radius:999px;background:var(--blue-soft);color:var(--blue);font-weight:700;text-transform:uppercase}
+.case-tag.gold{background:var(--gold-soft);color:var(--gold-ink)}
+
+.cs{margin:20px 0}
+.cs:first-of-type{margin-top:0}
+.cs-label{font-family:'Space Grotesk',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--blue);font-weight:700;margin-bottom:9px;text-transform:uppercase}
+.cs-text{font-size:14px;line-height:1.7;color:var(--ink-2);margin:0}
+
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.action{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:15px 16px;display:flex;flex-direction:column;gap:6px;border-top:3px solid var(--blue)}
+.action .n{font-family:'Space Grotesk',monospace;font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.06em}
+.action .t{font-size:13.5px;font-weight:700;line-height:1.4;letter-spacing:-0.01em}
+.action .d{font-size:12px;color:var(--muted);line-height:1.55}
+
+/* flow */
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:18px 20px;background:var(--bg);border-radius:12px;border:1px solid var(--line)}
+.flow-step{flex:0 0 auto;padding:11px 15px;background:var(--card);border:1px solid var(--line);border-radius:9px;min-width:84px;max-width:180px;text-align:center}
+.flow-step.start{background:#f1f5f9;border-color:#cbd5e1}
+.flow-step.accent{background:var(--blue-soft);border-color:var(--blue-border)}
+.flow-step.accent .fh{color:var(--blue)}
+.flow-step.gold{background:var(--gold-soft);border-color:var(--gold-border)}
+.flow-step.gold .fh{color:var(--gold-ink)}
+.flow-step.dark{background:var(--navy);border-color:var(--navy)}
+.flow-step.dark .fh{color:#fff}
+.flow-step.dark .fd{color:#cbd5e1}
+.fh{font-size:12.5px;font-weight:800;line-height:1.3;letter-spacing:-0.01em}
+.fd{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.flow-arrow{font-size:16px;color:var(--muted-2);font-weight:700;flex:0 0 auto}
+.flow-lane{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 13px;background:var(--card);border-radius:9px;border:1px dashed var(--line);width:100%}
+.flow-lane .lane-label{font-family:'Space Grotesk',monospace;font-size:10px;font-weight:800;color:var(--blue);letter-spacing:.08em;text-transform:uppercase;flex:0 0 auto;padding:3px 9px;background:var(--blue-soft);border-radius:5px}
+.flow-lane.b2b .lane-label{color:var(--gold-ink);background:var(--gold-soft)}
+.flow-branch{display:flex;flex-direction:column;gap:4px;flex:0 0 auto;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:9px;min-width:124px}
+.flow-branch .bi{font-size:11.5px;color:var(--ink-2);font-weight:600;padding:1px 0}
+
+/* screen shots — 실제 화면 첨부용 프레임 */
+.shots{display:grid;gap:14px;margin-top:8px}
+.shots.cols-3{grid-template-columns:repeat(3,1fr)}
+.shots.cols-2{grid-template-columns:repeat(2,1fr)}
+.shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);display:flex;flex-direction:column}
+.shot-frame{position:relative;background:#f1f5f9;overflow:hidden}
+.shot-phone .shot-frame{aspect-ratio:9/18}
+.shot-wide .shot-frame{aspect-ratio:16/10}
+.shot-frame img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.shot-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:16px;text-align:center;background:repeating-linear-gradient(45deg,#f5f6f8 0 10px,#eef0f3 10px 20px);color:var(--muted-2)}
+.shot-ph .ic{width:34px;height:34px;border-radius:9px;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:17px}
+.shot-ph .t{font-size:11.5px;font-weight:700;color:var(--muted)}
+.shot-ph .f{font-family:'Space Grotesk',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--muted-2);background:#fff;border:1px solid var(--line);border-radius:5px;padding:3px 7px}
+.shot-cap{padding:11px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-2);font-weight:600;display:flex;gap:7px;align-items:baseline}
+.shot-cap .k{font-family:'Space Grotesk',monospace;font-size:9.5px;color:var(--blue);font-weight:700;letter-spacing:.04em;flex-shrink:0}
+
+/* impact cells (per-case) */
+.impact-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.impact-cell{padding:16px 18px;background:linear-gradient(180deg,#fffbeb 0%,#fef3c7 100%);border-radius:11px;border:1px solid var(--gold-border)}
+.impact-cell .num{font-size:24px;font-weight:900;color:var(--ink);letter-spacing:-0.03em;line-height:1.05}
+.impact-cell .num.sm{font-size:18px}
+.impact-cell .lbl{font-size:11.5px;color:var(--gold-ink);margin-top:5px;line-height:1.4;font-weight:600}
+
+.lesson{background:var(--navy);color:#cbd5e1;border-radius:12px;padding:18px 22px;margin-top:14px}
+.lesson .cs-label{color:var(--gold)}
+.lesson .cs-text{color:#e2e8f0;font-size:13.5px}
+.lesson .cs-text strong{color:#fff}
+
+/* ===== Skills ===== */
+.skills-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.sblock{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px 26px}
+.sblock .sb-h{font-family:'Space Grotesk',monospace;font-size:10.5px;letter-spacing:.1em;color:var(--muted-2);font-weight:700;margin-bottom:16px}
+.domain-list{display:flex;flex-direction:column;gap:13px}
+.dm{}
+.dm-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.dm-h{font-size:13.5px;font-weight:700}
+.dm-note{font-size:11px;color:var(--muted-2)}
+.dm-bar{height:7px;background:var(--line-2);border-radius:999px;overflow:hidden}
+.dm-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--navy),var(--blue));border-radius:999px}
+.cap{display:flex;flex-direction:column}
+.cap-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.cap-row:last-child{border-bottom:none}
+.cap-l{font-size:13px;font-weight:600}
+.cap-r{font-family:'Space Grotesk',monospace;letter-spacing:.12em;color:var(--gold);font-weight:700;font-size:13px}
+.ai-note{margin:14px 0 0;font-size:12px;color:var(--muted);line-height:1.65}
+.ai-note strong{color:var(--ink)}
+.edu{display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:start}
+.edu .period{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--muted);font-weight:600}
+.edu .school{font-size:15px;font-weight:800}
+.edu .major{font-size:12.5px;color:var(--muted);margin-top:3px}
+
+/* ===== Philosophy ===== */
+.philo-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.philo{border:1px solid var(--line);border-radius:14px;padding:24px 26px;background:var(--card);border-left:3px solid var(--gold)}
+.philo .pn{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--gold-ink);font-weight:700;letter-spacing:.08em;margin-bottom:12px}
+.philo h3{font-size:17px;font-weight:800;letter-spacing:-0.02em;margin:0 0 10px}
+.philo p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.7}
+.quote{margin-top:18px;padding:28px 34px;background:linear-gradient(135deg,#0a0e1a,#1e293b);color:#fff;border-radius:16px;display:flex;gap:20px;align-items:flex-start}
+.quote .mk{font-family:'Space Grotesk',serif;font-size:64px;line-height:.7;color:var(--gold);font-weight:700}
+.quote p{margin:0;font-size:16px;line-height:1.7;font-weight:500;color:#e2e8f0}
+.quote strong{color:#fff}
+
+/* ===== Contact / footer ===== */
+.contact{background:linear-gradient(135deg,#0a0e1a 0%,#1e293b 100%);color:#fff;position:relative;overflow:hidden}
+.contact::after{content:'';position:absolute;bottom:-40%;left:-10%;width:620px;height:620px;background:radial-gradient(circle,rgba(251,191,36,.10) 0%,transparent 60%);pointer-events:none}
+.contact-inner{max-width:var(--wrap);margin:0 auto;padding:80px 24px;position:relative}
+.contact .eyebrow{color:var(--gold)}
+.contact .eyebrow::before{background:var(--gold)}
+.contact h2{font-size:44px;font-weight:900;letter-spacing:-0.035em;line-height:1.15;margin:0 0 18px}
+.contact h2 em{background:linear-gradient(180deg,transparent 60%,rgba(251,191,36,.45) 60%);color:#fff}
+.contact .sub{font-size:17px;color:#cbd5e1;margin:0 0 38px;max-width:560px;line-height:1.6}
+.contact-rows{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:620px;padding-top:28px;border-top:1px solid rgba(255,255,255,.14)}
+.contact-rows .label{font-family:'Space Grotesk',monospace;font-size:10px;letter-spacing:.14em;color:#64748b;font-weight:600;margin-bottom:7px}
+.contact-rows .val{font-size:16px;font-weight:700}
+.contact-rows .val a{color:#fff;text-decoration:none;border-bottom:1px solid #475569}
+.contact-rows .val a:hover{border-color:var(--gold)}
+.foot{max-width:var(--wrap);margin:0 auto;padding:24px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.06em;color:var(--muted-2);text-transform:uppercase}
+
+.totop{position:fixed;right:22px;bottom:22px;width:44px;height:44px;border-radius:50%;background:var(--navy);color:#fff;border:none;cursor:pointer;font-size:18px;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.totop.show{opacity:1;pointer-events:auto}
+.totop:hover{background:var(--blue);transform:translateY(-2px)}
+
+/* ===== Responsive ===== */
+@media (max-width:780px){
+  .hero h1{font-size:42px}
+  .glance-inner{grid-template-columns:repeat(2,1fr);gap:18px 14px}
+  .about-hero{grid-template-columns:1fr}
+  .about-photo{width:140px;height:172px}
+  .about-bullets{grid-template-columns:1fr}
+  .hiw-grid{grid-template-columns:1fr}
+  .about-tags{grid-template-columns:1fr}
+  .tl-item{grid-template-columns:1fr;gap:10px}
+  .impact-grid{grid-template-columns:repeat(2,1fr)}
+  .ig-big{grid-column:span 2}
+  .ig-award{grid-column:span 2}
+  .case-index{grid-template-columns:1fr}
+  .case{padding:24px 22px}
+  .skills-grid{grid-template-columns:1fr}
+  .philo-grid{grid-template-columns:1fr}
+  .shots.cols-3{grid-template-columns:1fr 1fr}
+  .contact h2{font-size:32px}
+  .contact-rows{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+
+/* ===== Print — A4 ===== */
+@media print{
+  @page{size:A4 portrait;margin:12mm 11mm}
+  html,body{background:#fff}
+  .progress,.nav,.totop{display:none !important}
+  .reveal{opacity:1 !important;transform:none !important}
+  .wrap,.hero-inner,.glance-inner,.contact-inner,.foot{max-width:none;padding-left:0;padding-right:0}
+  body{font-size:12px}
+  .section{padding:10mm 0;page-break-inside:auto}
+  .hero{border-radius:0}
+  .hero-inner{padding:14mm 10mm}
+  .hero h1{font-size:40px}
+  .glance-inner{padding:8mm 10mm;grid-template-columns:repeat(6,1fr)}
+  .contact-inner{padding:14mm 10mm}
+  .section-title{font-size:23px;page-break-after:avoid}
+  .eyebrow{page-break-after:avoid}
+  .card,.hiw-card,.philo,.sblock,.ig,.action,.ci,.impact-cell,.flow,.shot{page-break-inside:avoid;break-inside:avoid}
+  .case{page-break-inside:avoid;break-inside:avoid;padding:18px 20px;margin-bottom:8px}
+  .case-head{page-break-after:avoid}
+  .cs{page-break-inside:avoid}
+  .lesson{page-break-inside:avoid;page-break-before:avoid}
+  .tl-item{page-break-inside:avoid}
+  .quote{page-break-inside:avoid}
+  /* 주요 섹션은 새 페이지에서 시작 */
+  #career,#impact,#cases,#skills,#philosophy{page-break-before:always}
+  .cases{gap:10px}
+}
+</style>
 </head>
 <body>
 
-<!-- ============================== -->
-<!-- PAGE 1 : COVER                 -->
-<!-- ============================== -->
-<section class="page page-cover">
-  <div class="cover-bg-grid"></div>
-  <div class="cover-noise"></div>
+<div class="progress" id="progress"></div>
 
-  <header class="cover-top">
-    <div class="cover-mark">
-      <span class="dot"></span>
-      <span class="mono">PORTFOLIO / 2026</span>
+<!-- ===== NAV ===== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-brand">이건무 <span class="badge">PO · 8Y+</span></div>
+    <div class="nav-links">
+      <a href="#about">소개</a>
+      <a href="#career">경력</a>
+      <a href="#impact">임팩트</a>
+      <a href="#cases">케이스</a>
+      <a href="#skills">역량</a>
+      <a href="#philosophy">철학</a>
+      <a href="#contact">연락처</a>
     </div>
-    <div class="cover-meta mono">VOL. 01 — PO / PM</div>
-  </header>
+    <button class="nav-pdf" onclick="window.print()">↓ PDF</button>
+  </div>
+</nav>
 
-  <div class="cover-main">
-    <div class="cover-eyebrow mono">PRODUCT OWNER · 8+ YEARS</div>
-    <h1 class="cover-name">
-      이건무<span class="cover-name-en">Lee&nbsp;Kunmoo</span>
-    </h1>
-    <p class="cover-tagline">
-      <span class="hl">인사이트</span>와 <span class="hl">데이터</span> 기반의<br/>
-      복합적 사고로 <span class="hl">성과</span>를 만듭니다.
+<!-- ===== HERO ===== -->
+<header class="hero" id="top">
+  <div class="hero-inner reveal">
+    <div class="hero-mark"><span class="dot"></span> PRODUCT OWNER · 8+ YEARS</div>
+    <h1>이건무 <span class="en">Lee Kunmoo</span></h1>
+    <span class="role">Product Owner · End-to-End · 광고 · 커머스 · 라이브 · 헬스케어</span>
+    <p class="hero-tag">
+      <em>인사이트와 데이터</em> 기반의 복합적 사고로,
+      신규 서비스를 화면부터 정산 Admin까지 A to Z로 설계해 <em>매출까지 책임지는</em> PO입니다.
     </p>
-
-    <div class="cover-highlight-grid">
-      <div class="ch-cell">
-        <div class="ch-num">500<span class="ch-unit">만</span></div>
-        <div class="ch-label">MAU 트래픽 운영</div>
-      </div>
-      <div class="ch-cell">
-        <div class="ch-num">월 1<span class="ch-unit">억+</span></div>
-        <div class="ch-label">광고 BM 매출</div>
-      </div>
-      <div class="ch-cell">
-        <div class="ch-num">월 3<span class="ch-unit">억</span></div>
-        <div class="ch-label">커머스 매출 (언니딜)</div>
-      </div>
-      <div class="ch-cell">
-        <div class="ch-num">+200<span class="ch-unit">%</span></div>
-        <div class="ch-label">크리에이터 팔로우 성장</div>
-      </div>
+    <div class="hero-contact">
+      <div class="item"><span class="label">Email</span><span class="value"><a href="mailto:dlrjsan9090@gmail.com">dlrjsan9090@gmail.com</a></span></div>
+      <div class="item"><span class="label">Phone</span><span class="value">010 · 3900 · 2917</span></div>
+      <div class="item"><span class="label">Role</span><span class="value">Product Owner / Product Manager</span></div>
     </div>
   </div>
+</header>
 
-  <footer class="cover-bottom">
-    <div class="cover-contact">
-      <span class="mono">dlrjsan9090@gmail.com</span>
-      <span class="cover-sep">·</span>
-      <span class="mono">010 3900 2917</span>
-    </div>
-    <div class="cover-arrow">→</div>
-  </footer>
+<!-- ===== AT A GLANCE ===== -->
+<section class="glance">
+  <div class="glance-inner">
+    <div class="glance-cell"><div class="glance-num count" data-to="500" data-suffix="만">0</div><div class="glance-lbl">MAU 트래픽 운영</div></div>
+    <div class="glance-cell"><div class="glance-num">월 1<span class="u">억+</span></div><div class="glance-lbl">광고 BM 매출</div></div>
+    <div class="glance-cell"><div class="glance-num">월 3<span class="u">억</span></div><div class="glance-lbl">커머스 매출 (언니딜)</div></div>
+    <div class="glance-cell"><div class="glance-num">월 4천<span class="u">만</span></div><div class="glance-lbl">도네이션 BM 신설</div></div>
+    <div class="glance-cell"><div class="glance-num count" data-to="15" data-prefix="+" data-suffix="%">0</div><div class="glance-lbl">CVR 개선 (포토리뷰)</div></div>
+    <div class="glance-cell"><div class="glance-num" style="font-size:20px;padding-top:5px">🏆 최우수상</div><div class="glance-lbl">구글플레이 2021</div></div>
+  </div>
 </section>
 
+<main class="wrap">
 
-<!-- ============================== -->
-<!-- PAGE 2 : ABOUT ME              -->
-<!-- ============================== -->
-<section class="page page-about">
-  <div class="page-header">
-    <div class="ph-num mono">01</div>
-    <div class="ph-title">About Me</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">WHO I AM</div>
-  </div>
+  <!-- ===== ABOUT ===== -->
+  <section class="section" id="about">
+    <div class="eyebrow reveal">About Me</div>
+    <h2 class="section-title reveal">제가 일하는 방식</h2>
 
-  <div class="about-hero">
-    <div class="about-photo">
-      <img src="profile.png" alt="이건무 프로필 사진" class="about-photo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-      <div class="photo-placeholder" style="display:none;">
-        <span class="ph-icon">◉</span>
-        <span class="ph-cap">프로필 사진 영역</span>
+    <div class="about-hero reveal">
+      <div class="about-photo">
+        <img src="profile.png" alt="이건무 프로필" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+        <div class="ph" style="display:none"><span style="font-size:26px;color:#c8c8cd">◉</span><span>프로필 사진</span></div>
       </div>
-    </div>
-    <div class="about-intro">
-      <div class="role-chip">PRODUCT&nbsp;OWNER</div>
-      <h2 class="about-name">이건무</h2>
-      <p class="about-summary">
-        광고·커머스·커뮤니티·라이브·헬스케어 <strong>5개 도메인</strong>에서 <strong>8년+</strong> 동안
-        신규 서비스를 직접 설계해온 Product Owner입니다. UX부터 정산·결제·Admin까지
-        제품의 <strong>End-to-End</strong>를 설계하며, <strong>"만든 것이 어떻게 돈이 되고,
-        그 돈이 어떻게 다음 제품을 사는가"</strong>를 끝까지 추적합니다.
-      </p>
-
-      <ul class="about-bullets">
-        <li><span class="bd">End-to-End 오너십</span> — 화면부터 정산 Admin까지 단독 설계 (월 4천만 도네이션 BM)</li>
-        <li><span class="bd">500만 MAU</span> 트래픽의 광고 효율 최적화 & 수익화 (월 1억+)</li>
-        <li><span class="bd">데이터 기반 의사결정</span> — 포토 리뷰 가중치 한 줄로 CVR +15%</li>
-        <li><span class="bd">다부처 협업 리딩</span> — 개발·디자인·사업·운영 정렬해 출시까지</li>
-        <li><span class="bd">B2B2C 확장</span> — 트로스트 EAP · 팀워크 SaaS 등 기업 채널 신설</li>
-        <li><span class="bd">AI 활용</span> — Claude·Gemini·Cursor로 PRD·프로토타입 시간 단위 단축</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="how-i-work">
-    <div class="hiw-head">
-      <div class="hiw-eye mono">HOW I WORK</div>
-      <h3 class="hiw-title">제가 일하는 방식 3가지</h3>
-    </div>
-    <div class="hiw-grid">
-      <div class="hiw-card">
-        <div class="hiw-num mono">01</div>
-        <div class="hiw-h">데이터로 시작해 가설로 끝낸다</div>
-        <p class="hiw-p">
-          MAU, CVR, ARPU, Retention 등 지표를 먼저 본 뒤 문제를 정의합니다.
-          감으로 만들지 않고, 지표가 움직일 수 있는 가설을 세워 검증합니다.
+      <div>
+        <div class="role-chip">PRODUCT OWNER</div>
+        <h3 class="about-name">이건무</h3>
+        <p class="about-summary">
+          광고·커머스·커뮤니티·라이브·헬스케어 <strong>5개 도메인</strong>에서 <strong>8년+</strong> 동안
+          신규 서비스를 직접 설계해온 Product Owner입니다. UX부터 정산·결제·Admin까지 제품의
+          <strong>End-to-End</strong>를 설계하며, <strong>"만든 것이 어떻게 돈이 되고, 그 돈이 어떻게 다음 제품을 사는가"</strong>를 끝까지 추적합니다.
         </p>
-      </div>
-      <div class="hiw-card">
-        <div class="hiw-num mono">02</div>
-        <div class="hiw-h">UX와 백오피스를 한 번에 본다</div>
-        <p class="hiw-p">
-          유저가 보는 화면뿐 아니라 운영자가 쓰는 Admin, 정산·결제·환불 흐름까지
-          한 번에 설계합니다. 비즈니스가 굴러가야 진짜 제품입니다.
-        </p>
-      </div>
-      <div class="hiw-card">
-        <div class="hiw-num mono">03</div>
-        <div class="hiw-h">매출까지 책임지는 PO가 된다</div>
-        <p class="hiw-p">
-          기획에서 끝나지 않고 광고 효율, 커머스 GMV, 정산 안정성까지
-          끝까지 책임지는 PO를 지향합니다. 숫자가 곧 결과입니다.
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <div class="about-keywords">
-    <div class="ak-block">
-      <div class="ak-eye mono">KEY STRENGTHS</div>
-      <div class="ak-chips">
-        <span class="ak-chip">End-to-End 오너십</span>
-        <span class="ak-chip">데이터 기반 의사결정</span>
-        <span class="ak-chip">다부처 협업 리딩</span>
-        <span class="ak-chip">광고 BM 설계</span>
-        <span class="ak-chip">Admin · 정산 · 결제</span>
-        <span class="ak-chip">B2B2C 확장</span>
-        <span class="ak-chip">PRD AI 자동화</span>
-        <span class="ak-chip">AI 제품 UX</span>
-      </div>
-    </div>
-    <div class="ak-block">
-      <div class="ak-eye mono">DOMAINS</div>
-      <div class="ak-chips">
-        <span class="ak-chip ak-dark">광고 · 수익화</span>
-        <span class="ak-chip ak-dark">커뮤니티 · UGC</span>
-        <span class="ak-chip ak-dark">라이브 커머스</span>
-        <span class="ak-chip ak-dark">뷰티 커머스</span>
-        <span class="ak-chip ak-dark">헬스케어 · 운동</span>
-        <span class="ak-chip ak-dark">B2B SaaS · EAP</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">LEE KUNMOO — PORTFOLIO 2026</span>
-    <span class="mono pf-num">02</span>
-  </div>
-</section>
-
-
-<!-- ============================== -->
-<!-- PAGE 3 : CAREER JOURNEY        -->
-<!-- ============================== -->
-<section class="page page-career">
-  <div class="page-header">
-    <div class="ph-num mono">02</div>
-    <div class="ph-title">Career Journey</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">2018 → NOW</div>
-  </div>
-
-  <p class="career-lead">
-    헬스케어 운영에서 시작해 데이터 기반 프로덕트 매니징으로, 그리고 라이브 커머스
-    수익화 모델 설계까지. <strong>운영 → 기획 → 비즈니스</strong>로 영역을 확장해왔습니다.
-  </p>
-
-  <div class="timeline">
-    <div class="tl-track"></div>
-
-    <div class="tl-item tl-current">
-      <div class="tl-dot"></div>
-      <div class="tl-period mono">2025.03 — 재직중</div>
-      <div class="tl-card" style="--brand:#FF2D55;">
-        <div class="tl-company-row">
-          <div class="tl-logo" style="background:#FF2D55;">G</div>
-          <div>
-            <div class="tl-company">그립컴퍼니 (Grip)</div>
-            <div class="tl-role">Product Owner · 라이브 커머스</div>
-          </div>
-          <div class="tl-badge mono">NOW</div>
-        </div>
-        <ul class="tl-bullets">
-          <li>라이브 커머스 광고 플랫폼 & 수익화 모델 기획 (Offerwall · 리워드 · 지면 광고)</li>
-          <li>도네이션 BM 신규 출시 → DAU 3만 기준 월 4천만원 매출 달성</li>
-          <li>비즈니스 센터 정산·결제·환불 Admin <strong>A to Z 설계</strong></li>
+        <ul class="about-bullets">
+          <li><b>End-to-End 오너십</b> — 화면부터 정산 Admin까지 단독 설계 (월 4천만 도네이션 BM)</li>
+          <li><b>500만 MAU</b> 트래픽의 광고 효율 최적화 & 수익화 (월 1억+)</li>
+          <li><b>데이터 기반 의사결정</b> — 포토 리뷰 가중치 한 줄로 CVR +15%</li>
+          <li><b>다부처 협업 리딩</b> — 개발·디자인·사업·운영 정렬해 출시까지</li>
+          <li><b>B2B2C 확장</b> — 트로스트 EAP · 팀워크 SaaS 등 기업 채널 신설</li>
+          <li><b>AI 활용</b> — Claude·Gemini·Cursor로 PRD·프로토타입 시간 단위 단축</li>
         </ul>
       </div>
     </div>
 
-    <div class="tl-item">
-      <div class="tl-dot"></div>
-      <div class="tl-period mono">2021.10 — 2025.03 · 3y 6m</div>
-      <div class="tl-card" style="--brand:#FFCC00;">
-        <div class="tl-company-row">
-          <div class="tl-logo" style="background:#FFCC00;color:#111;">캐</div>
+    <div class="hiw reveal">
+      <div class="eyebrow" style="margin-bottom:0">How I Work</div>
+      <div class="hiw-grid">
+        <div class="hiw-card">
+          <div class="hiw-num">01</div>
+          <div class="hiw-h">데이터로 시작해 가설로 끝낸다</div>
+          <p class="hiw-p">MAU·CVR·ARPU·Retention 지표를 먼저 본 뒤 문제를 정의합니다. 감으로 만들지 않고, 지표가 움직일 가설을 세워 검증합니다.</p>
+        </div>
+        <div class="hiw-card">
+          <div class="hiw-num">02</div>
+          <div class="hiw-h">UX와 백오피스를 한 번에 본다</div>
+          <p class="hiw-p">유저 화면뿐 아니라 운영자 Admin, 정산·결제·환불 흐름까지 한 번에 설계합니다. 비즈니스가 굴러가야 진짜 제품입니다.</p>
+        </div>
+        <div class="hiw-card">
+          <div class="hiw-num">03</div>
+          <div class="hiw-h">매출까지 책임지는 PO가 된다</div>
+          <p class="hiw-p">기획에서 끝나지 않고 광고 효율·커머스 GMV·정산 안정성까지 끝까지 책임집니다. 숫자가 곧 결과입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-tags reveal">
+      <div>
+        <div class="tag-eye">KEY STRENGTHS</div>
+        <div class="chip-row">
+          <span class="chip accent">End-to-End 오너십</span>
+          <span class="chip accent">데이터 기반 의사결정</span>
+          <span class="chip accent">다부처 협업 리딩</span>
+          <span class="chip accent">광고 BM 설계</span>
+          <span class="chip accent">Admin · 정산 · 결제</span>
+          <span class="chip accent">B2B2C 확장</span>
+          <span class="chip accent">AI 제품 UX</span>
+        </div>
+      </div>
+      <div>
+        <div class="tag-eye">DOMAINS</div>
+        <div class="chip-row">
+          <span class="chip dark">광고 · 수익화</span>
+          <span class="chip dark">커뮤니티 · UGC</span>
+          <span class="chip dark">라이브 커머스</span>
+          <span class="chip dark">뷰티 커머스</span>
+          <span class="chip dark">헬스케어 · 운동</span>
+          <span class="chip dark">B2B SaaS · EAP</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CAREER ===== -->
+  <section class="section" id="career">
+    <div class="eyebrow reveal">Career</div>
+    <h2 class="section-title reveal">경력 요약 · 8년+</h2>
+    <p class="section-lead reveal">운영(Ops) → 기획(PM) → 프로덕트 오너(PO)로 단계적으로 영역을 확장하며, 매출까지 책임지는 End-to-End PO로 성장해왔습니다.</p>
+    <div class="tl">
+      <div class="tl-item reveal">
+        <div class="tl-left"><div class="period">2025.03 — NOW</div><div class="duration">진행중</div><div class="status">CURRENT</div></div>
+        <div class="tl-right">
+          <div class="co"><span class="logo-chip">G</span><div><div class="company">그립컴퍼니 (Grip)</div><div class="role">Product Owner · 라이브 커머스</div></div></div>
+          <ul class="tl-bullets">
+            <li>라이브 커머스 광고 플랫폼 & 수익화 모델 기획 (Offerwall · 리워드 · 지면 광고)</li>
+            <li>도네이션 BM 신규 출시 → DAU 3만 기준 <strong>월 4천만원 매출</strong> 달성</li>
+            <li>비즈니스 센터 정산·결제·환불 Admin <strong>A to Z 설계</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-left"><div class="period">2021.10 — 2025.03</div><div class="duration">3년 6개월</div></div>
+        <div class="tl-right">
+          <div class="co"><span class="logo-chip">캐</span><div><div class="company">넛지헬스케어 (캐시워크)</div><div class="role">Product Owner · 통합 커뮤니티 / 언니의파우치 / 트로스트 / 팀워크</div></div></div>
+          <ul class="tl-bullets">
+            <li><strong>MAU 500만+</strong> 통합 커뮤니티 · 광고 BM <strong>월 1억</strong> 매출</li>
+            <li>언니딜 출시 · <strong>월 3억</strong> 매출 · Play Store 뷰티 카테고리 1위</li>
+            <li>트로스트 C2C 매칭 + B2B EAP 매출 파이프라인 신설</li>
+            <li>팀워크 미션형 광고 플랫폼 월 1억 · 공공기관 캠페인 운영</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-left"><div class="period">2020.12 — 2021.10</div><div class="duration">11개월</div></div>
+        <div class="tl-right">
+          <div class="co"><span class="logo-chip">하</span><div><div class="company">아이픽셀 (iPIXEL)</div><div class="role">Product Manager · 하우핏 (Howfit)</div></div></div>
+          <ul class="tl-bullets">
+            <li>AI 스켈레톤·모션 인식 기반 운동 콘텐츠 UIUX 기획</li>
+            <li>구글플레이 <strong>[2021 올해를 빛낸 자기계발 앱] 최우수상</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-left"><div class="period">2019.03 — 2020.12</div><div class="duration">1년 11개월</div></div>
+        <div class="tl-right">
+          <div class="co"><span class="logo-chip">다</span><div><div class="company">다노 (DANO)</div><div class="role">Operation Manager · 온라인 피트니스 케어</div></div></div>
+          <ul class="tl-bullets">
+            <li><strong>[베이직 케어] 출시 → 토탈케어 대비 가입률 +200%</strong></li>
+            <li>코로나 시점 [방문 케어] PT 채널 신설 · 수익 확장</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-left"><div class="period">2018.07 — 2019.02</div><div class="duration">8개월</div></div>
+        <div class="tl-right">
+          <div class="co"><span class="logo-chip">엔</span><div><div class="company">엔핏 (현 클래스유)</div><div class="role">Operation Manager · 모두의 트레이닝</div></div></div>
+          <ul class="tl-bullets">
+            <li>온/오프라인 신규 피트니스 서비스 기획·런칭, CRM 운영 개선, 코치 매칭 시스템 구축</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== IMPACT ===== -->
+  <section class="section" id="impact">
+    <div class="eyebrow reveal">Impact Snapshot</div>
+    <h2 class="section-title reveal">숫자로 보는 임팩트</h2>
+    <p class="section-lead reveal">8년+ 동안 만든 누적 임팩트. <strong>매출 · 트래픽 · 전환</strong> 세 축으로 정리했습니다.</p>
+
+    <div class="impact-grid">
+      <div class="ig ig-big reveal">
+        <div>
+          <div class="ig-tag">CUMULATIVE MAU</div>
+          <div class="ig-huge"><span class="count" data-to="10">0</span><span class="u">M+</span></div>
+          <div class="ig-sub">서비스별 MAU 합산 — 캐시워크 500만 + 그립 230만 + 언니의파우치 150만 + 팀워크 100만 + 트로스트 20만</div>
+        </div>
+        <div class="ig-bars">
+          <div class="ig-bar gold"><span style="width:100%"></span><em>캐시워크 500M</em></div>
+          <div class="ig-bar"><span style="width:46%"></span><em>그립 230M</em></div>
+          <div class="ig-bar"><span style="width:30%"></span><em>언니의파우치 150M</em></div>
+          <div class="ig-bar"><span style="width:20%"></span><em>팀워크 100M</em></div>
+          <div class="ig-bar"><span style="width:6%"></span><em>트로스트 20M</em></div>
+        </div>
+      </div>
+
+      <div class="ig reveal"><div class="ig-tag">AD REVENUE</div><div class="ig-num">월 1<span class="u">억+</span></div><div class="ig-sub">캐시워크 커뮤니티 광고 BM</div></div>
+      <div class="ig reveal"><div class="ig-tag">COMMERCE GMV</div><div class="ig-num">월 3<span class="u">억</span></div><div class="ig-sub">언니딜 뷰티 커머스 매출</div></div>
+      <div class="ig reveal"><div class="ig-tag">DONATION BM</div><div class="ig-num">월 4천<span class="u">만</span></div><div class="ig-sub">그립 라이브 도네이션 (DAU 3만)</div></div>
+      <div class="ig reveal"><div class="ig-tag">MISSION AD</div><div class="ig-num">월 1<span class="u">억</span></div><div class="ig-sub">팀워크 챌린지형 광고</div></div>
+
+      <div class="ig reveal"><div class="ig-tag">CVR LIFT</div><div class="ig-num count" data-to="15" data-prefix="+" data-suffix="%">0</div><div class="ig-sub">언니의파우치 포토 리뷰 가중치</div></div>
+      <div class="ig reveal"><div class="ig-tag">FOLLOWER</div><div class="ig-num count" data-to="200" data-prefix="+" data-suffix="%">0</div><div class="ig-sub">그립 도네이션 후 크리에이터 팔로우</div></div>
+      <div class="ig reveal"><div class="ig-tag">PURCHASE</div><div class="ig-num count" data-to="100" data-prefix="+" data-suffix="%">0</div><div class="ig-sub">도네이션 유저의 상품 구매 증가</div></div>
+      <div class="ig reveal"><div class="ig-tag">SUBSCRIPTION</div><div class="ig-num count" data-to="200" data-prefix="+" data-suffix="%">0</div><div class="ig-sub">다노 베이직 케어 가입률 (vs 토탈케어)</div></div>
+
+      <div class="ig ig-award reveal"><div class="ig-tag">AWARD · 2021</div><div class="ig-award-h">🏆 구글플레이</div><div class="ig-award-s">올해를 빛낸 자기계발 앱 <strong>최우수상</strong> (하우핏)</div></div>
+      <div class="ig ig-award gold reveal"><div class="ig-tag">RANKING · 2024.9</div><div class="ig-award-h">⭐ Play Store</div><div class="ig-award-s">뷰티 카테고리 <strong>1위</strong> (언니의파우치)</div></div>
+    </div>
+  </section>
+
+  <!-- ===== CASES ===== -->
+  <section class="section" id="cases">
+    <div class="eyebrow reveal">Case Studies</div>
+    <h2 class="section-title reveal">대표 케이스 9건</h2>
+    <p class="section-lead reveal">8년+ 동안 직접 설계한 9개의 대표 케이스입니다. 각 케이스는 <em>배경 → 접근 → 구조 → 화면 → 결과 → 학습</em> 구조로 정리했습니다.</p>
+
+    <div class="case-index reveal">
+      <a class="ci" href="#case-1"><div class="ci-num">CASE 01</div><div class="ci-tag">END-TO-END · OWNERSHIP</div><div class="ci-h">라이브 커머스 광고 플랫폼 & 수익화 모델</div><div class="ci-meta"><span class="logo-chip">G</span>그립 · 2025 — NOW</div><div class="ci-impact">3종 라이브 광고 · CRM 자동화 · ROAS↑</div></a>
+      <a class="ci" href="#case-2"><div class="ci-num">CASE 02</div><div class="ci-tag">NEW BM · A TO Z</div><div class="ci-h">크리에이터 팬덤을 매출로 — 도네이션 BM</div><div class="ci-meta"><span class="logo-chip">G</span>그립 · 2025</div><div class="ci-impact">월 4천만 · 팔로워+200% · 구매+100%</div></a>
+      <a class="ci" href="#case-3"><div class="ci-num">CASE 03</div><div class="ci-tag">DATA · SCALE</div><div class="ci-h">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</div><div class="ci-meta"><span class="logo-chip">캐</span>캐시워크 · 2021—25</div><div class="ci-impact">월 1억+ · MAU 500M · SaaS 확장</div></a>
+      <a class="ci" href="#case-4"><div class="ci-num">CASE 04</div><div class="ci-tag">ALGORITHM · CVR</div><div class="ci-h">뷰티 쇼핑 내재화 — 언니딜 월 3억</div><div class="ci-meta"><span class="logo-chip">언</span>언니의파우치 · 2021—25</div><div class="ci-impact">월 3억 · CVR+15% · Play 1위</div></a>
+      <a class="ci" href="#case-5"><div class="ci-num">CASE 05</div><div class="ci-tag">B2B2C · PIPELINE</div><div class="ci-h">전문가 매칭 + 기업 EAP — B2C·B2B 두 축</div><div class="ci-meta"><span class="logo-chip">트</span>트로스트 · 2021—25</div><div class="ci-impact">MAU 20M · B2B 매출 신규 라인</div></a>
+      <a class="ci" href="#case-6"><div class="ci-num">CASE 06</div><div class="ci-tag">B2B SaaS · PUBLIC</div><div class="ci-h">미션형 광고 플랫폼 — 걷기 챌린지 월 1억</div><div class="ci-meta"><span class="logo-chip">팀</span>팀워크 · 2021—25</div><div class="ci-impact">월 1억 · MAU 100M · 공공 캠페인</div></a>
+      <a class="ci" href="#case-7"><div class="ci-num">CASE 07</div><div class="ci-tag">AI · UX · AWARD</div><div class="ci-h">AI 모션 인식 운동 — 구글플레이 최우수상</div><div class="ci-meta"><span class="logo-chip">하</span>하우핏 · 2020—21</div><div class="ci-impact">구글플레이 2021 최우수상 · 라이브 BM</div></a>
+      <a class="ci" href="#case-8"><div class="ci-num">CASE 08</div><div class="ci-tag">SUBSCRIPTION · OPS</div><div class="ci-h">베이직 케어 출시 — 가입률 +200%</div><div class="ci-meta"><span class="logo-chip">다</span>다노 · 2019—20</div><div class="ci-impact">가입률+200% · 코로나 PT 채널 신설</div></a>
+      <a class="ci" href="#case-9"><div class="ci-num">CASE 09</div><div class="ci-tag">LAUNCH · CRM</div><div class="ci-h">모두의 트레이닝 — 신규 피트니스 런칭</div><div class="ci-meta"><span class="logo-chip">엔</span>엔핏 · 2018—19</div><div class="ci-impact">온·오프라인 런칭 · 코치 매칭 시스템</div></a>
+    </div>
+
+    <div class="cases">
+
+      <!-- CASE 01 -->
+      <article class="case reveal" id="case-1">
+        <header class="case-head">
           <div>
-            <div class="tl-company">넛지헬스케어 (캐시워크)</div>
-            <div class="tl-role">Product Owner · 통합 커뮤니티 / 언니의파우치 / 트로스트 / 팀워크</div>
+            <div class="case-num">CASE 01 / END-TO-END OWNERSHIP</div>
+            <h3 class="case-title">라이브 커머스 특화 광고 플랫폼 & 수익화 모델</h3>
+            <div class="case-meta"><span class="logo-chip">G</span>그립컴퍼니<span class="pipe">·</span>2025.03 — 진행중<span class="pipe">·</span>Product Owner — Lead</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">PLATFORM</span><span class="case-tag">AD-TECH</span><span class="case-tag gold">CRM</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경 · 왜 풀어야 했나</div><p class="cs-text">라이브 커머스는 시청·결제·반응이 한 화면에서 동시에 일어나는 특수한 환경입니다. 기존 e-commerce용 광고 상품은 라이브 컨텍스트에 맞지 않았고, CRM 메시지도 <strong>"언제 보내야 살까"에 대한 답</strong>이 없었습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근 · 어떻게 풀었나</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">라이브 컨텍스트 광고 상품 3종 설계</span><span class="d">Offerwall · 리워드 광고 · 지면 광고 — 시청 흐름을 끊지 않는 위치·타이밍 정의</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">광고 Admin 분리 구축</span><span class="d">지면별 설정·노출 정책·효율 모니터링을 광고주·내부 운영자용으로 이원화</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">스마트 메시징 시스템</span><span class="d">유저 행동 시그널(시청·찜·이탈)을 트리거로 한 자동 타겟팅 + 메시지 발송 인프라</span></div>
           </div>
         </div>
-        <ul class="tl-bullets">
-          <li>MAU 500만+ 통합 커뮤니티 · 광고 BM 월 1억 매출</li>
-          <li>언니딜 출시 · 월 3억 매출 · Play Store 뷰티 카테고리 1위</li>
-          <li>트로스트 C2C 매칭 + B2B EAP 매출 파이프라인 신설</li>
-          <li>팀워크 미션형 광고 플랫폼 월 1억 · 공공기관 캠페인 운영</li>
-        </ul>
-      </div>
-    </div>
+        <div class="cs"><div class="cs-label">구조 · Flow</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">유저</div><div class="fd">라이브 시청</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">광고 노출</div><div class="fd">Offerwall · 리워드 · 지면</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">유저 액션</div><div class="fd">시청 · 찜 · 이탈</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">스마트 메시징</div><div class="fd">자동 타겟 발송</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">ROAS ↑</div><div class="fd">광고주 효율</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/grip-ad-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">광고 Admin — 지면별 노출 효율</span><span class="f">grip-ad-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>광고 Admin 효율 대시보드</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-ad-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">라이브 화면 내 리워드 광고</span><span class="f">grip-ad-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>라이브 내 리워드 광고</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-ad-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">스마트 메시징 타겟 설정</span><span class="f">grip-ad-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>스마트 메시징 타겟 설정</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과 · Impact</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">3종</div><div class="lbl">라이브 특화 광고 상품 런칭</div></div>
+            <div class="impact-cell"><div class="num sm">자동화</div><div class="lbl">CRM 메시지 타겟팅 인프라 구축</div></div>
+            <div class="impact-cell"><div class="num sm">통합</div><div class="lbl">광고 효율·정산 Admin 일원화</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습 · Lesson</div><p class="cs-text">라이브 커머스에서는 <strong>"광고 = 흐름 방해"</strong>가 되는 순간 매출이 빠집니다. "효율 좋은 광고"보다 <strong>"시청 흐름을 살리는 광고"</strong>를 먼저 정의했고, 그게 광고주 ROAS와 유저 체류 모두를 끌어올린 핵심이었습니다.</p></div>
+      </article>
 
-    <div class="tl-item">
-      <div class="tl-dot"></div>
-      <div class="tl-period mono">2020.12 — 2021.10 · 11m</div>
-      <div class="tl-card" style="--brand:#7B61FF;">
-        <div class="tl-company-row">
-          <div class="tl-logo" style="background:#7B61FF;">아</div>
+      <!-- CASE 02 -->
+      <article class="case reveal" id="case-2">
+        <header class="case-head">
           <div>
-            <div class="tl-company">아이픽셀 (iPIXEL)</div>
-            <div class="tl-role">Product Manager · 하우핏 (Howfit)</div>
+            <div class="case-num">CASE 02 / NEW BM · A TO Z</div>
+            <h3 class="case-title">크리에이터 팬덤을 매출로 — 도네이션 BM</h3>
+            <div class="case-meta"><span class="logo-chip">G</span>그립컴퍼니<span class="pipe">·</span>2025<span class="pipe">·</span>Product Owner — End-to-End</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">NEW BM</span><span class="case-tag">OWNERSHIP</span><span class="case-tag gold">월 4천만</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">라이브 커머스의 GMV는 결국 <strong>"이 크리에이터가 좋아서 산다"</strong>는 팬덤이 기반입니다. 그러나 시청 → 구매로 가는 길 외에 <strong>크리에이터를 직접 지원할 수단</strong>이 없어, 팬심이 매출로 전환되지 못하고 있었습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">시청 흐름에 녹는 도네이션 UX</span><span class="d">별개 액션이 아닌, 채팅·하트와 연결된 한 가지 인터랙션으로 통합</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">비즈니스 센터 Admin 신규 구축</span><span class="d">크리에이터별 집계 · 세금 처리 · 환불 정책까지 운영 가능한 형태로 설계 (A to Z)</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">팬덤 강화 루프 설계</span><span class="d">도네이션 → 크리에이터 노출·리워드 → 팔로워 증가 → 다음 라이브 시청률 상승</span></div>
           </div>
         </div>
-        <ul class="tl-bullets">
-          <li>AI 스켈레톤·모션 인식 기반 운동 콘텐츠 UIUX 기획</li>
-          <li>구글플레이 [2021 올해를 빛낸 자기계발 앱] 최우수상</li>
-        </ul>
-      </div>
-    </div>
+        <div class="cs"><div class="cs-label">구조 · Fan Loop</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">시청 흐름</div><div class="fd">라이브 채팅</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">도네이션</div><div class="fd">채팅 옆 1탭</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">크리에이터</div><div class="fd">노출 · 리워드</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">팔로워 +200%</div><div class="fd">구매 +100%</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">월 4천만</div><div class="fd">신규 BM</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-donation-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">라이브 내 도네이션 진입</span><span class="f">grip-donation-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>라이브 내 도네이션 진입</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/grip-donation-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">도네이션 금액 선택</span><span class="f">grip-donation-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>도네이션 금액 선택</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/grip-donation-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">비즈니스 센터 정산</span><span class="f">grip-donation-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>비즈니스 센터 정산 Admin</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">월 4천만</div><div class="lbl">신규 도네이션 BM 매출 (DAU 3만)</div></div>
+            <div class="impact-cell"><div class="num">+200%</div><div class="lbl">크리에이터 평균 팔로우 증가</div></div>
+            <div class="impact-cell"><div class="num">+100%</div><div class="lbl">도네이션 유저 상품 구매 증가</div></div>
+            <div class="impact-cell"><div class="num sm">A → Z</div><div class="lbl">정산·결제·환불 Admin 단독 설계</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>새 BM은 새 화면이 아니라, 기존 유저 행동 위에 얹어야 한다.</strong> 도네이션을 별도 메뉴가 아닌 채팅 옆 1탭으로 붙인 게 핵심이었고, Admin 정산 흐름을 처음부터 같이 만든 게 매출 BM이 끊김 없이 굴러간 이유였습니다.</p></div>
+      </article>
 
-    <div class="tl-item">
-      <div class="tl-dot"></div>
-      <div class="tl-period mono">2019.03 — 2020.12 · 1y 11m</div>
-      <div class="tl-card" style="--brand:#F5859B;">
-        <div class="tl-company-row">
-          <div class="tl-logo" style="background:#F5859B;">다</div>
+      <!-- CASE 03 -->
+      <article class="case reveal" id="case-3">
+        <header class="case-head">
           <div>
-            <div class="tl-company">다노 (DANO)</div>
-            <div class="tl-role">Operation Manager · 온라인 피트니스 케어</div>
+            <div class="case-num">CASE 03 / DATA-DRIVEN AT SCALE</div>
+            <h3 class="case-title">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</h3>
+            <div class="case-meta"><span class="logo-chip">캐</span>넛지헬스케어 · 캐시워크<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">DATA</span><span class="case-tag">SCALE</span><span class="case-tag gold">월 1억+</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">만보기 앱은 "걷기 → 리워드" 한 축이라 체류 시간이 짧았습니다. 트래픽은 거대했지만 <strong>수익화 모델은 단조</strong>로웠고, 광고 효율을 끌어올릴 자체 Admin도 부재한 상태였습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">통합 커뮤니티 구축</span><span class="d">걷기 외 "이야기할 거리"를 묶어 체류 시간 확보, SEO 자연 유입 흡수</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">광고 수익화 다각화</span><span class="d">SSP · DSP · Offerwall · CRM 광고를 4가지 광고 모델로 디벨롭</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">자체 광고 Admin</span><span class="d">지면·소재·타겟·효율을 한 화면에서 보는 광고지표 모니터링 Admin</span></div>
+            <div class="action"><span class="n">A4</span><span class="t">SaaS형 BM 확장</span><span class="d">구축한 광고 인프라를 외부 파트너에게 SaaS로 제공하는 신규 수익 라인</span></div>
           </div>
         </div>
-        <ul class="tl-bullets">
-          <li>[베이직 케어] 출시 → 토탈케어 대비 가입률 200% 달성</li>
-          <li>코로나 시점 [방문 케어] PT 채널 신설 · 수익 확장</li>
-        </ul>
-      </div>
-    </div>
+        <div class="cs"><div class="cs-label">구조 · Traffic → Ad BM → SaaS</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">500만 MAU</div><div class="fd">대규모 트래픽</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">통합 커뮤니티</div><div class="fd">체류 + SEO</div></div><div class="flow-arrow">→</div>
+            <div class="flow-branch"><div class="bi">· SSP</div><div class="bi">· DSP</div><div class="bi">· Offerwall</div><div class="bi">· CRM</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">자체 Admin</div><div class="fd">효율 모니터링</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">월 1억+</div><div class="fd">+ SaaS화 확장</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/cashwalk-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">통합 커뮤니티 홈</span><span class="f">cashwalk-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>통합 커뮤니티 홈</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/cashwalk-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">광고 Admin 효율 대시보드</span><span class="f">cashwalk-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>광고 Admin 효율 대시보드</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/cashwalk-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">Offerwall / 리워드 광고</span><span class="f">cashwalk-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>Offerwall / 리워드 광고</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">MAU 500만</div><div class="lbl">대규모 트래픽 안정 운영</div></div>
+            <div class="impact-cell"><div class="num">월 1억+</div><div class="lbl">광고 BM 매출</div></div>
+            <div class="impact-cell"><div class="num sm">4가지 모델</div><div class="lbl">SSP · DSP · Offerwall · CRM</div></div>
+            <div class="impact-cell"><div class="num sm">SaaS 확장</div><div class="lbl">광고 인프라 → 외부 BM</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text">대규모 트래픽은 <strong>"광고를 더 많이 붙이는 것"</strong>이 아니라 <strong>"광고 효율을 측정·실험할 도구"</strong>로 풀어야 매출이 나옵니다. 자체 Admin이 SaaS BM의 씨앗이 되었다는 게 가장 큰 학습이었습니다.</p></div>
+      </article>
 
-    <div class="tl-item">
-      <div class="tl-dot"></div>
-      <div class="tl-period mono">2018.07 — 2019.02 · 8m</div>
-      <div class="tl-card" style="--brand:#00C9A7;">
-        <div class="tl-company-row">
-          <div class="tl-logo" style="background:#00C9A7;">엔</div>
+      <!-- CASE 04 -->
+      <article class="case reveal" id="case-4">
+        <header class="case-head">
           <div>
-            <div class="tl-company">엔핏 (현 클래스유)</div>
-            <div class="tl-role">Operation Manager · 모두의 트레이닝</div>
+            <div class="case-num">CASE 04 / ALGORITHM · CVR</div>
+            <h3 class="case-title">뷰티 쇼핑 내재화 — 언니딜로 월 3억 매출</h3>
+            <div class="case-meta"><span class="logo-chip">언</span>넛지헬스케어 · 언니의파우치<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">CVR</span><span class="case-tag">COMMERCE</span><span class="case-tag gold">#1 RANKED</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">언니의파우치는 뷰티 <strong>커뮤니티·리뷰</strong>에 강했지만, 구매는 외부로 이탈하고 있었습니다. 리뷰 양은 많아도 <strong>신뢰도 있는 포토 리뷰가 부족</strong>해 구매 전환에 한계가 있었습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">[언니딜] 출시</span><span class="d">뷰티 쇼핑을 앱 내부에 내재화한 커머스 채널 신설 — 리뷰가 구매로 자연 연결</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">[언파캐시] 리워드 광고</span><span class="d">혜택·리워드 광고 서비스로 간접 광고 매출 증가 + 잔존율 견인</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">포토 리뷰 가중치 로직</span><span class="d">리뷰 정책 + 리스팅 가중치 조정으로 양질의 포토 리뷰 확보 → CVR +15%</span></div>
           </div>
         </div>
-        <ul class="tl-bullets">
-          <li>온/오프라인 피트니스 서비스 기획·런칭, CRM 운영 개선</li>
-        </ul>
+        <div class="cs"><div class="cs-label">구조 · Review → Commerce</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">뷰티 리뷰</div><div class="fd">UGC + 커뮤니티</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">포토 리뷰 가중치</div><div class="fd">정책 + 리스팅 로직</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">신뢰 리뷰 ↑</div><div class="fd">양질 포토 리뷰</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">[언니딜]</div><div class="fd">앱 내 커머스</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">월 3억 · #1</div><div class="fd">CVR+15% / 1위</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/unnie-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">언니딜 메인</span><span class="f">unnie-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>언니딜 메인</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/unnie-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">포토 리뷰 가중치 적용</span><span class="f">unnie-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>포토 리뷰 가중치 적용</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/unnie-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">언파캐시 리워드</span><span class="f">unnie-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>언파캐시 리워드</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">월 3억</div><div class="lbl">[언니딜] 커머스 매출</div></div>
+            <div class="impact-cell"><div class="num">+15%</div><div class="lbl">CVR (포토 리뷰 가중치 도입 후)</div></div>
+            <div class="impact-cell"><div class="num sm">MAU 150만</div><div class="lbl">뷰티 카테고리 안정 트래픽</div></div>
+            <div class="impact-cell"><div class="num">#1</div><div class="lbl">Play Store 뷰티 (24.9월)</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>"리뷰의 양"보다 "리뷰의 신뢰도"가 CVR을 움직입니다.</strong> 포토 리뷰 가중치 도입은 단순한 정책 조정이 아니라 <strong>구매 전환 알고리즘 그 자체</strong>였고, 1위 카테고리 진입의 결정적 한 수였습니다.</p></div>
+      </article>
+
+      <!-- CASE 05 -->
+      <article class="case reveal" id="case-5">
+        <header class="case-head">
+          <div>
+            <div class="case-num">CASE 05 / B2B2C EXPANSION</div>
+            <h3 class="case-title">전문가 매칭 + 기업 EAP — B2C·B2B 두 축의 매출 파이프라인</h3>
+            <div class="case-meta"><span class="logo-chip">트</span>넛지헬스케어 · 트로스트(마인드키)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">B2B2C</span><span class="case-tag">PIPELINE</span><span class="case-tag gold">NEW REVENUE</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">멘탈 케어 서비스는 매출 단가가 높지만 <strong>매칭이 어려운 신뢰 비즈니스</strong>입니다. 개인 구매(B2C)만으로는 한계가 있었고, <strong>기업 단위 수요</strong>는 잡지 못하고 있었습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">C2C 전문가 매칭 플랫폼 런칭</span><span class="d">상담 전문가 ↔ 유저 쌍방 연결, 매칭 신뢰도를 높이는 프로필·리뷰 구조</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">B2B EAP 모델 신설</span><span class="d">기업 임직원 지원 프로그램(EAP) — 단가·계약 단위가 큰 매출 파이프라인 추가</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">결제/정산 Admin</span><span class="d">전문가별 정산 주기·세금·환불·세션 기록까지 운영 가능한 Admin 구축</span></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">구조 · B2C × B2B 이중 파이프라인</div>
+          <div class="flow" style="flex-direction:column;align-items:stretch;gap:8px">
+            <div class="flow-lane"><span class="lane-label">B2C</span>
+              <div class="flow-step" style="min-width:64px"><div class="fh">유저</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step accent" style="min-width:64px"><div class="fh">매칭</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step" style="min-width:64px"><div class="fh">전문가</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step gold" style="min-width:72px"><div class="fh">B2C 결제</div></div>
+            </div>
+            <div class="flow-lane b2b"><span class="lane-label">B2B</span>
+              <div class="flow-step" style="min-width:64px"><div class="fh">기업</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step accent" style="min-width:64px"><div class="fh">EAP 계약</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step" style="min-width:64px"><div class="fh">임직원</div></div><div class="flow-arrow">→</div>
+              <div class="flow-step gold" style="min-width:72px"><div class="fh">B2B 매출</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/trost-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">전문가 매칭 결과</span><span class="f">trost-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>전문가 매칭 결과</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/trost-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">EAP 기업 대시보드</span><span class="f">trost-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>EAP 기업 대시보드</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/trost-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">전문가 정산 Admin</span><span class="f">trost-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>전문가 정산 Admin</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">MAU 20만</div><div class="lbl">C2C 매칭 안정 운영</div></div>
+            <div class="impact-cell"><div class="num sm">B2B 파이프라인</div><div class="lbl">EAP 신규 매출 라인 신설</div></div>
+            <div class="impact-cell"><div class="num sm">A → Z</div><div class="lbl">전문가 매칭·정산 Admin 단독 설계</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>B2C 단가 한계는 B2B 채널로 풀린다.</strong> 같은 전문가 풀로 B2C·B2B 두 매출 라인을 굴리려면 <strong>정산 Admin이 시작점</strong>이어야 한다는 걸 배웠습니다. UX보다 백오피스가 먼저였습니다.</p></div>
+      </article>
+
+      <!-- CASE 06 -->
+      <article class="case reveal" id="case-6">
+        <header class="case-head">
+          <div>
+            <div class="case-num">CASE 06 / B2B SaaS</div>
+            <h3 class="case-title">미션형 광고 플랫폼 — 걷기 챌린지로 월 1억 + 공공 캠페인</h3>
+            <div class="case-meta"><span class="logo-chip">팀</span>넛지헬스케어 · 팀워크(Teamwalk)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">B2B SaaS</span><span class="case-tag">CAMPAIGN</span><span class="case-tag gold">PUBLIC</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">일반 디스플레이 광고는 노출만 있고 행동을 끌어내지 못합니다. 한편 광고주들은 <strong>"진짜 참여하는 광고"</strong>를 원했고, 공공기관·지자체는 대규모 캠페인 도구를 찾고 있었습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">미션형 광고 플랫폼</span><span class="d">걷기 챌린지 · 스탬프 챌린지를 "미션 완료 시 보상"인 광고 상품으로 설계</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">B2B SaaS Admin</span><span class="d">광고주(기업·지자체)가 직접 캠페인을 만들고 효과를 보는 SaaS형 관리자 시스템</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">기업형 멤버십 구독</span><span class="d">1회성 캠페인 → 임직원 참여형 멤버십 구독 BM</span></div>
+            <div class="action"><span class="n">A4</span><span class="t">공공기관 · 지자체 캠페인</span><span class="d">레퍼런스가 곧 다음 영업 — 대규모 캠페인 직접 운영하며 사례 축적</span></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">구조 · Mission Ad & B2B SaaS</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">광고주</div><div class="fd">기업 · 지자체</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">B2B SaaS Admin</div><div class="fd">자체 캠페인 운영</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">미션 캠페인</div><div class="fd">걷기 · 스탬프</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">유저 참여</div><div class="fd">행동 단위 보상</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">월 1억</div><div class="fd">광고주·유저 정렬</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/teamwalk-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">걷기 챌린지 진행</span><span class="f">teamwalk-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>걷기 챌린지 진행</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/teamwalk-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">스탬프 미션</span><span class="f">teamwalk-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>스탬프 미션</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/teamwalk-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">기업용 SaaS 대시보드</span><span class="f">teamwalk-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>기업용 SaaS 대시보드</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">월 1억</div><div class="lbl">미션형 광고 BM 매출</div></div>
+            <div class="impact-cell"><div class="num">MAU 100만</div><div class="lbl">걷기·챌린지 활성 유저</div></div>
+            <div class="impact-cell"><div class="num sm">SaaS Admin</div><div class="lbl">B2B 자체 운영 시스템</div></div>
+            <div class="impact-cell"><div class="num sm">공공 캠페인</div><div class="lbl">지자체 대규모 레퍼런스</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>광고는 노출이 아니라 행동을 사는 일</strong>입니다. "미션 완료" 단위로 광고를 팔자, 광고주 만족과 유저 참여가 같은 방향으로 정렬됐습니다. 공공 캠페인 레퍼런스가 다음 B2B 매출의 마중물이 되는 구조도 검증할 수 있었습니다.</p></div>
+      </article>
+
+      <!-- CASE 07 -->
+      <article class="case reveal" id="case-7">
+        <header class="case-head">
+          <div>
+            <div class="case-num">CASE 07 / AI · UX</div>
+            <h3 class="case-title">AI 모션 인식 운동 콘텐츠 — 구글플레이 최우수상</h3>
+            <div class="case-meta"><span class="logo-chip">하</span>아이픽셀 · 하우핏 (Howfit)<span class="pipe">·</span>2020.12 — 2021.10<span class="pipe">·</span>Product Manager</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">AI</span><span class="case-tag">UX</span><span class="case-tag gold">AWARD</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">홈트레이닝은 콘텐츠는 많아도 <strong>"내가 잘하고 있는지"</strong> 피드백받기 어려웠습니다. AI 모션 인식 기술이 있어도, <strong>일반 유저가 거부감 없이 따라갈 수 있는 UX</strong>로 풀어야 했습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">AI 스켈레톤 기반 운동 UIUX</span><span class="d">"얼마나 정확한가"를 시각적·즉각적 피드백으로 — 카운트·각도·자세 가이드 통합</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">라이브 클래스 유료 BM</span><span class="d">녹화 콘텐츠를 넘어 라이브 클래스로 객단가·충성도를 모두 잡는 유료 채널 신설</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">기술 → 사용성 번역</span><span class="d">모션 인식 정확도·지연·각도 한계를 UX·문구로 보정 — 기술 실패가 유저 실패가 되지 않도록</span></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">구조 · 기술 → 사용성</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">유저 동작</div><div class="fd">카메라 입력</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step dark"><div class="fh">AI 스켈레톤</div><div class="fd">관절 인식</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">정확도 측정</div><div class="fd">각도 · 자세 분석</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">UX 피드백</div><div class="fd">카운트 · 가이드 · 문구</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">사용성 ↑</div><div class="fd">최우수상 · 라이브 BM</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/howfit-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">AI 모션 가이드</span><span class="f">howfit-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>AI 모션 가이드</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/howfit-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">자세 정확도 피드백</span><span class="f">howfit-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>자세 정확도 피드백</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/howfit-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">라이브 클래스 입장</span><span class="f">howfit-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>라이브 클래스 입장</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num sm">🏆 최우수상</div><div class="lbl">구글플레이 [2021 올해를 빛낸 자기계발 앱]</div></div>
+            <div class="impact-cell"><div class="num sm">AI 운동 콘텐츠</div><div class="lbl">새 카테고리 런칭</div></div>
+            <div class="impact-cell"><div class="num sm">라이브 BM</div><div class="lbl">유료 채널 신설</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>AI 제품은 "모델 정확도"가 아니라 "UX가 정확도를 어떻게 가린다"에서 갈립니다.</strong> 모션 인식이 흔들릴 때도 피드백 메시지로 보정하는 설계가 곧 제품 완성도였고, 최우수상도 그 부분에서 갈렸다고 봅니다.</p></div>
+      </article>
+
+      <!-- CASE 08 -->
+      <article class="case reveal" id="case-8">
+        <header class="case-head">
+          <div>
+            <div class="case-num">CASE 08 / SUBSCRIPTION · OPS</div>
+            <h3 class="case-title">베이직 케어 — 가입률 +200%로 신규 구독 채널 안착</h3>
+            <div class="case-meta"><span class="logo-chip">다</span>다노 (DANO)<span class="pipe">·</span>2019.03 — 2020.12<span class="pipe">·</span>Operation Manager → 신규 BM 기획</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">SUBSCRIPTION</span><span class="case-tag">OPS</span><span class="case-tag gold">+200%</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">다노의 메인 상품 <strong>[토탈케어]</strong>는 가격대가 높아 진입 장벽이 컸고, 코로나로 오프라인 PT 시장이 급격히 흔들리던 시기였습니다. <strong>"진입은 쉽고, 코로나 시점에도 굴러가는 케어 채널"</strong>이 필요했습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">[베이직 케어] 출시</span><span class="d">토탈케어의 진입 장벽을 낮춘 경량 구독 상품 신설 — 가입 흐름·가격 정책 신규 설계</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">[방문 케어] PT 채널 신설</span><span class="d">코로나로 인한 오프라인 PT 수요 변화에 대응 — 트레이너 방문형 신규 채널</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">코치 운영 Admin · 교육</span><span class="d">매칭 · 일정 · 정산 · 교육까지 운영자 입장에서 굴릴 수 있는 Admin A to Z 설계</span></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">구조 · Subscription Entry</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">유저</div><div class="fd">토탈케어 진입 장벽↑</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">베이직 케어</div><div class="fd">경량 구독 신설</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">방문 케어 PT</div><div class="fd">코로나 시점 신설</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">운영 Admin</div><div class="fd">매칭 · 정산 · 교육</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">가입률 +200%</div><div class="fd">구독 채널 안착</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">화면 · Screens</div>
+          <div class="shots cols-3">
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/dano-1.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">베이직 케어 가입</span><span class="f">dano-1.png</span></div></div><div class="shot-cap"><span class="k">01</span>베이직 케어 가입 흐름</div></div>
+            <div class="shot shot-phone"><div class="shot-frame"><img src="assets/screens/dano-2.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">📱</span><span class="t">방문 케어 PT</span><span class="f">dano-2.png</span></div></div><div class="shot-cap"><span class="k">02</span>방문 케어 PT 채널</div></div>
+            <div class="shot shot-wide"><div class="shot-frame"><img src="assets/screens/dano-3.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="shot-ph" style="display:none"><span class="ic">🖥</span><span class="t">코치 운영 Admin</span><span class="f">dano-3.png</span></div></div><div class="shot-cap"><span class="k">03</span>코치 운영 Admin</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num">+200%</div><div class="lbl">토탈케어 대비 베이직 케어 가입률</div></div>
+            <div class="impact-cell"><div class="num sm">신규 채널</div><div class="lbl">방문 PT 신설 (코로나 대응)</div></div>
+            <div class="impact-cell"><div class="num sm">A → Z</div><div class="lbl">코치 운영 Admin · 교육 프로세스</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>구독은 "더 좋은 상품"이 아니라 "더 쉬운 진입점"에서 갈립니다.</strong> 가격·약속·운영이 가벼운 베이직 케어를 신설하니 진입 장벽이 무너졌고, 외부 충격이 올 때 <strong>운영 Admin과 코치 풀이 미리 준비된 회사가 살아남는다</strong>는 걸 배웠습니다.</p></div>
+      </article>
+
+      <!-- CASE 09 -->
+      <article class="case reveal" id="case-9">
+        <header class="case-head">
+          <div>
+            <div class="case-num">CASE 09 / LAUNCH · CRM</div>
+            <h3 class="case-title">모두의 트레이닝 — 온·오프라인 신규 피트니스 런칭</h3>
+            <div class="case-meta"><span class="logo-chip">엔</span>엔핏 (현 클래스유)<span class="pipe">·</span>2018.07 — 2019.02<span class="pipe">·</span>Operation Manager</div>
+          </div>
+          <div class="case-tags"><span class="case-tag">LAUNCH</span><span class="case-tag">CRM</span><span class="case-tag gold">MATCHING</span></div>
+        </header>
+        <div class="cs"><div class="cs-label">배경</div><p class="cs-text">피트니스 서비스의 가장 큰 운영 부담은 <strong>코치 매칭 · 일정 관리 · CRM 응대</strong>의 반복 운영 비용이었습니다. 신규 서비스 [모두의 트레이닝]을 런칭하면서 <strong>"운영자가 손으로 다 처리하는 구조"</strong>를 처음부터 자동화 가능한 구조로 가져가야 했습니다.</p></div>
+        <div class="cs"><div class="cs-label">접근</div>
+          <div class="actions">
+            <div class="action"><span class="n">A1</span><span class="t">온·오프라인 통합 런칭</span><span class="d">오프라인 PT + 온라인 콘텐츠를 한 브랜드로 묶어 진입·이용 흐름을 단일화</span></div>
+            <div class="action"><span class="n">A2</span><span class="t">코치 매칭 시스템</span><span class="d">유저의 목표·일정·지역 기반 매칭 룰을 시스템화 — 운영자 의존도 ↓</span></div>
+            <div class="action"><span class="n">A3</span><span class="t">CRM 운영 개선</span><span class="d">응대 시나리오·트리거를 정리해 반복 문의를 자동화, 회복 시간 단축</span></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">구조 · Launch & Ops Automation</div>
+          <div class="flow">
+            <div class="flow-step start"><div class="fh">유저</div><div class="fd">피트니스 목표</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step accent"><div class="fh">코치 매칭</div><div class="fd">목표·일정·지역 룰</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">온·오프라인 PT</div><div class="fd">통합 서비스 이용</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="fh">CRM 자동화</div><div class="fd">응대 시나리오 정리</div></div><div class="flow-arrow">→</div>
+            <div class="flow-step gold"><div class="fh">운영 효율 ↑</div><div class="fd">반복 비용 절감</div></div>
+          </div>
+        </div>
+        <div class="cs"><div class="cs-label">결과</div>
+          <div class="impact-row">
+            <div class="impact-cell"><div class="num sm">신규 런칭</div><div class="lbl">모두의 트레이닝 (온·오프라인 통합)</div></div>
+            <div class="impact-cell"><div class="num sm">매칭 시스템</div><div class="lbl">코치 매칭 룰 시스템화 → 운영 의존도↓</div></div>
+            <div class="impact-cell"><div class="num sm">CRM 개선</div><div class="lbl">반복 응대 자동화, 회복 시간 단축</div></div>
+          </div>
+        </div>
+        <div class="lesson"><div class="cs-label">학습</div><p class="cs-text"><strong>새 서비스의 성패는 "런칭 직후 운영자가 손으로 막는 곳"에서 갈립니다.</strong> Operation Manager로서 가장 크게 배운 건 <strong>운영자의 반복 업무가 곧 다음 시스템의 요구사항</strong>이라는 것. 이 경험이 이후 그립·캐시워크에서 <strong>Admin·정산 흐름을 처음부터 설계하는 PO 방식</strong>의 출발점이 됐습니다.</p></div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ===== SKILLS ===== -->
+  <section class="section" id="skills">
+    <div class="eyebrow reveal">Skills & Tools</div>
+    <h2 class="section-title reveal">도메인 · 스킬 · 역량</h2>
+    <div class="skills-grid">
+      <div class="sblock reveal">
+        <div class="sb-h">DOMAIN EXPERTISE</div>
+        <div class="domain-list">
+          <div class="dm"><div class="dm-top"><span class="dm-h">광고 / 수익화</span><span class="dm-note">SSP · DSP · Offerwall · CRM</span></div><div class="dm-bar"><span style="width:96%"></span></div></div>
+          <div class="dm"><div class="dm-top"><span class="dm-h">커뮤니티</span><span class="dm-note">SEO · UGC · 리뷰 가중치</span></div><div class="dm-bar"><span style="width:90%"></span></div></div>
+          <div class="dm"><div class="dm-top"><span class="dm-h">라이브 커머스</span><span class="dm-note">도네이션 BM · 라이브 광고</span></div><div class="dm-bar"><span style="width:88%"></span></div></div>
+          <div class="dm"><div class="dm-top"><span class="dm-h">커머스</span><span class="dm-note">언니딜 · CVR 최적화</span></div><div class="dm-bar"><span style="width:85%"></span></div></div>
+          <div class="dm"><div class="dm-top"><span class="dm-h">건강 / 운동</span><span class="dm-note">AI 모션 인식 · 챌린지 BM</span></div><div class="dm-bar"><span style="width:82%"></span></div></div>
+          <div class="dm"><div class="dm-top"><span class="dm-h">B2B / SaaS</span><span class="dm-note">EAP · 기업 멤버십 · SaaS Admin</span></div><div class="dm-bar"><span style="width:78%"></span></div></div>
+        </div>
+      </div>
+
+      <div class="sblock reveal">
+        <div class="sb-h">PO CAPABILITIES</div>
+        <div class="cap">
+          <div class="cap-row"><span class="cap-l">데이터 기반 가설 검증</span><span class="cap-r">★★★★★</span></div>
+          <div class="cap-row"><span class="cap-l">광고 BM / 수익화 모델 설계</span><span class="cap-r">★★★★★</span></div>
+          <div class="cap-row"><span class="cap-l">Admin / 정산 / 결제 흐름 설계</span><span class="cap-r">★★★★★</span></div>
+          <div class="cap-row"><span class="cap-l">대규모 트래픽 운영 / 안정화</span><span class="cap-r">★★★★★</span></div>
+          <div class="cap-row"><span class="cap-l">B2B SaaS / EAP 모델 기획</span><span class="cap-r">★★★★☆</span></div>
+          <div class="cap-row"><span class="cap-l">AI 제품 UX 설계</span><span class="cap-r">★★★★☆</span></div>
+          <div class="cap-row"><span class="cap-l">SEO / 그로스 실험</span><span class="cap-r">★★★★☆</span></div>
+        </div>
+      </div>
+
+      <div class="sblock reveal">
+        <div class="sb-h">TOOLS · AI WORKFLOW</div>
+        <div class="chip-row" style="margin-bottom:12px">
+          <span class="chip accent">Figma</span><span class="chip accent">Notion</span><span class="chip accent">Jira</span><span class="chip accent">Confluence</span>
+          <span class="chip">GA</span><span class="chip">Excel</span><span class="chip">PPT</span><span class="chip">English</span>
+        </div>
+        <div class="chip-row">
+          <span class="chip dark">Claude</span><span class="chip dark">Gemini</span><span class="chip dark">ChatGPT</span><span class="chip dark">Cursor</span><span class="chip">v0 · Lovable</span>
+        </div>
+        <p class="ai-note">AI 툴을 <strong>PRD 작성 · 프로토타입 제작 · 데이터 분석</strong> 전 과정에 도입. 기획 사이클을 <strong>일 단위 → 시간 단위</strong>로 단축한 경험을 보유.</p>
+      </div>
+
+      <div class="sblock reveal">
+        <div class="sb-h">EDUCATION</div>
+        <div class="edu">
+          <div class="period">2012.03 — 2013.12<br><span style="color:var(--muted-2)">졸업</span></div>
+          <div><div class="school">상명대학교</div><div class="major">금융경제학 학사</div></div>
+        </div>
       </div>
     </div>
+  </section>
 
+  <!-- ===== PHILOSOPHY ===== -->
+  <section class="section" id="philosophy">
+    <div class="eyebrow reveal">Philosophy</div>
+    <h2 class="section-title reveal">제가 신뢰하는 4가지 원칙</h2>
+    <p class="section-lead reveal">8년간 9개 서비스를 만들면서 반복적으로 검증된 원칙입니다.</p>
+    <div class="philo-grid">
+      <div class="philo reveal"><div class="pn">P · 01</div><h3>매출은 백오피스에서 갈린다</h3><p>도네이션·EAP·커머스 모두, <strong>화면이 아니라 정산 Admin이 먼저</strong> 설계되어야 BM이 굴러갑니다. 운영 비용·환불 룰·세금을 처음부터 보지 않으면 매출이 나도 남는 게 없습니다.</p></div>
+      <div class="philo reveal"><div class="pn">P · 02</div><h3>광고는 흐름 위에 얹어야 한다</h3><p>라이브의 도네이션, 커뮤니티의 SSP, 만보기의 미션 광고 — 모두 <strong>유저가 이미 하던 행동</strong>에 얹었을 때 효율이 나왔습니다. 새 화면을 새로 만들 때마다 BM은 죽습니다.</p></div>
+      <div class="philo reveal"><div class="pn">P · 03</div><h3>정책 = 알고리즘이다</h3><p>포토 리뷰 가중치 한 줄이 CVR 15%를 움직입니다. PO에게 <strong>정책 설계는 곧 알고리즘 설계</strong>이고, 한 줄의 룰이 매출을 가릅니다.</p></div>
+      <div class="philo reveal"><div class="pn">P · 04</div><h3>B2C 한계는 B2B로 푼다</h3><p>트로스트 EAP, 팀워크 SaaS, 캐시워크 SaaS화 — 같은 자산을 <strong>다른 고객(기업·지자체)</strong>에게 다시 팔 수 있을 때 매출 천장이 없어집니다. 트래픽은 자원이지, 결과가 아닙니다.</p></div>
+    </div>
+    <div class="quote reveal">
+      <span class="mk">"</span>
+      <p>좋은 PO는 "무엇을 만들까"보다 <strong>"만든 것이 어떻게 돈이 되고, 그 돈이 어떻게 다음 제품을 사는가"</strong>를 먼저 봅니다.</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== CONTACT ===== -->
+<section class="contact" id="contact">
+  <div class="contact-inner reveal">
+    <div class="eyebrow">Let's build something</div>
+    <h2>함께 <em>매출이 나오는 제품</em>을<br>만들고 싶습니다.</h2>
+    <p class="sub">라이브·커머스·광고·AI, 데이터로 검증되는 Product Owner 이건무입니다.</p>
+    <div class="contact-rows">
+      <div><div class="label">Email</div><div class="val"><a href="mailto:dlrjsan9090@gmail.com">dlrjsan9090@gmail.com</a></div></div>
+      <div><div class="label">Phone</div><div class="val">010 · 3900 · 2917</div></div>
+      <div><div class="label">Role</div><div class="val">Product Owner / PM</div></div>
+    </div>
   </div>
-
-  <div class="page-footer">
-    <span class="mono">CAREER JOURNEY</span>
-    <span class="mono pf-num">03</span>
+  <div class="foot">
+    <span>LEE KUNMOO · PORTFOLIO 2026</span>
+    <span>THANK YOU</span>
   </div>
 </section>
 
-
-<!-- ============================== -->
-<!-- PAGE 4 : IMPACT SNAPSHOT       -->
-<!-- ============================== -->
-<section class="page page-impact">
-  <div class="page-header">
-    <div class="ph-num mono">03</div>
-    <div class="ph-title">Impact Snapshot</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">BY THE NUMBERS</div>
-  </div>
-
-  <p class="impact-lead">
-    8년+ 동안 만든 누적 임팩트. <strong>매출</strong>, <strong>트래픽</strong>,
-    <strong>전환</strong> 세 축으로 정리했습니다.
-  </p>
-
-  <div class="impact-grid">
-    <div class="ig-card ig-big">
-      <div class="ig-tag mono">CUMULATIVE MAU</div>
-      <div class="ig-huge">10<span class="ig-huge-unit">M+</span></div>
-      <div class="ig-sub">서비스별 MAU 합산 (캐시워크 500만 + 그립 230만 + 언파 150만 + 팀워크 100만 + 트로스트 20만)</div>
-      <div class="ig-bars">
-        <div class="ig-bar"><span style="width:100%;background:#FFCC00;"></span><em>캐시워크 500M</em></div>
-        <div class="ig-bar"><span style="width:46%;background:#FF2D55;"></span><em>그립 230M</em></div>
-        <div class="ig-bar"><span style="width:30%;background:#FF6B9D;"></span><em>언니의파우치 150M</em></div>
-        <div class="ig-bar"><span style="width:20%;background:#00C9A7;"></span><em>팀워크 100M</em></div>
-        <div class="ig-bar"><span style="width:4%;background:#6B73FF;"></span><em>트로스트 20M</em></div>
-      </div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">AD REVENUE</div>
-      <div class="ig-num">월 1<span class="ig-u">억+</span></div>
-      <div class="ig-sub">캐시워크 커뮤니티 광고 BM</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">COMMERCE GMV</div>
-      <div class="ig-num">월 3<span class="ig-u">억</span></div>
-      <div class="ig-sub">언니딜 뷰티 커머스 매출</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">DONATION BM</div>
-      <div class="ig-num">월 4천<span class="ig-u">만</span></div>
-      <div class="ig-sub">그립 라이브 도네이션 (DAU 3만)</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">MISSION AD</div>
-      <div class="ig-num">월 1<span class="ig-u">억</span></div>
-      <div class="ig-sub">팀워크 챌린지형 광고</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">CVR LIFT</div>
-      <div class="ig-num">+15<span class="ig-u">%</span></div>
-      <div class="ig-sub">언니의파우치 포토 리뷰 가중치 도입</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">FOLLOWER</div>
-      <div class="ig-num">+200<span class="ig-u">%</span></div>
-      <div class="ig-sub">그립 도네이션 후 크리에이터 팔로우 증가</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">PURCHASE</div>
-      <div class="ig-num">+100<span class="ig-u">%</span></div>
-      <div class="ig-sub">도네이션 유저의 상품 구매 증가</div>
-    </div>
-
-    <div class="ig-card">
-      <div class="ig-tag mono">SUBSCRIPTION</div>
-      <div class="ig-num">+200<span class="ig-u">%</span></div>
-      <div class="ig-sub">다노 베이직 케어 가입률 (vs 토탈케어)</div>
-    </div>
-
-    <div class="ig-card ig-award">
-      <div class="ig-tag mono">AWARD · 2021</div>
-      <div class="ig-award-h">구글플레이</div>
-      <div class="ig-award-s">올해를 빛낸 자기계발 앱 <strong>최우수상</strong></div>
-    </div>
-
-    <div class="ig-card ig-award" style="--ac:#FFCC00;color:#111;">
-      <div class="ig-tag mono" style="color:#111;">RANKING · 2024.9</div>
-      <div class="ig-award-h" style="color:#111;">Play Store</div>
-      <div class="ig-award-s" style="color:#333;">뷰티 카테고리 <strong>1위</strong> (언니의파우치)</div>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">IMPACT SNAPSHOT</span>
-    <span class="mono pf-num">04</span>
-  </div>
-</section>
-
-
-<!-- ============================== -->
-<!-- PAGE 5 : CASE STUDIES INDEX    -->
-<!-- ============================== -->
-<section class="page page-case-index">
-  <div class="page-header">
-    <div class="ph-num mono">04</div>
-    <div class="ph-title">Case Studies</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">REPRESENTATIVE 9 CASES</div>
-  </div>
-
-  <p class="case-index-lead">
-    8년+ 동안 직접 설계한 <strong>9개의 대표 케이스</strong>입니다.
-    각 케이스는 <em>PROBLEM → APPROACH → FLOW → IMPACT → LESSON</em> 구조로 정리했습니다.
-  </p>
-
-  <div class="case-index-grid">
-
-    <div class="ci-card" style="--brand:#FF2D55;">
-      <div class="ci-num mono">CASE 01</div>
-      <div class="ci-tag mono">END-TO-END · OWNERSHIP</div>
-      <div class="ci-h">라이브 커머스 광고 플랫폼 &amp; 수익화 모델</div>
-      <div class="ci-meta">그립컴퍼니 · 2025.03 — NOW · PO Lead</div>
-      <div class="ci-impact mono">3종 라이브 광고 · CRM 자동화 · ROAS ↑</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#FF2D55;">
-      <div class="ci-num mono">CASE 02</div>
-      <div class="ci-tag mono">NEW BM · A TO Z</div>
-      <div class="ci-h">크리에이터 팬덤을 매출로 — 도네이션 BM</div>
-      <div class="ci-meta">그립컴퍼니 · 2025</div>
-      <div class="ci-impact mono">월 4천만 · 팔로워 +200% · 구매 +100%</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#FFCC00;--ink:#1a1a1a;">
-      <div class="ci-num mono">CASE 03</div>
-      <div class="ci-tag mono">DATA · SCALE</div>
-      <div class="ci-h">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</div>
-      <div class="ci-meta">캐시워크 · 2021 — 2025</div>
-      <div class="ci-impact mono">월 1억+ · MAU 500M · SaaS 확장</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#FFCC00;--ink:#1a1a1a;">
-      <div class="ci-num mono">CASE 04</div>
-      <div class="ci-tag mono">ALGORITHM · CVR</div>
-      <div class="ci-h">뷰티 쇼핑 내재화 — 언니딜 월 3억</div>
-      <div class="ci-meta">언니의파우치 · 2021 — 2025 (캐시워크)</div>
-      <div class="ci-impact mono">월 3억 · CVR +15% · Play Store 1위</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#FFCC00;--ink:#1a1a1a;">
-      <div class="ci-num mono">CASE 05</div>
-      <div class="ci-tag mono">B2B2C · PIPELINE</div>
-      <div class="ci-h">전문가 매칭 + 기업 EAP — B2C·B2B 두 축</div>
-      <div class="ci-meta">트로스트 · 2021 — 2025 (캐시워크)</div>
-      <div class="ci-impact mono">MAU 20M · B2B 매출 신규 라인</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#FFCC00;--ink:#1a1a1a;">
-      <div class="ci-num mono">CASE 06</div>
-      <div class="ci-tag mono">B2B SaaS · PUBLIC</div>
-      <div class="ci-h">미션형 광고 플랫폼 — 걷기 챌린지로 월 1억</div>
-      <div class="ci-meta">팀워크 · 2021 — 2025 (캐시워크)</div>
-      <div class="ci-impact mono">월 1억 · MAU 100M · 공공 캠페인</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#7B61FF;">
-      <div class="ci-num mono">CASE 07</div>
-      <div class="ci-tag mono">AI · UX · AWARD</div>
-      <div class="ci-h">AI 모션 인식 운동 콘텐츠 — 구글플레이 최우수상</div>
-      <div class="ci-meta">아이픽셀 · 하우핏 · 2020 — 2021</div>
-      <div class="ci-impact mono">구글플레이 2021 최우수상 · 라이브 BM</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#F5859B;">
-      <div class="ci-num mono">CASE 08</div>
-      <div class="ci-tag mono">SUBSCRIPTION · OPS</div>
-      <div class="ci-h">베이직 케어 출시 — 가입률 +200%</div>
-      <div class="ci-meta">다노 · 2019 — 2020</div>
-      <div class="ci-impact mono">가입률 +200% · 코로나 PT 채널 신설</div>
-    </div>
-
-    <div class="ci-card" style="--brand:#00C9A7;">
-      <div class="ci-num mono">CASE 09</div>
-      <div class="ci-tag mono">LAUNCH · CRM</div>
-      <div class="ci-h">모두의 트레이닝 — 신규 피트니스 런칭</div>
-      <div class="ci-meta">엔핏 (현 클래스유) · 2018 — 2019</div>
-      <div class="ci-impact mono">온·오프라인 런칭 · 코치 매칭 시스템</div>
-    </div>
-
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE STUDIES · INDEX</span>
-    <span class="mono pf-num">05</span>
-  </div>
-</section>
-
-
-<!-- ============================== -->
-<!-- PAGE 6 : CASE STUDY 1 — GRIP AD -->
-<!-- ============================== -->
-<section class="page page-case" style="--brand:#FF2D55;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 01</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FF2D55;">G</div>
-      <span>그립컴퍼니 · 2025.03 — NOW</span>
-    </div>
-    <h2 class="cc-title">라이브 커머스 특화 <br/>광고 플랫폼 & 수익화 모델</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner — Lead</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">광고 상품 설계 / Admin / CRM 인프라</span></div>
-      <div><span class="rr-label mono">PERIOD</span><span class="rr-val">2025.03 — 진행중</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        라이브 커머스는 시청·결제·반응이 한 화면에서 동시에 일어나는 특수한 환경.
-        기존 e-commerce용 광고 상품은 라이브 컨텍스트에 맞지 않고, CRM 메시지도
-        “언제 보내야 살까”에 대한 답이 없었습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">라이브 컨텍스트 광고 상품 3종 설계</div>
-          <p>Offerwall · 리워드 광고 · 지면 광고 — 시청 흐름을 끊지 않는 위치/타이밍 정의</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">광고 Admin 분리 구축</div>
-          <p>지면별 설정, 노출 정책, 효율 모니터링 화면을 광고주/내부 운영자용으로 이원화</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">스마트 메시징 시스템</div>
-          <p>유저 행동 시그널(시청·찜·이탈)을 트리거로 한 자동 타겟팅 + 메시지 발송 인프라</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · LIVE COMMERCE AD</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">유저<small>라이브 시청</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">광고 노출<small>Offerwall · 리워드 · 지면</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">유저 액션<small>시청 · 찜 · 이탈</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">스마트 메시징<small>자동 타겟 발송</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">ROAS ↑<small>광고주 효율</small></div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] 광고 Admin — 지면별 노출 효율</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-tall"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] 라이브 화면 내 리워드 광고</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block sm-fill"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 스마트 메시징 타겟 설정</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-result">
-      <div class="cr-eye mono">IMPACT</div>
-      <div class="cr-grid">
-        <div class="cr-item"><div class="cr-n">3<span>종</span></div><div class="cr-l">라이브 특화 광고 상품 런칭</div></div>
-        <div class="cr-item"><div class="cr-n">자동화</div><div class="cr-l">CRM 메시지 타겟팅 인프라 구축</div></div>
-        <div class="cr-item"><div class="cr-n">통합</div><div class="cr-l">광고 효율·정산 Admin 일원화</div></div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        라이브 커머스에서는 <strong>“광고 = 흐름 방해”</strong>가 되는 순간 매출이 빠집니다.
-        그래서 “효율 좋은 광고”보다 <strong>“시청 흐름을 살리는 광고”</strong>를 먼저 정의했고,
-        그게 광고주 ROAS와 유저 체류 모두를 끌어올린 핵심이었습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 01 · GRIP — LIVE COMMERCE AD</span>
-    <span class="mono pf-num">06</span>
-  </div>
-</section>
-
-
-<!-- ================================== -->
-<!-- PAGE 6 : CASE STUDY 2 — DONATION    -->
-<!-- ================================== -->
-<section class="page page-case" style="--brand:#FF2D55;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 02</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FF2D55;">G</div>
-      <span>그립컴퍼니 · 2025</span>
-    </div>
-    <h2 class="cc-title">크리에이터 팬덤을 매출로 — <br/>도네이션 BM</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner — End-to-End</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">기능 기획 · 정산/결제/환불 Admin · 수익 구조</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">월 4천만원 매출 (DAU 3만 기준)</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        라이브 커머스의 GMV는 결국 <strong>“이 크리에이터가 좋아서 산다”</strong>는 팬덤이
-        기반입니다. 그러나 시청 → 구매로 가는 길 외에 <strong>크리에이터를 직접 지원할
-        수단</strong>이 없어, 팬심이 매출로 전환되지 못하고 있었습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">시청 흐름에 자연스럽게 녹는 도네이션 UX</div>
-          <p>라이브 채팅과 별개의 액션이 아닌, 채팅·하트와 연결된 한 가지 인터랙션으로 통합</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">비즈니스 센터 Admin (정산·결제·환불) 신규 구축</div>
-          <p>크리에이터별 도네이션 집계 · 세금 처리 · 환불 정책까지 운영 가능한 형태로 설계</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">팬덤 강화 루프 설계</div>
-          <p>도네이션 → 크리에이터 노출/리워드 → 팔로워 증가 → 다음 라이브 시청률 상승</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · FAN LOOP</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">시청 흐름<small>라이브 채팅</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">도네이션<small>채팅 옆 1탭</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">크리에이터<small>노출 · 리워드</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">팔로워 +200%<small>구매 +100%</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">월 4천만<small>신규 BM</small></div>
-      </div>
-    </div>
-
-    <div class="result-bigboard">
-      <div class="rb-cell rb-hero">
-        <div class="rb-eye mono">MONTHLY REVENUE</div>
-        <div class="rb-huge">₩40<span>M</span></div>
-        <div class="rb-sub">DAU 3만 기준 도네이션 매출 (신규 BM)</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">FOLLOWER ↑</div>
-        <div class="rb-mid">+200%</div>
-        <div class="rb-sub">크리에이터 평균 팔로우 증가</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">PURCHASE ↑</div>
-        <div class="rb-mid">+100%</div>
-        <div class="rb-sub">도네이션 유저의 상품 구매 증가</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">OPS</div>
-        <div class="rb-mid">A→Z</div>
-        <div class="rb-sub">정산·결제·환불 Admin 단독 설계</div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] 라이브 내 도네이션 진입</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-fill"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] 도네이션 금액 선택</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FF2D55;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 비즈니스 센터 정산</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>새 BM은 새 화면이 아니라, 기존 유저 행동 위에 얹어야 한다.</strong>
-        도네이션을 별도 메뉴가 아닌 <strong>채팅 옆 1탭</strong>으로 붙인 게 핵심이었고,
-        Admin 정산 흐름을 처음부터 같이 만든 게 매출 BM이 끊김 없이 굴러간 이유였습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 02 · GRIP — DONATION BM</span>
-    <span class="mono pf-num">07</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 7 : CASE 3 — CASHWALK COMMUNITY         -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#FFCC00;--ink:#1a1a1a;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 03</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FFCC00;color:#111;">캐</div>
-      <span>넛지헬스케어 · 캐시워크 · 2021 — 2025</span>
-    </div>
-    <h2 class="cc-title">500만 MAU 통합 커뮤니티 — <br/>광고 BM 월 1억</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">서비스 기획 · 광고 BM · SEO · SaaS 확장</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">MAU 500M · 월 1억+ 매출</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        만보기 앱은 “걷기 → 리워드” 한 축이라 체류 시간이 짧았습니다. 트래픽은 거대했지만
-        <strong>수익화 모델은 단조</strong>로웠고, 광고 효율을 끌어올릴 자체 Admin도
-        부재한 상태였습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">통합 커뮤니티 구축</div>
-          <p>걷기 외에 “이야기할 거리”를 묶어 체류 시간 확보, SEO 최적화로 자연 유입까지 흡수</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">광고 수익화 모델 다각화</div>
-          <p>SSP · DSP · Offerwall · CRM 광고 등 광고 상품을 4가지 광고 모델로 디벨롭</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">자체 광고 Admin</div>
-          <p>지면·소재·타겟·효율을 한 화면에서 보는 광고지표 모니터링 Admin 구축</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A4</div>
-          <div class="ar-h">SaaS형 BM 확장</div>
-          <p>구축한 광고 인프라를 외부 파트너에게 SaaS로 제공하는 신규 수익 라인 설계</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · TRAFFIC → AD BM → SaaS</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">걷기 트래픽<small>MAU 500만</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">통합 커뮤니티<small>체류 시간 ↑ · SEO</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">광고 4종<small>SSP · DSP · Offerwall · CRM</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">자체 Admin<small>지면 · 효율 · 정산</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">월 1억+ → SaaS<small>외부 BM 확장</small></div>
-      </div>
-    </div>
-
-    <div class="result-bigboard">
-      <div class="rb-cell rb-hero" style="background:#FFCC00;color:#111;">
-        <div class="rb-eye mono" style="color:#444;">MONTHLY AD REVENUE</div>
-        <div class="rb-huge" style="color:#111;">₩100<span style="color:#111;">M</span></div>
-        <div class="rb-sub" style="color:#333;">대규모 트래픽 기반 광고 수익화 모델 런칭</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">MAU</div>
-        <div class="rb-mid">5,000,000+</div>
-        <div class="rb-sub">대규모 트래픽 안정 운영</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">AD STACK</div>
-        <div class="rb-mid">4가지 모델</div>
-        <div class="rb-sub">SSP · DSP · Offerwall · CRM 광고</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">EXPANSION</div>
-        <div class="rb-mid">SaaS 디벨롭</div>
-        <div class="rb-sub">광고 인프라 → 외부 BM</div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen sm-screen-yellow">
-          <div class="sm-caption mono">[화면 1] 통합 커뮤니티 홈</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen sm-screen-yellow">
-          <div class="sm-caption mono">[화면 2] 광고 Admin 효율 대시보드</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen sm-screen-yellow">
-          <div class="sm-caption mono">[화면 3] Offerwall / 리워드 광고</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        대규모 트래픽은 <strong>“광고를 더 많이 붙이는 것”</strong>이 아니라
-        <strong>“광고 효율을 측정·실험할 도구”</strong>로 풀어야 매출이 나옵니다.
-        자체 Admin이 SaaS BM의 씨앗이 되었다는 게 가장 큰 학습이었습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 03 · CASHWALK COMMUNITY</span>
-    <span class="mono pf-num">08</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 8 : CASE 4 — UNNI'S POUCH               -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#FFCC00;--ink:#1a1a1a;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 04</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FFCC00;color:#111;">언</div>
-      <span>넛지헬스케어 · 언니의파우치 · 2021 — 2025</span>
-    </div>
-    <h2 class="cc-title">뷰티 쇼핑 내재화 — <br/>언니딜로 월 3억 매출</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">커머스 BM · 리워드 · 리뷰 가중치 로직</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">월 3억 · Play Store 뷰티 1위</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        언니의파우치는 뷰티 <strong>커뮤니티·리뷰</strong>에 강했지만,
-        구매는 외부로 이탈하고 있었습니다. 또한 리뷰 양은 많아도 신뢰도 있는
-        포토 리뷰가 부족해 구매 전환에 한계가 있었습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">[언니딜] 출시</div>
-          <p>뷰티 쇼핑을 앱 내부에 내재화한 커머스 채널 신설 — 리뷰가 구매로 자연 연결되도록</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">[언파캐시] 리워드 광고</div>
-          <p>혜택·리워드 광고 서비스로 간접 광고 매출 증가, 유저 잔존율도 함께 견인</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">포토 리뷰 가중치 로직</div>
-          <p>리뷰 정책 + 리스팅 가중치 조정으로 <strong>양질의 포토 리뷰</strong> 확보 → CVR 15% 개선</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · REVIEW → COMMERCE</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">뷰티 커뮤니티<small>리뷰 · UGC</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">포토 리뷰 가중치<small>신뢰도 ↑</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">언니딜 내재화<small>외부 이탈 차단</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">CVR +15%<small>리워드(언파캐시)</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">월 3억 · 1위<small>뷰티 카테고리</small></div>
-      </div>
-    </div>
-
-    <div class="result-bigboard">
-      <div class="rb-cell rb-hero" style="background:#FFCC00;color:#111;">
-        <div class="rb-eye mono" style="color:#444;">MONTHLY COMMERCE</div>
-        <div class="rb-huge" style="color:#111;">₩300<span style="color:#111;">M</span></div>
-        <div class="rb-sub" style="color:#333;">[언니딜] 출시 후 월 매출</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">MAU</div>
-        <div class="rb-mid">1,500,000+</div>
-        <div class="rb-sub">뷰티 카테고리 안정 트래픽</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">CVR</div>
-        <div class="rb-mid">+15%</div>
-        <div class="rb-sub">포토 리뷰 가중치 도입 후</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">RANKING</div>
-        <div class="rb-mid">#1</div>
-        <div class="rb-sub">Play Store 뷰티 (24.9월)</div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] 언니딜 메인</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] 포토 리뷰 가중치 적용</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block sm-fill"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 언파캐시 리워드</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>“리뷰의 양”보다 “리뷰의 신뢰도”가 CVR을 움직입니다.</strong>
-        포토 리뷰 가중치 도입은 단순한 정책 조정이 아니라 <strong>구매 전환 알고리즘
-        그 자체</strong>였고, 이게 1위 카테고리 진입의 결정적 한 수였습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 04 · UNNI'S POUCH</span>
-    <span class="mono pf-num">09</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 9 : CASE 5 — TROST                      -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#FFCC00;--ink:#1a1a1a;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 05</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FFCC00;color:#111;">트</div>
-      <span>넛지헬스케어 · 트로스트(마인드키)</span>
-    </div>
-    <h2 class="cc-title">전문가 매칭 + 기업 EAP — <br/>B2C·B2B 두 축의 매출 파이프라인</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">C2C 매칭 · B2B EAP · 결제/정산 Admin</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">MAU 20만 안정 운영 + 신규 매출 라인</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        멘탈 케어 서비스는 매출 단가가 높지만 <strong>매칭이 어려운 신뢰 비즈니스</strong>입니다.
-        개인 구매(B2C)만으로는 한계가 있었고, <strong>기업 단위 수요</strong>는 잡지
-        못하고 있었습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">C2C 전문가 매칭 플랫폼 런칭</div>
-          <p>상담 전문가 ↔ 유저 쌍방 연결 흐름 설계, 매칭 신뢰도를 높이는 프로필/리뷰 구조</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">B2B EAP 모델 신설</div>
-          <p>기업 임직원 지원 프로그램(EAP)으로 확장 — 단가·계약 단위가 큰 매출 파이프라인 추가</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">결제/정산 Admin</div>
-          <p>전문가별 정산 주기·세금·환불·세션 기록 관리까지 운영 가능한 Admin 구축</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · B2C × B2B REVENUE</div>
-      <div class="dp-lane">
-        <div class="dp-lane-label">B2C</div>
-        <div class="dp-node dp-start">유저<small>고민 진단</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">매칭 알고리즘<small>전문가 추천</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">전문가<small>심리 상담</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">B2C 결제<small>세션 단위</small></div>
-      </div>
-      <div class="dp-lane">
-        <div class="dp-lane-label">B2B</div>
-        <div class="dp-node dp-start">기업<small>임직원 복지</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">EAP 계약<small>전사 단위 도입</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">임직원 풀<small>이용 인프라</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">B2B 매출<small>계약 단위</small></div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] 전문가 매칭 결과</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] EAP 기업 대시보드</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 전문가 정산 Admin</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>B2C 단가 한계는 B2B 채널로 풀린다.</strong>
-        같은 전문가 풀로 B2C·B2B 두 매출 라인을 굴리려면 <strong>정산 Admin이
-        시작점</strong>이어야 한다는 걸 배웠습니다. UX보다 백오피스가 먼저였습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 05 · TROST</span>
-    <span class="mono pf-num">10</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 10 : CASE 6 — TEAMWALK                  -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#FFCC00;--ink:#1a1a1a;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 06</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#FFCC00;color:#111;">팀</div>
-      <span>넛지헬스케어 · 팀워크(Teamwalk)</span>
-    </div>
-    <h2 class="cc-title">미션형 광고 플랫폼 — <br/>걷기 챌린지로 월 1억</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Owner</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">미션 광고 · B2B SaaS Admin · 멤버십 구독</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">MAU 100만 · 월 1억 · 공공기관 캠페인</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        일반 디스플레이 광고는 노출만 있고 행동을 끌어내지 못합니다. 한편 광고주들은
-        <strong>“진짜 참여하는 광고”</strong>를 원했고, 공공기관·지자체는
-        대규모 캠페인 도구를 찾고 있었습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">미션형 광고 플랫폼</div>
-          <p>걷기 챌린지 · 스탬프 챌린지를 “미션을 수행해야 보상”인 광고 상품으로 설계</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">B2B 기업 대시보드 / SaaS Admin</div>
-          <p>광고주(기업·지자체)가 직접 캠페인을 만들고 효과를 보는 SaaS형 관리자 시스템</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">기업형 멤버십 구독</div>
-          <p>1회성 캠페인을 넘어, 임직원 참여형 멤버십 구독 BM 설계</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A4</div>
-          <div class="ar-h">공공기관 · 지자체 캠페인</div>
-          <p>레퍼런스가 곧 다음 영업이 되는 구조 — 대규모 캠페인을 직접 운영하며 사례 축적</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · MISSION AD &amp; B2B SaaS</div>
-      <div class="dp-lane">
-        <div class="dp-lane-label">B2C</div>
-        <div class="dp-node dp-start">유저<small>걷기 · 챌린지</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">미션형 광고<small>스탬프 · 챌린지</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">행동 보상<small>리워드 지급</small></div>
-      </div>
-      <div class="dp-lane">
-        <div class="dp-lane-label">B2B</div>
-        <div class="dp-node dp-start">광고주<small>기업 · 지자체</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">SaaS Admin<small>캠페인 자체 운영</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">멤버십 구독<small>임직원 참여형</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">월 1억<small>레퍼런스 축적</small></div>
-      </div>
-    </div>
-
-    <div class="result-bigboard">
-      <div class="rb-cell rb-hero" style="background:#FFCC00;color:#111;">
-        <div class="rb-eye mono" style="color:#444;">MONTHLY REVENUE</div>
-        <div class="rb-huge" style="color:#111;">₩100<span style="color:#111;">M</span></div>
-        <div class="rb-sub" style="color:#333;">미션형 광고 BM 매출</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">MAU</div>
-        <div class="rb-mid">1,000,000+</div>
-        <div class="rb-sub">걷기 + 챌린지 활성 유저</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">B2B</div>
-        <div class="rb-mid">SaaS Admin</div>
-        <div class="rb-sub">기업·지자체 자체 운영</div>
-      </div>
-      <div class="rb-cell">
-        <div class="rb-eye mono">CASE</div>
-        <div class="rb-mid">공공 캠페인</div>
-        <div class="rb-sub">대규모 레퍼런스 축적</div>
-      </div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] 걷기 챌린지 진행</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-fill"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] 스탬프 미션</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#FFCC00;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 기업용 SaaS 대시보드</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>광고는 노출이 아니라 행동을 사는 일입니다.</strong>
-        “미션 완료”라는 행동 단위로 광고를 팔자, 광고주 만족과 유저 참여가 같은
-        방향으로 정렬됐습니다. 공공 캠페인 레퍼런스가 다음 B2B 매출의 마중물이
-        되는 구조도 함께 검증할 수 있었습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 06 · TEAMWALK</span>
-    <span class="mono pf-num">11</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 11 : CASE 7 — HOWFIT                    -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#7B61FF;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 07</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#7B61FF;">하</div>
-      <span>아이픽셀 · 하우핏 (Howfit) · 2020 — 2021</span>
-    </div>
-    <h2 class="cc-title">AI 모션 인식 운동 콘텐츠 — <br/>구글플레이 최우수상</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Product Manager</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">AI 스켈레톤 기반 UIUX · 라이브 클래스 BM</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">구글플레이 2021 최우수상</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        홈트레이닝은 콘텐츠는 많아도 <strong>“내가 잘하고 있는지”</strong>를
-        피드백받기 어려웠습니다. AI 모션 인식 기술이 있어도, 그걸
-        <strong>일반 유저가 거부감 없이 따라갈 수 있는 UX</strong>로 풀어야 했습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">AI 스켈레톤 기반 운동 UIUX</div>
-          <p>“얼마나 정확한가”를 시각적·즉각적 피드백으로 — 카운트·각도·자세 가이드 통합</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">라이브 클래스 유료 BM</div>
-          <p>녹화 콘텐츠를 넘어 라이브 클래스로 객단가/충성도 모두 잡는 유료 채널 신설</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">기술 → 사용성 번역</div>
-          <p>모션 인식 정확도·지연·각도 한계를 UX/문구로 보정해, 기술 실패가 유저 실패가 되지 않도록</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · AI MOTION → UX → BM</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">AI 모션 인식<small>스켈레톤 기술</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">UX 번역<small>각도 · 카운트 · 문구</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">실시간 피드백<small>자세 정확도 시각화</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">라이브 클래스<small>유료 BM</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">최우수상<small>구글플레이 2021</small></div>
-      </div>
-    </div>
-
-    <div class="award-strip">
-      <div class="aw-eye mono">AWARD · 2021</div>
-      <div class="aw-h">구글플레이 — 올해를 빛낸 자기계발 앱 <span class="aw-best">최우수상</span></div>
-    </div>
-
-    <div class="screen-mock-row">
-      <div class="sm-phone" style="--ac:#7B61FF;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 1] AI 모션 가이드</div>
-          <div class="sm-grid">
-            <div class="sm-block sm-fill"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#7B61FF;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 2] 자세 정확도 피드백</div>
-          <div class="sm-grid sm-grid-2">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block"></div><div class="sm-block"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-      <div class="sm-phone" style="--ac:#7B61FF;">
-        <div class="sm-notch"></div>
-        <div class="sm-screen">
-          <div class="sm-caption mono">[화면 3] 라이브 클래스 입장</div>
-          <div class="sm-grid sm-grid-3">
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-            <div class="sm-block sm-wide"></div>
-          </div>
-          <div class="sm-hint">실제 스크린 첨부 영역</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>AI 제품은 “모델 정확도”가 아니라 “UX가 정확도를 어떻게 가린다”에서 갈립니다.</strong>
-        모션 인식이 흔들릴 때도 피드백 메시지로 보정하는 설계가 곧 제품 완성도였고,
-        최우수상도 그 부분에서 갈렸다고 봅니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 07 · HOWFIT</span>
-    <span class="mono pf-num">12</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 13 : CASE 8 — DANO                       -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#F5859B;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 08</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#F5859B;">다</div>
-      <span>다노 (DANO) · 2019.03 — 2020.12</span>
-    </div>
-    <h2 class="cc-title">베이직 케어 — <br/>가입률 +200%로 신규 구독 채널 안착</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Operation Manager → 신규 BM 기획</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">구독 BM · 운영 Admin · 코로나 PT 채널</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">가입률 +200% · 신규 채널 안착</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        다노의 메인 상품 <strong>[토탈케어]</strong>는 가격대가 높아 유저 진입 장벽이 컸고,
-        코로나로 오프라인 PT 시장이 급격히 흔들리던 시기였습니다.
-        <strong>"진입은 쉽고, 코로나 시점에도 굴러가는 케어 채널"</strong>이 필요했습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">[베이직 케어] 출시</div>
-          <p>토탈케어의 진입 장벽을 낮춘 경량 구독 상품 신설 — 가입 흐름·가격 정책 신규 설계</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">[방문 케어] PT 채널 신설</div>
-          <p>코로나로 인한 오프라인 PT 수요 변화에 대응 — 트레이너 방문형 신규 채널 신설</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">코치 운영 Admin · 교육 프로세스</div>
-          <p>매칭 · 일정 · 정산 · 교육까지 운영자 입장에서 굴릴 수 있는 Admin A to Z 설계</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · SUBSCRIPTION ENTRY</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">유저<small>토탈케어 진입 장벽 ↑</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">베이직 케어<small>경량 구독 신설</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">방문 케어 PT<small>코로나 시점 신설</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">운영 Admin<small>매칭 · 정산 · 교육</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">가입률 +200%<small>구독 채널 안착</small></div>
-      </div>
-    </div>
-
-    <div class="case-result">
-      <div class="cr-eye mono">IMPACT</div>
-      <div class="cr-grid">
-        <div class="cr-item"><div class="cr-n">+200<span>%</span></div><div class="cr-l">토탈케어 대비 베이직 케어 가입률</div></div>
-        <div class="cr-item"><div class="cr-n">신규 채널</div><div class="cr-l">방문 PT 신설 (코로나 대응)</div></div>
-        <div class="cr-item"><div class="cr-n">A→Z</div><div class="cr-l">코치 운영 Admin · 교육 프로세스</div></div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>구독은 "더 좋은 상품"이 아니라 "더 쉬운 진입점"에서 갈립니다.</strong>
-        토탈케어보다 가격·약속·운영이 가벼운 베이직 케어를 신설하니 진입 장벽이 무너졌고,
-        코로나처럼 외부 충격이 올 때 <strong>운영 Admin과 코치 풀이 미리 준비된 회사가 살아남는다</strong>는 걸 배웠습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 08 · DANO</span>
-    <span class="mono pf-num">13</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 14 : CASE 9 — ENFIT (CLASSU)              -->
-<!-- ============================================ -->
-<section class="page page-case" style="--brand:#00C9A7;">
-  <div class="case-cover">
-    <div class="cc-meta mono">CASE STUDY · 09</div>
-    <div class="cc-company">
-      <div class="cc-logo" style="background:#00C9A7;">엔</div>
-      <span>엔핏 (현 클래스유) · 2018.07 — 2019.02</span>
-    </div>
-    <h2 class="cc-title">모두의 트레이닝 — <br/>온·오프라인 신규 피트니스 런칭</h2>
-    <div class="cc-role-row">
-      <div><span class="rr-label mono">ROLE</span><span class="rr-val">Operation Manager</span></div>
-      <div><span class="rr-label mono">SCOPE</span><span class="rr-val">서비스 런칭 · 코치 매칭 · CRM 운영</span></div>
-      <div><span class="rr-label mono">RESULT</span><span class="rr-val">신규 서비스 안정 운영 · 매칭 시스템 구축</span></div>
-    </div>
-  </div>
-
-  <div class="case-body">
-    <div class="case-section">
-      <div class="cs-eye mono">PROBLEM</div>
-      <h3 class="cs-h">왜 풀어야 했나</h3>
-      <p class="cs-p">
-        피트니스 서비스의 가장 큰 운영 부담은 <strong>코치 매칭 · 일정 관리 · CRM 응대</strong>의
-        반복 운영 비용이었습니다. 신규 서비스 [모두의 트레이닝]을 런칭하면서 <strong>"운영자가
-        손으로 다 처리하는 구조"</strong>를 처음부터 자동화 가능한 구조로 가져가야 했습니다.
-      </p>
-    </div>
-
-    <div class="case-section">
-      <div class="cs-eye mono">APPROACH</div>
-      <h3 class="cs-h">어떻게 접근했나</h3>
-      <div class="approach-row">
-        <div class="ar-step">
-          <div class="ar-n mono">A1</div>
-          <div class="ar-h">온·오프라인 통합 런칭</div>
-          <p>오프라인 PT + 온라인 콘텐츠를 한 브랜드로 묶어 진입·이용 흐름을 단일화</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A2</div>
-          <div class="ar-h">코치 매칭 시스템</div>
-          <p>유저의 목표·일정·지역 기반 매칭 룰을 시스템화 — 운영자 의존도 ↓</p>
-        </div>
-        <div class="ar-step">
-          <div class="ar-n mono">A3</div>
-          <div class="ar-h">CRM 운영 개선</div>
-          <p>응대 시나리오·트리거를 정리해 반복 문의를 자동화, 회복 시간 단축</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="diagram-pipeline">
-      <div class="dp-eye mono">FLOW · LAUNCH &amp; OPS AUTOMATION</div>
-      <div class="dp-row">
-        <div class="dp-node dp-start">유저<small>피트니스 목표</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-accent">코치 매칭<small>목표·일정·지역 룰</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">온·오프라인 PT<small>통합 서비스 이용</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node">CRM 자동화<small>응대 시나리오 정리</small></div>
-        <div class="dp-arrow">→</div>
-        <div class="dp-node dp-money">운영 효율 ↑<small>반복 비용 절감</small></div>
-      </div>
-    </div>
-
-    <div class="case-result">
-      <div class="cr-eye mono">IMPACT</div>
-      <div class="cr-grid">
-        <div class="cr-item"><div class="cr-n">신규 런칭</div><div class="cr-l">모두의 트레이닝 (온·오프라인 통합)</div></div>
-        <div class="cr-item"><div class="cr-n">매칭 시스템</div><div class="cr-l">코치 매칭 룰 시스템화 → 운영 의존도 ↓</div></div>
-        <div class="cr-item"><div class="cr-n">CRM 개선</div><div class="cr-l">반복 응대 자동화, 회복 시간 단축</div></div>
-      </div>
-    </div>
-
-    <div class="case-lesson">
-      <div class="cl-eye mono">LESSON</div>
-      <p class="cl-p">
-        <strong>새 서비스의 성패는 "런칭 직후 운영자가 손으로 막는 곳"에서 갈립니다.</strong>
-        Operation Manager로서 가장 크게 배운 건 <strong>운영자의 반복 업무가 곧 다음 시스템의 요구사항</strong>이라는 것.
-        이 시기 운영 경험은 이후 그립·캐시워크에서 <strong>Admin·정산 흐름을 처음부터 설계하는 PO 방식</strong>의 출발점이 됐습니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">CASE 09 · ENFIT (CLASSU)</span>
-    <span class="mono pf-num">14</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 15 : SKILLS & TOOLS                     -->
-<!-- ============================================ -->
-<section class="page page-skills">
-  <div class="page-header">
-    <div class="ph-num mono">05</div>
-    <div class="ph-title">Skills &amp; Tools</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">DOMAIN · STACK</div>
-  </div>
-
-  <div class="skills-wrap">
-    <div class="skills-block">
-      <div class="sb-eye mono">DOMAIN EXPERTISE</div>
-      <div class="domain-grid">
-        <div class="dm-card"><div class="dm-h">광고 / 수익화</div><div class="dm-bar"><span style="width:96%;"></span></div><div class="dm-note">SSP · DSP · Offerwall · CRM · 리워드</div></div>
-        <div class="dm-card"><div class="dm-h">커뮤니티</div><div class="dm-bar"><span style="width:90%;"></span></div><div class="dm-note">SEO · UGC · 리뷰 가중치</div></div>
-        <div class="dm-card"><div class="dm-h">라이브 커머스</div><div class="dm-bar"><span style="width:88%;"></span></div><div class="dm-note">도네이션 BM · 라이브 광고 상품</div></div>
-        <div class="dm-card"><div class="dm-h">커머스</div><div class="dm-bar"><span style="width:85%;"></span></div><div class="dm-note">언니딜 · CVR 최적화</div></div>
-        <div class="dm-card"><div class="dm-h">건강 / 운동</div><div class="dm-bar"><span style="width:82%;"></span></div><div class="dm-note">AI 모션 인식 UIUX · 챌린지 BM</div></div>
-        <div class="dm-card"><div class="dm-h">B2B / SaaS</div><div class="dm-bar"><span style="width:78%;"></span></div><div class="dm-note">EAP · 기업 멤버십 · SaaS Admin</div></div>
-      </div>
-    </div>
-
-    <div class="skills-block">
-      <div class="sb-eye mono">PRODUCT TOOLS</div>
-      <div class="tool-chips">
-        <span class="chip">Figma</span>
-        <span class="chip">Notion</span>
-        <span class="chip">Jira</span>
-        <span class="chip">Confluence</span>
-        <span class="chip">GA</span>
-        <span class="chip">Excel</span>
-        <span class="chip">PPT</span>
-        <span class="chip">English</span>
-      </div>
-    </div>
-
-    <div class="skills-block">
-      <div class="sb-eye mono">AI WORKFLOW</div>
-      <div class="tool-chips">
-        <span class="chip chip-new">Claude</span>
-        <span class="chip chip-new">Gemini</span>
-        <span class="chip chip-new">ChatGPT</span>
-        <span class="chip chip-new">Cursor</span>
-        <span class="chip">v0 · Lovable</span>
-      </div>
-      <p class="ai-workflow-note">
-        AI 툴을 <strong>PRD 작성 · 프로토타입 제작 · 데이터 분석</strong> 전 과정에 도입.
-        기획 사이클을 <strong>일 단위 → 시간 단위</strong>로 단축한 경험을 보유.
-      </p>
-    </div>
-
-    <div class="skills-block">
-      <div class="sb-eye mono">PO CAPABILITIES</div>
-      <div class="cap-grid">
-        <div class="cap-row"><span class="cap-l">데이터 기반 가설 검증</span><span class="cap-r">★★★★★</span></div>
-        <div class="cap-row"><span class="cap-l">광고 BM / 수익화 모델 설계</span><span class="cap-r">★★★★★</span></div>
-        <div class="cap-row"><span class="cap-l">Admin / 정산 / 결제 흐름 설계</span><span class="cap-r">★★★★★</span></div>
-        <div class="cap-row"><span class="cap-l">대규모 트래픽 운영 / 안정화</span><span class="cap-r">★★★★★</span></div>
-        <div class="cap-row"><span class="cap-l">B2B SaaS / EAP 모델 기획</span><span class="cap-r">★★★★☆</span></div>
-        <div class="cap-row"><span class="cap-l">AI 제품 UX 설계</span><span class="cap-r">★★★★☆</span></div>
-        <div class="cap-row"><span class="cap-l">SEO / 그로스 실험</span><span class="cap-r">★★★★☆</span></div>
-        <div class="cap-row"><span class="cap-l">크리에이터 / 운영 매니징</span><span class="cap-r">★★★★☆</span></div>
-      </div>
-    </div>
-
-    <div class="skills-block">
-      <div class="sb-eye mono">EDUCATION</div>
-      <div class="edu-row">
-        <div class="edu-period mono">2012.03 — 2013.12 · 졸업</div>
-        <div class="edu-body">
-          <div class="edu-school">상명대학교</div>
-          <div class="edu-major">금융경제학 학사</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">SKILLS · TOOLS</span>
-    <span class="mono pf-num">15</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 13 : PHILOSOPHY                         -->
-<!-- ============================================ -->
-<section class="page page-philo">
-  <div class="page-header">
-    <div class="ph-num mono">06</div>
-    <div class="ph-title">Philosophy</div>
-    <div class="ph-line"></div>
-    <div class="ph-meta mono">LESSONS LEARNED</div>
-  </div>
-
-  <p class="philo-lead">
-    8년간 9개 서비스를 만들면서 반복적으로 검증된, 제가 신뢰하는 4가지 원칙입니다.
-  </p>
-
-  <div class="philo-grid">
-    <div class="ph-card">
-      <div class="ph-n mono">P · 01</div>
-      <h3 class="ph-h">매출은 백오피스에서 갈린다</h3>
-      <p class="ph-p">
-        도네이션·EAP·커머스 모두, <strong>화면이 아니라 정산 Admin이 먼저</strong>
-        설계되어야 BM이 굴러갑니다. 운영 비용·환불 룰·세금을 처음부터 보지 않으면
-        매출이 나도 남는 게 없습니다.
-      </p>
-    </div>
-
-    <div class="ph-card">
-      <div class="ph-n mono">P · 02</div>
-      <h3 class="ph-h">광고는 흐름 위에 얹어야 한다</h3>
-      <p class="ph-p">
-        라이브의 도네이션, 커뮤니티의 SSP, 만보기의 미션 광고 — 모두 <strong>유저가
-        이미 하던 행동</strong>에 얹었을 때 효율이 나왔습니다.
-        새 화면을 새로 만들 때마다 BM은 죽습니다.
-      </p>
-    </div>
-
-    <div class="ph-card">
-      <div class="ph-n mono">P · 03</div>
-      <h3 class="ph-h">정책 = 알고리즘이다</h3>
-      <p class="ph-p">
-        포토 리뷰 가중치 한 줄이 CVR 15%를 움직입니다. PO에게 <strong>정책 설계는
-        곧 알고리즘 설계</strong>이고, 한 줄의 룰이 매출을 가릅니다.
-      </p>
-    </div>
-
-    <div class="ph-card">
-      <div class="ph-n mono">P · 04</div>
-      <h3 class="ph-h">B2C 한계는 B2B로 푼다</h3>
-      <p class="ph-p">
-        트로스트 EAP, 팀워크 SaaS, 캐시워크 SaaS화 — 같은 자산을
-        <strong>다른 고객(기업·지자체)</strong>에게 다시 팔 수 있을 때 매출 천장이
-        없어집니다. 트래픽은 자원이지, 결과가 아닙니다.
-      </p>
-    </div>
-  </div>
-
-  <div class="philo-quote">
-    <span class="pq-mark">“</span>
-    <p>
-      좋은 PO는 “무엇을 만들까”보다 <strong>“만든 것이 어떻게 돈이 되고,
-      그 돈이 어떻게 다음 제품을 사는가”</strong>를 먼저 봅니다.
-    </p>
-  </div>
-
-  <div class="page-footer">
-    <span class="mono">PHILOSOPHY</span>
-    <span class="mono pf-num">16</span>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- PAGE 14 : CONTACT / CLOSING                  -->
-<!-- ============================================ -->
-<section class="page page-end">
-  <div class="end-bg-grid"></div>
-
-  <div class="end-top">
-    <div class="end-mark mono">— END —</div>
-  </div>
-
-  <div class="end-main">
-    <div class="end-eye mono">LET'S BUILD SOMETHING</div>
-    <h2 class="end-title">
-      함께 <span class="hl">매출이 나오는 제품</span>을<br/>
-      만들고 싶습니다.
-    </h2>
-
-    <p class="end-sub">
-      라이브·커머스·광고·AI, 데이터로 검증되는 PO 이건무 입니다.
-    </p>
-
-    <div class="end-contact">
-      <div class="ec-row">
-        <span class="ec-l mono">EMAIL</span>
-        <span class="ec-v">dlrjsan9090@gmail.com</span>
-      </div>
-      <div class="ec-row">
-        <span class="ec-l mono">PHONE</span>
-        <span class="ec-v">010 · 3900 · 2917</span>
-      </div>
-      <div class="ec-row">
-        <span class="ec-l mono">ROLE</span>
-        <span class="ec-v">Product Owner / Product Manager</span>
-      </div>
-    </div>
-  </div>
-
-  <footer class="end-bottom">
-    <span class="mono">LEE KUNMOO · PORTFOLIO 2026</span>
-    <span class="mono">THANK YOU</span>
-  </footer>
-</section>
-
+<button class="totop" id="totop" aria-label="맨 위로" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Reading progress */
+  var progress = document.getElementById('progress');
+  var totop = document.getElementById('totop');
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var pct = max > 0 ? (h.scrollTop / max) * 100 : 0;
+    progress.style.width = pct + '%';
+    if(h.scrollTop > 600){ totop.classList.add('show'); } else { totop.classList.remove('show'); }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  /* Scroll-spy nav */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+  var map = {};
+  links.forEach(function(a){ var id = a.getAttribute('href').slice(1); var el = document.getElementById(id); if(el) map[id] = a; });
+  if('IntersectionObserver' in window){
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('active'); });
+          var a = map[e.target.id];
+          if(a) a.classList.add('active');
+        }
+      });
+    }, {rootMargin:'-45% 0px -50% 0px'});
+    Object.keys(map).forEach(function(id){ spy.observe(document.getElementById(id)); });
+  }
+
+  /* Reveal on scroll */
+  var reveals = document.querySelectorAll('.reveal');
+  if(reduce || !('IntersectionObserver' in window)){
+    reveals.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var ro = new IntersectionObserver(function(entries, obs){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); obs.unobserve(e.target); } });
+    }, {rootMargin:'0px 0px -8% 0px', threshold:0.04});
+    reveals.forEach(function(el){ ro.observe(el); });
+  }
+
+  /* Count-up */
+  function animateCount(el){
+    var to = parseFloat(el.getAttribute('data-to'));
+    var prefix = el.getAttribute('data-prefix') || '';
+    var suffix = el.getAttribute('data-suffix') || '';
+    if(reduce){ el.textContent = prefix + to + suffix; return; }
+    var dur = 1100, start = null;
+    function step(ts){
+      if(!start) start = ts;
+      var p = Math.min((ts - start) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var val = Math.round(to * eased);
+      el.textContent = prefix + val + suffix;
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var counts = document.querySelectorAll('.count');
+  if(!('IntersectionObserver' in window)){
+    counts.forEach(function(el){ animateCount(el); });
+  } else {
+    var co = new IntersectionObserver(function(entries, obs){
+      entries.forEach(function(e){ if(e.isIntersecting){ animateCount(e.target); obs.unobserve(e.target); } });
+    }, {threshold:0.5});
+    counts.forEach(function(el){ co.observe(el); });
+  }
+})();
+</script>
 </body>
 </html>

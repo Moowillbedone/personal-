@@ -2,6 +2,10 @@
 # Figma MCP config (contains API key)
 .mcp.json
 
+# --- Private (절대 공개 금지: 포장/과장 수치 추적표) ---
+_PRIVATE_*
+**/_PRIVATE_*
+
 # --- Editor / OS ---
 .claude/
 .vscode/
