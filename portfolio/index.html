@@ -177,6 +177,7 @@ a{color:inherit}
 
 /* company logo chip — 단일 톤 */
 .logo-chip{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
+.logo-chip-img{width:24px;height:24px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--line);flex-shrink:0;vertical-align:middle}
 /* 경력 타임라인 회사 로고 — 2줄(회사명+직책) 높이에 맞춰 크게 */
 .co-logo{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line);padding:3px;flex-shrink:0;display:block}
 .co-logo-fallback{width:44px;height:44px;border-radius:10px;background:var(--navy);color:#fff;font-size:16px;font-weight:800;display:none;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0}
@@ -629,15 +630,15 @@ a{color:inherit}
     <p class="section-lead reveal">8년+ 동안 직접 설계한 9개의 대표 케이스입니다. 각 케이스는 <em>배경 → 접근 → 구조 → 화면 → 결과 → 학습</em> 구조로 정리했습니다.</p>
 
     <div class="case-index reveal">
-      <a class="ci" href="#case-1"><div class="ci-num">CASE 01</div><div class="ci-tag">AD PLATFORM · SELF-SERVE</div><div class="ci-h">셀러 셀프서빙 광고 센터 — CRM·카카오 알림톡</div><div class="ci-meta"><span class="logo-chip">G</span>그립 · 2025 — NOW</div><div class="ci-impact">톡커넥트·부스트팩·CRM톡 · 카카오 메시징 광고</div></a>
-      <a class="ci" href="#case-2"><div class="ci-num">CASE 02</div><div class="ci-tag">NEW BM · A TO Z</div><div class="ci-h">크리에이터 팬덤을 매출로 — 도네이션 BM</div><div class="ci-meta"><span class="logo-chip">G</span>그립 · 2025</div><div class="ci-impact">월 순수익 약 3천만 · 광고→젬→후원 순환경제</div></a>
-      <a class="ci" href="#case-3"><div class="ci-num">CASE 03</div><div class="ci-tag">DATA · SCALE</div><div class="ci-h">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</div><div class="ci-meta"><span class="logo-chip">캐</span>캐시워크 · 2021—25</div><div class="ci-impact">월 1억+ · MAU 500M · SaaS 확장</div></a>
-      <a class="ci" href="#case-4"><div class="ci-num">CASE 04</div><div class="ci-tag">ALGORITHM · CVR</div><div class="ci-h">뷰티 쇼핑 내재화 — 언니딜 월 3억</div><div class="ci-meta"><span class="logo-chip">언</span>언니의파우치 · 2021—25</div><div class="ci-impact">월 3억 · CVR+15% · Play 1위</div></a>
-      <a class="ci" href="#case-5"><div class="ci-num">CASE 05</div><div class="ci-tag">B2B2C · PIPELINE</div><div class="ci-h">전문가 매칭 + 기업 EAP — B2C·B2B 두 축</div><div class="ci-meta"><span class="logo-chip">트</span>트로스트 · 2021—25</div><div class="ci-impact">MAU 20M · B2B 매출 신규 라인</div></a>
-      <a class="ci" href="#case-6"><div class="ci-num">CASE 06</div><div class="ci-tag">B2B SaaS · PUBLIC</div><div class="ci-h">미션형 광고 플랫폼 — 걷기 챌린지 월 1억</div><div class="ci-meta"><span class="logo-chip">팀</span>팀워크 · 2021—25</div><div class="ci-impact">월 1억 · MAU 100M · 공공 캠페인</div></a>
-      <a class="ci" href="#case-7"><div class="ci-num">CASE 07</div><div class="ci-tag">AI · UX · AWARD</div><div class="ci-h">AI 모션 인식 운동 — 구글플레이 최우수상</div><div class="ci-meta"><span class="logo-chip">하</span>하우핏 · 2020—21</div><div class="ci-impact">구글플레이 2021 최우수상 · 라이브 BM</div></a>
-      <a class="ci" href="#case-8"><div class="ci-num">CASE 08</div><div class="ci-tag">SUBSCRIPTION · OPS</div><div class="ci-h">베이직 케어 출시 — 가입률 +200%</div><div class="ci-meta"><span class="logo-chip">다</span>다노 · 2019—20</div><div class="ci-impact">가입률+200% · 코로나 PT 채널 신설</div></a>
-      <a class="ci" href="#case-9"><div class="ci-num">CASE 09</div><div class="ci-tag">LAUNCH · CRM</div><div class="ci-h">모두의 트레이닝 — 신규 피트니스 런칭</div><div class="ci-meta"><span class="logo-chip">엔</span>엔핏 · 2018—19</div><div class="ci-impact">온·오프라인 런칭 · 코치 매칭 시스템</div></a>
+      <a class="ci" href="#case-1"><div class="ci-num">CASE 01</div><div class="ci-tag">AD PLATFORM · SELF-SERVE</div><div class="ci-h">셀러 셀프서빙 광고 센터 — CRM·카카오 알림톡</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/grip.png" alt="">그립 · 2025 — NOW</div><div class="ci-impact">톡커넥트·부스트팩·CRM톡 · 카카오 메시징 광고</div></a>
+      <a class="ci" href="#case-2"><div class="ci-num">CASE 02</div><div class="ci-tag">NEW BM · A TO Z</div><div class="ci-h">크리에이터 팬덤을 매출로 — 도네이션 BM</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/grip.png" alt="">그립 · 2025</div><div class="ci-impact">월 순수익 약 3천만 · 광고→젬→후원 순환경제</div></a>
+      <a class="ci" href="#case-3"><div class="ci-num">CASE 03</div><div class="ci-tag">DATA · SCALE</div><div class="ci-h">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">캐시워크 · 2021—25</div><div class="ci-impact">월 1억+ · MAU 500M · SaaS 확장</div></a>
+      <a class="ci" href="#case-4"><div class="ci-num">CASE 04</div><div class="ci-tag">ALGORITHM · CVR</div><div class="ci-h">뷰티 쇼핑 내재화 — 언니딜 월 3억</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">언니의파우치 · 2021—25</div><div class="ci-impact">월 3억 · CVR+15% · Play 1위</div></a>
+      <a class="ci" href="#case-5"><div class="ci-num">CASE 05</div><div class="ci-tag">B2B2C · PIPELINE</div><div class="ci-h">전문가 매칭 + 기업 EAP — B2C·B2B 두 축</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">트로스트 · 2021—25</div><div class="ci-impact">MAU 20M · B2B 매출 신규 라인</div></a>
+      <a class="ci" href="#case-6"><div class="ci-num">CASE 06</div><div class="ci-tag">B2B SaaS · PUBLIC</div><div class="ci-h">미션형 광고 플랫폼 — 걷기 챌린지 월 1억</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">팀워크 · 2021—25</div><div class="ci-impact">월 1억 · MAU 100M · 공공 캠페인</div></a>
+      <a class="ci" href="#case-7"><div class="ci-num">CASE 07</div><div class="ci-tag">AI · UX · AWARD</div><div class="ci-h">AI 모션 인식 운동 — 구글플레이 최우수상</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/ipixel.png" alt="">하우핏 · 2020—21</div><div class="ci-impact">구글플레이 2021 최우수상 · 라이브 BM</div></a>
+      <a class="ci" href="#case-8"><div class="ci-num">CASE 08</div><div class="ci-tag">SUBSCRIPTION · OPS</div><div class="ci-h">베이직 케어 출시 — 가입률 +200%</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/dano.png" alt="">다노 · 2019—20</div><div class="ci-impact">가입률+200% · 코로나 PT 채널 신설</div></a>
+      <a class="ci" href="#case-9"><div class="ci-num">CASE 09</div><div class="ci-tag">LAUNCH · CRM</div><div class="ci-h">모두의 트레이닝 — 신규 피트니스 런칭</div><div class="ci-meta"><img class="logo-chip-img" src="assets/logos/classu.png" alt="">엔핏 · 2018—19</div><div class="ci-impact">온·오프라인 런칭 · 코치 매칭 시스템</div></a>
     </div>
 
     <div class="cases">
@@ -648,7 +649,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 01 / AD PLATFORM · SELF-SERVE</div>
             <h3 class="case-title">라이브 커머스 셀러 광고 센터 — CRM·카카오 알림톡 셀프서빙 플랫폼</h3>
-            <div class="case-meta"><span class="logo-chip">G</span>그립컴퍼니<span class="pipe">·</span>2025.03 — 진행중<span class="pipe">·</span>Product Owner — Lead · BRD 작성</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/grip.png" alt="">그립컴퍼니<span class="pipe">·</span>2025.03 — 진행중<span class="pipe">·</span>Product Owner — Lead · BRD 작성</div>
           </div>
           <div class="case-tags"><span class="case-tag">AD PLATFORM</span><span class="case-tag">CRM · KAKAO</span><span class="case-tag gold">SELF-SERVE</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -692,7 +693,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 02 / NEW BM · A TO Z</div>
             <h3 class="case-title">크리에이터 팬덤을 매출로 — 도네이션 BM</h3>
-            <div class="case-meta"><span class="logo-chip">G</span>그립컴퍼니<span class="pipe">·</span>2025<span class="pipe">·</span>Product Owner — End-to-End</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/grip.png" alt="">그립컴퍼니<span class="pipe">·</span>2025<span class="pipe">·</span>Product Owner — End-to-End</div>
           </div>
           <div class="case-tags"><span class="case-tag">GEM ECONOMY</span><span class="case-tag">OWNERSHIP</span><span class="case-tag gold">팬덤 경제</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -737,7 +738,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 03 / DATA-DRIVEN AT SCALE</div>
             <h3 class="case-title">500만 MAU 통합 커뮤니티 — 광고 BM 월 1억</h3>
-            <div class="case-meta"><span class="logo-chip">캐</span>넛지헬스케어 · 캐시워크<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">넛지헬스케어 · 캐시워크<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
           </div>
           <div class="case-tags"><span class="case-tag">DATA</span><span class="case-tag">SCALE</span><span class="case-tag gold">월 1억+</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -783,7 +784,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 04 / ALGORITHM · CVR</div>
             <h3 class="case-title">뷰티 쇼핑 내재화 — 언니딜로 월 3억 매출</h3>
-            <div class="case-meta"><span class="logo-chip">언</span>넛지헬스케어 · 언니의파우치<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">넛지헬스케어 · 언니의파우치<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
           </div>
           <div class="case-tags"><span class="case-tag">CVR</span><span class="case-tag">COMMERCE</span><span class="case-tag gold">#1 RANKED</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -828,7 +829,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 05 / B2B2C EXPANSION</div>
             <h3 class="case-title">전문가 매칭 + 기업 EAP — B2C·B2B 두 축의 매출 파이프라인</h3>
-            <div class="case-meta"><span class="logo-chip">트</span>넛지헬스케어 · 트로스트(마인드키)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">넛지헬스케어 · 트로스트(마인드키)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
           </div>
           <div class="case-tags"><span class="case-tag">B2B2C</span><span class="case-tag">PIPELINE</span><span class="case-tag gold">NEW REVENUE</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -879,7 +880,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 06 / B2B SaaS</div>
             <h3 class="case-title">미션형 광고 플랫폼 — 걷기 챌린지로 월 1억 + 공공 캠페인</h3>
-            <div class="case-meta"><span class="logo-chip">팀</span>넛지헬스케어 · 팀워크(Teamwalk)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/cashwalk.png" alt="">넛지헬스케어 · 팀워크(Teamwalk)<span class="pipe">·</span>2021 — 2025<span class="pipe">·</span>Product Owner</div>
           </div>
           <div class="case-tags"><span class="case-tag">B2B SaaS</span><span class="case-tag">CAMPAIGN</span><span class="case-tag gold">PUBLIC</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -925,7 +926,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 07 / AI · UX</div>
             <h3 class="case-title">AI 모션 인식 운동 콘텐츠 — 구글플레이 최우수상</h3>
-            <div class="case-meta"><span class="logo-chip">하</span>아이픽셀 · 하우핏 (Howfit)<span class="pipe">·</span>2020.12 — 2021.10<span class="pipe">·</span>Product Manager</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/ipixel.png" alt="">아이픽셀 · 하우핏 (Howfit)<span class="pipe">·</span>2020.12 — 2021.10<span class="pipe">·</span>Product Manager</div>
           </div>
           <div class="case-tags"><span class="case-tag">AI</span><span class="case-tag">UX</span><span class="case-tag gold">AWARD</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -969,7 +970,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 08 / SUBSCRIPTION · OPS</div>
             <h3 class="case-title">베이직 케어 — 가입률 +200%로 신규 구독 채널 안착</h3>
-            <div class="case-meta"><span class="logo-chip">다</span>다노 (DANO)<span class="pipe">·</span>2019.03 — 2020.12<span class="pipe">·</span>Operation Manager → 신규 BM 기획</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/dano.png" alt="">다노 (DANO)<span class="pipe">·</span>2019.03 — 2020.12<span class="pipe">·</span>Operation Manager → 신규 BM 기획</div>
           </div>
           <div class="case-tags"><span class="case-tag">SUBSCRIPTION</span><span class="case-tag">OPS</span><span class="case-tag gold">+200%</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
@@ -1013,7 +1014,7 @@ a{color:inherit}
           <div>
             <div class="case-num">CASE 09 / LAUNCH · CRM</div>
             <h3 class="case-title">모두의 트레이닝 — 온·오프라인 신규 피트니스 런칭</h3>
-            <div class="case-meta"><span class="logo-chip">엔</span>엔핏 (현 클래스유)<span class="pipe">·</span>2018.07 — 2019.02<span class="pipe">·</span>Operation Manager</div>
+            <div class="case-meta"><img class="logo-chip-img" src="assets/logos/classu.png" alt="">엔핏 (현 클래스유)<span class="pipe">·</span>2018.07 — 2019.02<span class="pipe">·</span>Operation Manager</div>
           </div>
           <div class="case-tags"><span class="case-tag">LAUNCH</span><span class="case-tag">CRM</span><span class="case-tag gold">MATCHING</span><span class="case-tag contrib">기여도 100%</span></div>
         </header>
