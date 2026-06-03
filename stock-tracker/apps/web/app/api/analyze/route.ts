@@ -46,11 +46,20 @@ interface AnalyzeBody {
 }
 
 // Wrapper that never rejects — returns null on failure. Keeps Promise.all happy.
-function softly<T>(p: Promise<T>): Promise<T | null> {
-  return p.then(
-    (v) => v,
-    () => null,
+// Fail-soft wrapper for the optional/contextual data sources. Returns null on
+// either an error OR a timeout, so one slow upstream (Alpaca/Finnhub/FRED/SEC…)
+// can't drag the whole analyze request toward the gateway timeout. Without the
+// timeout, a single 20s+ source pushed total latency to ~27s, which the Vercel
+// edge cut off as a non-JSON error page (the "Unexpected token 'A'" the user
+// saw). 8s is generous for any single API while keeping worst-case total well
+// under the limit. The primary snapshot is intentionally NOT wrapped in softly,
+// so it still hard-fails fast if the core price feed is down.
+const SOFT_SOURCE_TIMEOUT_MS = 8000;
+function softly<T>(p: Promise<T>, timeoutMs = SOFT_SOURCE_TIMEOUT_MS): Promise<T | null> {
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), timeoutMs),
   );
+  return Promise.race([p.then((v) => v, () => null), timeout]);
 }
 
 interface CombinedNewsItem {

@@ -409,15 +409,35 @@ export default function TradePage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ symbol: selected, position: positionPayload, allowStale: true }),
       });
-      const data = (await r.json()) as AnalyzeResponse | { error: string };
-      if ("error" in data) {
+      // The analyze route can return non-JSON in two cases: a Vercel function
+      // timeout/crash (plain "An error occurred…" text → "Unexpected token 'A'"
+      // when blindly .json()'d) or an upstream 5xx HTML page. Read as text first
+      // and parse defensively so the user gets a readable message instead of a
+      // raw JSON-parse error, and the app never throws on a slow analysis.
+      const raw = await r.text();
+      let data: AnalyzeResponse | { error: string } | null = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
+      }
+      if (!data) {
+        setAnalysisError(
+          r.status === 504 || r.status === 408
+            ? "분석이 시간 내(약 30~60초) 완료되지 못했습니다. 잠시 후 다시 시도해 주세요."
+            : `분석 서버 오류 (HTTP ${r.status}). 잠시 후 다시 시도해 주세요.`,
+        );
+      } else if ("error" in data) {
         setAnalysisError(data.error);
       } else {
         setResult(data);
         if (data.snapshot) setSelectedSnap(data.snapshot);
       }
     } catch (err) {
-      setAnalysisError((err as Error).message);
+      // Network-level failure or client-side abort.
+      setAnalysisError(
+        `분석 요청이 실패했습니다: ${(err as Error).message}. 네트워크를 확인하고 다시 시도해 주세요.`,
+      );
     } finally {
       setAnalyzing(false);
     }
