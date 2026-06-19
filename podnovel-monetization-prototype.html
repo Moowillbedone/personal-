@@ -51,6 +51,7 @@ svg{display:block;}
 @keyframes ping{0%{transform:scale(.8);opacity:.6;}70%{transform:scale(1.7);opacity:0;}100%{opacity:0;}}
 .pin.flash{animation:pinflash .9s;}
 @keyframes pinflash{0%,100%{transform:scale(1);background:var(--or);color:#fff;}45%{transform:scale(1.45);background:#fff;color:var(--or);}}
+.chrome-pin{display:none;}
 
 .shead{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px;}
 .logo{font-size:25px;font-weight:800;letter-spacing:-1px;color:#fff;}
@@ -304,10 +305,8 @@ svg{display:block;}
             <span class="ic"><svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></span>
           </div>
         </div>
-        <div class="pills"><span class="pill live">📡 라이브</span><span class="pill ev">🎉 이벤트<span class="rdot"></span></span><span class="pill ch">방문한 채널</span>
-          <span class="pin" data-n="3" style="top:-2px;right:6px" onclick="event.stopPropagation();jumpPRD(3)">3</span>
-        </div>
-        <div class="banner"><span class="when">6월 20일 07:00</span><div class="bt">짜릿한 승부 예측!<br>스코틀랜드 VS 모로코</div><div class="ball"></div><span class="seeall">모두 보기 ›</span></div>
+        <div class="pills"><span class="pill live">📡 라이브</span><span class="pill ev">🎉 이벤트<span class="rdot"></span></span><span class="pill ch">방문한 채널</span></div>
+        <div class="banner"><span class="when">6월 20일 07:00</span><div class="bt">짜릿한 승부 예측!<br>스코틀랜드 VS 모로코</div><div class="ball"></div><span class="seeall">모두 보기 ›</span><span class="pin" data-n="3" style="top:10px;left:10px" onclick="event.stopPropagation();jumpPRD(3)">3</span></div>
         <div class="cdots"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="sec"><span class="st">스푼이 선정한 DJ</span><span class="ic" style="color:var(--txt2)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
         <div class="hscroll">
@@ -508,7 +507,7 @@ svg{display:block;}
 
     <div class="tabbar" id="tabbar">
       <a data-tab="spoon-home" onclick="nav('spoon-home')"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></span>홈</a>
-      <a data-tab="pod-home" onclick="nav('pod-home')"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h2l2-6 3 14 3-18 3 14 2-4h3"/></svg></span>팟노블</a>
+      <a data-tab="pod-home" onclick="nav('pod-home')"><span class="pin chrome-pin" data-screen="spoon-home" data-n="1" onclick="event.stopPropagation();jumpPRD(1)" style="top:1px;right:16px">1</span><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h2l2-6 3 14 3-18 3 14 2-4h3"/></svg></span>팟노블</a>
       <a onclick="toast('새 캐스트 만들기')"><span class="plusbtn ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></a>
       <a onclick="toast('캐스트 (라이브)')"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/></svg></span>캐스트</a>
       <a data-tab="my" onclick="nav('my')"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>MY</a>
@@ -600,6 +599,7 @@ function nav(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el=document.getElementById('screen-'+screen); if(el){el.classList.add('active');el.scrollTop=0;}
   document.querySelectorAll('.tabbar a').forEach(a=>a.classList.toggle('on',a.dataset.tab===TAB_FOR[screen]));
+  document.querySelectorAll('.chrome-pin').forEach(p=>{p.style.display=(p.dataset.screen===screen)?'grid':'none';});
   const si=STEPS.indexOf(screen); if(si>=0)state.step=si;
   renderPRD(screen); renderDots(); renderTourLabel();
   if(screen==='store')renderPacks();
@@ -627,14 +627,15 @@ function jumpPRD(n){
   setTimeout(()=>card.classList.remove('flash'),1500);
 }
 function flashPin(n){
-  const sc=document.getElementById('screen-'+state.screen); if(!sc)return;
-  const pin=sc.querySelector('.pin[data-n="'+n+'"]'); if(!pin)return;
+  let pin=document.querySelector('#screen-'+state.screen+' .pin[data-n="'+n+'"]');
+  if(!pin)pin=document.querySelector('.chrome-pin[data-screen="'+state.screen+'"][data-n="'+n+'"]');
+  if(!pin)return;
   pin.scrollIntoView({block:'center'}); pin.classList.add('flash');
   setTimeout(()=>pin.classList.remove('flash'),900);
 }
 function renderPacks(){
   const m=PACKS[state.market];
-  document.getElementById('packs').innerHTML=m.items.map(p=>'<div class="pack'+(p.hot?' hot':'')+'" onclick="buyPack(\''+p.price+'\')">'+(p.badge?'<span class="pb">'+p.badge+'</span>':'')+'<div class="amt">🪙 '+p.amt+'</div><div class="bon">'+p.bon+'</div><div class="price">'+p.price+'</div></div>').join('');
+  document.getElementById('packs').innerHTML=m.items.map(p=>'<div class="pack'+(p.hot?' hot':'')+'" onclick="buyPack(\''+p.price+'\')">'+(p.badge?'<span class="pb">'+p.badge+'</span>':'')+(p.hot?'<span class="pin" data-n="2" style="top:-9px;right:-7px" onclick="event.stopPropagation();jumpPRD(2)">2</span>':'')+(p.badge==='고래팩'?'<span class="pin" data-n="3" style="top:-9px;right:-7px" onclick="event.stopPropagation();jumpPRD(3)">3</span>':'')+'<div class="amt">🪙 '+p.amt+'</div><div class="bon">'+p.bon+'</div><div class="price">'+p.price+'</div></div>').join('');
   const names={jp:'일본',kr:'한국',tw:'대만'};
   document.getElementById('payH').textContent='결제수단 · '+names[state.market];
   document.getElementById('payM').innerHTML=m.pay.map(x=>'<span class="pchip">'+x+'</span>').join('');
@@ -653,7 +654,7 @@ function claimWelcome(){setCoin(state.coin+500);toast('🎉 환영 코인 500개
 let toastTimer;function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
 let cdS=86398;setInterval(()=>{const el=document.getElementById('cd');if(!el)return;cdS=cdS<=0?86399:cdS-1;el.textContent=String(Math.floor(cdS/3600)).padStart(2,'0')+':'+String(Math.floor(cdS%3600/60)).padStart(2,'0')+':'+String(cdS%60).padStart(2,'0');},1000);
 let pp=1;setInterval(()=>{const f=document.getElementById('pfill'),k=document.getElementById('pknob'),c=document.getElementById('pcur');if(!f)return;pp=pp>=99?1:pp+0.4;f.style.width=pp+'%';if(k)k.style.left=pp+'%';if(c){const sec=Math.floor(852*pp/100);c.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');}},500);
-renderPacks();renderPRD('spoon-home');renderDots();renderTourLabel();
+renderPacks();nav('spoon-home');
 </script>
 </body>
 </html>
