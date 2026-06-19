@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spoon · Podnovel 수익화 프로토타입 (최고 수익화) + PRD</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --stage:#0a0a0c; --bg:#0d0d0f; --surf:#1a1a1e; --surf2:#26262c; --line:#2a2a31;
+  --or:#fa4b38; --or2:#ff7a3d; --purple:#7c5cff; --blue:#3b82f6;
+  --txt:#fff; --txt2:#9a9aa2; --txt3:#65656d; --star:#ffa53d;
+  --ink:#1b1a22; --muted:#6b6878; --pline:#e9e6f0; --teal:#0f6e56; --teal-bg:#e1f5ee;
+  --coral:#d85a30; --amber:#854f0b; --amber-bg:#faeeda; --gift:#d4537e; --ok:#1d9e75; --gold:#c79a2e;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:var(--stage);color:var(--ink);-webkit-font-smoothing:antialiased;overflow:hidden;}
+svg{display:block;}
+.ic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+
+.toolbar{height:54px;background:#000;display:flex;align-items:center;gap:14px;padding:0 18px;color:#fff;border-bottom:1px solid #222;}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;white-space:nowrap;letter-spacing:-.3px;}
+.brand .dot{width:24px;height:24px;border-radius:7px;background:var(--or);display:grid;place-items:center;font-size:13px;}
+.brand .tag{font-size:10.5px;color:#86868e;font-weight:500;border-left:1px solid #333;padding-left:11px;margin-left:2px;}
+.tour{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.tour .label{font-size:12px;color:#cfcfd6;min-width:160px;text-align:right;}
+.tour button{background:#26262c;color:#fff;border:none;border-radius:8px;padding:8px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;transition:.15s;}
+.tour button:hover{background:#34343c;}
+.tour button.primary{background:var(--or);} .tour button.primary:hover{background:#e23f2e;}
+.tour button:disabled{opacity:.34;cursor:default;}
+.dots{display:flex;gap:4px;}
+.dots i{width:7px;height:7px;border-radius:50%;background:#34343c;transition:.2s;cursor:pointer;}
+.dots i.on{background:var(--or);transform:scale(1.25);}
+
+.stage{height:calc(100vh - 54px);display:flex;gap:26px;align-items:center;justify-content:center;padding:22px 26px;}
+.device{width:384px;min-width:384px;height:792px;max-height:calc(100vh - 90px);background:var(--bg);border-radius:42px;border:7px solid #000;position:relative;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5);}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:122px;height:26px;background:#000;border-radius:0 0 16px 16px;z-index:60;}
+.statusbar{position:absolute;top:0;left:0;right:0;height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:12px;font-weight:600;color:#fff;z-index:55;}
+.statusbar .rgt{font-size:10px;}
+.screens{position:absolute;inset:0;}
+.screen{position:absolute;inset:0;padding-top:40px;overflow-y:auto;background:var(--bg);color:var(--txt);display:none;}
+.screen.active{display:block;animation:fade .26s ease;}
+.screen::-webkit-scrollbar{width:0;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+/* hotspot pins */
+.pin{position:absolute;width:23px;height:23px;border-radius:50%;background:var(--or);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;cursor:pointer;z-index:45;border:2px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.45);}
+.pin::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--or);opacity:0;animation:ping 2.4s ease-out infinite;}
+@keyframes ping{0%{transform:scale(.8);opacity:.6;}70%{transform:scale(1.7);opacity:0;}100%{opacity:0;}}
+.pin.flash{animation:pinflash .9s;}
+@keyframes pinflash{0%,100%{transform:scale(1);background:var(--or);color:#fff;}45%{transform:scale(1.45);background:#fff;color:var(--or);}}
+.chrome-pin{display:none;}
+
+.shead{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px;}
+.logo{font-size:25px;font-weight:800;letter-spacing:-1px;color:#fff;}
+.hicons{display:flex;gap:15px;color:#fff;align-items:center;}
+.hicons .ic{cursor:pointer;}
+.pad{padding:0 18px 92px;}
+.sec{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 11px;position:relative;}
+.sec .st{font-size:16px;font-weight:800;}
+
+.pills{display:flex;gap:8px;padding:2px 18px 4px;}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:22px;padding:8px 15px;font-size:13px;font-weight:700;position:relative;}
+.pill.live{background:#fff;color:#111;} .pill.ev{background:linear-gradient(90deg,#ff3d3d,#ff7a3d);color:#fff;}
+.pill.ev .rdot{position:absolute;top:5px;right:8px;width:6px;height:6px;border-radius:50%;background:#ff3d3d;border:1.5px solid #fff;}
+.pill.ch{background:#26262c;color:#cfcfd6;}
+
+.banner{margin:10px 18px 6px;height:150px;border-radius:18px;overflow:hidden;position:relative;background:linear-gradient(100deg,#8a1e1e,#5a1020 55%,#0f3a2a);padding:18px;}
+.banner .when{display:inline-block;border:1px solid rgba(255,255,255,.5);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;color:#fff;}
+.banner .bt{font-size:20px;font-weight:800;color:#fff;line-height:1.25;margin-top:9px;letter-spacing:-.5px;}
+.banner .ball{position:absolute;right:14px;top:30px;width:96px;height:96px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#cfcfcf 60%,#888);}
+.banner .seeall{position:absolute;right:16px;bottom:14px;font-size:12px;color:#fff;font-weight:600;opacity:.92;}
+.cdots{display:flex;gap:5px;justify-content:center;margin:10px 0 2px;}
+.cdots i{width:6px;height:6px;border-radius:50%;background:#3a3a42;} .cdots i.on{background:var(--or);width:18px;border-radius:4px;}
+
+.hscroll{display:flex;gap:12px;overflow-x:auto;padding:0 18px 4px;} .hscroll::-webkit-scrollbar{height:0;}
+.djcard{min-width:158px;width:158px;cursor:pointer;}
+.djcard .ph{height:210px;border-radius:16px;position:relative;overflow:hidden;}
+.djcard .ph .ch{position:absolute;top:9px;left:9px;background:var(--or);color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:14px;}
+.djcard .nm{font-size:13px;font-weight:700;margin-top:8px;}
+.djcard .dj{font-size:11px;color:var(--txt2);margin-top:3px;display:flex;align-items:center;gap:5px;}
+.djcard .dj .av{width:16px;height:16px;border-radius:50%;}
+
+.welcome{margin:6px 18px 4px;border-radius:16px;padding:14px 15px;background:linear-gradient(100deg,#fa4b38,#ff7a3d);color:#fff;display:flex;align-items:center;gap:12px;cursor:pointer;position:relative;}
+.welcome .wm{flex:1;} .welcome .wh{font-size:14px;font-weight:800;} .welcome .ws{font-size:11px;opacity:.95;margin-top:3px;line-height:1.4;}
+.welcome .wc{background:rgba(255,255,255,.22);border-radius:12px;padding:8px 11px;font-size:13px;font-weight:800;white-space:nowrap;}
+
+.cgrid{display:flex;gap:12px;overflow-x:auto;padding:0 18px 4px;} .cgrid::-webkit-scrollbar{height:0;}
+.ccard{min-width:142px;width:142px;cursor:pointer;position:relative;}
+.cover{height:142px;border-radius:13px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:9px;}
+.cover::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),transparent 58%);z-index:1;}
+.cover .ct{font-size:13px;font-weight:800;color:#fff;line-height:1.2;z-index:2;position:relative;}
+.cover .badge{position:absolute;top:8px;left:8px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:10px;z-index:3;}
+.cover .badge.new{background:var(--purple);color:#fff;}
+.cover .prog{position:absolute;left:0;bottom:0;height:4px;background:var(--or);z-index:4;}
+.cc-t{font-size:12.5px;font-weight:700;margin-top:8px;line-height:1.3;}
+.cc-h{font-size:10.5px;color:var(--txt2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cc-r{font-size:11px;color:var(--star);font-weight:700;margin-top:4px;} .cc-r b{color:var(--txt2);font-weight:500;}
+
+/* illustrated covers: gradient + motif (::after) */
+.g-fant{background:linear-gradient(150deg,#7a5cb5,#caa24b);}
+.g-rom{background:linear-gradient(150deg,#2c3a5e,#c46a84);}
+.g-shanghai{background:linear-gradient(150deg,#1f3a3a,#b88a3a);}
+.g-maroon{background:linear-gradient(150deg,#7a2336,#33232f);}
+.g-joseon{background:linear-gradient(150deg,#274a6a,#d6a44b);}
+.g-horror{background:linear-gradient(150deg,#4a1717,#101012);}
+.g-sub{background:linear-gradient(150deg,#43305a,#8a6a86);}
+.cover::after,.dcover::after,.pcover::after,.th::after{content:'';position:absolute;top:6%;left:50%;transform:translateX(-50%);width:48%;height:48%;background-repeat:no-repeat;background-position:center;background-size:contain;opacity:.26;z-index:1;}
+.g-fant::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M2 8l4.5 3.5L12 3l5.5 8.5L22 8l-2 11H4z'/%3E%3C/svg%3E");}
+.g-rom::after,.g-sub::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 21s-7-4.7-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.3-7 10-7 10z'/%3E%3C/svg%3E");}
+.g-shanghai::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M5 21V9l4-2v14zm6 0V5l4-2v18zm6 0v-9l-3-1.5V21z'/%3E%3C/svg%3E");}
+.g-joseon::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M2 20l6-12 4 7 3-5 7 10z'/%3E%3C/svg%3E");}
+.g-maroon::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 2l2.2 6.8H21l-5.4 4 2 6.8L12 15.6 6.4 19.6l2-6.8-5.4-4h6.8z'/%3E%3C/svg%3E");}
+.g-horror::after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 2a8 8 0 0 0-5 14v3h2l1-2 1 2 1-2 1 2h2v-3a8 8 0 0 0-5-14zM9 11a1.5 1.5 0 1 1 0 .01M15 11a1.5 1.5 0 1 1 0 .01'/%3E%3C/svg%3E");}
+
+/* detail */
+.dback{padding:8px 16px;color:#fff;} .dback .ic{cursor:pointer;}
+.dcover{width:188px;height:188px;border-radius:22px;margin:6px auto 16px;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding:12px;box-shadow:0 14px 40px rgba(0,0,0,.5);}
+.dcover::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.55),transparent 60%);z-index:1;}
+.dcover .ct{font-size:18px;font-weight:800;color:#fff;z-index:2;position:relative;}
+.dttl{font-size:20px;font-weight:800;text-align:center;padding:0 24px;line-height:1.3;}
+.dmeta{display:flex;align-items:center;justify-content:center;gap:11px;font-size:12px;color:var(--txt2);margin-top:12px;flex-wrap:wrap;}
+.dmeta .star{color:var(--star);font-weight:700;} .dmeta .age{background:var(--surf2);color:var(--txt2);padding:2px 8px;border-radius:6px;font-size:11px;}
+.dbtns{display:flex;gap:10px;padding:16px 18px 6px;position:relative;}
+.dbtns .b{flex:1;border-radius:13px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;text-align:center;border:none;font-family:inherit;}
+.dbtns .like{background:var(--surf2);color:#fff;flex:0 0 38%;} .dbtns .play{background:#fff;color:#111;}
+.synopsis{padding:6px 20px 0;font-size:12.5px;line-height:1.65;color:var(--txt2);}
+.synopsis .more{color:var(--txt);font-weight:600;display:inline-block;margin-top:6px;}
+.author{display:flex;align-items:center;gap:9px;padding:16px 20px 0;font-size:12.5px;}
+.author .av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#2bc48a,#0f6e56);}
+.author .lbl{color:var(--txt2);} .author .nm{font-weight:700;}
+.ainote{display:flex;align-items:center;gap:7px;padding:14px 20px 4px;font-size:11.5px;color:var(--txt2);position:relative;}
+.ainote .i{width:15px;height:15px;border-radius:50%;border:1px solid var(--txt3);display:grid;place-items:center;font-size:9px;}
+.voice-toggle{margin:14px 18px 4px;background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:4px;display:flex;position:relative;}
+.voice-toggle button{flex:1;border:none;background:none;padding:10px;border-radius:10px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--txt2);font-family:inherit;line-height:1.3;}
+.voice-toggle button.on{background:rgba(250,75,56,.16);color:var(--or);}
+.voice-toggle button.on.prem{background:rgba(124,92,255,.18);color:#a892ff;}
+.rate{padding:18px 20px 8px;} .rate .rh{font-size:14px;font-weight:800;} .rate .rs{font-size:11.5px;color:var(--txt2);margin-top:3px;}
+.rate .stars{color:#44444c;font-size:22px;letter-spacing:3px;float:right;margin-top:-26px;}
+.dtabs{display:flex;border-bottom:1px solid var(--line);}
+.dtabs a{flex:1;text-align:center;padding:13px;font-size:13.5px;font-weight:700;color:var(--txt2);cursor:pointer;}
+.dtabs a.on{color:#fff;border-bottom:2px solid #fff;}
+
+/* episodes */
+.eptabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);}
+.eptabs a{flex:1;text-align:center;padding:14px;font-size:14px;font-weight:700;color:var(--txt2);cursor:pointer;}
+.eptabs a.on{color:#fff;border-bottom:2px solid #fff;}
+.eprow{display:flex;align-items:center;gap:12px;padding:13px 18px;cursor:pointer;border-bottom:1px solid #18181c;position:relative;}
+.eprow .th{width:48px;height:48px;border-radius:10px;flex-shrink:0;position:relative;overflow:hidden;}
+.eprow .info{flex:1;} .eprow .et{font-size:13px;font-weight:600;line-height:1.3;} .eprow .em{font-size:11px;color:var(--txt3);margin-top:4px;}
+.eprow .ec{font-size:12px;font-weight:700;} .eprow .ec.lock{color:var(--or);} .eprow .ec.free{color:var(--txt3);}
+.contbtn{margin:8px 18px;background:#fff;color:#111;border:none;border-radius:13px;padding:15px;font-size:14px;font-weight:800;width:calc(100% - 36px);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;}
+
+/* player */
+.player{height:100%;background:linear-gradient(180deg,#b0888d,#7a5b62 45%,#2a1f24);color:#fff;padding:50px 24px 26px;display:flex;flex-direction:column;}
+.player .down{font-size:22px;opacity:.9;cursor:pointer;}
+.pcover{width:230px;height:230px;border-radius:22px;margin:14px auto 16px;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);}
+.pcover::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.5),transparent 60%);z-index:1;}
+.pcover .ct{font-size:19px;font-weight:800;z-index:2;position:relative;}
+.player .pt{font-size:16px;font-weight:800;text-align:center;} .player .ps{font-size:13px;opacity:.85;text-align:center;margin-top:5px;}
+.pquick{display:flex;justify-content:space-around;margin:20px 6px 6px;position:relative;}
+.pquick .q{text-align:center;font-size:10.5px;opacity:.9;} .pquick .q .ic{display:block;margin:0 auto 5px;}
+.pbar{height:3px;background:rgba(255,255,255,.3);border-radius:2px;margin:16px 0 6px;position:relative;}
+.pbar i{position:absolute;left:0;top:0;height:100%;width:1%;background:#fff;border-radius:2px;}
+.pbar b{position:absolute;left:1%;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;border-radius:50%;background:#fff;}
+.ptime{display:flex;justify-content:space-between;font-size:11px;opacity:.8;}
+.pctrl{display:flex;align-items:center;justify-content:center;gap:22px;margin:16px 0;}
+.pctrl .b{opacity:.92;cursor:pointer;} .pctrl .play{width:66px;height:66px;border-radius:50%;background:#111;display:grid;place-items:center;cursor:pointer;}
+.cliff{margin-top:auto;background:rgba(250,75,56,.2);border:1px solid rgba(255,122,61,.45);border-radius:13px;padding:12px 14px;font-size:11.5px;line-height:1.5;cursor:pointer;position:relative;}
+.cliff b{color:#ff9a6d;}
+.psheet{margin-top:14px;background:#1a1a1e;border-radius:16px 16px 0 0;margin-left:-24px;margin-right:-24px;padding:14px 18px;}
+.pstabs{display:flex;gap:18px;border-bottom:1px solid var(--line);} .pstabs a{padding:8px 0;font-size:13px;font-weight:700;color:var(--txt2);cursor:pointer;} .pstabs a.on{color:#fff;border-bottom:2px solid #fff;}
+.psrow{display:flex;align-items:center;gap:10px;padding:11px 0;} .psrow .th{width:40px;height:40px;border-radius:9px;flex-shrink:0;position:relative;overflow:hidden;}
+.psrow .pi{flex:1;font-size:12.5px;font-weight:600;} .psrow .pm{font-size:10.5px;color:var(--txt3);margin-top:3px;}
+.psrow .now{background:var(--blue);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;}
+
+/* paywall */
+.pw{padding:52px 22px 28px;min-height:100%;background:linear-gradient(180deg,#1a0f12,#0d0d0f);color:#fff;display:flex;flex-direction:column;}
+.pw .lk{font-size:30px;text-align:center;margin-bottom:8px;} .pw .ph{font-size:17px;font-weight:800;text-align:center;line-height:1.35;}
+.pw .pp{font-size:12px;opacity:.78;text-align:center;margin-top:8px;line-height:1.5;padding:0 6px;}
+.pw .disc{margin:16px auto 4px;background:var(--or);color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;position:relative;}
+.opt{border-radius:15px;padding:15px;margin-top:11px;cursor:pointer;border:1.5px solid transparent;position:relative;}
+.opt.wait{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);} .opt.now{background:var(--or);color:#fff;}
+.opt .ot{font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:space-between;} .opt .os{font-size:11px;margin-top:5px;opacity:.78;}
+.opt .cd{font-variant-numeric:tabular-nums;font-weight:700;color:#ff9a6d;font-size:13px;}
+.pw .pass{margin-top:14px;text-align:center;font-size:11.5px;opacity:.82;text-decoration:underline;cursor:pointer;position:relative;}
+
+/* store */
+.shdr{padding:8px 18px 4px;font-size:19px;font-weight:800;}
+.mkt{display:flex;gap:7px;margin:10px 18px 14px;position:relative;}
+.mkt button{flex:1;border:1px solid var(--line);background:var(--surf);border-radius:11px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--txt2);} .mkt button.on{background:#fff;color:#111;border-color:#fff;}
+.packs{padding:0 18px;display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.pack{background:var(--surf);border:1.5px solid var(--line);border-radius:14px;padding:14px 11px;text-align:center;cursor:pointer;position:relative;} .pack.hot{border-color:var(--or);}
+.pack .pb{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--or);color:#fff;font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.pack .amt{font-size:18px;font-weight:800;color:var(--star);} .pack .bon{font-size:10px;color:var(--ok);font-weight:700;margin-top:3px;} .pack .price{font-size:14px;font-weight:800;margin-top:8px;color:#fff;}
+.paym{margin:16px 18px 0;background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:13px 15px;position:relative;}
+.paym .h{font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:9px;} .paym .m{display:flex;gap:7px;flex-wrap:wrap;}
+.pchip{font-size:10.5px;font-weight:700;background:var(--surf2);color:#cfcfd6;padding:7px 11px;border-radius:9px;}
+
+/* subscribe */
+.plan{background:var(--surf);border:1.5px solid var(--line);border-radius:15px;padding:16px;margin-bottom:11px;cursor:pointer;position:relative;}
+.plan.best{border-color:var(--or);background:linear-gradient(180deg,rgba(250,75,56,.08),var(--surf));}
+.plan .bb{position:absolute;top:-9px;right:14px;background:var(--or);color:#fff;font-size:9.5px;font-weight:700;padding:2px 10px;border-radius:20px;}
+.plan .pn{font-size:14px;font-weight:800;} .plan .pr{font-size:21px;font-weight:800;margin:5px 0;} .plan .pr small{font-size:12px;color:var(--txt2);font-weight:600;}
+.plan .pd{font-size:11.5px;color:#ff9a6d;font-weight:700;} .plan .pdesc{font-size:11px;color:var(--txt2);}
+.benefit{font-size:11.5px;color:var(--txt2);padding:5px 0 5px 18px;position:relative;line-height:1.4;} .benefit::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:800;}
+
+/* gifting */
+.cvprof{display:flex;align-items:center;gap:13px;background:var(--surf);border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:14px;}
+.cvprof .av{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#d4537e,#7c3a6a);flex-shrink:0;}
+.cvprof .nm{font-size:14px;font-weight:800;} .cvprof .rl{font-size:11px;color:var(--txt2);margin-top:3px;}
+.gifts{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:15px;position:relative;}
+.gift{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:11px 4px;text-align:center;cursor:pointer;}
+.gift .em{font-size:22px;} .gift .gl{font-size:9px;font-weight:700;margin-top:5px;color:#fff;} .gift .gc{font-size:9px;color:var(--star);font-weight:700;}
+.oshi{background:linear-gradient(135deg,rgba(199,154,46,.16),var(--surf));border:1.5px solid rgba(224,185,78,.4);border-radius:15px;padding:16px;position:relative;}
+.oshi .oh{font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:space-between;} .oshi .tier{font-size:10.5px;font-weight:800;color:#e0b94e;}
+.bar{height:9px;background:#2a2a31;border-radius:6px;margin:12px 0 7px;overflow:hidden;} .bar i{display:block;height:100%;width:62%;background:linear-gradient(90deg,#e0b94e,#c79a2e);border-radius:6px;}
+.oshi .on{font-size:10.5px;color:var(--txt2);} .perk{font-size:11px;color:#fff;padding:5px 0 5px 18px;position:relative;} .perk::before{content:"★";position:absolute;left:0;color:#e0b94e;font-size:10px;}
+
+/* search */
+.searchbar{display:flex;align-items:center;gap:9px;margin:6px 18px 14px;background:var(--surf);border:1px solid var(--line);border-radius:13px;padding:12px 14px;color:var(--txt2);font-size:13px;position:relative;}
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px;position:relative;}
+.chip{background:var(--surf);border:1px solid var(--line);border-radius:20px;padding:8px 14px;font-size:12.5px;font-weight:600;color:#cfcfd6;cursor:pointer;}
+.chip.g{background:rgba(124,92,255,.14);color:#a892ff;border-color:transparent;}
+.qrank{padding:0 18px;position:relative;} .qrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #18181c;cursor:pointer;}
+.qrow .qn{font-size:15px;font-weight:800;color:var(--or);width:18px;} .qrow .qt{font-size:13.5px;font-weight:600;} .qrow .up{margin-left:auto;font-size:10px;color:var(--ok);}
+
+/* MY */
+.myhead{display:flex;align-items:center;gap:14px;padding:12px 18px 16px;position:relative;}
+.myhead .av{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#fa4b38,#ff7a3d);flex-shrink:0;}
+.myhead .nm{font-size:17px;font-weight:800;} .myhead .sub{font-size:11.5px;color:var(--txt2);margin-top:4px;display:flex;gap:6px;align-items:center;}
+.royal{background:rgba(250,75,56,.18);color:#ff9a6d;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;}
+.mycard{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:15px;margin:0 18px 12px;position:relative;}
+.mycard .mh{font-size:12px;color:var(--txt2);font-weight:700;}
+.mywallet{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.mywallet .bal{font-size:24px;font-weight:800;color:var(--star);} .mywallet .ch{background:var(--or);color:#fff;border:none;border-radius:11px;padding:10px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;}
+.myrow{display:flex;align-items:center;justify-content:space-between;margin-top:9px;font-size:13px;}
+.mycta{background:var(--or);color:#fff;border:none;border-radius:11px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
+.mylink{font-size:12px;color:var(--or);font-weight:700;}
+
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:64px;background:#101013;border-top:1px solid #1f1f25;display:flex;z-index:50;padding-bottom:6px;align-items:center;}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--txt2);cursor:pointer;font-weight:600;position:relative;}
+.tabbar a.on{color:var(--or);}
+.tabbar .plusbtn{width:46px;height:46px;border-radius:50%;background:var(--surf2);display:grid;place-items:center;margin-top:-4px;}
+
+.toast{position:absolute;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,0,0,.92);color:#fff;font-size:12px;font-weight:600;padding:11px 18px;border-radius:24px;opacity:0;transition:.3s;z-index:80;white-space:nowrap;border:1px solid #333;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* PRD */
+.prd{flex:1;height:calc(100vh - 90px);background:#fff;border-radius:18px;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.45);max-width:760px;}
+.prd-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--pline);padding:18px 26px 14px;z-index:10;}
+.prd-head .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;padding:3px 9px;border-radius:20px;margin-bottom:8px;}
+.prd-head .t{font-size:21px;font-weight:800;letter-spacing:-.5px;color:var(--ink);}
+.prd-head .s{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.5;}
+.layer-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:9px;margin-top:10px;}
+.layer-chip.chassis{background:#f1efe8;color:#444441;} .layer-chip.engine{background:var(--teal-bg);color:var(--teal);}
+.layer-chip.accel{background:var(--amber-bg);color:var(--amber);} .layer-chip.killer{background:#fbeaf0;color:var(--gift);}
+.prd-hint{font-size:11.5px;color:var(--muted);background:#f8f7fb;border:1px solid var(--pline);border-radius:9px;padding:9px 12px;margin:0 26px;display:flex;align-items:center;gap:7px;}
+.prd-hint b{color:var(--or);}
+.prd-body{padding:16px 26px 60px;}
+.pcard{border:1px solid var(--pline);border-radius:13px;padding:14px 15px;margin-bottom:12px;cursor:pointer;transition:.15s;display:flex;gap:12px;}
+.pcard:hover{border-color:var(--or);background:#fffaf9;}
+.pcard.flash{border-color:var(--or);background:#fff3ef;box-shadow:0 0 0 3px rgba(250,75,56,.13);}
+.pcard .pn{width:26px;height:26px;border-radius:50%;background:var(--or);color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center;flex-shrink:0;}
+.pcard .pc-t{font-weight:800;font-size:14px;color:var(--ink);}
+.pcard .pc-b{font-size:12.5px;color:#33313d;line-height:1.55;margin-top:5px;}
+.ev{background:var(--teal-bg);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:8px 11px;margin-top:8px;}
+.ev p{font-size:11.5px;line-height:1.5;color:#235;}
+.kpi{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;}
+.kpi span{font-size:11px;font-weight:700;background:var(--amber-bg);color:var(--amber);padding:5px 9px;border-radius:8px;}
+
+/* overview / flywheel */
+.ovbtn{background:linear-gradient(90deg,#fa4b38,#ff7a3d);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.overview{position:fixed;left:0;right:0;top:54px;bottom:0;background:#0d0d0f;z-index:200;overflow-y:auto;padding:26px 24px 70px;}
+.ov-wrap{max-width:940px;margin:0 auto;}
+.ov-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+.ov-close{background:#26262c;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.ov-h1{font-size:25px;font-weight:800;color:#fff;letter-spacing:-.6px;}
+.ov-sub{font-size:13.5px;color:#9a9aa2;margin-top:8px;line-height:1.6;}
+.idbar{margin:18px 0 6px;background:linear-gradient(100deg,rgba(250,75,56,.18),rgba(124,92,255,.16));border:1px solid rgba(250,75,56,.45);border-radius:14px;padding:16px 18px;color:#fff;font-size:14px;line-height:1.55;}
+.idbar b{color:#ff9a6d;} .idbar .big{font-size:16px;font-weight:800;display:block;margin-bottom:5px;}
+.ov-sec{margin-top:30px;} .ov-sec .h{font-size:17px;font-weight:800;color:#fff;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.ov-sec .h .tag{font-size:11px;font-weight:700;color:#9a9aa2;}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.ovcard{background:#1a1a1e;border:1px solid #2a2a31;border-radius:14px;padding:16px;}
+.ovcard .ct{font-size:13px;font-weight:800;color:#fff;margin-bottom:9px;}
+.ovcard.in{border-color:rgba(29,158,117,.5);}
+.ovli{font-size:12.5px;color:#cfcfd6;padding:4px 0 4px 16px;position:relative;line-height:1.5;}
+.ovli::before{content:"✓";position:absolute;left:0;color:#5dcaa5;font-weight:800;font-size:11px;}
+.ovcard.out .ovli::before{content:"✕";color:#a32d2d;}
+.flywrap{background:#141318;border:1px solid #2a2a31;border-radius:16px;padding:18px 10px 8px;}
+.fw-cap{text-align:center;font-size:12px;color:#9a9aa2;margin-top:4px;line-height:1.5;}
+.frame3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.fc{border-radius:12px;padding:14px;border:1px solid;}
+.fc.s{background:rgba(255,255,255,.04);border-color:#3a3a42;} .fc.e{background:rgba(29,158,117,.12);border-color:rgba(29,158,117,.45);} .fc.a{background:rgba(133,79,11,.2);border-color:rgba(186,117,23,.5);}
+.fc .role{font-size:10px;font-weight:800;letter-spacing:.5px;} .fc.s .role{color:#b4b2a9;} .fc.e .role{color:#5dcaa5;} .fc.a .role{color:#efa927;}
+.fc .ft{font-size:14px;font-weight:800;color:#fff;margin:3px 0 5px;} .fc .fd{font-size:11.5px;color:#9a9aa2;line-height:1.45;}
+.ovtable{width:100%;border-collapse:collapse;font-size:12.5px;color:#cfcfd6;}
+.ovtable td,.ovtable th{border:1px solid #2a2a31;padding:9px 11px;text-align:left;vertical-align:top;}
+.ovtable th{background:#1a1a1e;color:#9a9aa2;font-weight:700;font-size:11.5px;} .ovtable td b{color:#fff;} .ovtable td:first-child{white-space:nowrap;font-weight:700;color:#fff;}
+.bmrow{display:flex;gap:10px;} .bmcell{flex:1;background:#1a1a1e;border:1px solid #2a2a31;border-radius:12px;padding:13px;text-align:center;}
+.bmcell .p{font-size:21px;font-weight:800;color:var(--or);} .bmcell .l{font-size:11px;color:#9a9aa2;margin-top:3px;} .bmcell .d{font-size:10.5px;color:#cfcfd6;margin-top:6px;line-height:1.4;}
+.tgt3{display:flex;gap:10px;} .tgtc{flex:1;background:rgba(29,158,117,.1);border:1px solid rgba(29,158,117,.4);border-radius:12px;padding:13px;text-align:center;}
+.tgtc .v{font-size:19px;font-weight:800;color:#5dcaa5;} .tgtc .k{font-size:10.5px;color:#9a9aa2;margin-top:3px;}
+.rule{background:rgba(250,75,56,.12);border:1px solid rgba(250,75,56,.4);border-radius:12px;padding:12px 15px;margin-top:12px;font-size:12.5px;color:#fff;line-height:1.5;}
+.rule b{color:#ff9a6d;}
+.smapgrp{margin-bottom:10px;} .smaplbl{font-size:11.5px;color:#9a9aa2;font-weight:700;margin-bottom:7px;}
+.smap{display:flex;flex-wrap:wrap;gap:8px;}
+.schip{background:#1a1a1e;border:1px solid #2a2a31;border-radius:10px;padding:9px 13px;font-size:12px;color:#cfcfd6;cursor:pointer;font-weight:600;}
+.schip:hover{border-color:var(--or);color:#fff;} .schip b{color:var(--or);}
+.startbtn{display:block;width:100%;margin-top:28px;background:linear-gradient(90deg,#fa4b38,#ff7a3d);color:#fff;border:none;border-radius:13px;padding:16px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;}
+@media (max-width:760px){.twocol,.frame3{grid-template-columns:1fr;}.bmrow,.tgt3{flex-wrap:wrap;}}
+
+@media (max-width:1040px){
+  body{overflow:auto;} .stage{flex-direction:column;height:auto;padding:18px;} .device{max-height:none;}
+  .prd{height:auto;max-height:none;width:100%;max-width:440px;} .tour .label{min-width:0;}
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="brand"><span class="dot">🥄</span>Spoon · Podnovel<span class="tag">🚀 최고 수익화 · 레버 총동원 · PRD</span></div>
+  <button class="ovbtn" onclick="openOverview()">📊 전략 개요 · 플라이휠</button>
+  <div class="tour">
+    <div class="dots" id="dots"></div>
+    <div class="label" id="tourLabel"></div>
+    <button id="prevBtn" onclick="tourPrev()">‹ 이전</button>
+    <button class="primary" id="nextBtn" onclick="tourNext()">다음 ›</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="device">
+    <div class="notch"></div>
+    <div class="statusbar"><span>11:23</span><span class="rgt">5G ▮▮▮ 🔋93</span></div>
+    <div class="screens" id="screens">
+
+      <!-- 1. SPOON HOME -->
+      <div class="screen active" id="screen-spoon-home">
+        <div class="shead"><span class="logo">Spoon</span>
+          <div class="hicons">
+            <span class="ic" onclick="nav('search')"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></span>
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg></span>
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-4A8.4 8.4 0 1 1 21 11.5z"/></svg></span>
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></span>
+          </div>
+        </div>
+        <div class="pills"><span class="pill live">📡 라이브</span><span class="pill ev">🎉 이벤트<span class="rdot"></span></span><span class="pill ch">방문한 채널</span></div>
+        <div class="banner"><span class="when">6월 20일 07:00</span><div class="bt">짜릿한 승부 예측!<br>스코틀랜드 VS 모로코</div><div class="ball"></div><span class="seeall">모두 보기 ›</span><span class="pin" data-n="3" style="top:10px;left:10px" onclick="event.stopPropagation();jumpPRD(3)">3</span></div>
+        <div class="cdots"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="sec"><span class="st">스푼이 선정한 DJ</span><span class="ic" style="color:var(--txt2)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
+        <div class="hscroll">
+          <div class="djcard" onclick="nav('pod-home')"><div class="ph" style="background:linear-gradient(160deg,#3a4a6a,#7a8aaa)"><span class="ch">Choice</span><span class="pin" data-n="2" style="top:8px;right:8px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div><div class="nm">축구 같이 보자</div><div class="dj"><span class="av" style="background:#c98"></span>아라 🎙️</div></div>
+          <div class="djcard" onclick="nav('pod-home')"><div class="ph" style="background:linear-gradient(160deg,#1a1a22,#3a3a4a)"><span class="ch">Choice</span></div><div class="nm">그레이의 굿모닝 FM♥</div><div class="dj"><span class="av" style="background:#88a"></span>Gray 🤍</div></div>
+          <div class="djcard" onclick="nav('pod-home')"><div class="ph" style="background:linear-gradient(160deg,#6a5a7a,#caa2c8)"><span class="ch">Choice</span></div><div class="nm">헤이즐의 새벽 감성</div><div class="dj"><span class="av" style="background:#a8c"></span>헤이즐</div></div>
+        </div>
+      </div>
+
+      <!-- 2. PODNOVEL HOME -->
+      <div class="screen" id="screen-pod-home">
+        <div class="shead"><span class="logo">Spoon</span>
+          <div class="hicons">
+            <span class="ic" onclick="nav('search')"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></span>
+            <span class="ic" onclick="nav('store')"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 10h20"/></svg></span>
+          </div>
+        </div>
+        <div class="welcome" onclick="claimWelcome()"><div class="wm"><div class="wh">🎉 스푼 ROYAL님, 환영해요!</div><div class="ws">이미 검증된 팬을 위한 팟노블 첫 방문 코인 (마케팅비 0원)</div></div><div class="wc">+500 받기</div>
+          <span class="pin" data-n="1" style="top:-8px;left:-6px" onclick="event.stopPropagation();jumpPRD(1)">1</span>
+        </div>
+        <div class="sec"><span class="st">최근 들은</span></div>
+        <div class="cgrid">
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-fant"><span class="prog" style="width:42%"></span><span class="ct">오늘부터<br>황녀?!</span></div><div class="cc-t">오늘부터 황녀?!(DJ 유닝 ver)</div><div class="cc-h">#서양풍 #회귀물 #육아물</div><div class="cc-r">★ 4.8 <b>(2)</b></div><span class="pin" data-n="2" style="top:8px;right:8px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div>
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-rom"><span class="prog" style="width:70%"></span><span class="ct">CEO의<br>위험한 유혹</span></div><div class="cc-t">CEO의 위험한 유혹</div><div class="cc-h">#하룻밤 후 13억 빚?! 재벌</div><div class="cc-r">★ 4.3 <b>(30)</b></div></div>
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-shanghai"><span class="ct">상하이<br>재벌의 시녀</span></div><div class="cc-t">상하이 재벌의 시녀가 되었다</div><div class="cc-h">#위조 문서를 건지고</div><div class="cc-r">★ 4.3 <b>(19)</b></div></div>
+        </div>
+        <div class="sec"><span class="st">신작 | 매주 목요일마다 만나요!</span></div>
+        <div class="cgrid">
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-maroon"><span class="badge new">신작</span><span class="ct">외도한 아들을<br>옹호하는 시어머니</span></div><div class="cc-t">외도한 아들을 옹호하는 시어머니</div><div class="cc-h">#법정 드라마 #복수극</div><span class="pin" data-n="3" style="top:8px;right:8px" onclick="event.stopPropagation();jumpPRD(3)">3</span></div>
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-joseon"><span class="badge new">신작</span><span class="ct">시베리아 유배지의<br>조선 선비</span></div><div class="cc-t">시베리아 유배지의 조선 선비</div><div class="cc-h">#성장 #먼치킨 #천재</div></div>
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-horror"><span class="badge new">신작</span><span class="ct">군귀(群鬼)</span></div><div class="cc-t">군귀(群鬼)</div><div class="cc-h">#한국 공포 #빙의</div></div>
+        </div>
+        <div class="sec"><span class="st">추천 인기작</span></div>
+        <div class="cgrid" style="padding-bottom:20px">
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-sub"><span class="ct">서브 남주 보기를<br>돌같이 하라</span></div><div class="cc-t">서브 남주 보기를 돌같이 하라</div><div class="cc-r">★ 4.7 <b>(4)</b></div></div>
+          <div class="ccard" onclick="nav('detail')"><div class="cover g-rom"><span class="ct">재벌집<br>막내딸</span></div><div class="cc-t">재벌집 막내딸로 다시 태어났다</div><div class="cc-r">★ 4.9 <b>(3.2K)</b></div></div>
+        </div>
+      </div>
+
+      <!-- 3. SEARCH -->
+      <div class="screen" id="screen-search">
+        <div class="dback"><span class="ic" onclick="nav('pod-home')"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span></div>
+        <div class="searchbar"><span class="ic" style="color:var(--txt2)"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></span>작품·작가·태그 검색
+          <span class="pin" data-n="1" style="top:-8px;right:8px" onclick="jumpPRD(1)">1</span>
+        </div>
+        <div class="sec" style="margin-left:18px"><span class="st" style="font-size:14px">장르</span></div>
+        <div class="chips">
+          <span class="chip g" onclick="toast('로맨스 필터')">로맨스</span><span class="chip g" onclick="toast('판타지 필터')">판타지</span><span class="chip g" onclick="toast('회귀 필터')">회귀·빙의</span><span class="chip g" onclick="toast('재벌 필터')">재벌</span><span class="chip g" onclick="toast('공포 필터')">공포</span>
+          <span class="pin" data-n="3" style="top:-10px;right:8px" onclick="jumpPRD(3)">3</span>
+        </div>
+        <div class="sec" style="margin:18px 18px 8px"><span class="st" style="font-size:14px">실시간 인기 검색어</span><span class="pin" data-n="2" style="position:static;margin-left:auto" onclick="jumpPRD(2)">2</span></div>
+        <div class="qrank">
+          <div class="qrow" onclick="nav('detail')"><span class="qn">1</span><span class="qt">재벌집 막내딸</span><span class="up">▲ 신규</span></div>
+          <div class="qrow" onclick="nav('detail')"><span class="qn">2</span><span class="qt">회귀 황녀</span><span class="up">▲ 12</span></div>
+          <div class="qrow" onclick="nav('detail')"><span class="qn">3</span><span class="qt">계약 연애</span><span class="up">▲ 5</span></div>
+          <div class="qrow" onclick="nav('detail')"><span class="qn">4</span><span class="qt">먼치킨 성장물</span></div>
+          <div class="qrow" onclick="nav('detail')"><span class="qn">5</span><span class="qt">조선 빙의</span><span class="up">▲ 8</span></div>
+        </div>
+      </div>
+
+      <!-- 4. DETAIL -->
+      <div class="screen" id="screen-detail">
+        <div class="dback"><span class="ic" onclick="nav('pod-home')"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span></div>
+        <div class="dcover g-fant"><span class="ct">오늘부터 황녀?!</span></div>
+        <div class="dttl">오늘부터 황녀?!(DJ 유닝 ver)</div>
+        <div class="dmeta"><span>▷ 159</span><span>📖 연재중</span><span class="star">★ 4.8 (2)</span><span class="age">전체 이용가</span></div>
+        <div class="dbtns"><button class="b like" onclick="toast('좋아요!')">♡ 좋아요</button><button class="b play" onclick="nav('episodes')">▶ 1화 듣기</button>
+          <span class="pin" data-n="1" style="top:6px;right:12px" onclick="event.stopPropagation();jumpPRD(1)">1</span>
+        </div>
+        <div class="synopsis">마왕을 물리치고 세상을 구한 용사. 하지만 돌아온 것은 찬사가 아닌 독이 든 음식이었다. [괴물이야. 언제 우릴 공격할지 몰라.] 눈을 감았다 떴을 때, 그녀는 제국의 막내 황녀가 되어 있었다…<span class="more">더보기</span></div>
+        <div class="author"><span class="av"></span><span class="lbl">작가</span><span class="nm">니웨</span></div>
+        <div class="ainote"><span class="i">ⓘ</span>생성형 AI를 활용하여 제작된 콘텐츠입니다.<span class="pin" data-n="2" style="top:6px;right:10px" onclick="jumpPRD(2)">2</span></div>
+        <div class="voice-toggle"><button class="on" onclick="setVoice(this,'ai')">🤖 AI 음성<br><span style="font-size:9.5px;opacity:.7">기본 · 무료</span></button><button class="prem" onclick="setVoice(this,'cv')">🎙️ 인기 성우 에디션<br><span style="font-size:9.5px;opacity:.7">¥1,500 단건</span></button>
+          <span class="pin" data-n="3" style="top:-8px;right:8px" onclick="event.stopPropagation();jumpPRD(3)">3</span>
+        </div>
+        <div class="rate"><div class="rh">이 시리즈 평가하기</div><div class="rs">의견을 남겨 주세요.</div><div class="stars">★★★★★</div></div>
+        <div class="dtabs"><a class="on" onclick="nav('episodes')">에피소드 30</a><a onclick="toast('리뷰 탭')">리뷰</a></div>
+      </div>
+
+      <!-- 5. EPISODES -->
+      <div class="screen" id="screen-episodes">
+        <div class="dback"><span class="ic" onclick="nav('detail')"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span></div>
+        <div class="eptabs"><a class="on">에피소드 30</a><a onclick="toast('리뷰 탭')">리뷰</a></div>
+        <div>
+          <div class="eprow" onclick="nav('player')"><div class="th g-fant"></div><div class="info"><div class="et">1화 · 용사라는 이름의 괴물</div><div class="em">13:24 · 14주 전</div></div><span class="ec free">무료</span><span class="pin" data-n="1" style="top:10px;left:52px" onclick="event.stopPropagation();jumpPRD(1)">1</span></div>
+          <button class="contbtn" onclick="nav('player')">계속 듣기 ▶<span class="pin" data-n="3" style="top:-9px;right:10px" onclick="event.stopPropagation();jumpPRD(3)">3</span></button>
+          <div class="eprow" onclick="nav('player')"><div class="th g-fant"></div><div class="info"><div class="et">2화 · 은색 눈동자</div><div class="em">14:12 · 14주 전</div></div><span class="ec free">무료</span></div>
+          <div class="eprow" onclick="nav('player')"><div class="th g-fant"></div><div class="info"><div class="et">8화 · 황녀의 진심</div><div class="em">13:51 · 13주 전</div></div><span class="ec free">무료</span></div>
+          <div class="eprow" onclick="nav('paywall')"><div class="th g-fant"></div><div class="info"><div class="et">9화 · 그가 알아버렸다 🔒</div><div class="em">14:02 · 13주 전</div></div><span class="ec lock">🪙 12</span><span class="pin" data-n="2" style="top:10px;right:10px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div>
+          <div class="eprow" onclick="nav('paywall')"><div class="th g-fant"></div><div class="info"><div class="et">10화 · 계약의 조건 🔒</div><div class="em">13:38 · 13주 전</div></div><span class="ec lock">🪙 12</span></div>
+          <div class="eprow" onclick="nav('paywall')"><div class="th g-fant"></div><div class="info"><div class="et">11화 · 황제의 눈물 🔒</div><div class="em">14:19 · 12주 전</div></div><span class="ec lock">🪙 12</span></div>
+        </div>
+      </div>
+
+      <!-- 6. PLAYER -->
+      <div class="screen" id="screen-player">
+        <div class="player">
+          <span class="down ic" onclick="nav('episodes')"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
+          <div class="pcover g-fant"><span class="ct">오늘부터 황녀?!</span></div>
+          <div class="pt">오늘부터 황녀?!(DJ 유닝 ver)</div><div class="ps">2화 · 은색 눈동자</div>
+          <div class="pquick">
+            <div class="q"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-2"/></svg></span>스피드</div>
+            <div class="q"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></span>타이머</div>
+            <div class="q"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2zM20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2z"/></svg></span>몰아듣기</div>
+            <div class="q"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-3 4.5 4.5 0 0 1 8 3c0 6-8 11-8 11z"/></svg></span>좋아요</div>
+            <span class="pin" data-n="3" style="top:-10px;left:18px" onclick="jumpPRD(3)">3</span>
+            <span class="pin" data-n="2" style="top:-10px;right:18px" onclick="jumpPRD(2)">2</span>
+          </div>
+          <div class="pbar"><i id="pfill"></i><b id="pknob"></b></div>
+          <div class="ptime"><span id="pcur">00:01</span><span>14:12</span></div>
+          <div class="pctrl">
+            <span class="b ic"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M18 5v14L7 12zM5 5v14"/></svg></span>
+            <span class="b ic"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M11 8l-5 4 5 4M6 12h10a4 4 0 0 1 0 8"/></svg></span>
+            <span class="play" onclick="nav('paywall')"><svg viewBox="0 0 24 24" width="26" height="26" fill="#fff" stroke="none"><rect x="7" y="5" width="3.5" height="14" rx="1"/><rect x="13.5" y="5" width="3.5" height="14" rx="1"/></svg></span>
+            <span class="b ic"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M13 8l5 4-5 4M18 12H8a4 4 0 0 0 0 8"/></svg></span>
+            <span class="b ic"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 5v14l11-7zM19 5v14"/></svg></span>
+          </div>
+          <div class="cliff" onclick="nav('paywall')"><b>⚡ 8화 무료 청취가 곧 끝나요</b> — "그 순간, 그가 내 손목을 잡았다. <b>'너, 회귀했지?'</b>" 다음 화가 궁금하다면 ›<span class="pin" data-n="1" style="top:-9px;left:10px" onclick="event.stopPropagation();jumpPRD(1)">1</span></div>
+          <div class="psheet"><div class="pstabs"><a class="on">추천 시리즈</a><a onclick="nav('episodes')">에피소드 30</a></div>
+            <div class="psrow"><div class="th g-fant"></div><div class="pi">오늘부터 황녀?!(DJ 유닝 ver)<div class="pm">▷ 159 · ★ 4.8 (2)</div></div><span class="now">지금 재생중</span></div>
+            <div class="psrow"><div class="th g-sub"></div><div class="pi">서브 남주 보기를 돌같이 하라<div class="pm">▷ 467 · ★ 4.7 (4)</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. PAYWALL -->
+      <div class="screen" id="screen-paywall">
+        <div class="pw">
+          <div class="lk">🔒</div>
+          <div class="ph">8화 무료 청취 완료!<br>다음 이야기가 궁금하다면</div>
+          <div class="pp">9화 「그가 알아버렸다」 — 회귀 사실이 들킨 순간, 이야기는 걷잡을 수 없이 빨라집니다.</div>
+          <div class="disc">🎉 첫 구매 80% 할인 진행 중<span class="pin" data-n="3" style="top:-9px;right:-8px" onclick="jumpPRD(3)">3</span></div>
+          <div class="opt wait" onclick="toast('23시간 59분 후 무료 해금 예약됨')"><div class="ot">⏳ 기다리기 <span class="cd" id="cd">23:59:58</span></div><div class="os">24시간 후 자동 무료 해금 (1일 1화)</div><span class="pin" data-n="1" style="top:-9px;left:-6px" onclick="event.stopPropagation();jumpPRD(1)">1</span></div>
+          <div class="opt now" onclick="unlockNow()"><div class="ot">🪙 코인으로 즉시 해금 <span>12</span></div><div class="os">지금 바로 다음 화 청취 · 보유 <span class="coinSync">240</span></div><span class="pin" data-n="2" style="top:-9px;right:-6px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div>
+          <div class="pass" onclick="nav('subscribe')">또는 시즌패스로 9~28화 한 번에 묶음 해금 ›<span class="pin" data-n="4" style="top:-12px;right:-4px" onclick="event.stopPropagation();jumpPRD(4)">4</span></div>
+        </div>
+      </div>
+
+      <!-- 8. STORE -->
+      <div class="screen" id="screen-store">
+        <div class="shead"><span class="shdr">코인 충전</span><span class="ic" style="color:#fff"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 10h20"/></svg></span></div>
+        <div class="mkt"><button class="on" onclick="setMkt(this,'jp')">🇯🇵 일본</button><button onclick="setMkt(this,'kr')">🇰🇷 한국</button><button onclick="setMkt(this,'tw')">🇹🇼 대만</button><span class="pin" data-n="1" style="top:-9px;left:-6px" onclick="event.stopPropagation();jumpPRD(1)">1</span></div>
+        <div class="packs" id="packs"></div>
+        <div class="paym"><div class="h" id="payH">결제수단 · 일본</div><div class="m" id="payM"></div><span class="pin" data-n="4" style="top:-9px;right:-6px" onclick="jumpPRD(4)">4</span></div>
+      </div>
+
+      <!-- 9. SUBSCRIBE -->
+      <div class="screen" id="screen-subscribe">
+        <div class="shead"><span class="shdr">멤버십 · 시즌패스</span></div>
+        <div class="pad" style="padding-top:8px">
+          <div class="plan best" onclick="toast('연간 멤버십 가입 시뮬레이션')"><div class="bb">최고 가치 · 2개월 무료</div><div class="pn">연간 멤버십</div><div class="pr">¥9,800<small> / 년</small></div><div class="pd">+ 코인 30% 보너스 · 신작 선공개</div><span class="pin" data-n="1" style="top:-9px;left:-6px" onclick="event.stopPropagation();jumpPRD(1)">1</span><span class="pin" data-n="3" style="bottom:12px;right:-6px;top:auto" onclick="event.stopPropagation();jumpPRD(3)">3</span></div>
+          <div class="plan" onclick="toast('월 멤버십 가입 시뮬레이션')"><div class="pn">월 멤버십</div><div class="pr">¥980<small> / 월</small></div><div class="pdesc">광고 없는 청취 · 일일 보너스 코인</div></div>
+          <div class="plan" onclick="toast('시즌패스 구매 시뮬레이션')"><div class="pn">시즌패스 · 이 작품</div><div class="pr">¥1,200<small> / 작품 완주</small></div><div class="pdesc">9~28화 한 번에 · 단건 대비 절약</div><span class="pin" data-n="2" style="top:-9px;right:-6px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div>
+          <div style="margin-top:14px"><div class="benefit">연간 결제 시 1년 리텐션 44~60% (월간 17%)</div><div class="benefit">중간 결제층의 LTV를 안정화하는 '앵커'</div><div class="benefit">신작 선공개 · 성우 에디션 접근권 번들</div></div>
+        </div>
+      </div>
+
+      <!-- 10. GIFTING -->
+      <div class="screen" id="screen-gifting">
+        <div class="shead"><span class="shdr">성우 응원 · 오시</span><span style="font-size:13px;font-weight:700">🪙 <span class="coinSync">240</span></span></div>
+        <div class="pad" style="padding-top:10px">
+          <div class="cvprof"><div class="av"></div><div><div class="nm">사쿠라이 유우</div><div class="rl">CV · 「오늘부터 황녀?!」 여주 목소리</div></div></div>
+          <div class="sec" style="margin-top:0"><span class="st" style="font-size:14px">보이스 스타 보내기</span><span style="font-size:10px;color:var(--gift);font-weight:700;background:rgba(212,83,126,.18);padding:3px 9px;border-radius:10px">성우 60% 배분</span></div>
+          <div class="gifts">
+            <div class="gift" onclick="sendGift(10)"><div class="em">🌟</div><div class="gl">스타</div><div class="gc">🪙10</div></div>
+            <div class="gift" onclick="sendGift(50)"><div class="em">💐</div><div class="gl">꽃다발</div><div class="gc">🪙50</div></div>
+            <div class="gift" onclick="sendGift(200)"><div class="em">👑</div><div class="gl">왕관</div><div class="gc">🪙200</div></div>
+            <div class="gift" onclick="sendGift(500)"><div class="em">💎</div><div class="gl">다이아</div><div class="gc">🪙500</div></div>
+            <span class="pin" data-n="1" style="top:-9px;right:-6px" onclick="jumpPRD(1)">1</span>
+          </div>
+          <div class="oshi">
+            <div class="oh"><span>나의 오시 등급</span><span class="tier">🥈 SILVER OSHI</span></div>
+            <div class="bar"><i></i></div>
+            <div class="on">GOLD OSHI까지 1,200코인 · 이번 달 누적 1,840코인</div>
+            <div style="margin-top:11px"><div class="perk">GOLD 특전 · 성우 친필 보이스 카드</div><div class="perk">GOLD 특전 · 한정 특별 에피소드</div><div class="perk">GOLD 특전 · 버추얼 팬미팅 초대권</div></div>
+            <span class="pin" data-n="2" style="top:-9px;left:-6px" onclick="jumpPRD(2)">2</span>
+            <span class="pin" data-n="3" style="bottom:12px;right:-6px" onclick="jumpPRD(3)">3</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. MY -->
+      <div class="screen" id="screen-my">
+        <div class="shead"><span class="shdr">MY</span><span class="ic" style="color:#fff"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.6h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 .1-1z"/></svg></span></div>
+        <div class="myhead"><div class="av"></div><div><div class="nm">그립러버</div><div class="sub"><span class="royal">스푼 ROYAL 연동</span> · 🥈 SILVER OSHI</div></div></div>
+        <div class="mycard"><div class="mh">내 지갑</div><div class="mywallet"><div class="bal">🪙 <span class="coinSync">240</span></div><button class="ch" onclick="nav('store')">충전하기</button></div>
+          <span class="pin" data-n="1" style="top:-9px;left:-6px" onclick="event.stopPropagation();jumpPRD(1)">1</span></div>
+        <div class="mycard"><div class="myrow"><span>멤버십</span><span style="color:var(--txt2)">미가입</span></div><div class="myrow" style="margin-top:12px"><span style="font-size:11.5px;color:var(--txt2)">연간 멤버십 시 코인 30% 보너스</span><button class="mycta" onclick="nav('subscribe')">연간 보기</button></div>
+          <span class="pin" data-n="2" style="top:-9px;right:-6px" onclick="event.stopPropagation();jumpPRD(2)">2</span></div>
+        <div class="mycard"><div class="myrow"><span>오시 등급 · 보이스 스타</span><span class="mylink" onclick="nav('gifting')">관리 ›</span></div><div class="bar" style="margin-bottom:0"><i></i></div><div style="font-size:10.5px;color:var(--txt2);margin-top:7px">GOLD OSHI까지 1,200코인</div>
+          <span class="pin" data-n="3" style="top:-9px;left:-6px" onclick="event.stopPropagation();jumpPRD(3)">3</span></div>
+        <div class="mycard"><div class="myrow"><span>스푼 지갑 연동</span><span class="mylink">1,200 스푼 →</span></div><div style="font-size:11px;color:var(--txt2);margin-top:7px;line-height:1.5">보유한 스푼을 팟노블 코인으로 즉시 전환 · 결제 마찰 0</div>
+          <span class="pin" data-n="4" style="top:-9px;right:-6px" onclick="event.stopPropagation();jumpPRD(4)">4</span></div>
+      </div>
+
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <div class="tabbar" id="tabbar">
+      <a data-tab="spoon-home" onclick="nav('spoon-home')"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></span>홈</a>
+      <a data-tab="pod-home" onclick="nav('pod-home')"><span class="pin chrome-pin" data-screen="spoon-home" data-n="1" onclick="event.stopPropagation();jumpPRD(1)" style="top:1px;right:16px">1</span><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h2l2-6 3 14 3-18 3 14 2-4h3"/></svg></span>팟노블</a>
+      <a onclick="toast('새 캐스트 만들기')"><span class="plusbtn ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></a>
+      <a onclick="toast('캐스트 (라이브)')"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/></svg></span>캐스트</a>
+      <a data-tab="my" onclick="nav('my')"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>MY</a>
+    </div>
+  </div>
+
+  <!-- PRD -->
+  <div class="prd" id="prd">
+    <div class="prd-head"><span class="badge" id="prdBadge">화면</span><div class="t" id="prdTitle"></div><div class="s" id="prdSub"></div><span class="layer-chip" id="prdLayer"></span></div>
+    <div class="prd-hint">💡 좌측의 번호 <b>①</b> 를 누르면 설명으로 이동 · 카드를 누르면 좌측 영역이 강조됩니다</div>
+    <div class="prd-body" id="prdBody"></div>
+  </div>
+</div>
+
+<div class="overview" id="overview" style="display:block">
+  <div class="ov-wrap">
+    <div class="ov-top">
+      <div>
+        <div class="ov-h1">팟노블 수익화 전략 — 한눈에</div>
+        <div class="ov-sub">화면별 기능을 보기 전에, 이 사업이 무엇이고 · 어떻게 돈을 벌며 · 어디까지가 범위인지부터.</div>
+      </div>
+      <button class="ov-close" onclick="closeOverview()">✕ 닫기</button>
+    </div>
+
+    <div class="idbar">
+      <span class="big">🚀 팟노블 매출을 극대화하는, 단 하나의 최적 설계입니다.</span>
+      시장 논쟁은 잠시 접고 — '한 명의 유저에게서 최대한, 지속가능하게 버는' <b>검증된 레버를 총동원</b>했습니다. 코인 마이크로트랜잭션을 주축으로(Pocket FM 매출 89%), <b>동적 페이월·성우 에디션·기프팅·연간구독·보상광고</b>를 적층해 ARPU를 극대화합니다. <b>단, 폭주 방지 철칙: LTV &gt; CAC.</b>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">♻️ 수익 플라이휠 <span class="tag">— 한 번 돌기 시작하면 스스로 가속되는 구조</span></div>
+      <div class="flywrap">
+        <svg viewBox="0 0 660 470" width="100%" style="max-width:560px;display:block;margin:0 auto" role="img" aria-label="팟노블 수익 플라이휠 다이어그램">
+          <defs><marker id="fwarr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#fa4b38" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <path d="M426 95 A150 150 0 1 1 410 83" fill="none" stroke="#fa4b38" stroke-width="2.5" marker-end="url(#fwarr)" opacity=".7"/>
+          <circle cx="330" cy="210" r="66" fill="#15131a" stroke="#1d9e75" stroke-width="1.5"/>
+          <text x="330" y="203" text-anchor="middle" fill="#fff" font-size="16" font-weight="800" font-family="Pretendard,sans-serif">수익 플라이휠</text>
+          <text x="330" y="226" text-anchor="middle" fill="#5dcaa5" font-size="11.5" font-weight="700" font-family="Pretendard,sans-serif">철칙 · LTV &gt; CAC</text>
+          <g><rect x="252" y="34" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="330" y="56" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">① 결제 전환 극대화</text><text x="330" y="74" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">동적 페이월</text></g>
+          <g><rect x="395" y="138" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="473" y="160" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">② 객단가 극대화</text><text x="473" y="178" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">코인·시즌·성우</text></g>
+          <g><rect x="340" y="305" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="418" y="327" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">③ 고래 추출</text><text x="418" y="345" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">기프팅·등급제</text></g>
+          <g><rect x="164" y="305" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="242" y="327" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">④ 재결제 락인</text><text x="242" y="345" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">연간구독·스트릭</text></g>
+          <g><rect x="109" y="138" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="187" y="160" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">⑤ 무과금 수익화</text><text x="187" y="178" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">보상광고</text></g>
+        </svg>
+        <div class="fw-cap">전환을 <b style="color:#ff9a6d">동적 페이월</b>로 끌어올리고 → 코인·시즌패스·성우에디션으로 <b style="color:#ff9a6d">객단가</b>를 쌓고 → 기프팅으로 고래 상한을 없애고 → 연간구독·스트릭으로 재결제를 락인하고 → 무과금층까지 광고로 수익화. 다섯 레버가 <b style="color:#5dcaa5">같은 유저에게서 매출을 복리로</b> 키운다.</div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🎯 수익 극대화 프레임 <span class="tag">— 3대 핵심 레버</span></div>
+      <div class="frame3">
+        <div class="fc s"><div class="role">레버 1 · 전환</div><div class="ft">동적 페이월</div><div class="fd">완독률·재방문 기반 노출 + 첫구매 할인 — 무료→유료 전환을 최대로</div></div>
+        <div class="fc e"><div class="role">레버 2 · 객단가</div><div class="ft">코인+시즌+성우 에디션</div><div class="fd">회차 코인 + 시즌패스 묶음 + 성우 프리미엄으로 1인당 결제액 극대화</div></div>
+        <div class="fc a"><div class="role">레버 3 · 고래·재결제</div><div class="ft">기프팅 등급제 + 연간구독</div><div class="fd">상위 1~5% 고래 추출 + 연간·스트릭으로 재결제 락인</div></div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">📦 범위 (Scope) <span class="tag">— 무엇을 하고, 무엇을 안 하는가</span></div>
+      <div class="twocol">
+        <div class="ovcard in"><div class="ct">✅ 지금 하는 것 (In)</div>
+          <div class="ovli">검증된 全 수익 레버 총동원(코인·동적페이월·시즌패스·성우에디션·기프팅·연간구독·보상광고)</div>
+          <div class="ovli">코인 마이크로트랜잭션을 매출 주축(72%)</div>
+          <div class="ovli">하이브리드(코인+구독)로 흑자 구조 고정</div>
+          <div class="ovli">스푼 고래 제로-CAC 유입 + ElevenLabs 음성</div>
+        </div>
+        <div class="ovcard out"><div class="ct">🚫 안 하는 것 (지속가능성 가드)</div>
+          <div class="ovli">다크패턴·착취적 과금 → 규제·평점 리스크로 회피</div>
+          <div class="ovli">무분별 유료 UA → LTV/CAC&gt;1.5 게이트로 통제</div>
+          <div class="ovli">자체 TTS 엔진 개발 → 제휴로 대체</div>
+          <div class="ovli">영상화·웹툰화 → 그룹 Vigloo IP 협업으로만</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🚀 수익 레버 상세 <span class="tag">— 검증된 효과</span></div>
+      <table class="ovtable">
+        <tr><th>레버</th><th>메커니즘</th><th>검증된 효과</th></tr>
+        <tr><td>동적 페이월</td><td>완독률·재방문 기반 노출</td><td>전환 <b>+290~400%</b> (Adapty 실증)</td></tr>
+        <tr><td>코인 마이크로트랜잭션</td><td>회차 단건 결제</td><td>매출 <b>89%</b> (Pocket FM)</td></tr>
+        <tr><td>하이브리드(코인+구독)</td><td>캐주얼=코인 / 헤비=구독</td><td>DramaBox <b>흑자</b> vs ReelShort 적자</td></tr>
+        <tr><td>기프팅·등급제</td><td>성우 후원 + 등급 락인</td><td>ARPU <b>+43%</b>(Tapas) · 기프팅 18.4%(Ximalaya)</td></tr>
+        <tr><td>연간구독·스트릭</td><td>재결제 락인</td><td>리텐션 <b>44~60%</b> vs 월 17%</td></tr>
+      </table>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">💰 수익 모델 4층 <span class="tag">— 비중 목표</span></div>
+      <div class="bmrow">
+        <div class="bmcell"><div class="p">72%</div><div class="l">코인(종량)</div><div class="d">Pocket FM 89% 검증, 객단가 주축</div></div>
+        <div class="bmcell"><div class="p">12%</div><div class="l">구독·시즌패스</div><div class="d">LTV 안정 앵커</div></div>
+        <div class="bmcell"><div class="p">12%</div><div class="l">기프팅</div><div class="d">고래 상한 제거</div></div>
+        <div class="bmcell"><div class="p">4%</div><div class="l">광고</div><div class="d">무과금층 수익화</div></div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">📈 매출 목표 <span class="tag">— ARPU 극대화 관점, 수수료 차감 전</span></div>
+      <div class="tgt3">
+        <div class="tgtc"><div class="v">~90억</div><div class="k">12개월 · 보수</div></div>
+        <div class="tgtc"><div class="v">~200억</div><div class="k">12개월 · 기본</div></div>
+        <div class="tgtc"><div class="v">~800억</div><div class="k">36개월 · 상향</div></div>
+      </div>
+      <div class="rule">🚀 <b>'최고 수익화' ≠ 무리한 과금</b> — 동적 페이월·하이브리드·기프팅을 최대로 쓰되, <b>LTV/CAC&gt;1.5 게이트와 다크패턴·규제 회피</b>가 지속가능성의 전제. 핵심은 같은 트래픽에서 <b>ARPU를 1.4~2배로</b> 끌어올리는 것 (절대 매출은 도달 시장에 비례).</div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🗺️ 11개 화면 ↔ 플라이휠 맵 <span class="tag">— 클릭하면 해당 화면으로</span></div>
+      <div class="smapgrp"><div class="smaplbl">유입 (저-CAC)</div><div class="smap"><span class="schip" onclick="gotoScreen('spoon-home')"><b>1</b> 스푼 홈</span><span class="schip" onclick="gotoScreen('pod-home')"><b>2</b> 팟노블 홈</span><span class="schip" onclick="gotoScreen('search')"><b>3</b> 검색</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">레버 1 · 전환(동적 페이월)</div><div class="smap"><span class="schip" onclick="gotoScreen('detail')"><b>4</b> 작품 상세</span><span class="schip" onclick="gotoScreen('episodes')"><b>5</b> 에피소드</span><span class="schip" onclick="gotoScreen('player')"><b>6</b> 플레이어</span><span class="schip" onclick="gotoScreen('paywall')"><b>7</b> 페이월 ★</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">레버 2 · 객단가</div><div class="smap"><span class="schip" onclick="gotoScreen('store')"><b>8</b> 코인 충전</span><span class="schip" onclick="gotoScreen('subscribe')"><b>9</b> 멤버십·시즌패스</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">레버 3 · 고래·재결제</div><div class="smap"><span class="schip" onclick="gotoScreen('gifting')"><b>10</b> 기프팅·등급</span><span class="schip" onclick="gotoScreen('my')"><b>11</b> MY(재결제 허브)</span></div></div>
+    </div>
+
+    <button class="startbtn" onclick="closeOverview()">▶ 인터랙티브 프로토타입 시작하기</button>
+  </div>
+</div>
+
+<script>
+const state={coin:240,screen:'spoon-home',market:'jp',step:0};
+const PACKS={
+  jp:{pay:['d払い','PayPay','au かんたん','クレカ'],items:[{amt:'136',bon:'+204 보너스 (150%)',price:'¥500',hot:1,badge:'첫 구매 80% 할인'},{amt:'340',bon:'+100 보너스',price:'¥1,200'},{amt:'720',bon:'+216 보너스',price:'¥2,400'},{amt:'1,500',bon:'+3,000 (200%)',price:'¥5,000',badge:'고래팩'}]},
+  kr:{pay:['카카오페이','네이버페이','신용카드','웹 직접결제'],items:[{amt:'40',bon:'파일럿팩',price:'₩1,000',hot:1,badge:'결제 습관용'},{amt:'220',bon:'+20 보너스',price:'₩5,000'},{amt:'1,350',bon:'+150 보너스',price:'₩30,000'},{amt:'4,500',bon:'+450 (10%)',price:'₩100,000',badge:'고래팩'}]},
+  tw:{pay:['LINE Pay','신용카드'],items:[{amt:'60',bon:'입문팩',price:'NT$60',hot:1,badge:'저위험 진입'},{amt:'160',bon:'+10 보너스',price:'NT$150'},{amt:'340',bon:'+40 보너스',price:'NT$300'},{amt:'600',bon:'+120 (20%)',price:'NT$500',badge:'고래팩'}]},
+};
+function E(l,t,b,ev,kpi){return{l:l,t:t,b:b,ev:ev,kpi:kpi};}
+const PRD={
+  'spoon-home':{badge:'화면 1 / 11',c:'#fa4b38',layer:['killer','킬러 무브 ★ 진입점'],title:'스푼 메인 홈 — 모든 것의 시작점',sub:'팟노블 신규 유저의 최대 공급원. 스푼이 이미 보유한 일본 팬덤을 마케팅비 0원으로 팟노블에 유입시킨다.',cards:[
+    E(1,'하단 「팟노블」 탭 = 진입점','라이브 청취자가 같은 앱에서 팟노블로 넘어온다. 신규 유저의 최대 공급원이자 제로-CAC 채널.','Kuku FM·ReelShort는 외부 UA 의존이 사인(CAC>LTV). 스푼은 내부 채널을 이미 보유.',['스푼→팟노블 전환율']),
+    E(2,'「스푼이 선정한 DJ」','인기 DJ를 팟노블 내레이터·감수자로 연결 → "좋아하는 DJ 목소리로 듣는 소설"로 일본 오시카츠 팬덤을 무비용 유입.',null,['DJ 연계 유입']),
+    E(3,'이벤트 / 배너 영역','스푼의 기존 프로모션 surface를 팟노블 크로스 프로모션에 활용(라이브 종료 후 추천 등).',null,['크로스 프로모 CTR']),
+  ]},
+  'pod-home':{badge:'화면 2 / 11',c:'#fa4b38',layer:['accel','가속 · 카탈로그 + 제로CAC'],title:'팟노블 홈 — 히트작 진열 + ROYAL 환영',sub:'상단 ROYAL 환영 코인이 제로-CAC 고래 이식의 실물. 그 아래는 "발견"이 아니라 "검증된 히트로의 깔때기".',cards:[
+    E(1,'ROYAL 환영 코인 +500 ★','스푼에서 넘어온 검증된 고래에게 첫 결제 마찰을 0으로. 제로-CAC 고래 이식의 실물.','Pocket FM이 미국에서 맨땅에 구축한 고래 기반을 스푼은 일본에 이미 보유.',['환영 코인 수령률','첫 결제 전환']),
+    E(2,'최근 들은 / 추천 인기작','평평히 나열하지 않고 검증된 히트로의 깔때기로. 매출은 멱함수다.','Pocket FM 75,000 시리즈 중 7개가 각 $10M+.',['홈→상세 CTR']),
+    E(3,'「신작」 퍼플 배지','매주 목요일 신작 공급. 콘텐츠 공급 중단=리텐션 절벽이므로 공급 속도를 KPI로.',null,['신작 발견율','D30 리텐션']),
+  ]},
+  search:{badge:'화면 3 / 11',c:'#7c5cff',layer:['accel','가속 · 발견/수요신호'],title:'검색 — 능동 발견 + 수요 신호 수집',sub:'찾는 의도가 분명한 유저는 전환율이 높다. 동시에 검색 데이터는 "무엇을 더 만들지" 결정하는 신호다.',cards:[
+    E(1,'검색 진입','능동적 발견. 의도가 분명한 유저는 무료→유료 전환율이 평균보다 높다.',null,['검색→재생 전환']),
+    E(2,'실시간 인기 검색어','수요 신호. 어떤 IP·장르가 뜨는지 보고 콘텐츠 투자/라이선스 우선순위에 반영.',null,['검색어 트렌드']),
+    E(3,'장르 필터','장르별 진열로 취향 코호트를 만들고 히트 신호를 빠르게 감지한다.',null,['장르별 CTR']),
+  ]},
+  detail:{badge:'화면 4 / 11',c:'#7c5cff',layer:['engine','엔진 · 무료 퍼널 + AI 고지'],title:'작품 상세 — 무료 진입 + 성우 에디션',sub:'실제 앱 그대로(커버·1화 듣기·AI 고지)에, AI음성/성우 에디션 이원화를 얹는다.',cards:[
+    E(1,'「1화 듣기」','무료 진입. 도입부 몰입을 쌓아야 뒤의 페이월에서 전환된다.',null,['1화 듣기 전환']),
+    E(2,'「생성형 AI 활용」 고지','AI 제작을 숨기지 않고 노출 = 옳은 전략. 투명성이 AI 신뢰 1위 요인이다.','AI 제작은 제작비 대폭 절감(4~7개월→수 시간).',['AI 고지 후 이탈률']),
+    E(3,'AI음성 / 성우 에디션 토글','AI 원가 절감과 일본 성우 프리미엄을 한 작품에서 동시에 → ARPPU 상한 ↑.','⚠ 장편 서사는 성우 품질에 못 미침(Reedsy) → 성우 에디션·클로닝으로 방어.',['성우 에디션 부착률']),
+  ]},
+  episodes:{badge:'화면 5 / 11',c:'#7c5cff',layer:['engine','엔진 · 무료→유료 경계'],title:'에피소드 리스트 — 무료 8화 / 유료 9화+',sub:'현재 실제 앱은 전부 무료(초기 PMF). 여기서부터가 우리가 제안하는 수익화 레이어다.',cards:[
+    E(1,'무료 1~8화','sunk cost 형성 구간. 충분히 몰입돼야 결제로 전환된다.',null,['8화 도달률']),
+    E(2,'9화+ 🔒 코인 잠금','초기 무료 모델 위에 얹는 수익화 레이어. 코인 단건이 매출 본체.','Pocket FM 매출 약 89%가 코인(FY24 공시).',['무료→유료 전환율']),
+    E(3,'「계속 듣기」','10화+ 언락 유저 완주율 85% = LTV 분기점. 10화 도달 코호트에 묶음 할인.',null,['10화 완주율']),
+  ]},
+  player:{badge:'화면 6 / 11',c:'#7c5cff',layer:['engine','엔진 · 몰입→전환'],title:'플레이어 — 클리프행어로 결제 압력 형성',sub:'실제 앱의 무드 플레이어 그대로. 무료 마지막 화 후반의 클리프행어가 결제의 골든타임을 만든다.',cards:[
+    E(1,'클리프행어 배너','결제는 "다음이 궁금한" 순간에 발생. AI가 페이월 직전 화에 긴장 엔딩을 자동 생성.','Pocket FM은 모든 화 말미 클리프행어 의무 배치.',['8화→페이월 도달률']),
+    E(2,'좋아요 / 추천 시리즈','완청 직후(감정 고조) 푸시 옵트인·다음작 추천 → 재방문·교차 소비.','옵트인 유저 D30 리텐션 3배.',['D30 리텐션']),
+    E(3,'몰아듣기 / 스피드','빈지(몰아듣기)를 부추겨 일평균 청취시간↑ → LTV↑.',null,['일평균 청취시간']),
+  ]},
+  paywall:{badge:'화면 7 / 11 · 핵심',c:'#fa4b38',layer:['engine','엔진 · 전환의 순간 ★'],title:'페이월 — "기다리기 vs 코인 즉시 해금"',sub:'돈이 실제로 발생하는 단 하나의 화면. 무료로 쌓은 몰입을 결제로 전환한다.',cards:[
+    E(1,'기다리기(24h 무료)','무료 유저를 잃지 않으면서 조급한 유저에게서 결제를 끌어낸다(기다무 모델).',null,['무료 유지율']),
+    E(2,'코인 즉시 해금 ★','전환의 핵심. 코인 단건이 구독보다 ARPU가 높아 매출의 본체.','Pocket FM 매출 89% 코인.',['무료→유료 전환율','첫 결제 전환']),
+    E(3,'첫 구매 80% 할인','첫 결제 장벽을 낮춰 CPA를 대폭 절감.',null,['첫 결제 전환']),
+    E(4,'시즌패스 묶음','헤비 유저를 묶음 결제로 업셀 → 객단가↑.',null,['시즌패스 부착률']),
+  ]},
+  store:{badge:'화면 8 / 11',c:'#854f0b',layer:['engine','엔진 · 시장별 가격'],title:'코인 충전 — 시장별 가격 차등',sub:'같은 앱, 다른 가격. 일본은 ARPPU 극대화, 한국은 결제 습관화, 대만은 저위험. (국가 토글을 눌러보세요.)',cards:[
+    E(1,'국가 토글(일/한/대)','지역 ARPPU 비대칭이 매출을 좌우. 일본 정밀 공략, 한국은 결제 습관화 채널.','Pocket FM 미국 15%유저→매출 70%. ⚠ 일본 ARPPU $22는 웹툰 프록시.',['시장별 ARPPU']),
+    E(2,'첫 구매 80% 할인팩','첫 결제 전환 부스터.',null,['첫 구매 전환']),
+    E(3,'고래팩(+200% 보너스)','고래의 대량 충전을 유도해 고래 ARPPU 극대화.',null,['평균 결제액']),
+    E(4,'결제수단(캐리어/LINE Pay)','현지 결제 마찰 제거. 일본 캐리어빌링·PayPay, 대만 LINE Pay.','일본 MSCA로 수수료 30%→21~26%.',['결제 성공률']),
+  ]},
+  subscribe:{badge:'화면 9 / 11',c:'#0f6e56',layer:['engine','엔진 · LTV 앵커'],title:'멤버십 · 시즌패스 — 연간 락인',sub:'코인이 "고래 엔진"이라면, 구독은 "중간 결제층 LTV를 안정시키는 앵커".',cards:[
+    E(1,'연간 멤버십(디폴트 강조)','LTV 앵커. 예측 가능 매출 + 높은 리텐션.','연간 리텐션 44~60% vs 월간 17%. DramaBox 하이브리드 흑자.',['연간 전환율']),
+    E(2,'시즌패스','단건 누적보다 이득이 되게 묶어 헤비 유저를 락인.',null,['시즌패스 전환']),
+    E(3,'혜택(코인 30% 보너스)','연간 결제 인센티브로 6~12개월 내 유료 30%+를 연간 전환.',null,['블렌디드 LTV']),
+  ]},
+  gifting:{badge:'화면 10 / 11',c:'#d4537e',layer:['engine','엔진 · 슈퍼팬'],title:'성우 응원 · 오시 등급제 — 고래 상한 제거',sub:'코인·구독엔 ARPU 천장이 있다. 기프팅이 그 천장을 없앤다. 스푼의 가장 강력한 DNA.',cards:[
+    E(1,'보이스 스타 기프팅','성우 60% 배분. 코인 한도 위에 슈퍼팬 지불의향을 추가 흡수.','Tapas 팁 도입 후 ARPU +43%.',['기프팅 매출 비중']),
+    E(2,'오시 등급제','월 누적 지출로 등급 상승. 일본 오시카츠 문화와 맞물려 고래 락인.','Ximalaya 기프팅 매출 18.4%. 오시카츠 연 25만엔대.',['고래 ARPPU']),
+    E(3,'Gold 특전','친필카드·한정 에피소드·팬미팅으로 슈퍼팬 유지. ⚠ 고래 집중 리스크는 돌고래 육성으로 분산.',null,['Gold 유지율']),
+  ]},
+  my:{badge:'화면 11 / 11',c:'#fa4b38',layer:['engine','엔진 · 재방문/재결제 허브'],title:'MY — 수익화 상태 한눈에',sub:'지갑·멤버십·오시·스푼 연동을 한 곳에. 재방문할 때마다 재충전·연간 전환·고래 락인으로 이어지는 허브.',cards:[
+    E(1,'지갑 / 보유 코인','재충전 허브. 잔액·충전 동선을 항상 접근 가능하게.',null,['재충전율']),
+    E(2,'멤버십 상태','미가입자에게 연간 전환 넛지를 상시 노출.',null,['연간 전환율']),
+    E(3,'오시 등급 / 보이스 스타','고래의 성취·소속감을 시각화해 재결제·유지를 유도.',null,['고래 유지율']),
+    E(4,'스푼 지갑 연동','스푼 잔액을 팟노블 코인으로 즉시 전환 — 결제 마찰 0.',null,['통화 전환 사용률']),
+  ]},
+};
+const STEPS=['spoon-home','pod-home','search','detail','episodes','player','paywall','store','subscribe','gifting','my'];
+const STEP_LABELS=['스푼 홈 ★','팟노블 홈','검색','작품 상세','에피소드','플레이어','페이월 ★','코인충전','멤버십','기프팅','MY'];
+const TAB_FOR={'spoon-home':'spoon-home','pod-home':'pod-home','detail':'pod-home','episodes':'pod-home','player':'pod-home','search':'pod-home','my':'my'};
+
+function nav(screen){
+  state.screen=screen;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('screen-'+screen); if(el){el.classList.add('active');el.scrollTop=0;}
+  document.querySelectorAll('.tabbar a').forEach(a=>a.classList.toggle('on',a.dataset.tab===TAB_FOR[screen]));
+  document.querySelectorAll('.chrome-pin').forEach(p=>{p.style.display=(p.dataset.screen===screen)?'grid':'none';});
+  const si=STEPS.indexOf(screen); if(si>=0)state.step=si;
+  renderPRD(screen); renderDots(); renderTourLabel();
+  if(screen==='store')renderPacks();
+  document.getElementById('prd').scrollTop=0;
+}
+function renderPRD(screen){
+  const d=PRD[screen]; if(!d)return;
+  const b=document.getElementById('prdBadge'); b.textContent=d.badge; b.style.background=d.c+'22'; b.style.color=d.c;
+  document.getElementById('prdTitle').textContent=d.title;
+  document.getElementById('prdSub').textContent=d.sub;
+  const lc=document.getElementById('prdLayer'); lc.className='layer-chip '+d.layer[0]; lc.textContent=d.layer[1];
+  let html='';
+  d.cards.forEach(c=>{
+    html+='<div class="pcard" id="prd-card-'+c.l+'" onclick="flashPin('+c.l+')"><div class="pn">'+c.l+'</div><div style="flex:1"><div class="pc-t">'+c.t+'</div><div class="pc-b">'+c.b+'</div>';
+    if(c.ev)html+='<div class="ev"><p>'+c.ev+'</p></div>';
+    if(c.kpi){html+='<div class="kpi">';c.kpi.forEach(k=>html+='<span>'+k+'</span>');html+='</div>';}
+    html+='</div></div>';
+  });
+  document.getElementById('prdBody').innerHTML=html;
+}
+function jumpPRD(n){
+  const card=document.getElementById('prd-card-'+n); if(!card)return;
+  document.querySelectorAll('.pcard').forEach(c=>c.classList.remove('flash'));
+  card.classList.add('flash'); card.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>card.classList.remove('flash'),1500);
+}
+function flashPin(n){
+  let pin=document.querySelector('#screen-'+state.screen+' .pin[data-n="'+n+'"]');
+  if(!pin)pin=document.querySelector('.chrome-pin[data-screen="'+state.screen+'"][data-n="'+n+'"]');
+  if(!pin)return;
+  pin.scrollIntoView({block:'center'}); pin.classList.add('flash');
+  setTimeout(()=>pin.classList.remove('flash'),900);
+}
+function renderPacks(){
+  const m=PACKS[state.market];
+  document.getElementById('packs').innerHTML=m.items.map(p=>'<div class="pack'+(p.hot?' hot':'')+'" onclick="buyPack(\''+p.price+'\')">'+(p.badge?'<span class="pb">'+p.badge+'</span>':'')+(p.hot?'<span class="pin" data-n="2" style="top:-9px;right:-7px" onclick="event.stopPropagation();jumpPRD(2)">2</span>':'')+(p.badge==='고래팩'?'<span class="pin" data-n="3" style="top:-9px;right:-7px" onclick="event.stopPropagation();jumpPRD(3)">3</span>':'')+'<div class="amt">🪙 '+p.amt+'</div><div class="bon">'+p.bon+'</div><div class="price">'+p.price+'</div></div>').join('');
+  const names={jp:'일본',kr:'한국',tw:'대만'};
+  document.getElementById('payH').textContent='결제수단 · '+names[state.market];
+  document.getElementById('payM').innerHTML=m.pay.map(x=>'<span class="pchip">'+x+'</span>').join('');
+}
+function renderDots(){document.getElementById('dots').innerHTML=STEPS.map((s,i)=>'<i class="'+(i===state.step?'on':'')+'" onclick="nav(\''+s+'\')"></i>').join('');}
+function renderTourLabel(){document.getElementById('tourLabel').textContent=(state.step+1)+'/11 · '+STEP_LABELS[state.step];document.getElementById('prevBtn').disabled=state.step===0;document.getElementById('nextBtn').disabled=state.step===STEPS.length-1;}
+function tourNext(){if(state.step<STEPS.length-1)nav(STEPS[state.step+1]);}
+function tourPrev(){if(state.step>0)nav(STEPS[state.step-1]);}
+function setVoice(btn,t){document.querySelectorAll('.voice-toggle button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');toast(t==='cv'?'인기 성우 에디션 선택 (¥1,500)':'AI 음성 (무료) 선택');}
+function setMkt(btn,m){document.querySelectorAll('.mkt button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');state.market=m;renderPacks();}
+function setCoin(v){state.coin=v;document.querySelectorAll('.coinSync').forEach(e=>e.textContent=v);}
+function unlockNow(){if(state.coin<12){toast('코인이 부족해요 — 충전으로 이동');setTimeout(()=>nav('store'),700);return;}setCoin(state.coin-12);toast('🔓 9화 해금 완료! 즉시 청취 시작');}
+function buyPack(price){setCoin(state.coin+(state.market==='jp'?340:state.market==='kr'?220:160));toast('💳 '+price+' 결제 완료 · 코인 충전됨');}
+function sendGift(c){if(state.coin<c){toast('코인이 부족해요');return;}setCoin(state.coin-c);toast('🎁 보이스 스타 전송! 성우에게 60% 배분');}
+function claimWelcome(){setCoin(state.coin+500);toast('🎉 환영 코인 500개 지급 (CAC 0원)');}
+let toastTimer;function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
+let cdS=86398;setInterval(()=>{const el=document.getElementById('cd');if(!el)return;cdS=cdS<=0?86399:cdS-1;el.textContent=String(Math.floor(cdS/3600)).padStart(2,'0')+':'+String(Math.floor(cdS%3600/60)).padStart(2,'0')+':'+String(cdS%60).padStart(2,'0');},1000);
+let pp=1;setInterval(()=>{const f=document.getElementById('pfill'),k=document.getElementById('pknob'),c=document.getElementById('pcur');if(!f)return;pp=pp>=99?1:pp+0.4;f.style.width=pp+'%';if(k)k.style.left=pp+'%';if(c){const sec=Math.floor(852*pp/100);c.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');}},500);
+function openOverview(){var o=document.getElementById('overview');o.style.display='block';o.scrollTop=0;}
+function closeOverview(){document.getElementById('overview').style.display='none';}
+function gotoScreen(s){closeOverview();nav(s);}
+renderPacks();nav('spoon-home');
+</script>
+</body>
+</html>
