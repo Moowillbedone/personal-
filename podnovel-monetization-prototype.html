@@ -271,6 +271,48 @@ svg{display:block;}
 .kpi{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;}
 .kpi span{font-size:11px;font-weight:700;background:var(--amber-bg);color:var(--amber);padding:5px 9px;border-radius:8px;}
 
+/* overview / flywheel */
+.ovbtn{background:linear-gradient(90deg,#fa4b38,#ff7a3d);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.overview{position:fixed;left:0;right:0;top:54px;bottom:0;background:#0d0d0f;z-index:200;overflow-y:auto;padding:26px 24px 70px;}
+.ov-wrap{max-width:940px;margin:0 auto;}
+.ov-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+.ov-close{background:#26262c;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.ov-h1{font-size:25px;font-weight:800;color:#fff;letter-spacing:-.6px;}
+.ov-sub{font-size:13.5px;color:#9a9aa2;margin-top:8px;line-height:1.6;}
+.idbar{margin:18px 0 6px;background:linear-gradient(100deg,rgba(250,75,56,.18),rgba(124,92,255,.16));border:1px solid rgba(250,75,56,.45);border-radius:14px;padding:16px 18px;color:#fff;font-size:14px;line-height:1.55;}
+.idbar b{color:#ff9a6d;} .idbar .big{font-size:16px;font-weight:800;display:block;margin-bottom:5px;}
+.ov-sec{margin-top:30px;} .ov-sec .h{font-size:17px;font-weight:800;color:#fff;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.ov-sec .h .tag{font-size:11px;font-weight:700;color:#9a9aa2;}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.ovcard{background:#1a1a1e;border:1px solid #2a2a31;border-radius:14px;padding:16px;}
+.ovcard .ct{font-size:13px;font-weight:800;color:#fff;margin-bottom:9px;}
+.ovcard.in{border-color:rgba(29,158,117,.5);}
+.ovli{font-size:12.5px;color:#cfcfd6;padding:4px 0 4px 16px;position:relative;line-height:1.5;}
+.ovli::before{content:"✓";position:absolute;left:0;color:#5dcaa5;font-weight:800;font-size:11px;}
+.ovcard.out .ovli::before{content:"✕";color:#a32d2d;}
+.flywrap{background:#141318;border:1px solid #2a2a31;border-radius:16px;padding:18px 10px 8px;}
+.fw-cap{text-align:center;font-size:12px;color:#9a9aa2;margin-top:4px;line-height:1.5;}
+.frame3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.fc{border-radius:12px;padding:14px;border:1px solid;}
+.fc.s{background:rgba(255,255,255,.04);border-color:#3a3a42;} .fc.e{background:rgba(29,158,117,.12);border-color:rgba(29,158,117,.45);} .fc.a{background:rgba(133,79,11,.2);border-color:rgba(186,117,23,.5);}
+.fc .role{font-size:10px;font-weight:800;letter-spacing:.5px;} .fc.s .role{color:#b4b2a9;} .fc.e .role{color:#5dcaa5;} .fc.a .role{color:#efa927;}
+.fc .ft{font-size:14px;font-weight:800;color:#fff;margin:3px 0 5px;} .fc .fd{font-size:11.5px;color:#9a9aa2;line-height:1.45;}
+.ovtable{width:100%;border-collapse:collapse;font-size:12.5px;color:#cfcfd6;}
+.ovtable td,.ovtable th{border:1px solid #2a2a31;padding:9px 11px;text-align:left;vertical-align:top;}
+.ovtable th{background:#1a1a1e;color:#9a9aa2;font-weight:700;font-size:11.5px;} .ovtable td b{color:#fff;} .ovtable td:first-child{white-space:nowrap;font-weight:700;color:#fff;}
+.bmrow{display:flex;gap:10px;} .bmcell{flex:1;background:#1a1a1e;border:1px solid #2a2a31;border-radius:12px;padding:13px;text-align:center;}
+.bmcell .p{font-size:21px;font-weight:800;color:var(--or);} .bmcell .l{font-size:11px;color:#9a9aa2;margin-top:3px;} .bmcell .d{font-size:10.5px;color:#cfcfd6;margin-top:6px;line-height:1.4;}
+.tgt3{display:flex;gap:10px;} .tgtc{flex:1;background:rgba(29,158,117,.1);border:1px solid rgba(29,158,117,.4);border-radius:12px;padding:13px;text-align:center;}
+.tgtc .v{font-size:19px;font-weight:800;color:#5dcaa5;} .tgtc .k{font-size:10.5px;color:#9a9aa2;margin-top:3px;}
+.rule{background:rgba(250,75,56,.12);border:1px solid rgba(250,75,56,.4);border-radius:12px;padding:12px 15px;margin-top:12px;font-size:12.5px;color:#fff;line-height:1.5;}
+.rule b{color:#ff9a6d;}
+.smapgrp{margin-bottom:10px;} .smaplbl{font-size:11.5px;color:#9a9aa2;font-weight:700;margin-bottom:7px;}
+.smap{display:flex;flex-wrap:wrap;gap:8px;}
+.schip{background:#1a1a1e;border:1px solid #2a2a31;border-radius:10px;padding:9px 13px;font-size:12px;color:#cfcfd6;cursor:pointer;font-weight:600;}
+.schip:hover{border-color:var(--or);color:#fff;} .schip b{color:var(--or);}
+.startbtn{display:block;width:100%;margin-top:28px;background:linear-gradient(90deg,#fa4b38,#ff7a3d);color:#fff;border:none;border-radius:13px;padding:16px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;}
+@media (max-width:760px){.twocol,.frame3{grid-template-columns:1fr;}.bmrow,.tgt3{flex-wrap:wrap;}}
+
 @media (max-width:1040px){
   body{overflow:auto;} .stage{flex-direction:column;height:auto;padding:18px;} .device{max-height:none;}
   .prd{height:auto;max-height:none;width:100%;max-width:440px;} .tour .label{min-width:0;}
@@ -280,6 +322,7 @@ svg{display:block;}
 <body>
 <div class="toolbar">
   <div class="brand"><span class="dot">🥄</span>Spoon · Podnovel<span class="tag">수익화 동적 프로토타입 · PRD</span></div>
+  <button class="ovbtn" onclick="openOverview()">📊 전략 개요 · 플라이휠</button>
   <div class="tour">
     <div class="dots" id="dots"></div>
     <div class="label" id="tourLabel"></div>
@@ -522,6 +565,111 @@ svg{display:block;}
   </div>
 </div>
 
+<div class="overview" id="overview" style="display:block">
+  <div class="ov-wrap">
+    <div class="ov-top">
+      <div>
+        <div class="ov-h1">팟노블 수익화 전략 — 한눈에</div>
+        <div class="ov-sub">화면별 기능을 보기 전에, 이 사업이 무엇이고 · 어떻게 돈을 벌며 · 어디까지가 범위인지부터.</div>
+      </div>
+      <button class="ov-close" onclick="closeOverview()">✕ 닫기</button>
+    </div>
+
+    <div class="idbar">
+      <span class="big">🌐 이건 "글로벌 서비스"입니다 — 한국 단독 앱이 아닙니다.</span>
+      한국·일본·대만에 <b>동시 출시</b>한 AI 오디오 소설이고, 그중 <b>일본이 수익 엔진</b>입니다. 스푼이 6년간 일본에서 쌓은 고결제 팬덤을 지렛대로 삼은 글로벌 AI 오디오 픽션 사업입니다. (한국은 매출보다 IP·바이럴 검증 시장)
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">♻️ 수익 플라이휠 <span class="tag">— 한 번 돌기 시작하면 스스로 가속되는 구조</span></div>
+      <div class="flywrap">
+        <svg viewBox="0 0 660 470" width="100%" style="max-width:560px;display:block;margin:0 auto" role="img" aria-label="팟노블 수익 플라이휠 다이어그램">
+          <defs><marker id="fwarr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#fa4b38" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <path d="M426 95 A150 150 0 1 1 410 83" fill="none" stroke="#fa4b38" stroke-width="2.5" marker-end="url(#fwarr)" opacity=".7"/>
+          <circle cx="330" cy="210" r="66" fill="#15131a" stroke="#1d9e75" stroke-width="1.5"/>
+          <text x="330" y="203" text-anchor="middle" fill="#fff" font-size="16" font-weight="800" font-family="Pretendard,sans-serif">수익 플라이휠</text>
+          <text x="330" y="226" text-anchor="middle" fill="#5dcaa5" font-size="11.5" font-weight="700" font-family="Pretendard,sans-serif">철칙 · LTV &gt; CAC</text>
+          <g><rect x="252" y="34" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="330" y="56" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">① 스푼 고래 유입</text><text x="330" y="74" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">제로-CAC</text></g>
+          <g><rect x="395" y="138" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="473" y="160" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">② 무료→클리프행어</text><text x="473" y="178" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">페이월 전환</text></g>
+          <g><rect x="340" y="305" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="418" y="327" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">③ 코인·기프팅 매출</text><text x="418" y="345" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">일본 ARPPU</text></g>
+          <g><rect x="164" y="305" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="242" y="327" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">④ AI로 히트 IP</text><text x="242" y="345" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">재투자</text></g>
+          <g><rect x="109" y="138" width="156" height="52" rx="11" fill="#3a2018" stroke="#fa4b38"/><text x="187" y="160" text-anchor="middle" fill="#fff" font-size="12.5" font-weight="800" font-family="Pretendard,sans-serif">⑤ 콘텐츠·리텐션 ↑</text><text x="187" y="178" text-anchor="middle" fill="#ff9a6d" font-size="11" font-weight="700" font-family="Pretendard,sans-serif">재결제 유도</text></g>
+        </svg>
+        <div class="fw-cap">스푼 고래를 <b style="color:#ff9a6d">신규 마케팅비 0원</b>으로 유입 → 무료 몰입 후 코인·기프팅으로 결제 → 매출을 AI 히트 IP에 재투자 → 콘텐츠·리텐션이 커지며 더 많은 결제를 부른다. 이 바퀴가 <b style="color:#5dcaa5">LTV&gt;CAC</b>를 지키는 한, 돌수록 빨라진다.</div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🎯 목적과 전략 프레임</div>
+      <div class="frame3">
+        <div class="fc s"><div class="role">섀시 · 생존</div><div class="ft">수익성 규율</div><div class="fd">LTV/CAC&gt;1.5 검증 전 유료 마케팅 금지. 카테고리 사인 = CAC&gt;LTV</div></div>
+        <div class="fc e"><div class="role">엔진 · 매출</div><div class="ft">일본 ARPPU 적층</div><div class="fd">코인(고래)+연간구독(안정)+성우·캐릭터 기프팅(슈퍼팬)</div></div>
+        <div class="fc a"><div class="role">가속 · 확장</div><div class="ft">양산·블록버스터</div><div class="fd">AI 다국어 양산+히트작 집중 마케팅 — 단 PMF 확정 후에만</div></div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">📦 범위 (Scope) <span class="tag">— 무엇을 하고, 무엇을 안 하는가</span></div>
+      <div class="twocol">
+        <div class="ovcard in"><div class="ct">✅ 지금 하는 것 (In)</div>
+          <div class="ovli">AI 오디오 소설(연재형, 10분 단위 에피소드)</div>
+          <div class="ovli">한국·일본·대만 동시 운영 (일본 = 수익 엔진)</div>
+          <div class="ovli">코인 + 구독 + 기프팅 + 광고 4층 BM</div>
+          <div class="ovli">스푼 생태계 연동(고래 이식·통화 통합·DJ→내레이터)</div>
+          <div class="ovli">ElevenLabs 제휴 AI 음성(자체 개발 X)</div>
+        </div>
+        <div class="ovcard out"><div class="ct">🚫 지금은 안 하는 것 (Out)</div>
+          <div class="ovli">영어권 본격 진출 → 일본 흑자·PMF 확인 후 2단계</div>
+          <div class="ovli">자체 TTS 엔진 개발 → 제휴로 대체</div>
+          <div class="ovli">영상화·웹툰화 → 그룹 Vigloo와 IP 협업으로만</div>
+          <div class="ovli">오리지널 대량 창작 → 검증된 웹소설 IP 우선</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🌏 시장 전략 <span class="tag">— 나라마다 역할이 다르다</span></div>
+      <table class="ovtable">
+        <tr><th>시장</th><th>역할</th><th>핵심 전술</th></tr>
+        <tr><td>🇯🇵 일본</td><td><b>수익 1순위 (ARPPU 엔진)</b></td><td>캐리어빌링·PayPay · 성우 프리미엄 · 오시 등급제 · 고래 기프팅</td></tr>
+        <tr><td>🇰🇷 한국</td><td>IP검증·바이럴 (수익 아님)</td><td>오디오 유료전환 7.1%로 낮음 → ₩1,000 파일럿팩으로 습관화</td></tr>
+        <tr><td>🇹🇼 대만</td><td>저위험 이식</td><td>코인 단일트랙 · LINE Pay · 중화권 IP 30%</td></tr>
+        <tr><td>🌐 영어권</td><td>2단계 확장</td><td>일본 흑자 확인 후 · LTV 검증된 UA만 · 깊은 현지화</td></tr>
+      </table>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">💰 수익 모델 4층 <span class="tag">— 비중 목표</span></div>
+      <div class="bmrow">
+        <div class="bmcell"><div class="p">70%</div><div class="l">코인(종량)</div><div class="d">고래 ARPPU 무한확장</div></div>
+        <div class="bmcell"><div class="p">15%</div><div class="l">구독·시즌패스</div><div class="d">중간층 LTV 안정 앵커</div></div>
+        <div class="bmcell"><div class="p">10%</div><div class="l">기프팅</div><div class="d">슈퍼팬 상한 제거</div></div>
+        <div class="bmcell"><div class="p">5%</div><div class="l">광고</div><div class="d">무과금층 수익화</div></div>
+      </div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">📈 매출 목표 <span class="tag">— 3국 합산, 수수료 차감 전</span></div>
+      <div class="tgt3">
+        <div class="tgtc"><div class="v">~70억</div><div class="k">12개월 · 보수</div></div>
+        <div class="tgtc"><div class="v">~145억</div><div class="k">12개월 · 기본</div></div>
+        <div class="tgtc"><div class="v">~700억</div><div class="k">36개월 · 상향</div></div>
+      </div>
+      <div class="rule">⚠ <b>모든 목표의 전제</b> — 유료 마케팅(UA)은 코호트 <b>LTV/CAC &gt; 1.5</b>가 검증된 뒤에만 켠다. 이 철칙을 어기면 위 숫자는 적자로 바뀐다 (Kuku FM·ReelShort가 그렇게 무너졌다).</div>
+    </div>
+
+    <div class="ov-sec">
+      <div class="h">🗺️ 11개 화면 ↔ 플라이휠 맵 <span class="tag">— 클릭하면 해당 화면으로</span></div>
+      <div class="smapgrp"><div class="smaplbl">① 스푼 고래 유입 (제로-CAC)</div><div class="smap"><span class="schip" onclick="gotoScreen('spoon-home')"><b>1</b> 스푼 홈</span><span class="schip" onclick="gotoScreen('pod-home')"><b>2</b> 팟노블 홈(ROYAL 환영)</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">② 무료 몰입 → 페이월 전환</div><div class="smap"><span class="schip" onclick="gotoScreen('search')"><b>3</b> 검색</span><span class="schip" onclick="gotoScreen('detail')"><b>4</b> 작품 상세</span><span class="schip" onclick="gotoScreen('episodes')"><b>5</b> 에피소드</span><span class="schip" onclick="gotoScreen('player')"><b>6</b> 플레이어</span><span class="schip" onclick="gotoScreen('paywall')"><b>7</b> 페이월 ★</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">③ 코인·기프팅 매출 (일본 ARPPU)</div><div class="smap"><span class="schip" onclick="gotoScreen('store')"><b>8</b> 코인 충전</span><span class="schip" onclick="gotoScreen('gifting')"><b>10</b> 기프팅·오시</span></div></div>
+      <div class="smapgrp"><div class="smaplbl">④⑤ 재투자 · 리텐션 · 재결제</div><div class="smap"><span class="schip" onclick="gotoScreen('subscribe')"><b>9</b> 멤버십(LTV 앵커)</span><span class="schip" onclick="gotoScreen('my')"><b>11</b> MY(재결제 허브)</span></div></div>
+    </div>
+
+    <button class="startbtn" onclick="closeOverview()">▶ 인터랙티브 프로토타입 시작하기</button>
+  </div>
+</div>
+
 <script>
 const state={coin:240,screen:'spoon-home',market:'jp',step:0};
 const PACKS={
@@ -654,6 +802,9 @@ function claimWelcome(){setCoin(state.coin+500);toast('🎉 환영 코인 500개
 let toastTimer;function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200);}
 let cdS=86398;setInterval(()=>{const el=document.getElementById('cd');if(!el)return;cdS=cdS<=0?86399:cdS-1;el.textContent=String(Math.floor(cdS/3600)).padStart(2,'0')+':'+String(Math.floor(cdS%3600/60)).padStart(2,'0')+':'+String(cdS%60).padStart(2,'0');},1000);
 let pp=1;setInterval(()=>{const f=document.getElementById('pfill'),k=document.getElementById('pknob'),c=document.getElementById('pcur');if(!f)return;pp=pp>=99?1:pp+0.4;f.style.width=pp+'%';if(k)k.style.left=pp+'%';if(c){const sec=Math.floor(852*pp/100);c.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');}},500);
+function openOverview(){var o=document.getElementById('overview');o.style.display='block';o.scrollTop=0;}
+function closeOverview(){document.getElementById('overview').style.display='none';}
+function gotoScreen(s){closeOverview();nav(s);}
 renderPacks();nav('spoon-home');
 </script>
 </body>
