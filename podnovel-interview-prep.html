@@ -1,0 +1,463 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>팟노블 Lead PO 면접 대비 카드</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D0D0F;--card:#16161A;--card2:#1C1C22;--line:#2a2a32;
+  --tx:#e8e8ea;--mut:#9a9aa2;--dim:#6e6e76;
+  --orange:#FA4B38;--teal:#1D9E75;--teal2:#5dcaa5;--purple:#7C5CFF;--pur2:#a892ff;
+  --star:#FFA53D;--gold:#d9a441;--red:#ff7a6b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--tx);font-family:"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;line-height:1.65;font-size:15px;letter-spacing:-.01em;padding-bottom:80px}
+.wrap{max-width:980px;margin:0 auto;padding:30px 18px 0}
+header{border-bottom:1px solid var(--line);padding-bottom:20px}
+.kicker{color:var(--orange);font-weight:800;font-size:13px;letter-spacing:.04em}
+h1{font-size:29px;font-weight:800;margin:6px 0 8px;letter-spacing:-.02em}
+.sub{color:var(--mut);font-size:14px}
+.toolbar{position:sticky;top:0;z-index:50;background:rgba(13,13,15,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 18px;margin:0 -18px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--tx);font-family:inherit;font-weight:700;font-size:13px;padding:7px 14px;border-radius:9px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--orange)}
+.btn.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.tnote{color:var(--dim);font-size:12px;margin-left:auto}
+section{margin-top:34px}
+.snum{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 7px;border-radius:8px;background:var(--orange);color:#fff;font-weight:800;font-size:14px;margin-right:10px;vertical-align:middle}
+h2{font-size:20px;font-weight:800;margin-bottom:14px;display:flex;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px}
+.card+.card{margin-top:13px}
+.q{font-weight:800;font-size:16px;color:#fff;margin-bottom:4px}
+.qmeta{display:inline-block;font-size:11px;font-weight:700;color:var(--mut);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-bottom:10px}
+.ans{transition:.2s}
+body.quiz .ans{display:none}
+.quizhint{display:none;color:var(--dim);font-size:12.5px;font-style:italic;margin-top:6px}
+body.quiz .quizhint{display:block}
+.one{background:linear-gradient(90deg,rgba(250,75,56,.13),rgba(250,75,56,.02));border-left:3px solid var(--orange);border-radius:0 8px 8px 0;padding:9px 13px;margin-bottom:12px;font-weight:700}
+.one .lab{color:var(--orange);font-size:11px;font-weight:800;display:block;margin-bottom:1px}
+.hex{display:grid;grid-template-columns:64px 1fr;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.hex .st{display:contents}
+.hex .k{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;padding:8px 4px;text-align:center;border-bottom:1px solid var(--line)}
+.hex .v{padding:8px 12px;font-size:13.5px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);color:var(--tx)}
+.hex .st:last-child .k,.hex .st:last-child .v{border-bottom:none}
+.k-h{background:rgba(124,92,255,.13);color:var(--pur2)}
+.k-e{background:rgba(250,75,56,.13);color:var(--orange)}
+.k-m{background:rgba(29,158,117,.15);color:var(--teal2)}
+.k-l{background:rgba(217,164,65,.14);color:var(--gold)}
+.mine,.boost{border-radius:9px;padding:10px 13px;font-size:13px;margin-top:9px}
+.mine{background:rgba(255,122,107,.07);border:1px solid rgba(255,122,107,.32)}
+.boost{background:rgba(29,158,117,.07);border:1px solid rgba(29,158,117,.32)}
+.mine .lab{color:var(--red);font-weight:800;font-size:11.5px;display:block;margin-bottom:3px}
+.boost .lab{color:var(--teal2);font-weight:800;font-size:11.5px;display:block;margin-bottom:3px}
+.mine ul{list-style:none;margin:0}
+.mine li{position:relative;padding:2px 0 2px 14px}
+.mine li:before{content:"›";position:absolute;left:0;color:var(--red);font-weight:800}
+b{color:#fff}
+.ph{background:rgba(217,164,65,.16);color:var(--gold);border-radius:4px;padding:0 4px;font-weight:700;font-size:.92em}
+.intro{background:linear-gradient(135deg,rgba(250,75,56,.1),rgba(124,92,255,.08));border:1px solid rgba(250,75,56,.32);border-radius:14px;padding:18px 20px}
+.intro .lab{color:var(--orange);font-weight:800;font-size:12px;letter-spacing:.03em}
+.intro p{margin:8px 0}
+.quote{border-left:3px solid var(--star);padding:6px 14px;color:var(--star);font-weight:700;margin-top:10px;background:rgba(255,165,61,.06);border-radius:0 8px 8px 0}
+/* cheatsheet */
+.cheat{background:linear-gradient(135deg,rgba(255,165,61,.1),rgba(250,75,56,.06));border:1px solid rgba(255,165,61,.4);border-radius:15px;padding:8px 4px}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:700;font-size:12px}
+tr:last-child td{border-bottom:none}
+.cheat td:first-child{font-weight:800;color:var(--star);white-space:nowrap}
+/* grip cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+@media(max-width:740px){.grid2{grid-template-columns:1fr}.wrap{padding:24px 14px 0}h1{font-size:24px}.hex{grid-template-columns:54px 1fr}}
+.tags{margin-top:8px}
+.tag{display:inline-block;font-size:11px;font-weight:700;color:var(--pur2);background:rgba(124,92,255,.12);border-radius:6px;padding:1px 8px;margin:2px 3px 0 0}
+.star-card{border-color:rgba(255,165,61,.4)}
+.dq{font-weight:800;color:#fff;margin-bottom:6px}
+.dq .badge{font-size:11px;color:var(--red);background:rgba(255,122,107,.14);border-radius:6px;padding:1px 7px;font-weight:800;margin-right:6px}
+ol.rq{margin:0;padding-left:0;list-style:none;counter-reset:rq}
+ol.rq li{position:relative;padding:10px 0 10px 38px;border-top:1px solid var(--line);counter-increment:rq}
+ol.rq li:first-child{border-top:none}
+ol.rq li:before{content:counter(rq);position:absolute;left:0;top:10px;width:26px;height:26px;border-radius:7px;background:var(--card2);border:1px solid var(--line);color:var(--star);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
+ol.rq .rqtag{color:var(--star);font-weight:800;font-size:12px}
+.closer{margin-top:30px;background:linear-gradient(135deg,rgba(124,92,255,.12),rgba(250,75,56,.08));border:1px solid rgba(124,92,255,.35);border-radius:14px;padding:20px;text-align:center;font-size:16px;font-weight:700;line-height:1.6}
+.foot{margin-top:40px;border-top:1px solid var(--line);padding-top:14px;color:var(--dim);font-size:12px}
+.legend{color:var(--dim);font-size:12px;margin:2px 0 0 36px}
+.legend span{font-weight:800}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">SPOON LABS · PODNOVEL · 면접 대비</div>
+  <h1>팟노블 Lead PO 면접 대비 카드</h1>
+  <div class="sub">예상질문 · 가설→실험→지표→러닝 모범답안 · ⚠면접관 랜드마인 · 💡강화수 · 그립 사례뱅크 — 19에이전트 생성·적대적 검증</div>
+</header>
+
+<div class="toolbar">
+  <button class="btn" id="quizBtn" onclick="toggleQuiz()">🙈 답 가리고 연습</button>
+  <button class="btn" onclick="jump('cheat')">⚡ 1분 치트시트</button>
+  <button class="btn" onclick="jump('grip')">🗂 그립 사례뱅크</button>
+  <button class="btn" onclick="jump('weak')">🛡 약점 돌파</button>
+  <span class="tnote">📌 <span class="ph">[ ]</span> = 본인 실제 수치로 교체</span>
+</div>
+
+<!-- A intro -->
+<section>
+  <h2><span class="snum">A</span> 자기소개 + 지원동기 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">두괄식 30초</span></h2>
+  <div class="intro">
+    <div class="lab">자기소개 · 25초</div>
+    <p>"저는 그립 라이브커머스에서 PM으로, 기획안을 <b>프로토타입으로 빠르게 검증</b>하고 로그·대시보드로 의사결정을 데이터화하는 일을 해왔습니다. AI 썸네일 분석에서는 '모수를 전체로 볼지 공개·유효로 볼지'를 정의하고 유저수를 주력지표로 잡았고, JIRA·후원 대시보드처럼 복잡한 데이터를 의사결정 도구로 만들었습니다."</p>
+    <div class="lab" style="margin-top:10px">지원동기 · 연결 서사(결론 먼저)</div>
+    <p>"팟노블에 지원한 이유는 제 강점인 '<b>결제·전환 데이터 분해</b>'와 '<b>지표 정의</b>'가 AI 오디오 소설의 0→1에 정확히 필요하다고 봤기 때문입니다. 그리고 솔직히, 지원 전에 팟노블을 제 방식으로 검증해봤습니다 — 한국 MAU는 보도자료 35만이 아니라 모바일인덱스 실측 <b>~12만</b>이었고, 그래서 한국은 흑자 시장이 아니라 <b>단위경제를 싸게 검증하는 테스트베드</b>, 의미있는 규모는 일본·영어권이라는 결론을 냈습니다. 진짜 변수(적자 천장·저작권 양날·BM 다각화)를 알고도 하고 싶어서 왔습니다."</p>
+    <div class="quote">"라이브커머스에서 배운 건 충동 전환이 아니라 '결제 행동을 1차 데이터로 분해하는 근육'이고, 그건 도메인을 안 가립니다."</div>
+  </div>
+</section>
+
+<!-- F cheatsheet (placed high for quick access) -->
+<section id="cheat">
+  <h2><span class="snum">F</span> 면접 직전 1분 치트시트 — 절대 잊지 말 5</h2>
+  <div class="cheat">
+  <div class="tblwrap"><table>
+    <thead><tr><th>핵심</th><th>한 줄</th></tr></thead>
+    <tbody>
+      <tr><td>MAU ~12만 (실측)</td><td>보도자료 35만 아님(모바일인덱스). 한국 단독 월 적자 가능(팀비 5천만). <b>한국=테스트베드, 매출=일본/영어권</b>(Pocket FM 미국 70%+).</td></tr>
+      <tr><td>NSM = WPAL</td><td>주간 유료-활성 청취자수. 진단 아닌 <b>정렬용 북극성</b>. 머릿수라 카니발 사각 → <b>1인당 총결제 ARPU로 보완</b>. 항상 직접결제/오퍼월-only 2분할 보고.</td></tr>
+      <tr><td>코호트 분리 + bottom-up</td><td>모수 '전체 vs 공개·유효/몰입' 항상 분리. ARPPU 직수입 금지 — 한국 웹소설 <b>₩11.5~14.2천</b>은 입력 아닌 <b>새너티 체크</b>.</td></tr>
+      <tr><td>저작권 양날</td><td>(A) 웹소설 IP 오디오화=2차적저작물작성권, 회피 불가·라이선스 필수. (B) AI 오리지널=회피 가능하나 <b>생성물 보호 약함</b> → 해자를 <b>데이터·브랜드·컴플라이언스</b>로 이전.</td></tr>
+      <tr><td>답변 구조</td><td><b>가설→실험→지표→러닝</b>. 약점은 정면 인정 후 "이렇게 검증하겠다". <b>'단 하나' 물으면 진짜 하나만.</b> 거짓 수치 금지.</td></tr>
+    </tbody>
+  </table></div>
+  </div>
+</section>
+
+<!-- B Q&A -->
+<section>
+  <h2><span class="snum">B</span> 카테고리별 핵심 Q&amp;A</h2>
+  <div class="legend">각 카드: <span class="one" style="padding:0 5px;display:inline">한줄답</span> · <span style="color:var(--pur2);font-weight:800">가설</span>→<span style="color:var(--orange);font-weight:800">실험</span>→<span style="color:var(--teal2);font-weight:800">지표</span>→<span style="color:var(--gold);font-weight:800">러닝</span> · <span style="color:var(--red);font-weight:800">⚠랜드마인</span> · <span style="color:var(--teal2);font-weight:800">💡강화수</span></div>
+
+  <!-- B-1 -->
+  <h2 style="font-size:16px;margin-top:24px;color:var(--pur2)">B-1. 제품 전략·비전</h2>
+
+  <div class="card">
+    <div class="q">Q1. 팟노블 한 문장 포지셔닝 + 경쟁사 차별점 + 스푼의 해자?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요 (가설→실험→지표→러닝)</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"'IP 라이선스 없이 AI로 쓴 오리지널을 ElevenLabs 음성으로 연기하는 오디오 소설 스튜디오'. 단, 지금 스푼의 해자는 약하고 그걸 인정하는 데서 시작합니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">라이브 커뮤니티 노출이 신작 완독률·재청취를 끌어올린다(채널 시너지).</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">동일 신작을 (a) 팟노블 탭 단독 vs (b) 라이브 커뮤니티 교차노출 A/B.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">완독률, 7일 재청취율, 첫 코인 결제 전환율.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">차이 없으면 '커뮤니티 시너지=해자' 폐기, 해자를 <b>제작 단가/속도(운영 해자)</b>로 재배치. (BM은 차별점 아님 — Pocket FM 코인 88.8%로 동일 구조, 차별점은 <b>AI 오리지널 생산방식</b>.)</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>12만 모수, 좋아요+리뷰만으로 데이터 루프가 도나? Pocket FM은 수천만 청취로 돈다.</li>
+        <li>후원 안 되는 커뮤니티가 왜 디스커버리는 된다고 믿나?</li>
+        <li>ElevenLabs는 경쟁사도 쓴다, 음성이 해자인가?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>해자를 '데이터양'이 아니라 <b>'제작 단가/속도'라는 정량 운영 해자</b>로 명시("경쟁사가 1개 만들 때 우리는 N개"). 데이터 루프는 "12만에선 유의성 안 나오니 일본/영어권 모수 쌓인 뒤 작동하는 <b>후행 해자</b>"로 단계 분리.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. '왜 AI 오디오 소설인가' 1차 검증 + 한국 적자 구조에서 비전 근거 + 한국의 역할?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"한국은 매출 시장이 아니라 PMF 검증 테스트베드입니다. 한국 단독 흑자를 비전 근거로 삼으면 그 비전은 틀렸습니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">한국에서 검증한 '제작 파이프라인+코인 퍼널'의 단위경제가 양수면, 모수 큰 시장에서 흑자로 스케일된다.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">한국 소수 타이틀로 제작비-완독-결제 단위경제 MVP + 일본 1~2개 타이틀 파일럿으로 ARPPU 갭 실측.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">타이틀당 제작원가, 회당 결제 전환, 결제자 LTV, 시장별 ARPPU 갭. (ARPPU는 Pocket FM $12 직수입 금지 → 한국 웹소설 <span class="ph">₩11.5~14.2천</span> bottom-up.)</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">한국 단위경제 음수면 퍼널 수정, 그래도 안 되면 '검증 전용'으로 규정. 근거: Pocket FM 미국 매출 70%+.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>당신이 책임지는 건 한국 탭이다. 적자 디폴트 시장에서 당신 개인의 성공 KPI는?</li>
+        <li>Pocket FM 미국 70%는 영어 오리지널+선점+마케팅 결과다. 채널 보유=이식 보장 아니다. 일·대만 채널과 영어권 진입이 같은 난이도인가?</li>
+        <li>웹소설 결제자와 오디오 결제자는 다른데, ₩11.5~14.2천 직수입은 Pocket FM 직수입과 뭐가 다른가?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span><b>한국 PO 성공 정의를 '매출'이 아니라 '이식 가능 자산 생산'으로 재정의:</b> (1) 양수 단위경제 제작 파이프라인 (2) 시장 무관 재현되는 결제 퍼널 공식 (3) 1타이틀당 손익분기 청취자수. 영어권은 "채널 이식이 아니라 현지 배급 검증이 선행되는 <b>별도 게이트</b>"로 난이도 분리. ARPPU 반박엔 "웹소설 밴드도 입력값 아닌 <b>top-down 새너티 체크</b>"로 방어.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. 3년 후 성공/실패 그림 + 저작권 양날을 비전에서 어떻게 다루나?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"성공상=일본·영어권 AI 오리지널 IP 라이브러리, 실패상=12만 모수 미돌파+차별화 붕괴. 저작권 양날은 해자를 콘텐츠 밖(데이터·브랜드·컴플라이언스)으로 옮겨 풉니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">강점</div><div class="v">AI 오리지널은 웹소설 IP 오디오화의 <b>2차적저작물작성권 회피 가능</b>(웹소설 오디오화는 라이선스 필수).</div></div>
+        <div class="st"><div class="k k-e">약점</div><div class="v"><b>AI 생성물 자체는 저작권 보호가 약함</b> → 콘텐츠가 해자가 못 됨.</div></div>
+        <div class="st"><div class="k k-m">해소</div><div class="v">해자를 (1) 독점 데이터/제작 파이프라인 (2) 브랜드/큐레이션 (3) <b>입력단 컴플라이언스</b>(학습 데이터 클린함·성우 퍼블리시티권)로 이전.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">셋 다 약하면 단독 사업이 아니라 <b>IP/배급 파트너십으로 피벗</b>(진짜 STOP 시나리오).</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>데이터도 채널도 콘텐츠도 약하다고 본인이 인정했다. 셋 다 약하면 해자가 없는 것 아닌가?</li>
+        <li>AI 작가가 저작권 있는 웹소설로 학습했다면 산출물이 2차적저작물 시비 대상 아닌가?</li>
+        <li>ElevenLabs 음성=성우 퍼블리시티권은 계약상 어디까지?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>저작권을 '출력물 보호(약함)'만이 아니라 <b>'입력단 리스크'로 확장</b> → 학습 데이터 클린함 + 성우 동의 범위 관리를 <b>'경쟁사가 못 따라오는 컴플라이언스 해자'</b>로 전환. 해자 분산 베팅의 자기모순은 'STOP 시 파트너십 피벗'으로 깬다.</div>
+    </div>
+  </div>
+
+  <!-- B-2 -->
+  <h2 style="font-size:16px;margin-top:24px;color:var(--pur2)">B-2. 수익화·BM</h2>
+
+  <div class="card">
+    <div class="q">Q1. 다음 분기 단 하나의 수익화 레버는?</div>
+    <div class="quizhint">▸ '단 하나' 물으면 진짜 하나만</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"구독 신설이 아니라 '코인 결제 퍼널(가격·번들·기다무 주기) 최적화'. 학습비용 0에 가깝고 며칠~몇 주 A/B로 검증됩니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">번들+기다무 주기 최적화가 잠식 없이 결제자수·ARPPU를 올린다.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">신규 개발 없이 가격/번들 변형 A/B, 기다무 24h vs 12h 코호트 분기.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">WPAL, 결제전환, 코인 ARPPU, 기다무→결제 누수율. <b>가드레일</b>=무료 소비만 늘고 결제 비증가.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">P1 결과가 P2 구독 가격 앵커·카니발 가드레일의 사전 학습.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>12만에서 셀당 표본이 통계적 유의에 도달하나? 며칠이 아니라 몇 주 걸리는지 계산했나?</li>
+        <li>번들 할인+기다무 단축은 둘 다 실효단가 인하 방향이다. ARPPU 깎는 매출 자해 아닌가?</li>
+        <li>기다무 단축했더니 무료 소비만 늘면 다시 늘릴 건가? UX 후퇴인데.</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span><b>첫날 요청할 3개 숫자 못박기:</b> (1) 결제자 수·코인 상점 일일 UV (2) MDE 기준 필요 표본·소요일수 (3) 코인 ARPPU 분포(중앙값·상위10%). "표본 부족하면 A/B 대신 단방향 롤아웃+홀드아웃." 첫 레버를 '할인'이 아니라 <b>'헤비 코호트 대용량 번들(단가 유지·물량 확대)'</b>로 ARPPU 보존형 명시.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. ARPPU bottom-up 모델 + '유료전환 7% 천장' 통념 검증?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"월 ARPPU = 월 결제 회차수 × 실효 회차단가로 분해해 1인 행동에서 쌓고, '7% 천장'은 1차근거 없는 통념이라 기각 후보로 두고 자사 로그로 검증합니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-m">공식</div><div class="v"><b>월 ARPPU = 월 결제 회차수 × 실효 회차단가</b>. 월 결제 회차수 = 작품 수 × 작품당 소비 회차 × 결제 비율 (이중계상 제거).</div></div>
+        <div class="st"><div class="k k-e">검증순서</div><div class="v">① 모수(분모=결제자) 정의 → ② 코호트 분리(전체 vs 몰입) → ③ 결제빈도 → ④ 회차단가 → ⑤ 소진 깊이.</div></div>
+        <div class="st"><div class="k k-l">7% 천장</div><div class="v">단기 실험으론 천장 증명 불가 → 코호트별 전환율 시계열 점근선 + 모수 재정의로 추정. "전체 MAU 기준이면 모수 오류, 유효 청취자로 재정의 시 천장 사라질 수 있음."</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>결제빈도와 소진 깊이는 상관 변수다. 곱하면 이중계상 아닌가? 헤비 유저 1명 월 ARPPU 단위 맞나?</li>
+        <li>₩11.5~14.2천을 출발 앵커로 두고 bottom-up? 형용모순. 앵커가 입력인가 검산인가?</li>
+        <li>신규 서비스라 로그가 얕다. 단기 전환율은 얼리어답터 편향으로 높게 나온다.</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>앵커 역할 분리: "웹소설 밴드는 <b>top-down 새너티 체크 전용, 입력값 아님</b>. 두 수가 30% 이상 벌어지면 어느 가정이 틀렸는지 역추적." 공식을 위처럼 재정의해 결제빈도×소진깊이 중복 제거를 즉답.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. 구독 카니발 측정 + STOP 임계 + WPAL과의 연결?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"'구독 매출이 늘었나'가 아니라 증분성(incrementality)으로 봅니다 — 홀드아웃/시차 롤아웃으로 총결제 ARPU 순증분만 인정하고, 결제수단만 이동하면 STOP합니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">작은 모수에선 신규 유입 제한적 → 기존 코인 결제자의 구독 이동(카니발) 위험 큼.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">홀드아웃/지역 분할로 '총결제매출(코인+구독)' 두 군 차이=증분. 표본 부족 시 <b>시차 롤아웃 + 이중차분(DiD)</b>.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">결제자 1인당 총결제 ARPU + 코인 단독 매출 동시 추적(WPAL은 카니발 사각).</div></div>
+        <div class="st"><div class="k k-l">STOP</div><div class="v">구독 코호트의 1인당 총결제 ARPU가 구독 전 대비 순증 안 하면 = 순수 이동 → STOP.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>코인 결제자가 구독으로 갈아탄 카니발에선 WPAL(머릿수)이 안 변한다. 머릿수 NSM으로 결제수단 이동을 어떻게 탐지하나?</li>
+        <li>12만에서 홀드아웃+코호트 분리하면 한 자릿수 % 증분 검출할 검정력 나오나?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span><b>머릿수 NSM의 카니발 사각을 스스로 폭로:</b> "WPAL은 결제수단 이동을 못 잡습니다. 그래서 카니발 가드레일은 WPAL이 아니라 <b>1인당 총결제 ARPU + 코인 단독 매출</b>으로 겁니다." 면접관 반박을 선수쳐 신뢰 확보.</div>
+    </div>
+  </div>
+
+  <!-- B-3 -->
+  <h2 style="font-size:16px;margin-top:24px;color:var(--pur2)">B-3. 데이터·실험·지표</h2>
+
+  <div class="card">
+    <div class="q">Q1. NSM=WPAL 방어 — 오퍼월 무과금 유저는 잡히나? 쪼개야 하지 않나?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"WPAL은 진단 지표가 아니라 정렬용 북극성이고, 진단은 그 아래 KPI 트리로 분리합니다. 오퍼월 유저는 '활성'엔 잡히되 '유료 매출 증분'엔 안 잡히게 설계했습니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-m">정의</div><div class="v">P(유료) = '유료 회차를 코인으로 소진한 청취자'. 돈은 NSM에 직접 안 넣고 사람 수를 NSM으로(카니발 덜 오염).</div></div>
+        <div class="st"><div class="k k-e">분리</div><div class="v">KPI 트리로 다리별: 코인 ARPPU/첫충전, 오퍼월 ARPDAU/환전율(70~80%), 구독 갱신율.</div></div>
+        <div class="st"><div class="k k-l">그립근거</div><div class="v">후원 대시보드 '유저젬 사용액=그리퍼젬 후원액 정확 일치'로 정의 일관성 사전 검증한 경험.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>오퍼월 유저가 P에 섞이면 WPAL 100 늘어도 실결제자는 40명일 수 있다. CEO 보고 순간 거짓 신호 아닌가?</li>
+        <li>오퍼월 풀수록 WPAL 무조건 오르게 설계돼 'WPAL 최대화=오퍼월 남발'인 굿하트 함정 아닌가?</li>
+        <li>코인 출처(오퍼월/기다무/직접충전) 섞이는데 dedup 규칙을 지금 정의해봐라.</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>WPAL을 <b>'구성을 강제로 드러내는 NSM'으로 재정의:</b> 항상 <b>'직접결제 활성 / 오퍼월-only 활성' 2분할 스택으로만 보고</b>(단일 합계 금지), <b>'오퍼월-only 비중 상한선'을 건강성 가드레일로</b> 선언 → 굿하트 경로 차단.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. 베이스라인 없는 0→1 신규 탭, 첫 4주 페이월 전환율 판단 + 외부 벤치 위험?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"절대값으로 판정 안 합니다. 자기 자신 코호트 추세와 퍼널 단계 드롭으로 보고, 외부 벤치는 '목표'가 아니라 '사전분포(prior)'로만 씁니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-e">방법</div><div class="v">퍼널 분해(탭 진입→상세→1화→무료 소진→페이월→첫충전), 주차별 신규 코호트 분리.</div></div>
+        <div class="st"><div class="k k-h">보정</div><div class="v">유입 채널별 층화(stratify), 첫 세션 깊이로 정규화 후 추세 비교(얼리어답터 우하향 착시 제거).</div></div>
+        <div class="st"><div class="k k-l">GO/STOP</div><div class="v">절대 임계는 외부 벤치 아닌 <b>유닛이코노믹스 역산(12만·팀비 5천만 BEP 페이월 전환율)</b>. 외부 벤치는 그 역산값의 현실성 검증 prior로만.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>0→1 초기엔 얼리어답터가 먼저 들어와 코호트 전환율이 자연 우하향한다. '우상향=좋음' 기준은 틀린 신호 아닌가?</li>
+        <li>prior로 쓴다는데 정량적으로 어떻게? 88.8%를 prior로 넣을 때 평균·분산은?</li>
+        <li>경영진이 GO/STOP 묻는다. 추세·병목만으론 못 한다 — 4주차 GO 게이트 절대 숫자는?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>"GO 숫자는 벤치가 아니라 <b>BEP 역산</b>에서 나옵니다"라고 답하면 '데이터로 의사결정하는 PO' 인상을 굳힌다. 외부 벤치 직수입 위험(RevenueCat 2.18% 분모 불명, Pocket FM 88.8%는 미국)을 함께 지적.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. 모수 선택이 자기 기능 잘 보이게 하는 편향 아닌가? (공개·유효 선택 사례)</div>
+    <div class="quizhint">▸ 그립 AI 썸네일 사례 — 가장 날카로운 자기검증 질문</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"모수는 '좋아 보이는 쪽'이 아니라 '의사결정 목적에 맞는 쪽'으로 고릅니다. 공개·유효를 고른 건 노출 커버리지가 <span class="ph">3.6%→94.2%</span> 단계 롤아웃이라 전체 모수엔 '미노출 착시'가 끼기 때문입니다."</div>
+      <div class="hex">
+        <div class="st"><div class="k k-m">편향 아닌 증명</div><div class="v">① 두 모수 둘 다 공개 ② '유효한 방송' 정의가 분석 전 PRD에 선행 ③ 질문별 분모 종속(효과=공개·유효, 임팩트=전체).</div></div>
+        <div class="st"><div class="k k-e">팟노블 적용</div><div class="v">분모 사전 등록 + 변경 이력 로깅 + 이해상충 분리.</div></div>
+      </div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>PRD를 PM인 당신이 썼고 그 정의로 자기 기능 잘 보이게 했다면 사전 등록은 셀프 면죄부 아닌가?</li>
+        <li>분모 좁히는 데 끝이 없다 — 왜 하필 '노출'에서 멈췄나? 더 좁히면 더 좋아지는데.</li>
+        <li>둘 다 공개해도 임원 요약 한 줄에 들어간 헤드라인은 어느 쪽이었나?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>방어 축을 <b>'나는 편향 안 됐다(인격)'에서 '편향이 못 끼게 구조를 짰다(제도)'로 이동.</b> 핵심 한 수: <b>두 모수의 갭(=노출 커버리지)을 별도 KPI로 승격</b> → "커버리지 100% 수렴할수록 두 숫자가 같아지는 자기소멸 구조." '노출에서 멈춘 이유'는 "기능이 유저에게 <b>전달됐는가(delivery)</b>"라는 인과 경계선이라 답한다.</div>
+    </div>
+  </div>
+
+  <!-- B-4 -->
+  <h2 style="font-size:16px;margin-top:24px;color:var(--pur2)">B-4. AI 신사업 특수성</h2>
+
+  <div class="card">
+    <div class="q">Q1. 후원 없는 BM — 채널 누락인가, 근본 함의인가?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"채널 하나가 빠진 게 아니라 '관계 기반 결제 동기 전체'가 사라진 겁니다. 메우는 게 아니라 결제 축을 '관계→콘텐츠 가치'로 옮겨야 합니다."</div>
+      <div class="mine"><span class="lab">⚠ 랜드마인</span><ul>
+        <li>그건 그냥 웹소설 회차결제다. 스푼 차별점 0이고 Pocket FM·네이버시리즈가 더 잘한다 — 이길 이유 한 문장?</li>
+        <li>좋아요·리뷰를 결제에서 떼면 free-rider만 양산 아닌가?</li>
+      </ul></div>
+      <div class="boost"><span class="lab">💡 강화수</span>"관계는 죽었다"가 아니라 <b>"관계의 대상을 창작자→캐릭터·보이스로 옮긴다"</b> → ElevenLabs 시그니처 보이스에 대한 파라소셜 애착을 결제 동인으로(내레이터 보이스 구독, 캐릭터 보이스 프리미엄). 스푼만 할 수 있는 보이스-관계 결제.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. AI 무한 공급의 함정 + 품질 게이트는?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"무한 공급의 진짜 위험은 '품질 하한 붕괴'입니다 — 유저는 평균이 아니라 최악의 회차로 앱을 판단합니다. 규모화 레버는 '양'이 아니라 '하한 게이트'여야 합니다."</div>
+      <div class="boost"><span class="lab">💡 강화수</span>게이트를 '절대 임계'가 아니라 <b>'슬롯 경쟁(토너먼트) 모델'</b>로 재프레임: 노출 슬롯이 희소 자원 → 회차들을 행동지표로 경쟁시켜 상위만 노출 → <b>많이 만들수록 토너먼트 모수가 커져 상위 품질 상승.</b> '양 vs 품질' 트레이드오프 자체 해소 + 검수기 신뢰성(AI가 AI 검수) 문제도 상대 순위로 우회. (그립 스튜디오 2.0의 '행동지표로 이상 잡고 거기만 사람이 본다' 깔때기 연결.)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. MOS vs 환각, 무엇을 먼저? + 오디오는 어떻게 측정?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"둘을 분리합니다 — MOS는 첫인상·초반 이탈, 환각은 IP 신뢰·완독을 깹니다. 우선순위는 <b>통제 가능성</b>으로 가릅니다."</div>
+      <div class="boost"><span class="lab">💡 강화수</span><b>통제권 기준으로 답:</b> 환각은 우리 프롬프트·검수로 직접 통제 가능 → 내부 리소스 먼저. MOS는 ElevenLabs 의존이라 <b>제품 레벨 우회</b>(한국어 부자연 문체 회피한 초기 카탈로그 편향, 작품-보이스 매칭 최적화). 오디오는 되감기 안 함 → 오류가 '조용한 이탈'로 → <b>구간별 이탈 히트맵</b>으로 측정. (단, '초반=MOS/중후반=환각' 매핑은 가정임을 인정하고 소규모 인간 라벨로 보정.)</div>
+    </div>
+  </div>
+</section>
+
+<!-- C grip case bank -->
+<section id="grip">
+  <h2><span class="snum">C</span> 그립 사례 뱅크 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">가설/실험/지표/러닝 카드</span></h2>
+  <div class="grid2">
+    <div class="card star-card">
+      <div class="q">⭐ 1. AI 썸네일 인사이트 분석 대시보드 <span style="font-size:12px;color:var(--star)">가장 자주 꺼낼 카드</span></div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">AI 커버 사용률(KPI <span class="ph">30%</span>)을 올리면 라이브 참여가 따라온다.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">출시 후 <span class="ph">[6]</span>일 로그를 모수·단계 퍼널로 분석.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">모수 '전체 vs 공개·유효' 분리, '유저수'를 주력지표로. 노출 커버리지 <span class="ph">3.6%→94.2%</span> 단계 롤아웃 착시 발견. 클릭 후 제거 <span class="ph">30%</span>/유지 <span class="ph">59%</span>.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">사용률은 허영지표, 진짜 병목은 결과물 만족도. 모수 정의 우선·허영지표 배제를 제도화.</div></div>
+      </div>
+      <div class="tags"><span class="tag">모수 정의</span><span class="tag">NSM 설계</span><span class="tag">0→1 추세 판독</span><span class="tag">편향 의심</span><span class="tag">틀린 가설 죽이기</span></div>
+    </div>
+
+    <div class="card">
+      <div class="q">2. 후원하기(젬) 분석 대시보드</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">팔로우가 후원을 유발한다 / 젬 집계 정의가 일관되다.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">followingAt vs sponsoredAt 선후를 전수 <span class="ph">9,140</span>쌍 비교. 유저젬 사용액=그리퍼젬 후원액 일치 검증.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">선후 방향성 비율, 정의 불일치율 <span class="ph">[X]%</span>.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">선후=방향성까지, 인과 확정 아님(홀드아웃 필요). 상관만으로 인과 주장 안 하는 절제.</div></div>
+      </div>
+      <div class="tags"><span class="tag">카니발/증분성</span><span class="tag">인과 vs 상관</span><span class="tag">정의 일관성</span><span class="tag">WPAL P정의 dedup</span></div>
+    </div>
+
+    <div class="card">
+      <div class="q">3. JIRA 진행현황 대시보드</div>
+      <div class="hex">
+        <div class="st"><div class="k k-h">가설</div><div class="v">단계·일정 가시화가 협업·우선순위 결정을 빠르게 한다.</div></div>
+        <div class="st"><div class="k k-e">실험</div><div class="v">Vercel 프록시로 JIRA 실시간 연동, 우선순위 라벨(필수/상/중/하), 주간보고 탭.</div></div>
+        <div class="st"><div class="k k-m">지표</div><div class="v">'지금 칠 것/보류' 단일 결정 속도. 정적 HTML+서버리스로 인프라 없이 구축.</div></div>
+        <div class="st"><div class="k k-l">러닝</div><div class="v">지표 많이 박는 게 아니라 단일 결정을 빠르게 하는 도구.</div></div>
+      </div>
+      <div class="tags"><span class="tag">우선순위·게이트 규율</span><span class="tag">이해관계자 언어 번역</span><span class="tag">대시보드 절제</span></div>
+    </div>
+
+    <div class="card">
+      <div class="q">4. AI 방송커버 생성 기능 + 5. 그립 스튜디오 2.0 / UP 자동해제 PRD</div>
+      <div class="hex">
+        <div class="st"><div class="k k-e">AI 방송커버</div><div class="v">AI 신기능 기획·프로토타입 → AI 생성물 가치를 데이터·운영으로 차별화. (후원 부재 대체=보이스 커스텀·분기 선택)</div></div>
+        <div class="st"><div class="k k-m">스튜디오 2.0</div><div class="v">복잡 라이브 운영 콘솔 인수인계·운영 → 품질 게이트/가드레일, '행동지표로 이상 잡고 거기만 사람이 본다' 깔때기.</div></div>
+        <div class="st"><div class="k k-l">UP 자동해제 PRD</div><div class="v">정책/제약을 기능·BM 설계 변수로 다룸 → 저작권을 '회피'가 아닌 '설계 변수'로.</div></div>
+      </div>
+      <div class="tags"><span class="tag">AI 신기능 기획</span><span class="tag">해자 이전</span><span class="tag">운영툴 PO</span><span class="tag">가드레일</span><span class="tag">정책·PRD</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- D weaknesses -->
+<section id="weak">
+  <h2><span class="snum">D</span> 약점·리스크 솔직 답변 세트 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">정면돌파</span></h2>
+  <div class="card">
+    <div class="dq"><span class="badge">D-1</span>"라이브커머스 경력이 오디오에 안 통하지 않나"</div>
+    <div class="ans">"독이 되는 건 둘입니다 — (1) <b>지표 본능</b>: 커머스는 GMV·전환율에 최적화돼 무심코 '결제 전환율'을 북극성으로 잡으면 청취 습관이라는 진짜 가치를 누락. (2) <b>실험 속도 본능</b>: 커머스는 며칠이면 결론 나지만 콘텐츠 코호트는 몇 주에 익어서 '안 익은 코호트로 조기 GO/STOP 오판'을 부릅니다. 이식 가능한 건 도메인 무관한 <b>모수·지표 정의력과 가설검증 루프</b>입니다. 콘텐츠 리텐션 곡선은 이미 Pocket FM/Kuku 자료를 <span class="ph">[본인이 본 것]</span>까지 봤고 커머스 재구매 곡선과 다르더라."</div>
+  </div>
+  <div class="card">
+    <div class="dq"><span class="badge">D-2</span>"하드워크 문화(잡플래닛 2.7), 알고도 왜 오나"</div>
+    <div class="ans">"2.7을 강도가 아니라 <b>의사결정·소통 문제로</b> 읽었습니다. 제가 3개월 안에 겪을 가장 큰 갭은 강도가 아니라, <b>데이터로 GO/STOP을 제안해도 경영진 직관이 덮는 순간</b>일 겁니다. 그립에서도 <span class="ph">[데이터로 의사결정 뒤집은/톱다운 마찰 관리한 에피소드]</span>가 있었습니다. 신사업 0→1은 정의상 빡세고, 저는 리소스 적은 환경에서 프로토타입으로 검증하는 일에서 에너지가 납니다 — 각오가 아니라 트레이드오프를 계산하고 들어옵니다."
+    <div class="mine" style="margin-top:8px"><span class="lab">⚠ 후속 대비</span>"STOP 권고했는데 경영진이 감으로 GO 밀면 따르나, 싸우나, 나가나?"</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="dq"><span class="badge">D-3</span>"AI 비전문가인데 AI 신사업?"</div>
+    <div class="ans">"맞습니다. 제 역할은 측정 알고리즘을 만드는 게 아니라 <b>'무엇을 측정하면 조용한 이탈을 잡는가'를 정의하고 상시 운영 대시보드로 내리는 것</b> — 그립에서 반복한 일입니다. 저작권도 '리스크 회피'가 아니라 UP 자동해제 PRD처럼 <b>포트폴리오 비중과 해자 위치를 결정하는 변수</b>로 다룹니다. 모르는 기술 판단(2차적저작물 해당 여부, AI 생성물 보호 범위)은 법무와 작품 유형별 체크리스트로 사전 게이트화합니다."</div>
+  </div>
+  <div class="card">
+    <div class="dq"><span class="badge">D-4</span>"한국 모수 적자, 글로벌 단위경제를 한국 PO가 책임지나"</div>
+    <div class="ans">"일본·영어권 시장 감각은 지금 0에 가깝고 가진 척 안 합니다. <b>LTV는 제가 1차 데이터로 직접 책임지고, CAC는 현지 채널 변수라 단독으로 못 낮춥니다</b> — 대신 LTV/CAC를 의사결정 모델로 만들고 회수기간을 가드레일로 거는 자원배분 규율을 책임집니다. <b>90일 학습 플랜:</b> 30일=Pocket FM/Audible JP 결제퍼널 해부+일본 웹소설 코인 밴드 수집, 60일=현지 그로스와 CAC 기준선 합의, 90일=시장별 LTV/CAC 대시보드 v1."
+    <div class="mine" style="margin-top:8px"><span class="lab">⚠ 후속 대비</span>"프로토타입 강점이 긴 콘텐츠 루프엔 안 통한다" → "결제·이탈 전환 지점은 그대로 통하고, 긴 루프는 선행지표 프록시. 단 거짓양성 위험 인정 → 1~2개 작품 완독까지 추적해 상관 검증된 프록시만 의사결정 지표로 승격."</div>
+    </div>
+  </div>
+</section>
+
+<!-- E reverse questions -->
+<section>
+  <h2><span class="snum">E</span> 면접관에게 할 역질문 6 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">통찰을 보이는 것으로</span></h2>
+  <div class="card">
+    <ol class="rq">
+      <li><span class="rqtag">런웨이·게이트 ⭐</span><br>"제가 6개월 안에 코호트 결제 기울기를 우상향시킨다고 가정하면, 경영진이 일본·영어권 본격 투자를 결심하는 <b>트리거 조건</b>과 그 전에 사업을 닫는 <b>STOP 라인</b>이 지금 정의돼 있습니까? 없다면 입사 첫 주에 가장 먼저 합의하고 싶은 게 이 GO/STOP 게이트입니다." <span style="color:var(--dim);font-size:12px">('딱 하나만' 요청 시 이것만 — 수비 아닌 오너십 프레임)</span></li>
+      <li><span class="rqtag">저작권 믹스</span><br>"AI 오리지널 IP 비중 vs 라이선스 콘텐츠 비중의 목표 믹스가 어떻게 됩니까? 여기서 매출 구조와 리스크가 갈립니다."</li>
+      <li><span class="rqtag">권한 범위</span><br>"Lead PO가 BM(코인/구독/AI프리미엄 믹스)과 가격을 실제로 결정할 권한이 있습니까, 본사 정책 종속입니까? 단위경제로 GO를 받아내려면 가격 레버가 제 손에 있어야 합니다."</li>
+      <li><span class="rqtag">데이터 인프라</span><br>"현재 결제·청취 이벤트 로깅 스키마의 신뢰도는 어느 수준입니까? 코호트 잔존·LTV/CAC를 의사결정에 쓰려면 입력 데이터 정합성이 전제입니다."</li>
+      <li><span class="rqtag">학습 데이터 컴플라이언스</span><br>"AI 작가 모델 학습 데이터 출처와 ElevenLabs 음성의 성우 동의·퍼블리시티권 계약 범위는 어디까지 확보돼 있습니까?"</li>
+      <li><span class="rqtag">조직·의사결정</span><br>"데이터 기반 제안과 경영진 직관이 충돌할 때 이 조직은 보통 어떻게 결론을 냅니까? 제가 가장 잘하는 게 데이터로 의사결정을 정렬하는 일이라 작동 방식이 궁금합니다."</li>
+    </ol>
+  </div>
+</section>
+
+<div class="closer">
+  "저는 한국에서 흑자를 약속하지 않습니다.<br>한국에서 <span style="color:var(--star)">이식 가능한 단위경제 플레이북</span>을 가장 싸고 빠르게 만들어,<br>일본·영어권 확장의 GO 근거를 데이터로 무장시키는 것 — 그게 적자 시장에서 Lead PO가 할 일이라고 봅니다."
+</div>
+
+<div class="foot">
+  팟노블 Lead PO 면접 대비 카드 · 2026-06 · 19에이전트(질문 생성 → 모범답안 → 면접관 적대적 반박 → 종합).
+  💡강화수는 면접관이 ⚠랜드마인을 던졌을 때 꺼내는 '두 번째 카드' — 첫 답에 다 쏟지 말고 후속질문을 유도한 뒤 역전. 모든 <span class="ph">[ ]</span>는 본인 실제 수치로 교체 후 사용(거짓 수치 금지).
+</div>
+</div>
+
+<script>
+function toggleQuiz(){
+  var on=document.body.classList.toggle("quiz");
+  document.getElementById("quizBtn").classList.toggle("on",on);
+  document.getElementById("quizBtn").textContent=on?"👁 답 보기":"🙈 답 가리고 연습";
+}
+function jump(id){var el=document.getElementById(id);if(el){el.scrollIntoView({behavior:"smooth"});}}
+</script>
