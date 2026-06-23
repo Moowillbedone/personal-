@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>팟노블 수익 시뮬레이터 · 월 손익(P&L)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{--bg:#0d0d0f;--surf:#1a1a1e;--surf2:#26262c;--line:#2a2a31;--or:#fa4b38;--or2:#ff7a3d;--teal:#1d9e75;--teal2:#5dcaa5;--txt:#fff;--txt2:#9a9aa2;--txt3:#65656d;--star:#ffa53d;--purple:#7c5cff;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;padding:22px 18px 60px;line-height:1.5;}
+.wrap{max-width:960px;margin:0 auto;}
+.head h1{font-size:23px;font-weight:800;letter-spacing:-.5px;}
+.head .sub{font-size:13px;color:var(--txt2);margin-top:6px;line-height:1.6;}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px;}
+.preset{background:var(--surf2);color:#cfcfd6;border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+.preset:hover{border-color:var(--or);color:#fff;}
+.preset.tobe{background:rgba(124,92,255,.16);color:#a892ff;border-color:rgba(124,92,255,.4);}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px;}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:18px 20px;}
+.card h2{font-size:14px;font-weight:800;margin-bottom:4px;}
+.card .hint{font-size:11px;color:var(--txt3);margin-bottom:14px;}
+.ctrl{margin-bottom:17px;}
+.ctrl .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:7px;}
+.ctrl .lab .nm{color:#cfcfd6;font-weight:600;} .ctrl .lab .val{color:var(--or);font-weight:800;font-size:13.5px;font-variant-numeric:tabular-nums;}
+.ctrl .lab .val.sub{color:var(--purple);}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:var(--surf2);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--or);cursor:pointer;border:2px solid #fff2;}
+input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
+.pl{list-style:none;}
+.pl li{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #18181c;font-size:13px;}
+.pl li .k{color:var(--txt2);} .pl li .v{font-weight:700;font-variant-numeric:tabular-nums;}
+.pl li.rev .v{color:var(--teal2);} .pl li.cost .v{color:#ff9a6d;}
+.pl li.sum{border-top:1px solid var(--line);border-bottom:none;margin-top:4px;padding-top:11px;} .pl li.sum .k{color:#fff;font-weight:800;} .pl li.sum .v{font-size:14px;}
+.net{margin-top:14px;border-radius:13px;padding:16px;text-align:center;}
+.net.pos{background:rgba(29,158,117,.14);border:1px solid rgba(29,158,117,.5);}
+.net.neg{background:rgba(226,75,74,.14);border:1px solid rgba(226,75,74,.5);}
+.net .nl{font-size:12px;color:var(--txt2);font-weight:700;}
+.net .nv{font-size:30px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
+.net.pos .nv{color:var(--teal2);} .net.neg .nv{color:#f09595;}
+.net .ny{font-size:12px;color:var(--txt2);margin-top:4px;}
+.bars{margin-top:16px;}
+.barrow{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:11.5px;}
+.barrow .bl{width:62px;color:var(--txt2);text-align:right;flex-shrink:0;}
+.bartrack{flex:1;height:16px;background:#18181c;border-radius:5px;overflow:hidden;}
+.bartrack i{display:block;height:100%;border-radius:5px;}
+.barrow .bv{width:64px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0;}
+.note{font-size:11.5px;color:var(--txt2);line-height:1.6;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-top:18px;}
+.note b{color:var(--star);}
+.ref{font-size:11.5px;color:var(--txt2);margin-top:13px;padding-top:12px;border-top:1px dashed #2a2a31;line-height:1.6;}
+.ref b{color:#fff;}
+@media(max-width:760px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>🧮 팟노블 수익 시뮬레이터</h1>
+    <div class="sub">가정(MAU·전환율·ARPPU·구독·팀비)을 바꾸면 <b style="color:#fff">월 매출·비용·순이익</b>이 실시간 계산됩니다. 한국·스푼 기반 모델 · 모든 수치는 추정/일러스트.</div>
+  </div>
+
+  <div class="presets">
+    <button class="preset" onclick="preset('cons')">보수</button>
+    <button class="preset" onclick="preset('base')">기본</button>
+    <button class="preset" onclick="preset('up')">상향</button>
+    <button class="preset tobe" onclick="preset('tobe')">＋구독 (TO-BE)</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>입력 가정</h2><div class="hint">슬라이더를 움직여 보세요</div>
+      <div class="ctrl"><div class="lab"><span class="nm">스푼 한국 MAU</span><span class="val" id="v_mau">35만</span></div><input type="range" id="mau" min="10" max="100" step="1" value="35"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">팟노블 탭 활성 전환</span><span class="val" id="v_act">25%</span></div><input type="range" id="act" min="5" max="60" step="1" value="25"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">유료 전환율 (결제자 비율)</span><span class="val" id="v_pay">8%</span></div><input type="range" id="pay" min="1" max="20" step="0.5" value="8"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">결제자 ARPPU (월)</span><span class="val" id="v_arppu">₩14,000</span></div><input type="range" id="arppu" min="5000" max="40000" step="500" value="14000"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">무과금 1인 광고매출 (월)</span><span class="val" id="v_ad">₩185</span></div><input type="range" id="ad" min="0" max="500" step="5" value="185"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">앱스토어 수수료</span><span class="val" id="v_fee">28%</span></div><input type="range" id="fee" min="21" max="30" step="1" value="28"></div>
+      <div class="ctrl"><div class="lab"><span class="nm">팀·운영 고정비 (월)</span><span class="val" id="v_team">₩5,000만</span></div><input type="range" id="team" min="1000" max="12000" step="500" value="5000"></div>
+      <div class="ctrl"><div class="lab"><span class="nm" style="color:#a892ff">🆕 구독 침투율 (TO-BE)</span><span class="val sub" id="v_sub">0%</span></div><input type="range" id="sub" class="sub" min="0" max="30" step="1" value="0"></div>
+    </div>
+
+    <div class="card">
+      <h2>월 손익 (P&L)</h2><div class="hint">실시간 계산</div>
+      <ul class="pl">
+        <li class="rev"><span class="k">코인 회차결제</span><span class="v" id="o_coin">+₩9,800만</span></li>
+        <li class="rev"><span class="k">오퍼월 광고(애드팝콘)</span><span class="v" id="o_ad">+₩1,489만</span></li>
+        <li class="rev"><span class="k" style="color:#a892ff">구독 (TO-BE)</span><span class="v" id="o_sub">+₩0</span></li>
+        <li class="sum rev"><span class="k">매출 합계</span><span class="v" id="o_rev">+₩1.13억</span></li>
+        <li class="cost"><span class="k">앱스토어 수수료</span><span class="v" id="o_fee">−₩2,744만</span></li>
+        <li class="cost"><span class="k">AI음성·CDN + 콘텐츠</span><span class="v" id="o_var">−₩494만</span></li>
+        <li class="sum rev"><span class="k">① 기여이익</span><span class="v" id="o_contrib">₩8,090만</span></li>
+        <li class="cost"><span class="k">팀·운영 고정비</span><span class="v" id="o_team">−₩5,000만</span></li>
+      </ul>
+      <div class="net pos" id="netbox">
+        <div class="nl">② 월 순이익</div>
+        <div class="nv" id="o_net">₩3,090만</div>
+        <div class="ny" id="o_year">연 환산 ≈ ₩3.7억</div>
+      </div>
+      <div class="bars">
+        <div class="barrow"><span class="bl">매출</span><div class="bartrack"><i id="bar_rev" style="background:var(--teal);width:100%"></i></div><span class="bv" style="color:var(--teal2)" id="bv_rev">1.13억</span></div>
+        <div class="barrow"><span class="bl">총비용</span><div class="bartrack"><i id="bar_cost" style="background:#e24b4a;width:73%"></i></div><span class="bv" style="color:#f09595" id="bv_cost">8,238만</span></div>
+        <div class="barrow"><span class="bl">순이익</span><div class="bartrack"><i id="bar_net" style="background:var(--or);width:27%"></i></div><span class="bv" style="color:var(--or)" id="bv_net">3,090만</span></div>
+      </div>
+      <div class="ref" id="o_ref"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    💡 <b>읽는 법</b> — ① 코인 회차결제가 현행 유일 매출. ② <b>무료 코인은 P&L에 거의 안 잡힘</b>(AI라 회차 변동비≈0, 매출에 이미 미반영). 아래 참고값은 비현금 기회비용. ③ 최대 비용은 <b>앱스토어 수수료</b>(웹결제로 21~26% 방어). ④ <b>팀 고정비</b>가 순익을 가르는 최대 변수. ⑤ <b style="color:#a892ff">구독 침투율</b>을 올리면(TO-BE) 두 번째 매출 다리가 붙어 순익이 점프. ⑥ 한국·스푼 기반 천장 — 더 키우려면 일본.
+  </div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id);};
+function fmtWon(n){var a=Math.abs(n);var s=n<0?'−':'';if(a>=1e8)return s+'₩'+(a/1e8).toFixed(2)+'억';return s+'₩'+Math.round(a/1e4).toLocaleString()+'만';}
+function fmtShort(n){var a=Math.abs(n);if(a>=1e8)return (a/1e8).toFixed(2)+'억';return Math.round(a/1e4).toLocaleString()+'만';}
+var SUBPRICE=9900;
+function calc(){
+  var mau=+$('mau').value, act=+$('act').value, pay=+$('pay').value, arppu=+$('arppu').value, ad=+$('ad').value, fee=+$('fee').value, team=+$('team').value, sub=+$('sub').value;
+  $('v_mau').textContent=mau+'만'; $('v_act').textContent=act+'%'; $('v_pay').textContent=pay+'%';
+  $('v_arppu').textContent='₩'+arppu.toLocaleString(); $('v_ad').textContent='₩'+ad; $('v_fee').textContent=fee+'%';
+  $('v_team').textContent='₩'+team.toLocaleString()+'만'; $('v_sub').textContent=sub+'%';
+
+  var podMAU=mau*10000*(act/100);
+  var payUsers=podMAU*(pay/100);
+  var nonPay=Math.max(0,podMAU-payUsers);
+  var coinRev=payUsers*arppu;
+  var adRev=nonPay*ad;
+  var subUsers=podMAU*(sub/100);
+  var subRev=subUsers*SUBPRICE;
+  var revTotal=coinRev+adRev+subRev;
+  var grossIAP=coinRev+subRev;
+  var storeFee=grossIAP*(fee/100);
+  var aiCdn=podMAU*45;
+  var content=1000000;
+  var varCost=storeFee+aiCdn+content;
+  var contrib=revTotal-varCost;
+  var teamCost=team*10000;
+  var net=contrib-teamCost;
+  var totalCost=varCost+teamCost;
+
+  // free coin forgone (참고, 비현금)
+  var newUsers=podMAU*0.2;
+  var faceSpoon=newUsers*30 + podMAU*10;
+  var faceWon=faceSpoon*140;
+  var forgone=faceWon*(pay/100);
+
+  $('o_coin').textContent='+'+fmtWon(coinRev);
+  $('o_ad').textContent='+'+fmtWon(adRev);
+  $('o_sub').textContent=(subRev>0?'+':'')+fmtWon(subRev);
+  $('o_rev').textContent='+'+fmtWon(revTotal);
+  $('o_fee').textContent='−'+fmtWon(storeFee);
+  $('o_var').textContent='−'+fmtWon(aiCdn+content);
+  $('o_contrib').textContent=fmtWon(contrib);
+  $('o_team').textContent='−'+fmtWon(teamCost);
+  $('o_net').textContent=fmtWon(net);
+  $('o_year').textContent='연 환산 ≈ '+fmtWon(net*12);
+
+  var nb=$('netbox'); nb.className='net '+(net>=0?'pos':'neg');
+
+  var maxv=Math.max(revTotal,totalCost,1);
+  $('bar_rev').style.width=(revTotal/maxv*100)+'%';
+  $('bar_cost').style.width=(totalCost/maxv*100)+'%';
+  $('bar_net').style.width=(Math.max(0,net)/maxv*100)+'%';
+  $('bv_rev').textContent=fmtShort(revTotal);
+  $('bv_cost').textContent=fmtShort(totalCost);
+  $('bv_net').textContent=(net<0?'−':'')+fmtShort(net);
+
+  $('o_ref').innerHTML='참고 — 팟노블 MAU <b>'+Math.round(podMAU).toLocaleString()+'명</b> · 결제자 <b>'+Math.round(payUsers).toLocaleString()+'명</b>'+(subUsers>0?' · 구독자 <b>'+Math.round(subUsers).toLocaleString()+'명</b>':'')+'<br>무료 코인 발행 face ≈ '+fmtWon(faceWon)+' → 실질(forgone, 비현금) ≈ '+fmtWon(forgone);
+}
+function preset(p){
+  var P={
+    cons:{mau:35,act:15,pay:5,arppu:9000,ad:120,fee:28,team:5000,sub:0},
+    base:{mau:35,act:25,pay:8,arppu:14000,ad:185,fee:28,team:5000,sub:0},
+    up:{mau:35,act:40,pay:12,arppu:20000,ad:250,fee:24,team:5000,sub:0},
+    tobe:{mau:35,act:30,pay:9,arppu:15000,ad:200,fee:26,team:5500,sub:10}
+  }[p];
+  for(var k in P){$(k).value=P[k];}
+  calc();
+}
+['mau','act','pay','arppu','ad','fee','team','sub'].forEach(function(id){$(id).addEventListener('input',calc);});
+calc();
+</script>
+</body>
+</html>
