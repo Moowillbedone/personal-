@@ -50,6 +50,10 @@ input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
 .note b{color:var(--star);}
 .ref{font-size:11.5px;color:var(--txt2);margin-top:13px;padding-top:12px;border-top:1px dashed #2a2a31;line-height:1.6;}
 .ref b{color:#fff;}
+.pl li,.net,.barrow,.ref{cursor:help;}
+.pl li .k{border-bottom:1px dotted #3a3a42;}
+.tt{position:fixed;display:none;z-index:200;max-width:310px;background:#08080a;border:1px solid var(--or);border-radius:11px;padding:12px 14px;font-size:11.5px;line-height:1.65;color:#e8e8ec;box-shadow:0 12px 34px rgba(0,0,0,.6);pointer-events:none;}
+.tt b{color:#fff;}
 @media(max-width:760px){.grid{grid-template-columns:1fr;}}
 </style>
 </head>
@@ -83,26 +87,26 @@ input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
     <div class="card">
       <h2>월 손익 (P&L)</h2><div class="hint">실시간 계산</div>
       <ul class="pl">
-        <li class="rev"><span class="k">코인 회차결제</span><span class="v" id="o_coin">+₩9,800만</span></li>
-        <li class="rev"><span class="k">오퍼월 광고(애드팝콘)</span><span class="v" id="o_ad">+₩1,489만</span></li>
-        <li class="rev"><span class="k" style="color:#a892ff">구독 (TO-BE)</span><span class="v" id="o_sub">+₩0</span></li>
-        <li class="sum rev"><span class="k">매출 합계</span><span class="v" id="o_rev">+₩1.13억</span></li>
-        <li class="cost"><span class="k">앱스토어 수수료</span><span class="v" id="o_fee">−₩2,744만</span></li>
-        <li class="cost"><span class="k">AI음성·CDN + 콘텐츠</span><span class="v" id="o_var">−₩494만</span></li>
-        <li class="sum rev"><span class="k">① 기여이익</span><span class="v" id="o_contrib">₩8,090만</span></li>
-        <li class="cost"><span class="k">팀·운영 고정비</span><span class="v" id="o_team">−₩5,000만</span></li>
+        <li class="rev" data-k="coin"><span class="k">코인 회차결제</span><span class="v" id="o_coin">+₩9,800만</span></li>
+        <li class="rev" data-k="ad"><span class="k">오퍼월 광고(애드팝콘)</span><span class="v" id="o_ad">+₩1,489만</span></li>
+        <li class="rev" data-k="sub"><span class="k" style="color:#a892ff">구독 (TO-BE)</span><span class="v" id="o_sub">+₩0</span></li>
+        <li class="sum rev" data-k="rev"><span class="k">매출 합계</span><span class="v" id="o_rev">+₩1.13억</span></li>
+        <li class="cost" data-k="fee"><span class="k">앱스토어 수수료</span><span class="v" id="o_fee">−₩2,744만</span></li>
+        <li class="cost" data-k="vcost"><span class="k">AI음성·CDN + 콘텐츠</span><span class="v" id="o_var">−₩494만</span></li>
+        <li class="sum rev" data-k="contrib"><span class="k">① 기여이익</span><span class="v" id="o_contrib">₩8,090만</span></li>
+        <li class="cost" data-k="team"><span class="k">팀·운영 고정비</span><span class="v" id="o_team">−₩5,000만</span></li>
       </ul>
-      <div class="net pos" id="netbox">
+      <div class="net pos" id="netbox" data-k="net">
         <div class="nl">② 월 순이익</div>
         <div class="nv" id="o_net">₩3,090만</div>
         <div class="ny" id="o_year">연 환산 ≈ ₩3.7억</div>
       </div>
       <div class="bars">
-        <div class="barrow"><span class="bl">매출</span><div class="bartrack"><i id="bar_rev" style="background:var(--teal);width:100%"></i></div><span class="bv" style="color:var(--teal2)" id="bv_rev">1.13억</span></div>
-        <div class="barrow"><span class="bl">총비용</span><div class="bartrack"><i id="bar_cost" style="background:#e24b4a;width:73%"></i></div><span class="bv" style="color:#f09595" id="bv_cost">8,238만</span></div>
-        <div class="barrow"><span class="bl">순이익</span><div class="bartrack"><i id="bar_net" style="background:var(--or);width:27%"></i></div><span class="bv" style="color:var(--or)" id="bv_net">3,090만</span></div>
+        <div class="barrow" data-k="brev"><span class="bl">매출</span><div class="bartrack"><i id="bar_rev" style="background:var(--teal);width:100%"></i></div><span class="bv" style="color:var(--teal2)" id="bv_rev">1.13억</span></div>
+        <div class="barrow" data-k="bcost"><span class="bl">총비용</span><div class="bartrack"><i id="bar_cost" style="background:#e24b4a;width:73%"></i></div><span class="bv" style="color:#f09595" id="bv_cost">8,238만</span></div>
+        <div class="barrow" data-k="bnet"><span class="bl">순이익</span><div class="bartrack"><i id="bar_net" style="background:var(--or);width:27%"></i></div><span class="bv" style="color:var(--or)" id="bv_net">3,090만</span></div>
       </div>
-      <div class="ref" id="o_ref"></div>
+      <div class="ref" id="o_ref" data-k="ref"></div>
     </div>
   </div>
 
@@ -111,8 +115,10 @@ input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
   </div>
 </div>
 
+<div class="tt" id="tt"></div>
 <script>
 var $=function(id){return document.getElementById(id);};
+function fmtN(n){return Math.round(n).toLocaleString();}
 function fmtWon(n){var a=Math.abs(n);var s=n<0?'−':'';if(a>=1e8)return s+'₩'+(a/1e8).toFixed(2)+'억';return s+'₩'+Math.round(a/1e4).toLocaleString()+'만';}
 function fmtShort(n){var a=Math.abs(n);if(a>=1e8)return (a/1e8).toFixed(2)+'억';return Math.round(a/1e4).toLocaleString()+'만';}
 var SUBPRICE=9900;
@@ -168,6 +174,22 @@ function calc(){
   $('bv_net').textContent=(net<0?'−':'')+fmtShort(net);
 
   $('o_ref').innerHTML='참고 — 팟노블 MAU <b>'+Math.round(podMAU).toLocaleString()+'명</b> · 결제자 <b>'+Math.round(payUsers).toLocaleString()+'명</b>'+(subUsers>0?' · 구독자 <b>'+Math.round(subUsers).toLocaleString()+'명</b>':'')+'<br>무료 코인 발행 face ≈ '+fmtWon(faceWon)+' → 실질(forgone, 비현금) ≈ '+fmtWon(forgone);
+
+  window.__TIPS={
+    coin:'<b>코인 회차결제</b> · 현행 유일 매출<br>결제자 × ARPPU<br>= '+fmtN(payUsers)+'명 × ₩'+arppu.toLocaleString()+'<br>= <b style="color:#5dcaa5">'+fmtWon(coinRev)+'</b><br><span style="color:#9a9aa2">결제자 = 팟노블MAU '+fmtN(podMAU)+'명 × 유료전환 '+pay+'%</span>',
+    ad:'<b>오퍼월 광고(애드팝콘)</b> · ✅현행<br>무과금 MAU × 1인 광고매출(월)<br>= '+fmtN(nonPay)+'명 × ₩'+ad+'<br>= <b style="color:#5dcaa5">'+fmtWon(adRev)+'</b><br><span style="color:#9a9aa2">광고 시청→스푼 적립 · 앱수수료 없음</span>',
+    sub:'<b>구독 (TO-BE)</b> · 🆕제안<br>구독자 × 구독가 ₩9,900<br>= 팟노블MAU '+fmtN(podMAU)+' × 침투 '+sub+'% = '+fmtN(subUsers)+'명<br>= <b style="color:#5dcaa5">'+fmtWon(subRev)+'</b><br><span style="color:#9a9aa2">침투율 0%면 현행(미적용)</span>',
+    rev:'<b>매출 합계</b><br>코인 + 광고 + 구독<br>= '+fmtWon(coinRev)+' + '+fmtWon(adRev)+' + '+fmtWon(subRev)+'<br>= <b style="color:#5dcaa5">'+fmtWon(revTotal)+'</b>',
+    fee:'<b>앱스토어 수수료</b> · 애플/구글<br>(코인+구독 IAP) × '+fee+'%<br>= '+fmtWon(grossIAP)+' × '+fee+'%<br>= <b style="color:#ff9a6d">−'+fmtWon(storeFee)+'</b><br><span style="color:#9a9aa2">광고매출엔 수수료 없음 · 웹결제 시 21~26%</span>',
+    vcost:'<b>AI음성·CDN + 콘텐츠</b> · 변동원가<br>AI·CDN = 팟노블MAU × ₩45 = '+fmtWon(aiCdn)+'<br>콘텐츠 = ₩100만 (AI 양산, 변동비≈0)<br>= <b style="color:#ff9a6d">−'+fmtWon(aiCdn+content)+'</b>',
+    contrib:'<b>① 기여이익</b><br>매출 − 변동원가(수수료+AI·CDN+콘텐츠)<br>= '+fmtWon(revTotal)+' − '+fmtWon(varCost)+'<br>= <b style="color:#5dcaa5">'+fmtWon(contrib)+'</b>',
+    team:'<b>팀·운영 고정비</b> · 가정(슬라이더)<br>팟노블 셀 인건비·운영<br>현재 = <b style="color:#ff9a6d">−'+fmtWon(teamCost)+'</b><br><span style="color:#9a9aa2">순익을 가르는 최대 변수</span>',
+    net:'<b>② 월 순이익</b><br>기여이익 − 팀 고정비<br>= '+fmtWon(contrib)+' − '+fmtWon(teamCost)+'<br>= <b>'+fmtWon(net)+'</b> · 연 환산 '+fmtWon(net*12),
+    brev:'<b>매출</b> = '+fmtWon(revTotal),
+    bcost:'<b>총비용</b> = 변동원가 + 팀 고정비<br>= '+fmtWon(varCost)+' + '+fmtWon(teamCost)+' = '+fmtWon(varCost+teamCost),
+    bnet:'<b>순이익</b> = 매출 − 총비용<br>= '+fmtWon(revTotal)+' − '+fmtWon(varCost+teamCost)+' = '+fmtWon(net),
+    ref:'<b>참고값 계산</b><br>팟노블MAU = 스푼한국 '+mau+'만 × 활성 '+act+'% = '+fmtN(podMAU)+'명<br>결제자 = ×유료전환 '+pay+'% = '+fmtN(payUsers)+'명<br>무료코인 face = (신규 '+fmtN(newUsers)+'×30 + MAU×10)스푼 ×₩140 = '+fmtWon(faceWon)+'<br>forgone = face × '+pay+'% = '+fmtWon(forgone)+' (비현금)'
+  };
 }
 function preset(p){
   var P={
@@ -180,6 +202,11 @@ function preset(p){
   calc();
 }
 ['mau','act','pay','arppu','ad','fee','team','sub'].forEach(function(id){$(id).addEventListener('input',calc);});
+var TT=$('tt');
+function showTip(el){var h=(window.__TIPS||{})[el.getAttribute('data-k')];if(!h){return;}TT.innerHTML=h;TT.style.display='block';var r=el.getBoundingClientRect();var tr=TT.getBoundingClientRect();var top=r.top-tr.height-10;if(top<8){top=r.bottom+10;}var left=r.left;if(left+tr.width>window.innerWidth-8){left=window.innerWidth-8-tr.width;}if(left<8){left=8;}TT.style.top=top+'px';TT.style.left=left+'px';}
+function hideTip(){TT.style.display='none';}
+document.querySelectorAll('[data-k]').forEach(function(el){el.addEventListener('mouseenter',function(){showTip(el);});el.addEventListener('mouseleave',hideTip);el.addEventListener('click',function(e){e.stopPropagation();showTip(el);});});
+document.addEventListener('click',hideTip);
 calc();
 </script>
 </body>
