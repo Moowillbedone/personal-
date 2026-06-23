@@ -50,8 +50,8 @@ input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
 .note b{color:var(--star);}
 .ref{font-size:11.5px;color:var(--txt2);margin-top:13px;padding-top:12px;border-top:1px dashed #2a2a31;line-height:1.6;}
 .ref b{color:#fff;}
-.pl li,.net,.barrow,.ref{cursor:help;}
-.pl li .k{border-bottom:1px dotted #3a3a42;}
+.pl li,.net,.barrow,.ref,.ctrl{cursor:help;}
+.pl li .k,.ctrl .nm{border-bottom:1px dotted #3a3a42;}
 .tt{position:fixed;display:none;z-index:200;max-width:310px;background:#08080a;border:1px solid var(--or);border-radius:11px;padding:12px 14px;font-size:11.5px;line-height:1.65;color:#e8e8ec;box-shadow:0 12px 34px rgba(0,0,0,.6);pointer-events:none;}
 .tt b{color:#fff;}
 @media(max-width:760px){.grid{grid-template-columns:1fr;}}
@@ -74,14 +74,14 @@ input[type=range].sub::-webkit-slider-thumb{background:var(--purple);}
   <div class="grid">
     <div class="card">
       <h2>입력 가정</h2><div class="hint">슬라이더를 움직여 보세요</div>
-      <div class="ctrl"><div class="lab"><span class="nm">스푼 한국 MAU</span><span class="val" id="v_mau">35만</span></div><input type="range" id="mau" min="10" max="100" step="1" value="35"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">팟노블 탭 활성 전환</span><span class="val" id="v_act">25%</span></div><input type="range" id="act" min="5" max="60" step="1" value="25"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">유료 전환율 (결제자 비율)</span><span class="val" id="v_pay">8%</span></div><input type="range" id="pay" min="1" max="20" step="0.5" value="8"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">결제자 ARPPU (월)</span><span class="val" id="v_arppu">₩14,000</span></div><input type="range" id="arppu" min="5000" max="40000" step="500" value="14000"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">무과금 1인 광고매출 (월)</span><span class="val" id="v_ad">₩185</span></div><input type="range" id="ad" min="0" max="500" step="5" value="185"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">앱스토어 수수료</span><span class="val" id="v_fee">28%</span></div><input type="range" id="fee" min="21" max="30" step="1" value="28"></div>
-      <div class="ctrl"><div class="lab"><span class="nm">팀·운영 고정비 (월)</span><span class="val" id="v_team">₩5,000만</span></div><input type="range" id="team" min="1000" max="12000" step="500" value="5000"></div>
-      <div class="ctrl"><div class="lab"><span class="nm" style="color:#a892ff">🆕 구독 침투율 (TO-BE)</span><span class="val sub" id="v_sub">0%</span></div><input type="range" id="sub" class="sub" min="0" max="30" step="1" value="0"></div>
+      <div class="ctrl" data-k="i_mau"><div class="lab"><span class="nm">스푼 한국 MAU</span><span class="val" id="v_mau">35만</span></div><input type="range" id="mau" min="10" max="100" step="1" value="35"></div>
+      <div class="ctrl" data-k="i_act"><div class="lab"><span class="nm">팟노블 탭 활성 전환</span><span class="val" id="v_act">25%</span></div><input type="range" id="act" min="5" max="60" step="1" value="25"></div>
+      <div class="ctrl" data-k="i_pay"><div class="lab"><span class="nm">유료 전환율 (결제자 비율)</span><span class="val" id="v_pay">8%</span></div><input type="range" id="pay" min="1" max="20" step="0.5" value="8"></div>
+      <div class="ctrl" data-k="i_arppu"><div class="lab"><span class="nm">결제자 ARPPU (월)</span><span class="val" id="v_arppu">₩14,000</span></div><input type="range" id="arppu" min="5000" max="40000" step="500" value="14000"></div>
+      <div class="ctrl" data-k="i_ad"><div class="lab"><span class="nm">무과금 1인 광고매출 (월)</span><span class="val" id="v_ad">₩185</span></div><input type="range" id="ad" min="0" max="500" step="5" value="185"></div>
+      <div class="ctrl" data-k="i_fee"><div class="lab"><span class="nm">앱스토어 수수료</span><span class="val" id="v_fee">28%</span></div><input type="range" id="fee" min="21" max="30" step="1" value="28"></div>
+      <div class="ctrl" data-k="i_team"><div class="lab"><span class="nm">팀·운영 고정비 (월)</span><span class="val" id="v_team">₩5,000만</span></div><input type="range" id="team" min="1000" max="12000" step="500" value="5000"></div>
+      <div class="ctrl" data-k="i_sub"><div class="lab"><span class="nm" style="color:#a892ff">🆕 구독 침투율 (TO-BE)</span><span class="val sub" id="v_sub">0%</span></div><input type="range" id="sub" class="sub" min="0" max="30" step="1" value="0"></div>
     </div>
 
     <div class="card">
@@ -188,7 +188,15 @@ function calc(){
     brev:'<b>매출</b> = '+fmtWon(revTotal),
     bcost:'<b>총비용</b> = 변동원가 + 팀 고정비<br>= '+fmtWon(varCost)+' + '+fmtWon(teamCost)+' = '+fmtWon(varCost+teamCost),
     bnet:'<b>순이익</b> = 매출 − 총비용<br>= '+fmtWon(revTotal)+' − '+fmtWon(varCost+teamCost)+' = '+fmtWon(net),
-    ref:'<b>참고값 계산</b><br>팟노블MAU = 스푼한국 '+mau+'만 × 활성 '+act+'% = '+fmtN(podMAU)+'명<br>결제자 = ×유료전환 '+pay+'% = '+fmtN(payUsers)+'명<br>무료코인 face = (신규 '+fmtN(newUsers)+'×30 + MAU×10)스푼 ×₩140 = '+fmtWon(faceWon)+'<br>forgone = face × '+pay+'% = '+fmtWon(forgone)+' (비현금)'
+    ref:'<b>참고값 계산</b><br>팟노블MAU = 스푼한국 '+mau+'만 × 활성 '+act+'% = '+fmtN(podMAU)+'명<br>결제자 = ×유료전환 '+pay+'% = '+fmtN(payUsers)+'명<br>무료코인 face = (신규 '+fmtN(newUsers)+'×30 + MAU×10)스푼 ×₩140 = '+fmtWon(faceWon)+'<br>forgone = face × '+pay+'% = '+fmtWon(forgone)+' (비현금)',
+    i_mau:'<b>스푼 한국 MAU</b> · 현재 '+mau+'만<br><span style="color:#9a9aa2">개념 —</span> 스푼 라디오 한국 월간활성이용자. 팟노블은 스푼 앱 안의 탭이라 도달 가능한 모수 = 스푼 MAU.<br><span style="color:#5dcaa5">높이려면 —</span> 스푼 라이브 본체 성장(DJ·콘텐츠·커뮤니티)·신규 UA·리텐션 개선. 단 한국은 ~35만으로 성장 여지 제한 → 진짜 큰 모수는 일본.',
+    i_act:'<b>팟노블 탭 활성 전환</b> · 현재 '+act+'%<br><span style="color:#9a9aa2">개념 —</span> 스푼 MAU 중 팟노블 탭을 실제로 이용하는 비율(라이브만 쓰던 유저를 소설로 유입).<br><span style="color:#5dcaa5">높이려면 —</span> 홈·라이브에 팟노블 노출 강화, DJ 추천·연계, 히트작 진열, 온보딩·푸시, 첫 무료 회차로 후킹.',
+    i_pay:'<b>유료 전환율</b> · 현재 '+pay+'%<br><span style="color:#9a9aa2">개념 —</span> 팟노블 활성 유저 중 코인을 실제 결제하는 비율. 한국 오디오 ~7.1%가 사실상 천장.<br><span style="color:#5dcaa5">높이려면 —</span> 무료 도입부 몰입(sunk cost)↑·클리프행어 절단, 기다무 대기시간 튜닝, 첫충전 할인, 완독률 기반 동적 페이월.',
+    i_arppu:'<b>결제자 ARPPU</b> · 현재 ₩'+arppu.toLocaleString()+'<br><span style="color:#9a9aa2">개념 —</span> 결제자 1인의 월평균 결제액(회차=2스푼/₩280 기준, 월 결제 회차수 × 단가).<br><span style="color:#5dcaa5">높이려면 —</span> 회차 번들·시즌패스 업셀, 프리미엄 보이스(고급 성우 ₩2,000), 신작 공급속도↑·완주율↑로 소비 회차 증대.',
+    i_ad:'<b>무과금 1인 광고매출</b> · 현재 ₩'+ad+'<br><span style="color:#9a9aa2">개념 —</span> 결제 안 하는 유저 1인당 월 오퍼월 광고매출(애드팝콘, 보상=스푼코인). 무과금층을 수익화.<br><span style="color:#5dcaa5">높이려면 —</span> 오퍼월 노출·보상 최적화(eCPM↑), 보상형 광고 빈도·일일 캡 조정, 참여형 오퍼 다양화, 코인 보상 매력↑.',
+    i_fee:'<b>앱스토어 수수료</b> · 현재 '+fee+'% <span style="color:#ff9a6d">(낮을수록 이득)</span><br><span style="color:#9a9aa2">개념 —</span> 애플/구글 인앱결제 수수료(코인·구독에 부과, 광고매출엔 없음). 매출을 깎는 비용.<br><span style="color:#5dcaa5">낮추려면 —</span> 웹 직접결제로 스티어링(외부결제 21~26%), 소규모사업자 프로그램(15%), PG 직접 연동.',
+    i_team:'<b>팀·운영 고정비</b> · 현재 ₩'+team.toLocaleString()+'만 <span style="color:#ff9a6d">(낮을수록 순익↑)</span><br><span style="color:#9a9aa2">개념 —</span> 팟노블 셀 인건비·운영비(월). 변동비가 아닌 고정비 → 순익을 가르는 최대 변수.<br><span style="color:#5dcaa5">관리법 —</span> AI 자동화로 콘텐츠 운영 인력 최소화, 린한 셀 구성. 단 과도 절감은 품질·성장과 트레이드오프.',
+    i_sub:'<b>구독 침투율 (TO-BE)</b> · 현재 '+sub+'%<br><span style="color:#9a9aa2">개념 —</span> 팟노블 MAU 중 무제한/시즌 구독 가입 비율. 현재 0%(미제공) → 신설 시 코인 외 두 번째 매출 다리.<br><span style="color:#5dcaa5">높이려면 —</span> 헤비 청취자 타깃 무제한 패스(₩9,900)·연간 할인·무료체험, 코인 누적결제가 구독가를 넘는 유저에게 전환 넛지.'
   };
 }
 function preset(p){
