@@ -1,0 +1,442 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>팟노블 KPI · OKR 성과관리 체계</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D0D0F; --card:#16161A; --card2:#1C1C22; --line:#2a2a32;
+  --tx:#e8e8ea; --mut:#9a9aa2; --dim:#6e6e76;
+  --orange:#FA4B38; --teal:#1D9E75; --teal2:#5dcaa5; --purple:#7C5CFF; --pur2:#a892ff;
+  --star:#FFA53D; --gold:#d9a441; --red:#ff7a6b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--tx);font-family:"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;line-height:1.6;font-size:15px;letter-spacing:-.01em}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:8px}
+.kicker{color:var(--orange);font-weight:800;font-size:13px;letter-spacing:.04em}
+h1{font-size:30px;font-weight:800;margin:6px 0 8px;letter-spacing:-.02em}
+.sub{color:var(--mut);font-size:14px}
+.sub b{color:#fff}
+section{margin-top:40px}
+.snum{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--orange);color:#fff;font-weight:800;font-size:15px;margin-right:10px;vertical-align:middle}
+h2{font-size:21px;font-weight:800;margin-bottom:6px;display:flex;align-items:center}
+.lead{color:var(--mut);font-size:14px;margin:2px 0 18px 38px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+.card+.card{margin-top:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}.wrap{padding:24px 14px 60px}h1{font-size:24px}}
+.banner{background:linear-gradient(90deg,rgba(217,164,65,.16),rgba(217,164,65,.04));border:1px solid rgba(217,164,65,.45);border-radius:14px;padding:16px 18px;margin-top:20px}
+.banner b{color:var(--gold)}
+.nsm{background:linear-gradient(135deg,rgba(250,75,56,.14),rgba(124,92,255,.10));border:1px solid rgba(250,75,56,.4);border-radius:16px;padding:24px}
+.nsm .tag{color:var(--orange);font-weight:800;font-size:12px;letter-spacing:.05em}
+.nsm h3{font-size:24px;font-weight:800;margin:6px 0 14px}
+code,.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.formula{background:#0a0a0c;border:1px solid var(--line);border-radius:10px;padding:14px 16px;color:var(--teal2);overflow-x:auto;white-space:pre;font-size:13px;line-height:1.5}
+.why{margin:16px 0 0;padding-left:0;list-style:none}
+.why li{position:relative;padding:6px 0 6px 26px;border-top:1px solid var(--line)}
+.why li:before{content:"›";position:absolute;left:6px;top:6px;color:var(--orange);font-weight:800}
+.why li b{color:#fff}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--card2);color:var(--mut);font-weight:700;font-size:12px;letter-spacing:.02em;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td b{color:#fff}
+.band{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pass{color:var(--teal2);font-weight:800}
+.bad{color:var(--dim)}
+.gr{color:var(--star)}
+.badge{display:inline-block;font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;line-height:1.5;white-space:nowrap}
+.b-high{background:rgba(29,158,117,.18);color:var(--teal2)}
+.b-med{background:rgba(255,165,61,.16);color:var(--star)}
+.b-low{background:rgba(154,154,162,.16);color:var(--mut)}
+.b-ref{background:rgba(255,122,107,.16);color:var(--red)}
+.b-conf{background:rgba(29,158,117,.18);color:var(--teal2)}
+.b-adj{background:rgba(255,165,61,.16);color:var(--star)}
+.b-unv{background:rgba(154,154,162,.16);color:var(--mut)}
+/* KPI tree */
+.tree{display:flex;flex-direction:column;align-items:center;gap:0}
+.tnode{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 18px;text-align:center;max-width:520px}
+.tnsm{background:linear-gradient(135deg,rgba(250,75,56,.2),rgba(124,92,255,.14));border-color:rgba(250,75,56,.5)}
+.tnode .t{font-weight:800;font-size:15px}
+.tnode .d{color:var(--mut);font-size:12px}
+.tbar{width:1px;height:18px;background:var(--line)}
+.tcols{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:100%;margin-top:4px}
+@media(max-width:760px){.tcols{grid-template-columns:1fr 1fr}}
+.tcol{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+.tcol .h{font-weight:800;font-size:12px;color:var(--pur2);letter-spacing:.04em}
+.tcol .m{color:var(--mut);font-size:12px;margin-top:4px;line-height:1.5}
+.guard{margin-top:12px;background:rgba(255,122,107,.07);border:1px dashed rgba(255,122,107,.4);border-radius:12px;padding:12px 16px;text-align:center;font-size:13px;color:var(--mut)}
+.guard b{color:var(--red)}
+/* OKR */
+.okr{border-left:3px solid var(--orange);padding:2px 0 2px 16px;margin:18px 0}
+.okr.p2{border-color:var(--pur2)}
+.okr.p3{border-color:var(--teal2)}
+.obj{font-weight:800;font-size:15.5px;margin-bottom:2px}
+.objtag{font-size:11px;font-weight:800;color:var(--star);letter-spacing:.03em}
+.pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;color:var(--mut);margin-bottom:8px}
+.lead-tag{color:var(--teal2)} .lag-tag{color:var(--star)}
+/* gates */
+.gate{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.gate+.gate{margin-top:12px}
+.gate .gh{background:var(--card2);padding:10px 16px;font-weight:800;font-size:14px}
+.gate .gb{display:grid;grid-template-columns:1fr 1fr}
+@media(max-width:620px){.gate .gb{grid-template-columns:1fr}}
+.gate .go,.gate .stop{padding:12px 16px;font-size:13px}
+.gate .go{border-right:1px solid var(--line)}
+@media(max-width:620px){.gate .go{border-right:none;border-bottom:1px solid var(--line)}}
+.gate .go .lbl{color:var(--teal2);font-weight:800;font-size:12px}
+.gate .stop .lbl{color:var(--red);font-weight:800;font-size:12px}
+/* offerwall */
+.play{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:16px}
+.play h4{font-size:15px;font-weight:800;margin-bottom:4px}
+.play .tag{font-size:11px;font-weight:800;color:var(--orange)}
+.play ul{list-style:none;margin-top:8px}
+.play li{position:relative;padding:4px 0 4px 16px;font-size:13px;color:var(--mut)}
+.play li:before{content:"·";position:absolute;left:4px;color:var(--orange);font-weight:800}
+.play li b{color:var(--tx)}
+.warn{background:rgba(255,165,61,.08);border:1px solid rgba(255,165,61,.35);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--star);margin-top:10px}
+.warn b{color:#fff}
+.foot{margin-top:48px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+.minw th,.minw td{font-size:12.5px}
+.tag-line{color:var(--gold);font-weight:800}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">SPOON LABS · PODNOVEL</div>
+  <h1>팟노블 KPI · OKR 성과관리 체계</h1>
+  <div class="sub">AI 오디오 소설 · 한국 · 스푼 라디오 탭 &nbsp;|&nbsp; <b>Lead PO 성과관리 프레임워크</b> · 2026-06 · 13에이전트 벤치마크 + 적대적 교차검증</div>
+  <div class="banner">
+    ⚠️ <b>검증 정정 2건</b> &nbsp;①&nbsp; 스푼 한국 MAU는 <b>35만이 아니라 ~12만</b>(모바일인덱스 2024-11 실측, <span class="badge b-ref">refuted</span>) — 35만 사용 시 한국 매출 2.5~3배 과대추정.
+    &nbsp;②&nbsp; "한국 오디오 유료전환 7% 천장"은 <b>1차 근거 없음</b>(<span class="badge b-unv">unverifiable</span>) — 단일 천장이 아니라 <b>전체 / 몰입 코호트</b>로 분리해 본다.
+  </div>
+</header>
+
+<!-- 1. NSM -->
+<section>
+  <h2><span class="snum">1</span> North Star Metric</h2>
+  <div class="lead">로드맵 전체를 끌고 갈 단 하나의 지표 — "가치 전달 × 가치 획득"을 한 수로 묶는다.</div>
+  <div class="nsm">
+    <div class="tag">추천 NSM</div>
+    <h3>WPAL — 주간 유료-활성 청취자수</h3>
+    <div class="formula">WPAL = COUNT(DISTINCT user |
+         주 1편 이상 청취                       ← 가치 전달
+         AND (코인소비 &gt; 0
+              OR 오퍼월완료 ≥ 1
+              OR 구독중 = 1) )                  ← 가치 획득</div>
+    <div style="color:var(--mut);font-size:13px;margin-top:10px">절대수치로 측정하고 <b style="color:#fff">WoW 성장률(%)</b>로 추적. 새 매출 다리(구독)가 생겨도 분자에 자연 합산된다.</div>
+    <ul class="why">
+      <li><b>AI 작가라 후원·기프팅이 없다.</b> 매출이 코인·오퍼월·구독 <b>3개 다리</b>로 쪼개져, Spotify식 "청취시간" 단일 NSM은 매출과 끊긴다.</li>
+      <li><b>로드맵 양쪽을 한 지표로 묶는다.</b> WPAL은 P1(코인 최적화)·P2(구독 신설)를 동시에 견인.</li>
+      <li><b>모수가 스푼 내부 유저다.</b> 외부 유입이 아니므로 "유저수" NSM이 깔때기 최상단 레버(탭 활성전환)와 직결.</li>
+    </ul>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:8px;color:var(--teal2)">보조(선행) NSM — Total Listening Hours</div>
+      <div style="color:var(--mut);font-size:13.5px">청취시간은 결제유지·구독전환의 <b>최강 선행지표</b>(Spotify 84% 리텐션 인과 = 월 30h+ 청취 <span class="badge b-conf">confirmed</span>). 단 <b>단독 NSM 금지</b> — "무료 유저가 광고만 보고 매출 0인데 시간만 느는" 함정 때문에 입력지표로 강등.</div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:8px;color:var(--red)">안티-NSM (피해야 할 허영지표)</div>
+      <div style="color:var(--mut);font-size:13.5px">
+        ✕ 누적 다운로드·가입자수 (지출만 늘려도 증가)<br>
+        ✕ 탭 진입(클릭)수 (진입 ≠ 청취 ≠ 결제)<br>
+        ✕ 매출(GMV) 자체 → 단기 할인 남발 유발, 후행 KPI로<br>
+        ✕ 청취시간 단독 / 모앱 스푼 전체 MAU
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. KPI tree -->
+<section>
+  <h2><span class="snum">2</span> KPI 트리</h2>
+  <div class="lead">NSM → 입력지표(획득·활성화·리텐션·수익화·추천) → 가드레일. 시뮬레이터 8레버와 1:1 매핑.</div>
+  <div class="card">
+    <div class="tree">
+      <div class="tnode tnsm"><div class="t">NSM · WPAL (주간 유료-활성 청취자수)</div><div class="d">보조: Total Listening Hours (선행)</div></div>
+      <div class="tbar"></div>
+      <div class="tcols">
+        <div class="tcol"><div class="h">획득</div><div class="m">탭 활성전환율</div></div>
+        <div class="tcol"><div class="h">활성화</div><div class="m">청취시간·완독률<br>D1/D7 리텐션</div></div>
+        <div class="tcol"><div class="h">리텐션</div><div class="m">DAU/MAU<br>결제유지율</div></div>
+        <div class="tcol"><div class="h">수익화</div><div class="m">유료전환·ARPPU<br>무과금 광고ARPU</div></div>
+        <div class="tcol"><div class="h">추천</div><div class="m">좋아요·리뷰<br>(후원 없음)</div></div>
+      </div>
+      <div class="guard">가드레일 — <b>AI음성 MOS · 환각률 · 회차단가 · 앱수수료 · 환불·해지율</b> (NSM을 "나쁘게" 올리는 것 방지)</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div style="font-weight:800;margin-bottom:12px">입력지표 임계값 — <span style="color:var(--dim);font-weight:600">나쁨</span> / <span class="pass">합격</span> / <span class="gr">우수</span></div>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>지표</th><th>나쁨</th><th>합격</th><th>우수</th><th>신뢰·출처</th></tr></thead>
+        <tbody>
+          <tr><td><b>탭 활성전환율</b><div style="color:var(--dim);font-size:12px">스푼 활성 중 팟노블 1편+</div></td><td class="band bad">&lt;10%</td><td class="band pass">20~30%</td><td class="band gr">40%+</td><td><span class="badge b-low">low</span> BP 추정</td></tr>
+          <tr><td><b>1인 일 청취시간</b></td><td class="band bad">&lt;15분</td><td class="band pass">30~60분</td><td class="band gr">120분+</td><td><span class="badge b-high">high</span> Pocket FM·Spotify(상한)</td></tr>
+          <tr><td><b>회차 완독률</b></td><td class="band bad">&lt;50%</td><td class="band pass">60~70%</td><td class="band gr">75%+</td><td><span class="badge b-low">low</span> 자사 핵심 운영지표</td></tr>
+          <tr><td><b>D7 리텐션</b></td><td class="band bad">&lt;10%</td><td class="band pass">13~20%</td><td class="band gr">20~28%</td><td><span class="badge b-med">med</span> Adjust 중앙 13%</td></tr>
+          <tr><td><b>D30 리텐션</b></td><td class="band bad">&lt;5%</td><td class="band pass">7~10%</td><td class="band gr">10~15%</td><td><span class="badge b-med">med</span> Adjust 7%</td></tr>
+          <tr><td><b>DAU/MAU 스티키니스</b></td><td class="band bad">&lt;10%</td><td class="band pass">15~25%</td><td class="band gr">25%+</td><td><span class="badge b-med">med</span> a16z 20%=strong</td></tr>
+          <tr><td><b>구독 1차 갱신</b></td><td class="band bad">&lt;60%</td><td class="band pass">~83%</td><td class="band gr">이탈&lt;5%</td><td><span class="badge b-high">high</span> RevenueCat 연납 83.4%</td></tr>
+          <tr><td><b>유료전환 (전체 MAU)</b></td><td class="band bad">&lt;2%</td><td class="band pass">3~5%</td><td class="band gr">7%+</td><td><span class="badge b-high">high</span> freemium 중앙 2.18%</td></tr>
+          <tr><td><b>유료전환 (몰입 코호트)</b></td><td class="band bad">&lt;5%</td><td class="band pass">7~10%</td><td class="band gr">12%+</td><td><span class="badge b-med">med</span> 웹툰 한국 14~16% 대비</td></tr>
+          <tr><td><b>결제자 ARPPU(월)</b></td><td class="band bad">&lt;₩6천</td><td class="band pass">₩9~12천</td><td class="band gr">₩15천+</td><td><span class="badge b-high">high</span> 韓 웹소설 ₩14.2천·웹툰 ₩11.5천</td></tr>
+          <tr><td><b>무과금 1인 광고ARPU(월)</b></td><td class="band bad">&lt;₩100</td><td class="band pass">₩150~300</td><td class="band gr">300+</td><td><span class="badge b-med">med</span> 애드팝콘 ARPDAU 30원</td></tr>
+          <tr><td><b>가드레일 · AI음성 MOS / 환각률</b></td><td class="band bad">&lt;3.0 / &gt;8%</td><td class="band pass">3.5~4.0 / 3~8%</td><td class="band gr">4.0+ / &lt;2%</td><td><span class="badge b-med">med</span> TTS·소비자AI 표준</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="color:var(--star);font-size:12.5px;margin-top:10px">⚠ ARPPU는 <b>Pocket FM $12·Webtoon $8.40 직수입 금지</b>(단위·분모 오류로 검증 refuted). 한국 웹소설 결제자 밴드로 bottom-up.</div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div style="font-weight:800;margin-bottom:12px">시뮬레이터 8레버 ↔ KPI 매핑</div>
+    <div class="tblwrap">
+      <table class="minw">
+        <thead><tr><th>시뮬레이터 레버</th><th>대응 KPI</th><th>검증 코멘트</th></tr></thead>
+        <tbody>
+          <tr><td>스푼 MAU</td><td>모수(분모)</td><td><b style="color:var(--gold)">★ 35만 → ~12만 하향</b> (모바일인덱스 실측). ±10~15만</td></tr>
+          <tr><td>팟노블탭 활성전환%</td><td>탭 활성전환율</td><td>깔때기 최상단 · 최고 ROI 레버</td></tr>
+          <tr><td>유료전환%</td><td>유료전환율</td><td>단일 천장 X → <b>전체 / 몰입 코호트</b> 분리</td></tr>
+          <tr><td>결제자 ARPPU</td><td>ARPPU(월)</td><td>한국은 전환율보다 ARPPU 심화가 구조적 유리</td></tr>
+          <tr><td>무과금 1인 광고매출</td><td>무과금 광고ARPU</td><td>애드팝콘 30원/일 앵커 · eCPM 추정 금지</td></tr>
+          <tr><td>앱수수료% / 팀고정비</td><td>가드레일 KPI</td><td>회차단가와 함께 마진 관리</td></tr>
+          <tr><td>구독침투%</td><td>구독 침투율(P2)</td><td>대체 아닌 <b>증분</b> 다리 (코인 ARPPU 비잠식)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 3. OKR -->
+<section>
+  <h2><span class="snum">3</span> 단계별 OKR</h2>
+  <div class="lead">0→1 통념: "70% stretch"는 베이스라인 있는 조직 기준. 검증 단계는 <b>Learning OKR + commit형</b>으로 시작, 2~3사이클 후 stretch 상향. Objective는 단계당 1~2개로 압축.</div>
+
+  <div class="card">
+    <div class="okr">
+      <div class="objtag">P1 · 성장+수익화 효율</div>
+      <div class="obj">O1. 팟노블 탭을 "묻힌 메뉴"에서 "스푼 유저의 청취 습관"으로</div>
+      <div class="tblwrap" style="margin-top:8px">
+        <table class="minw"><thead><tr><th>Key Result</th><th>보수</th><th>기본</th><th>상향</th><th>선/후행</th></tr></thead>
+        <tbody>
+          <tr><td>탭 활성전환율</td><td class="band">8%</td><td class="band pass">12%</td><td class="band gr">18%</td><td class="lead-tag">선행</td></tr>
+          <tr><td>1인 일 청취시간</td><td class="band">15분</td><td class="band pass">25분</td><td class="band gr">40분</td><td class="lead-tag">선행</td></tr>
+          <tr><td>D7 리텐션</td><td class="band">13%</td><td class="band pass">16%</td><td class="band gr">20%</td><td class="lead-tag">선행</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+    <div class="okr">
+      <div class="objtag">P1 · 수익화 효율</div>
+      <div class="obj">O2. 코인 BM 단가·전환을 동시에 끌어올린다</div>
+      <div class="tblwrap" style="margin-top:8px">
+        <table class="minw"><thead><tr><th>Key Result</th><th>보수</th><th>기본</th><th>상향</th><th>선/후행</th></tr></thead>
+        <tbody>
+          <tr><td>첫충전 보너스 → 신규 첫결제율</td><td class="band">+10%</td><td class="band pass">+20%</td><td class="band gr">+30%</td><td class="lag-tag">후행</td></tr>
+          <tr><td>결제자 월 ARPPU</td><td class="band">₩9천</td><td class="band pass">₩11천</td><td class="band gr">₩15천</td><td class="lag-tag">후행</td></tr>
+          <tr><td>오퍼월 매출증분(총매출比)</td><td class="band">+3%</td><td class="band pass">+4%</td><td class="band gr">+5%</td><td class="lag-tag">후행</td></tr>
+        </tbody></table>
+      </div>
+      <div style="color:var(--dim);font-size:12px;margin-top:6px">※ "첫충전 +38%"는 <span class="badge b-unv">unverifiable</span> — 가설로 검증.</div>
+    </div>
+    <div class="okr">
+      <div class="objtag">P1 · 수익화</div>
+      <div class="obj">O3. 오퍼월을 무과금 수익화 + 결제 게이트웨이로 전환</div>
+      <div class="tblwrap" style="margin-top:8px">
+        <table class="minw"><thead><tr><th>Key Result</th><th>보수</th><th>기본</th><th>상향</th><th>선/후행</th></tr></thead>
+        <tbody>
+          <tr><td>충전소 Visit Rate(페이월→오퍼월)</td><td class="band">10%</td><td class="band pass">18%</td><td class="band gr">30%</td><td class="lead-tag">선행</td></tr>
+          <tr><td>Visit → 완료 CVR</td><td class="band">30%</td><td class="band pass">40%</td><td class="band gr">50%</td><td class="lag-tag">후행</td></tr>
+          <tr><td>무과금 1인 월 광고매출</td><td class="band">₩100</td><td class="band pass">₩150</td><td class="band gr">₩250</td><td class="lag-tag">후행</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="okr p2">
+      <div class="objtag" style="color:var(--pur2)">P2 · 검증 (Learning OKR)</div>
+      <div class="obj">O. 구독이 "코인을 대체하지 않고 <span style="color:var(--pur2)">증분</span>되는 두 번째 매출 다리"임을 검증한다</div>
+      <div class="tblwrap" style="margin-top:8px">
+        <table class="minw"><thead><tr><th>Key Result</th><th>보수</th><th>기본</th><th>상향</th><th>선/후행</th></tr></thead>
+        <tbody>
+          <tr><td>구독 침투율(활성 대비)</td><td class="band">1%</td><td class="band pass">3%</td><td class="band gr">5~8%</td><td class="lag-tag">후행</td></tr>
+          <tr><td>trial → paid 전환</td><td class="band">20%</td><td class="band pass">25%</td><td class="band gr">34%</td><td class="lag-tag">후행</td></tr>
+          <tr><td><b style="color:var(--red)">[가드레일]</b> 기존 코인 ARPPU 유지(카니발 검증)</td><td class="band">−5%</td><td class="band pass">0%</td><td class="band gr">+5%</td><td class="lag-tag">후행</td></tr>
+          <tr><td>[Learning] 무제한 가치제안 실험</td><td class="band">4회</td><td class="band pass">6회</td><td class="band gr">8회</td><td class="lead-tag">선행</td></tr>
+        </tbody></table>
+      </div>
+      <div style="color:var(--dim);font-size:12px;margin-top:6px">※ 미디어·엔터 trial→paid 중앙 ~4%, 6주後 전환 24~25%로 꼬리 김 → <b style="color:var(--mut)">장기 넛지</b> 설계. 동반 가드레일: 1차 갱신 ≥60%(보수)/83%(기본).</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="okr p3">
+      <div class="objtag" style="color:var(--teal2)">P3 · 수익화·스케일 (품질 게이트)</div>
+      <div class="obj">O. 고급 보이스·캐릭터 인터랙션으로 ARPPU 심화, 콘텐츠 자동공급을 품질·법무 게이트 하에 규모화</div>
+      <div class="tblwrap" style="margin-top:8px">
+        <table class="minw"><thead><tr><th>Key Result</th><th>보수</th><th>기본</th><th>상향</th><th>선/후행</th></tr></thead>
+        <tbody>
+          <tr><td>프리미엄 보이스 ARPPU 리프트</td><td class="band">+5%</td><td class="band pass">+15%</td><td class="band gr">+25%</td><td class="lag-tag">후행</td></tr>
+          <tr><td><b style="color:var(--teal2)">[commit]</b> 자동생성 콘텐츠 MOS</td><td class="band">≥3.5</td><td class="band pass">≥3.8</td><td class="band gr">≥4.0</td><td class="lead-tag">선행</td></tr>
+          <tr><td><b style="color:var(--teal2)">[commit]</b> 환각·표절률</td><td class="band">&lt;8%</td><td class="band pass">&lt;5%</td><td class="band gr">&lt;2%</td><td class="lead-tag">선행</td></tr>
+          <tr><td>회차당 AI 생성단가(마진 가드레일)</td><td class="band">유지</td><td class="band pass">−10%</td><td class="band gr">−25%</td><td class="lag-tag">후행</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+    <div style="color:var(--dim);font-size:12px;margin-top:4px;padding-left:16px">P4(일본·글로벌)는 옵션 — 한국 모수(~12만)가 작아 의미 있는 규모는 영어권에서 나온다(Pocket FM 미국 70%+ 매출로 입증). 한국 단위경제 흑자가 진입 전제.</div>
+  </div>
+</section>
+
+<!-- 4. significance & gates -->
+<section>
+  <h2><span class="snum">4</span> "유의미함" 판정 기준</h2>
+  <div class="lead">어떤 수치 변화가 노이즈가 아니라 의사결정 신호인가 — 그리고 어디서 GO / STOP 하는가.</div>
+  <div class="grid2">
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:8px">통계적 유의미성</div>
+      <div style="color:var(--mut);font-size:13.5px">페이월·첫충전·오퍼월 배치를 <b>A/B</b>로. 비율 지표는 <b style="color:#fff">95% 신뢰 · 검정력 80%</b>로 판정. 참고: 엔게이지먼트 +5%p ≈ 유료전환 +0.9%p 전이(<span class="badge b-med">med</span>) — 활성화→수익화 인과 체인 확인.</div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:8px">사업적 최소 임계 (이하면 노이즈)</div>
+      <div class="tblwrap"><table class="minw"><tbody>
+        <tr><td>유료전환율</td><td class="pass band">+1.0%p</td><td style="color:var(--dim);font-size:12px">매출 +30~50%</td></tr>
+        <tr><td>결제자 ARPPU</td><td class="pass band">+₩2,000/월</td><td style="color:var(--dim);font-size:12px">≈ +20%</td></tr>
+        <tr><td>구독 1차 갱신</td><td class="pass band">+5%p</td><td style="color:var(--dim);font-size:12px">LTV 탄력 큼</td></tr>
+        <tr><td>무과금 광고ARPDAU</td><td class="pass band">+₩10/일</td><td style="color:var(--dim);font-size:12px">앵커 30원 +33%</td></tr>
+        <tr><td>DAU/MAU</td><td class="pass band">+3%p</td><td style="color:var(--dim);font-size:12px">strong 20% 진입</td></tr>
+      </tbody></table></div>
+    </div>
+  </div>
+
+  <div style="margin-top:14px">
+    <div style="font-weight:800;margin-bottom:10px;font-size:15px">PMF / 스케일 GO – STOP 게이트</div>
+    <div class="gate">
+      <div class="gh">① PMF (P1 종료)</div>
+      <div class="gb">
+        <div class="go"><span class="lbl">GO ✓</span><br>D30 ≥ 7% <b>AND</b> 코호트 유료전환 ≥ 7% <b>AND</b> 일 청취 ≥ 25분</div>
+        <div class="stop"><span class="lbl">STOP / 재검 ✕</span><br>D30 &lt; 5% 또는 유료전환 &lt; 3% → 콘텐츠·페이월 재설계</div>
+      </div>
+    </div>
+    <div class="gate">
+      <div class="gh">② 구독 검증 (P2 종료)</div>
+      <div class="gb">
+        <div class="go"><span class="lbl">GO ✓</span><br>침투 ≥ 3% <b>AND</b> 1차 갱신 ≥ 60% <b>AND</b> 기존 코인 ARPPU 비잠식</div>
+        <div class="stop"><span class="lbl">STOP / 재검 ✕</span><br>침투 &lt; 1% / 갱신 &lt; 50% / 코인 ARPPU −10%↓(카니발) → 구독 보류</div>
+      </div>
+    </div>
+    <div class="gate">
+      <div class="gh">③ 스케일 (P3)</div>
+      <div class="gb">
+        <div class="go"><span class="lbl">GO ✓</span><br>회차단가 하락 추세 <b>AND</b> MOS ≥ 3.8 <b>AND</b> 환각 &lt; 5%</div>
+        <div class="stop"><span class="lbl">STOP / 재검 ✕</span><br>MOS &lt; 3.5 또는 게이트 실패 → 자동공급 중단 (IP·앱스토어 리스크)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. offerwall -->
+<section>
+  <h2><span class="snum">5</span> 오퍼월 활용 플레이북</h2>
+  <div class="lead">애드팝콘 오퍼월(보상=스푼코인)은 <b>이미 존재</b>. 핵심은 "도입"이 아니라 <b>배치·보정·측정</b> — Visit Rate가 전체 경제를 좌우(미배치 0.5~1% vs 잘 배치 18~30%).</div>
+  <div class="grid2">
+    <div class="play">
+      <div class="tag">용도 A</div>
+      <h4>무과금 수익화</h4>
+      <ul>
+        <li>충전소를 <b>① 코인부족/페이월 직면 시점 ② "무료 코인" 라벨 ③ 회차 잠금화면 옆</b>에 자연 노출</li>
+        <li>기대: 광고매출 +10~40%, <b>총매출 +3~5%</b> <span class="badge b-conf">confirmed</span></li>
+        <li>산식: ARPDAU <b>₩30/일 × 월 5~10일 = 1인 월 ₩150~300</b></li>
+        <li>측정: Visit Rate · 완료 CVR · 블렌디드 ARPDAU</li>
+      </ul>
+    </div>
+    <div class="play">
+      <div class="tag">용도 B</div>
+      <h4>결제 유도 게이트웨이</h4>
+      <ul>
+        <li>무과금 유저가 오퍼월로 프리미엄 코인을 <b>처음 경험</b> → IAP 승급</li>
+        <li>보상형 참여자 IAP 전환 <b>4배</b> <span class="badge b-conf">confirmed</span> (상관·자기선택 편향 유의)</li>
+        <li><b>7% 결제 천장 밖 모수</b>를 코인경제로 끌어들이는 진입로 — 잠식 아닌 보완재</li>
+        <li>측정: <b>경로별 ARPU</b>(monetization path별)로 카니발 판정</li>
+      </ul>
+    </div>
+    <div class="play">
+      <div class="tag">용도 C</div>
+      <h4>리텐션 도구</h4>
+      <ul>
+        <li>코인 소진 이탈 직전 "무료 코인 한 번 더" 경로 (Pocket FM·Kuku 글로벌 표준)</li>
+        <li>일일 무료청취 한도 + 오퍼월 적립 결합</li>
+        <li>측정: 참여 코호트 vs 비참여 코호트 D7/D30 차이</li>
+        <li style="color:var(--star)">※ "오퍼월 유저 D7 +86%"는 신규 획득 UA 지표 — 기존유저 효과로 차용 금지 <span class="badge b-adj">adjusted</span></li>
+      </ul>
+    </div>
+    <div class="play" style="border-color:rgba(255,122,107,.4)">
+      <div class="tag" style="color:var(--red)">★ 카니발 방어선</div>
+      <h4>현금성 코인 결제 잠식 방지</h4>
+      <ul>
+        <li><b>실효 환전율 70~80%</b> (IAP 2스푼/₩280 대비) — 무과금엔 가치, 과금엔 "시간보다 결제"</li>
+        <li>무료/이벤트 코인 <b>우선소모 + 짧은 유효기간</b></li>
+        <li><b style="color:var(--red)">보상 ≥ IAP 단가 절대 금지</b> (100%+면 즉시 잠식)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="warn">⚠ <b>eCPM 함정</b> — 오퍼월 eCPM $400~1,500은 게임 인벤토리·노출당 수치라 콘텐츠 앱에 직접 쓰면 과대추정. <b>반드시 블렌디드 ARPDAU 30원으로 추정.</b> ("참여자 ARPDAU $4.04"는 <b>일</b>이 아니라 <b>월/전환유저</b> 단위 — 일로 오해 시 30배 뻥튀기, <span class="badge b-ref">refuted</span>)</div>
+</section>
+
+<!-- 6. sources -->
+<section>
+  <h2><span class="snum">6</span> 출처 · 신뢰도 부록</h2>
+  <div class="lead">핵심 수치별 출처와 검증 라벨. 의사결정 전 신뢰도를 함께 본다.</div>
+  <div class="card">
+    <div class="tblwrap">
+      <table class="minw">
+        <thead><tr><th>핵심 수치</th><th>값</th><th>출처</th><th>라벨</th></tr></thead>
+        <tbody>
+          <tr><td>스푼 한국 MAU</td><td><b>~12만</b> (35만 아님)</td><td>모바일인덱스 2024-11</td><td><span class="badge b-ref">refuted→adj</span></td></tr>
+          <tr><td>한국 오디오 유료전환 7% 천장</td><td>7%</td><td>실무 앵커</td><td><span class="badge b-unv">unverifiable</span></td></tr>
+          <tr><td>韓 웹소설 결제자 월 ARPPU</td><td>₩14,200 / 웹툰 ₩11,500</td><td>대학내일20대연구소(2023·20대)</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>freemium 다운로드→유료</td><td>2.18% / 하드 12.11%</td><td>RevenueCat 2025</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>구독 연납 갱신율</td><td>83.4%</td><td>RevenueCat 2026</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>구독 trial→paid</td><td>북미 34.2% / 미디어·엔터 ~4%</td><td>RevenueCat 2026</td><td><span class="badge b-adj">adjusted</span></td></tr>
+          <tr><td>D7 / D30 리텐션 중앙값</td><td>13% / 7%</td><td>Adjust</td><td><span class="badge b-med">med</span></td></tr>
+          <tr><td>애드팝콘 오퍼월 ARPDAU</td><td><b>30원/일</b></td><td>IGAWorks</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>오퍼월 Visit→완료 CVR</td><td>50%</td><td>Coinis/애드팝콘</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>오퍼월 도입 매출 증분</td><td>총매출 +3~5%</td><td>Unity / Digital Turbine</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>오퍼월 참여→IAP 4배</td><td>4×</td><td>MAF/Playio</td><td><span class="badge b-conf">confirmed</span> (상관)</td></tr>
+          <tr><td>오퍼월 참여자 ARPDAU $4.04</td><td>$4.04</td><td>MAF</td><td><span class="badge b-ref">refuted</span> (월/전환유저)</td></tr>
+          <tr><td>Webtoon 한국 paying ratio</td><td>14~16%</td><td>WEBTOON Q1 2026</td><td><span class="badge b-adj">adjusted</span></td></tr>
+          <tr><td>Webtoon 한국 ARPU $8.40</td><td>$8.40</td><td>WEBTOON Q1 2026</td><td><span class="badge b-ref">refuted</span> (분기·per-MAU)</td></tr>
+          <tr><td>Pocket FM 코인 매출 비중</td><td>88.8%</td><td>Entrackr/Inc42 FY24 감사</td><td><span class="badge b-conf">confirmed</span></td></tr>
+          <tr><td>Pocket FM 미국 ARPPU $12</td><td>$12</td><td>2차 단일 소스</td><td><span class="badge b-unv">unverifiable</span></td></tr>
+          <tr><td>Ximalaya 구독 비중 51.7%</td><td>FY2023</td><td>HKEX 투자설명서</td><td><span class="badge b-med">med</span> (P2 근거)</td></tr>
+          <tr><td>Spotify 월30h+ → 리텐션 84%</td><td>84%</td><td>trypropel 2026</td><td><span class="badge b-conf">confirmed</span> (상한)</td></tr>
+          <tr><td>첫충전 보너스 +38%</td><td>+38%</td><td>1차 출처 부재</td><td><span class="badge b-unv">unverifiable</span></td></tr>
+          <tr><td>OKR 스윗스팟 / 포커스</td><td>0.6~0.7 / O 1~2개</td><td>Google re:Work</td><td><span class="badge b-conf">confirmed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;background:linear-gradient(135deg,rgba(250,75,56,.08),rgba(124,92,255,.06))">
+    <div style="font-weight:800;margin-bottom:8px">핵심 액션 5</div>
+    <ol style="margin-left:18px;font-size:13.5px;line-height:1.9">
+      <li>첫 분기는 모든 정량 KR을 <b>"베이스라인 확립"</b>으로 — 특히 MAU를 <b>12만(±range)</b>으로 재산정.</li>
+      <li>유료전환율은 단일 천장이 아니라 <b>전체 / 몰입 코호트</b>로 분리 모델링.</li>
+      <li>P1 최단 ROI는 <b>오퍼월 배치 최적화(Visit Rate↑)</b> — eCPM 아닌 ARPDAU 30원으로 추정.</li>
+      <li>P2 구독은 <b>Learning OKR + 카니발 가드레일</b>(환전율 70~80%, 코인 ARPPU 비잠식)로 시작.</li>
+      <li>ARPPU 앵커는 해외치 직수입 금지, <b>한국 웹소설 결제자 밴드(₩11.5~14.2천)</b>로 bottom-up.</li>
+    </ol>
+  </div>
+</section>
+
+<div class="foot">
+  팟노블 KPI·OKR 성과관리 체계 · 2026-06 · 13에이전트 벤치마크 + 적대적 교차검증(6축).
+  모든 수치는 추정/벤치마크이며 confirmed/adjusted/refuted/unverifiable 라벨로 신뢰도를 표기. 자체 실측 베이스라인 확보 전 의사결정 근거로 단정하지 말 것.
+</div>
+</div>
