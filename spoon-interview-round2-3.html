@@ -1,0 +1,459 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>스푼랩스 2차·3차 면접 카드</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D0D0F;--card:#16161A;--card2:#1C1C22;--line:#2a2a32;
+  --tx:#e8e8ea;--mut:#9a9aa2;--dim:#6e6e76;
+  --orange:#FA4B38;--teal:#1D9E75;--teal2:#5dcaa5;--purple:#7C5CFF;--pur2:#a892ff;
+  --star:#FFA53D;--gold:#d9a441;--red:#ff7a6b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--tx);font-family:"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;line-height:1.65;font-size:15px;letter-spacing:-.01em;padding-bottom:80px}
+.wrap{max-width:980px;margin:0 auto;padding:30px 18px 0}
+header{border-bottom:1px solid var(--line);padding-bottom:20px}
+.kicker{color:var(--orange);font-weight:800;font-size:13px;letter-spacing:.04em}
+h1{font-size:29px;font-weight:800;margin:6px 0 8px;letter-spacing:-.02em}
+.sub{color:var(--mut);font-size:14px}
+.toolbar{position:sticky;top:0;z-index:50;background:rgba(13,13,15,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 18px;margin:0 -18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--tx);font-family:inherit;font-weight:700;font-size:13px;padding:7px 14px;border-radius:9px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--orange)}
+.btn.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.tnote{color:var(--dim);font-size:12px;margin-left:auto}
+section{margin-top:34px}
+.snum{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 7px;border-radius:8px;background:var(--orange);color:#fff;font-weight:800;font-size:14px;margin-right:10px;vertical-align:middle}
+.snum.p2{background:var(--purple)}.snum.p3{background:var(--teal)}
+h2{font-size:20px;font-weight:800;margin-bottom:14px;display:flex;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px}
+.card+.card{margin-top:13px}
+.q{font-weight:800;font-size:16px;color:#fff;margin-bottom:4px}
+.ans{transition:.2s}
+body.quiz .ans{display:none}
+.quizhint{display:none;color:var(--dim);font-size:12.5px;font-style:italic;margin-top:6px}
+body.quiz .quizhint{display:block}
+.one{background:linear-gradient(90deg,rgba(250,75,56,.13),rgba(250,75,56,.02));border-left:3px solid var(--orange);border-radius:0 8px 8px 0;padding:9px 13px;margin-bottom:12px;font-weight:700}
+.one .lab{color:var(--orange);font-size:11px;font-weight:800;display:block;margin-bottom:1px}
+.star{display:grid;grid-template-columns:54px 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.star .st{display:contents}
+.star .k{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;padding:8px 4px;text-align:center;border-bottom:1px solid var(--line)}
+.star .v{padding:8px 12px;font-size:13.5px;border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
+.star .st:last-child .k,.star .st:last-child .v{border-bottom:none}
+.k-s{background:rgba(250,75,56,.13);color:var(--orange)}
+.k-t{background:rgba(124,92,255,.13);color:var(--pur2)}
+.k-a{background:rgba(29,158,117,.15);color:var(--teal2)}
+.k-r{background:rgba(217,164,65,.14);color:var(--gold)}
+.body{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:13.5px;margin-bottom:10px}
+.chip{display:inline-block;font-size:11.5px;font-weight:800;color:var(--teal2);background:rgba(29,158,117,.12);border-radius:6px;padding:2px 9px;margin-bottom:9px}
+.mine{background:rgba(255,122,107,.07);border:1px solid rgba(255,122,107,.32);border-radius:9px;padding:9px 13px;font-size:13px}
+.mine .lab{color:var(--red);font-weight:800;font-size:11.5px;display:block;margin-bottom:2px}
+b{color:#fff}
+.ph{background:rgba(217,164,65,.16);color:var(--gold);border-radius:4px;padding:0 4px;font-weight:700;font-size:.92em}
+.intro{background:linear-gradient(135deg,rgba(250,75,56,.1),rgba(124,92,255,.08));border:1px solid rgba(250,75,56,.3);border-radius:14px;padding:16px 18px;font-size:13.5px}
+.intro .lab{color:var(--orange);font-weight:800;font-size:11.5px;display:block;margin-bottom:3px}
+.intro+.intro{margin-top:10px}
+.cheat{background:linear-gradient(135deg,rgba(255,165,61,.1),rgba(250,75,56,.06));border:1px solid rgba(255,165,61,.4);border-radius:15px;padding:18px 20px}
+.cheat h3{font-size:14px;margin:14px 0 6px}.cheat h3:first-child{margin-top:0}
+.cheat ol{margin:0 0 4px 18px;font-size:13.5px;line-height:1.8}
+.cheat .anchor{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;color:var(--star);font-weight:700;font-size:13.5px}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:11px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--card2);color:var(--mut);font-weight:700;font-size:12px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.val td:first-child{font-weight:800;color:var(--pur2);white-space:nowrap}
+.facts{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px;font-size:13.5px}
+.facts h4{font-size:13px;color:var(--orange);margin:13px 0 5px;font-weight:800}.facts h4:first-child{margin-top:0}
+.facts ul{list-style:none}.facts li{position:relative;padding:3px 0 3px 14px}.facts li:before{content:"·";position:absolute;left:3px;color:var(--orange);font-weight:800}
+.nocite{background:rgba(255,122,107,.08);border:1px solid rgba(255,122,107,.4);border-radius:11px;padding:12px 15px;margin-top:12px;font-size:13px}
+.nocite .lab{color:var(--red);font-weight:800;display:block;margin-bottom:3px}
+ol.rq{margin:0;padding-left:0;list-style:none;counter-reset:rq}
+ol.rq li{position:relative;padding:11px 0 11px 38px;border-top:1px solid var(--line);counter-increment:rq;font-size:13.5px}
+ol.rq li:first-child{border-top:none}
+ol.rq li:before{content:counter(rq);position:absolute;left:0;top:11px;width:26px;height:26px;border-radius:7px;background:var(--card2);border:1px solid var(--line);color:var(--star);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
+.rqtag{color:var(--star);font-weight:800;font-size:12px}
+.closer{margin-top:30px;background:linear-gradient(135deg,rgba(124,92,255,.12),rgba(250,75,56,.08));border:1px solid rgba(124,92,255,.35);border-radius:14px;padding:20px;text-align:center;font-size:15.5px;font-weight:700;line-height:1.6}
+.foot{margin-top:40px;border-top:1px solid var(--line);padding-top:14px;color:var(--dim);font-size:12px}
+.legend{color:var(--dim);font-size:12px;margin:2px 0 14px 0}
+.legend span{font-weight:800}
+@media(max-width:740px){.wrap{padding:24px 14px 0}h1{font-size:23px}.star{grid-template-columns:46px 1fr}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">SPOON LABS · AI 신사업 Lead PO · 팟노블</div>
+  <h1>2차 · 3차 면접 카드</h1>
+  <div class="sub">2차 컬처핏(개발리드+HR리드 90분) · 3차 비전정렬(사업부 리드 60분) — 하루 연속. 공식 핵심가치·사업팩트 리서치+검증.</div>
+</header>
+
+<div class="toolbar">
+  <button class="btn" id="quizBtn" onclick="toggleQuiz()">🙈 답 가리고 연습</button>
+  <button class="btn" onclick="jump('cheat')">⚡ 치트시트</button>
+  <button class="btn" onclick="jump('values')">💎 핵심가치</button>
+  <button class="btn" onclick="jump('facts')">📊 사업팩트</button>
+  <button class="btn" onclick="jump('r2')">2차 Q&amp;A</button>
+  <button class="btn" onclick="jump('r3')">3차 Q&amp;A</button>
+  <span class="tnote">📌 <span class="ph">[ ]</span> = 오늘 밤 본인 실제 경험으로 채우기</span>
+</div>
+
+<!-- 0 mindset -->
+<section>
+  <h2><span class="snum">0</span> 하루 흐름 &amp; 마인드셋</h2>
+  <div class="legend">2차와 3차는 <span>보는 게 완전히 다르다</span>. 톤을 의식적으로 바꿔라.</div>
+  <div class="tblwrap"><table>
+    <thead><tr><th></th><th>2차 컬처핏 (90분)</th><th>3차 비전정렬 (60분)</th></tr></thead>
+    <tbody>
+      <tr><td style="font-weight:800;color:var(--mut)">한 줄 질문</td><td>"이 사람이랑 <b>같이 일하고 싶은가</b>"</td><td>"이 사람 지향점이 회사 비전과 <b>맞닿는가</b>"</td></tr>
+      <tr><td style="font-weight:800;color:var(--mut)">내 모드</td><td>가치를 <b>실천한 증거</b>를 STAR로 (겸손·협업)</td><td><b>함께 그림 맞추는 동료</b> (오너십+열린 가설)</td></tr>
+      <tr><td style="font-weight:800;color:var(--mut)">절대 안 됨</td><td>워라밸 먼저 묻기 / 남 탓 / 추상적 자기평가</td><td>연봉·처우 먼저 / 단정 컨설팅 톤</td></tr>
+      <tr><td style="font-weight:800;color:var(--mut)">무기</td><td>그립 사례 (셀프스타터·충돌·소통·피드백)</td><td>1차 전략무기 (테스트베드·WPAL·단위경제)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="body" style="margin-top:12px">
+    <b>체력·톤 전환</b><br>
+    • 2차에서 90분 가치검증으로 에너지를 많이 쓴다. 3차 전 물 마시고 <b>"이제 평가가 아니라 대화"</b>로 리셋.<br>
+    • 2차는 "저는 이렇게 일했습니다"의 <b>과거형 증거</b>, 3차는 "이렇게 같이 하면 됩니다"의 <b>미래형 가설</b> — 시제부터 바꿔라.<br>
+    • 두 라운드 관통 자기정의: <b style="color:var(--star)">"프로토타입으로 싸게 검증하고, 모호한 지표를 직접 정의하는 PM."</b> 각 라운드 최소 1번씩 박기.
+  </div>
+</section>
+
+<!-- 7 cheatsheet -->
+<section id="cheat">
+  <h2><span class="snum">7</span> 1분 치트시트 — 절대 메시지</h2>
+  <div class="cheat">
+    <h3 style="color:var(--pur2)">2차 (컬처핏) — 이 3개만 남기면 성공</h3>
+    <ol>
+      <li><b>"저는 셀프스타터다"</b> — 시키기 전에 로그 까서 모수 재정의, 팟노블 AS-IS 직접 해부 (추상 동의 아닌 <b>실천 증거</b>)</li>
+      <li><b>"건강하게 충돌하되 데이터로 수렴, 결정 후엔 확실히 지지"</b> — 개발팀 80% 합의 사례</li>
+      <li><b>"치열함을 똑똑하게 쓴다"</b> — 재작업·노이즈를 줄여 빠른 환경의 비용을 낮추는 게 내 기여 (워라밸 먼저 묻지 않기)</li>
+    </ol>
+    <h3 style="color:var(--teal2)">3차 (비전) — 이 3개만 남기면 성공</h3>
+    <ol>
+      <li><b>"한국 흑자는 약속 안 한다, 대신 이식 가능한 단위경제 플레이북을 싸게 만들어 일본/영어권 GO 근거를 무장한다"</b> (과대약속 안 하는 신뢰 + 회사 실증 전략과 정렬)</li>
+      <li><b>"팟노블은 비글루와 경쟁이 아니라 가장 싼 글로벌 학습 실험"</b> — 오디오 자산 재활용 + ElevenLabs 단가 + 데이터·컴플라이언스 해자</li>
+      <li><b>"나는 단위경제 검증 엔진"</b> — WPAL·코호트·ARPPU bottom-up을 어드민으로 즉시 운영화 (AX팀 방향과 직결)</li>
+    </ol>
+    <div class="anchor">⚓ 공통 닻: "프로토타입으로 싸게 검증하고, 모호한 지표를 직접 정의하는 PM." 대표가 개발자 출신이니 <b>'말보다 만들어 보여주는' 공통 언어</b>가 통한다.</div>
+  </div>
+</section>
+
+<!-- 1 values -->
+<section id="values">
+  <h2><span class="snum">1</span> 스푼랩스 핵심가치 / 컬처 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">검증된 것만</span></h2>
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:4px">공식 8대 핵심가치 <span style="font-weight:600;color:var(--dim);font-size:12px">(spoonlabs.com/kr 직접 확인 · 안전 인용 가능)</span></div>
+    <div class="tblwrap" style="margin-top:10px"><table>
+      <thead><tr><th>핵심가치</th><th>내 그립 사례 (2차의 핵심 무기)</th></tr></thead>
+      <tbody>
+        <tr><td><b>① 사용자가 아닌 팬을 만든다</b></td><td>AI 썸네일 인사이트에서 주력지표를 노출이 아닌 <b>'유저수'</b>로 잡아 유저 관점 의사결정</td></tr>
+        <tr><td><b>②③ 피드백 문화</b><div style="color:var(--dim);font-size:12px">"저 잘하고 있나요?" / "피드백 주셔서 고맙습니다!"</div></td><td>"데이터 먼저 들이대니 방어부터 한다" 피드백 수용 → <b>맥락 먼저, 숫자 나중</b>으로 전달 순서 변경</td></tr>
+        <tr><td><b>④ 건강하게 충돌하되 결정되면 확실히 지지</b></td><td>개발팀과 스펙 충돌 → 공동 딥다이브 → <b>기존 인프라로 80% 가치</b> 합의, 결정 후 확실히 지지</td></tr>
+        <tr><td><b>⑤ 말하지 않으면 모른다</b></td><td><b>JIRA 진행현황 대시보드 실시간 연동</b> — 캐묻지 않고 같은 화면을 보게</td></tr>
+        <tr><td><b>⑥ 셀프스타터</b><div style="color:var(--dim);font-size:12px">동기부여·절제·돌아보기</div></td><td>시키기 전 직접 로그 까서 <b>모수 재정의</b> / 지원 전 팟노블 AS-IS 직접 해부</td></tr>
+        <tr><td><b>⑦ 절대 절대 절대 포기 안 함</b></td><td><span class="ph">[본인 실제: 난도 높은 통합/난제를 끝까지 끌고 간 사례]</span></td></tr>
+        <tr><td><b>⑧ 틀에서 벗어난 생각</b></td><td><span class="ph">[본인 실제: 후원 젬 대시보드 / UP 자동해제 PRD 중 관습 깬 접근]</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="body" style="margin-top:12px">
+      <b>미션</b> "재밌는 콘텐츠로 세상을 더 즐겁게" &nbsp;·&nbsp; <b>비전</b> "세상 사람들의 일상을 채울 수 있는 콘텐츠의 가능성을 제안"<br>
+      <span style="color:var(--star)">💡 답변 중 가치명을 명시적으로 호명하라</span> — "이게 스푼의 '건강하게 충돌하되 지지한다'와 같은 방식입니다." 그래야 HR·개발리드 노트가 같은 신호로 수렴.
+    </div>
+    <div class="nocite">
+      <span class="lab">⚠ 인용 주의</span>②③은 '피드백 문화' 한 가치의 두 측면 — 묶어 인용. <b>영문 verbatim('Share to be aware' 등)과 'Work Hard. Win Together.' 슬로건 정확 문구는 미검증 → 따옴표 인용 금지.</b> "회사가 속도·실행·치열함을 전면에 내세운다"는 방향성으로만 언급.
+    </div>
+  </div>
+</section>
+
+<!-- 2 facts -->
+<section id="facts">
+  <h2><span class="snum">2</span> 알아야 할 사업 팩트 <span style="font-size:13px;color:var(--dim);font-weight:600;margin-left:8px">안전 인용 가능한 것만</span></h2>
+  <div class="facts">
+    <h4>재무 (반드시 '별도/연결' 기준 밝혀서)</h4>
+    <ul>
+      <li>별도: 2024 매출 <b>약 534.5억 / 영익 53.4억 / 순익 17.9억</b> (매출 423→433→534억 성장)</li>
+      <li>연결: 2024 매출 <b>약 563억</b> (해외 ~318억, <b>60%+</b>)</li>
+      <li>→ 안전 표현: <b>"공개자료 기준 별도 약 534억·연결 약 563억, 2년 이상 연속 영업흑자"</b></li>
+      <li>2025: <b>영업손실 약 -128억(적자 전환), 단 매출은 684억으로 성장</b> = 의도적 투자 국면 <span style="color:var(--star)">(순익 -45억만 말하면 과소표현, 핵심은 영업손실+매출성장)</span></li>
+    </ul>
+    <h4>투자·지배구조</h4>
+    <ul>
+      <li>크래프톤 2024.9 <b>약 1,200억</b> 투자(비게임 다각화 최대) + 이후 추가취득 → 지분 <b>42.67%</b></li>
+    </ul>
+    <h4>포트폴리오 — 3개 베팅 구조</h4>
+    <ul>
+      <li><b>비글루(숏드라마)</b> = 성장엔진·크래프톤 자금 핵심. 2025 상반기 해외 70%+, <b>미국이 매출 50%</b>, 미국 MAU 5배↑, LA 지사(2025.12), 영어권 첫 완전 AI 시리즈를 <b>10명 미만 팀이 8주</b>에 완성</li>
+      <li><b>스푼(오디오 라이브)</b> = 캐시카우·글로벌 결제/다국어 인프라·테스트베드. 한국 MAU <b>약 12만(실측)</b></li>
+      <li><b>팟노블(AI 오디오소설)</b> = 내 자리. 2026.1 출시, 10분 연재형, 기다무(코인) BM, ElevenLabs 제휴로 편당 제작 <b>4~7개월→수시간</b></li>
+    </ul>
+    <h4>AI 방향 · 대표</h4>
+    <ul>
+      <li>2026.5 <b>AX(AI 전환) 전담팀 출범</b>, 전사 AI 네이티브. 50종 시스템 AI 연동·비개발 직군 자연어 데이터 조회 → <b>내 어드민/대시보드 강점과 직결</b></li>
+      <li>대표 최혁재(개발자 출신 창업자), 2013 설립, 직원 약 137명, 강남구</li>
+    </ul>
+    <div class="nocite">
+      <span class="lab">⛔ 절대 인용 금지 (검증 결과 오류)</span><b>영익 83억 · 크래프톤 추가 1,890억 · 스푼 한국 MAU 35만</b> — 이 셋은 틀린 수치. 재무는 "내부 최신 기준과 차이 있으면 정정 부탁" 단서를 붙여라.
+    </div>
+  </div>
+</section>
+
+<!-- 3 round 2 -->
+<section id="r2">
+  <h2><span class="snum p2">3</span> 2차 컬처핏 Q&amp;A</h2>
+  <div class="legend">포맷: <span style="color:var(--orange)">한줄답</span> · <span style="color:var(--orange)">S</span>/<span style="color:var(--pur2)">T</span>/<span style="color:var(--teal2)">A</span>/<span style="color:var(--gold)">R</span> · <span style="color:var(--teal2)">연결 가치</span> · <span style="color:var(--red)">⚠후속</span></div>
+  <div class="intro"><span class="lab">오프닝 30초</span>"저는 그립 PM으로 <b>기획안을 문서가 아니라 동작하는 프로토타입으로 만들어 빠르게 검증하고, 로그·지표로 의사결정</b>하는 방식으로 일해왔습니다. 오늘은 그게 스푼 핵심가치와 실제로 어떻게 맞는지를 추상적 동의가 아니라 사례로 보여드리겠습니다."</div>
+
+  <div class="card">
+    <div class="q">Q1. 셀프스타터 근거 경험 — 누가 시키지 않았는데 스스로 문제 정의·해결</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>지시 전에 직접 로그를 까서 모호한 지표를 새로 정의하고, 프로토타입으로 기획을 먼저 검증하는 게 제 기본 작동 방식입니다.</div>
+      <div class="star">
+        <div class="st"><div class="k k-s">S</div><div class="v">AI 썸네일 출시 후 '무엇을 성공으로 볼지' 모수 정의가 없어 같은 대시보드를 봐도 다른 숫자를 말하는 상태.</div></div>
+        <div class="st"><div class="k k-t">T</div><div class="v">시킨 일은 아니지만 두면 의사결정이 계속 감으로 흐른다 판단.</div></div>
+        <div class="st"><div class="k k-a">A</div><div class="v">직접 로그를 까 모수를 '전체/공개·유효'로 분리, 주력지표를 노출이 아닌 <b>유저수</b>로 재정의하고 대시보드로 같은 화면을 보게 함.</div></div>
+        <div class="st"><div class="k k-r">R</div><div class="v"><span class="ph">[본인 실제: 의사결정 전환·지표 변화]</span>. 같은 이유로 지원 전 팟노블 AS-IS도 시키지 않았는데 직접 분석.</div></div>
+      </div>
+      <div class="chip">연결 · ⑥ 셀프스타터</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"데이터 없는 신사업에선 그 방식이 통하나?" → "데이터 없으면 작게 베팅해 빠르게 만들어냅니다(테스트베드 논리)."</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. 개발팀과 강하게 부딪힌 경험 <span style="font-size:12px;color:var(--dim)">(개발리드가 숨은 평가자)</span></div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>의견이 아니라 데이터로 수렴시키고, 결정되면 제 안이 아니어도 확실히 지지합니다 — 그게 갈등을 덜 개인적으로 만듭니다.</div>
+      <div class="star">
+        <div class="st"><div class="k k-s">S</div><div class="v"><span class="ph">[본인 실제: 기능명]</span> 스펙 vs 개발팀 기술리스크·일정 충돌, "기존 인프라로 못 받친다" 반대.</div></div>
+        <div class="st"><div class="k k-t">T</div><div class="v">관철이 아니라 유저가치 × 기술현실의 최적점 찾기.</div></div>
+        <div class="st"><div class="k k-a">A</div><div class="v">직급으로 안 누르고 공동 기술 딥다이브, 요구사항을 잘게 쪼개 각 항목 유저가치를 숫자로 → <b>"풀스펙 말고 기존 인프라로 핵심 80% 먼저"</b> 합의.</div></div>
+        <div class="st"><div class="k k-r">R</div><div class="v"><span class="ph">[본인 실제: 일정 단축/출시]</span>. 결정 후엔 처음 내 안이 아니어도 회의 밖에서 확실히 대변.</div></div>
+      </div>
+      <div class="chip">연결 · ④ 건강한 충돌 → full commitment</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"80%로 자른 게 틀렸다면?" / "개발팀이 끝까지 반대했으면?" / "데이터 없는 초기엔 어떻게 충돌 푸나?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. 강하게 밀어붙였다가 본인이 틀렸음을 깨달은 경험 <span style="font-size:12px;color:var(--dim)">(self-awareness 직격)</span></div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>데이터를 과신해 작은 신호를 큰 결론으로 키운 적이 있고, 그 뒤로 '결정 전 반증 한 번 찾기'를 루틴으로 박았습니다.</div>
+      <div class="star">
+        <div class="st"><div class="k k-s">S</div><div class="v"><span class="ph">[본인 실제: 기능/실험]</span> 초기 데이터가 가설 지지처럼 보여 강하게 밀음.</div></div>
+        <div class="st"><div class="k k-t">T</div><div class="v">사실은 표본이 작거나 특정 코호트에 치우침.</div></div>
+        <div class="st"><div class="k k-a">A</div><div class="v"><b>솔직히 데이터형이라는 게 그때는 약점으로 작동</b> — 보고 싶은 숫자를 확신 근거로 씀. 인정하고 되돌림.</div></div>
+        <div class="st"><div class="k k-r">R</div><div class="v">이후 '이 가설 깨는 데이터 없나'를 일부러 찾고 모수·코호트 먼저 분리하는 루틴화. 시행착오를 팀과 공유한 게 더 큰 가치.</div></div>
+      </div>
+      <div class="chip">연결 · ② '저 지금 잘하고 있나요?' + 시행착오 공유</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"데이터 과신 경향이 신사업에서 위험하지 않나?" / "지금도 그 약점 남아있나?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q4. 협업·진행상황 공유 스타일</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>"말하면 알겠지"를 안 믿어서, 상태를 글이 아니라 <b>실시간 대시보드</b>로 만들어 모두가 같은 화면을 보게 합니다.</div>
+      <div class="star">
+        <div class="st"><div class="k k-s">S</div><div class="v">개발 진행·일정이 슬랙·구두·각자 머릿속에 흩어져 '지금 어디까지?'를 매번 사람에게 물어야 함.</div></div>
+        <div class="st"><div class="k k-a">A</div><div class="v"><b>JIRA 실시간 연동 진행현황 대시보드</b> 직접 구축, relates 필터로 연관 이슈 묶고 주간보고 탭까지.</div></div>
+        <div class="st"><div class="k k-r">R</div><div class="v"><span class="ph">[본인 실제: 상태확인 커뮤니케이션 감소]</span>. PO가 진척을 캐묻는 게 아니라 같은 화면으로 대화.</div></div>
+      </div>
+      <div class="chip">연결 · ⑤ 말하지 않으면 모른다</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"대시보드 만들어도 안 보면 무용지물 아닌가?" / "투명하게 드러내면 느린 팀원이 압박받지 않나?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q5. 우선순위 충돌 시 결정법</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>유저가치 × 사업임팩트가 가장 큰 하나를 지표로 골라내고, 미루는 일은 '안 한다'가 아니라 '지금은 안 한다, 이유는 이것'이라 <b>명시적으로</b> 알립니다.</div>
+      <div class="body">원칙: 목소리 큰 사람 기준이 아닌 유저가치 × 임팩트를 지표로 환산(가치 ① 실제 적용). 사례: 후원(젬) 대시보드도 '어디 손대야 임팩트 큰지' 숫자 먼저 보고 손댐. <b>속도 보완:</b> 데이터·시간 없으면 분석만 붙잡지 않고 작게 베팅해 데이터를 직접 만든다(테스트베드 관점).</div>
+      <div class="chip">연결 · ① 팬을 만든다 + 데이터형 의사결정</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"임팩트를 어떻게 숫자로 추정? 틀리면?" / "0→1 신사업에서도 통하나?" / "임팩트 비슷한데 한쪽 리소스가 훨씬 크면?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q6. 치열한 환경(완벽보다 속도, 워라밸 약속 안 함)에 대한 생각 <span style="font-size:12px;color:var(--red)">★ 하드워크 함정</span></div>
+    <div class="quizhint">▸ 워라밸을 먼저 묻지 마라</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>완벽한 기획서를 오래 다듬는 것보다, 동작하는 프로토타입으로 빠르게 부딪혀 답에 닿는 방식에서 에너지를 얻습니다.</div>
+      <div class="body"><b>워라밸을 먼저 묻지 마라.</b> "이 방향이 제가 원래 일하던 방식과 같다 — AI 썸네일도 JIRA 대시보드도 거창한 기획서가 아니라 '일단 만들어 보여드린' 산출물." + <b>똑똑한 하드워크 차별화:</b> "치열함을 '오래 일한다'가 아니라 '<b>재작업을 줄여 같은 시간에 더 멀리 간다</b>'로 이해. 지표·근거·프로토타입으로 의사결정 노이즈·재작업을 줄이는 게 빠른 환경의 비용을 낮추는 제 기여." + 끈기: <span class="ph">[본인 실제: 끝까지 끌고 간 난제]</span>.</div>
+      <div class="chip">연결 · 속도·실행 + ⑦ 절대 포기 안 함</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"야근 몰리는 시즌도 괜찮나?" / "신사업은 재작업투성이인데?" / "그립에서 가장 치열했던 시기 구체적으로?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q7. 받아들이기 어려운 피드백을 소화한 경험</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>데이터에 몰입하다 사람 설득을 놓친다는 피드백을 받고, '숫자 먼저'에서 '맥락 먼저, 숫자 나중'으로 전달 순서를 바꿨습니다.</div>
+      <div class="star">
+        <div class="st"><div class="k k-s">S</div><div class="v">"분석은 맞는데 데이터를 먼저 들이대니 결론 전에 방어부터 한다"는 피드백, 처음엔 '근거가 정확한데 왜?'</div></div>
+        <div class="st"><div class="k k-a">A</div><div class="v">며칠 곱씹어 보니 맞음 — 사람은 맥락·의도를 먼저 이해해야 숫자를 받아들임. 전달 순서 변경.</div></div>
+        <div class="st"><div class="k k-r">R</div><div class="v"><span class="ph">[본인 실제: 합의 속도 개선]</span>. 대시보드도 '내가 보기 좋은 지표'가 아니라 '이해관계자가 의사결정에 쓰는 지표'로 반복 개선.</div></div>
+      </div>
+      <div class="chip">연결 · ②③ 피드백 문화</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"정말 바뀐 걸 어떻게 증명?" / "반대로 남에게 어려운 피드백 준 경험은?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q8. 가장 큰 약점과 다루는 법</div>
+    <div class="quizhint">▸ 강점 위장도, 과한 자기비하도 금지</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>검증·완벽주의에 몰입하다 의사결정이 느려질 뻔한 게 약점이고, <b>타임박스와 MVP로 끊는 법</b>을 도입해 관리 중입니다.</div>
+      <div class="body">진짜 성장영역 1개. 약점: 데이터 검증·완벽 성향으로 결정이 느려질 위험. 조치: ①결정에 <b>타임박스</b>("이 판단은 화요일까지") ②완성이 아닌 <b>MVP/프로토타입으로 끊기</b>. 개발팀과 '풀스펙 말고 80% 먼저' 합의도 이 약점을 제도로 보완한 사례. 셀프스타터의 '절제하며 돌아보기'가 정확히 이 방식.</div>
+      <div class="chip">연결 · ⑥ 셀프스타터(절제·돌아보기)</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"강점을 약점으로 포장한 거 아닌가? 진짜 약점을?" / "타임박스 걸어도 틀리면 책임은?" / "사람 관계 쪽 약점은?"</div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 round 3 -->
+<section id="r3">
+  <h2><span class="snum p3">4</span> 3차 사업비전 Q&amp;A</h2>
+  <div class="intro"><span class="lab">오프닝</span>"오늘은 평가받는 자리라기보다, 회사가 어디에 베팅하는지와 제 지향점이 맞닿는 지점을 함께 맞춰보는 자리로 이해하고 왔습니다. 제 가설을 던지되 내부 데이터로 검증받고 싶습니다."<br><span style="color:var(--dim);font-size:12px">리듬: 큰그림 정렬 → 증거 1~2개(그립+지표) → 통찰형 역질문, 1시간에 3~4회 반복.</span></div>
+
+  <div class="card">
+    <div class="q">Q1. 스푼랩스를 어떤 회사로 이해하고 지원했나 / 지금 뭐에 베팅 중이라 보나</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>'글로벌 + AI 제작효율 + 콘텐츠 포트폴리오 다각화'에 베팅 중이고, 팟노블은 그 우산 아래 <b>저비용·고학습의 옵션 베팅</b>이라 봅니다.</div>
+      <div class="body">세 베팅: (1) 비글루 숏드라마 미국·영어권 정복(크래프톤 1,200억 핵심), (2) 전사 AI 네이티브 재편(AX팀), (3) 팟노블로 AI 콘텐츠 새 옵션을 싸게 테스트. 우선순위: <b>매출·투자=비글루 &gt; 본업 캐시·인프라=스푼 &gt; 신성장 옵션=팟노블.</b> "제 자리는 1순위 베팅이 아니라 옵션 베팅임을 알고 왔다 — 그래서 한국 흑자 약속하는 PO가 아니라 <b>이식 가능한 단위경제 플레이북을 싸게 만들어 일본·영어권 GO 근거를 무장하는 PO</b>로 포지셔닝." 재무는 별도 534억·연결 563억 2년+ 흑자, 2025 영업손실 -128억이나 매출 684억 성장 = 의도적 투자국면. <b>수치엔 "내부 최신 기준과 차이 있으면 정정 부탁" 단서.</b></div>
+      <div class="chip">연결 · 셀프스타터 + 비전 정렬</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"비글루가 1순위인데 왜 팟노블?"(→Q2) / "한국 흑자 못 한다면 왜 뽑나?" / "그 재무 수치 어디서 봤나?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q2. 팟노블을 포트폴리오에서 어디에 위치? 비글루와 자원 충돌하면?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>비글루와 경쟁이 아니라, 스푼의 오디오 자산·글로벌 인프라를 재활용해 <b>'가장 싼 글로벌 학습 실험'</b>을 돌리는 자리입니다.</div>
+      <div class="body">먼저 인정: "자금·시선 무게중심이 비글루에 있는 건 명백하고, 자원 경쟁 구도에 놓일 수 있음을 안다." 고유 베팅 논리: ①<b>자원 충돌이 아니라 자산 재활용</b> — 영상 라인과 전혀 다른 오디오 IP·다국어 결제·글로벌 운영 인프라 위. ElevenLabs로 단가 파괴(4~7개월→수시간) ②<b>저작권 양날을 해자로</b> — AI 오리지널로 IP침해 회피, 단 생성물 보호 약함 → 해자는 <b>데이터·브랜드·컴플라이언스</b>(AX팀 방향과 일치) ③<b>가장 싼 검증 도구</b> — 비글루가 미국에서 비싸게 증명하는 동안 같은 단위경제 가설을 코호트·ARPPU로 싸게 선검증. 자원 충돌 정당화는 지표: <b>GO/STOP 게이트 선설정</b> → "자원 더 달라 떼쓰는 PO가 아니라 언제 회수해도 되는지 기준을 먼저 제시하는 PO."</div>
+      <div class="chip">연결 · ⑧ 틀에서 벗어난 생각 + 오너십</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"GO/STOP 숫자 구체적으로?" / "ElevenLabs 단가는 비글루도 누리는 거 아닌가?" / "데이터·브랜드·컴플라이언스 해자 구체적으로?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q3. 12~24개월 톱3 우선순위와 각 성공 정의 / 한국 적자 구조에서 뭘 먼저 증명?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>P1 코인·오퍼월 단위경제 검증, P2 구독 러닝, P3 AI 프리미엄. NSM=<b>WPAL(주간 유료-활성 청취자수)</b>, 한국에서 먼저 증명할 건 흑자가 아니라 <b>이식 가능한 LTV/CAC</b>.</div>
+      <div class="body">NSM 논리: AI작가라 후원 없고(좋아요·리뷰만) 매출이 코인·오퍼월·구독 세 다리 → 단일 '청취시간'은 매출과 어긋남 → <b>NSM=WPAL</b>. P1(~6개월): 한국 12만 모수에서 코인(기다무 퍼널)·오퍼월이 단위경제 만드는지. 성공정의=<b>전체/몰입 코호트 분리</b>, <b>ARPPU는 한국 웹소설 결제자 밴드 bottom-up</b> 후 실측 교체(Pocket FM $12 직수입 금지). P2(6~12): 구독 러닝모드로 외다리 분산. P3(12~24): AI 프리미엄·다국어 동시제작 레버. <b>한국에서 증명할 건 흑자 아님</b> — "12만 모수에 팀비 얹으면 월 적자가 빠듯, 이건 시뮬레이터로 직접 돌린 결론, 오히려 '한국 단독은 규모가 안 나오니 일본·영어권 필요'를 수치로 입증" → 진짜 산출물 = <b>이식 가능한 LTV/CAC 플레이북</b>. 그립 증거: AI 썸네일 모수 분리로 저조해 보이던 수치가 단계적 롤아웃(<span class="ph">노출 커버리지 3.6%→94.2%</span>) 착시였음을 밝혀냄.</div>
+      <div class="chip">연결 · 완벽보다 속도·실행 + 데이터 PM</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"WPAL 분자·분모는?" / "6개월 안에 안 나오면 STOP 기준은?" / "적자라면서 왜 한국부터, 바로 일본 가면?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q4. 코인 외다리 + 오퍼월 = Pocket FM과 약점 공유. 어떻게 차별화·수익화?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>코인 외다리는 사실이고 위험합니다 — 결제 다변화·기다무 퍼널 최적화·제작단가 우위·컴플라이언스 해자 <b>4축</b>으로 BM을 두껍게 만듭니다.</div>
+      <div class="body">약점 먼저 인정(코인 외다리, 오퍼월 보조, 후원 없음 = Pocket FM 코인 ~89% 의존과 동일). BM 4층: ①코인(주력) 기다무 퍼널 전환을 코호트로 정밀화 ②오퍼월 보조(+3~5%) — 핵심은 <b>카니발리제이션 방어</b>(환전율 70~80% 가드) ③구독(P2 러닝) ④광고/보상형. 해자 3곳: (a)ElevenLabs 제작단가·다국어 동시 (b)저작권 컴플라이언스 (c)데이터·브랜드. <b>"이 가설들을 직접 동작하는 프로토타입으로 만들어 봤다 — 팟노블 앱 UI 재현, 페이월·코인충전·멤버십 흐름을 시장·수익강도별 버전으로."</b> 단 외부자료 기반 가설이라 내부 실데이터로 빠르게 교정받고 싶다.</div>
+      <div class="chip">연결 · ④ 건강한 충돌(약점 먼저 인정) + 지적 정직성</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"환전율 70~80% 근거는?" / "구독은 Pocket FM도 안 됐는데 왜 팟노블은?" / "리소스 부족하면 우선순위 어떻게 자르나?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q5. 워라밸 약속 안 하는 회사, 치열함이 본인과 맞나? <span style="font-size:12px;color:var(--red)">★ 3차에서도 하드워크</span></div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>완벽한 문서보다 동작하는 프로토타입을 먼저 만드는 사람이라, '완벽보다 속도'는 제 일하는 방식 그 자체입니다.</div>
+      <div class="body">"말로 동의하기보다 일하는 방식으로 — 팟노블 BM도 시키기 전에 앱 UI 여러 버전 만들어 봤고, 그립에선 데이터팀이 못 주는 공개 피드를 직접 수집기 짜서 모음." 빠르게 시도→데이터로 확인→다시 달리는 루프에서 에너지. <b>똑똑한 하드워크:</b> 재작업·방향전환 노이즈를 줄이는 게 PO 역할(모수 분리, 실시간 대시보드) = "치열하되 단단하게."</div>
+      <div class="chip">연결 · 셀프스타터 + 완벽보다 속도·실행</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"'똑똑한 하드워크'가 덜 일하겠단 뜻 아닌가?" / "방향 전환 잦으면 만든 지표도 자주 버려진다" / "야근·주말 필요하면?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q6. 5년 뒤 스푼랩스는 어디에 있어야 하고, 당신 기여가 어떻게 가속?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>5년 뒤 'AI로 콘텐츠 단가를 깎아 글로벌에서 단위경제로 이기는 콘텐츠 플랫폼', 저는 그 단위경제를 <b>가장 싸게 검증하는 플레이북 엔진</b>이 되겠습니다.</div>
+      <div class="body">"그림은 회사가 이미 보여줌 — 비글루 해외 70%+, 미국 50%, MAU 5배, LA 지사, 10명 미만 8주 AI 시리즈 = 'AI로 제작비 깎아 글로벌 싸게 확장'이 이미 실증." <b>내 가설이 회사 검증된 전략과 같은 방향</b> — 1차 검토 때부터 '한국=테스트베드, 매출은 일본/영어권' 세웠는데 회사 실데이터가 그대로 뒷받침. "새로 설득할 게 아니라 이미 옳다고 증명된 방향을 팟노블에서 더 싸게 반복." 구체 기여: AX팀이 50종 시스템 AI 연동·자연어 조회·자동 리포트 추진 = 내가 그립에서 한 일(후원 젬 대시보드·AI 썸네일 모수정의·JIRA 실시간 어드민). 팟노블 WPAL·코호트·ARPPU bottom-up을 어드민으로 즉시 운영화 → <b>'이 베팅에 계속 돈 넣을지'를 감이 아니라 숫자로</b> 판단하게.</div>
+      <div class="chip">연결 · 비전 정렬 + 회사 실증 전략과 일치</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"비글루가 증명했다면 팟노블은 따라하는 것 아닌가?" / "1년 안에 보여줄 첫 증거 하나?" / "대시보드가 경영진 의사결정에 실제 쓰인 사례?"</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="q">Q7. 비전이 안 맞다고 느끼면? 팟노블 실패하면 어떻게 책임·학습?</div>
+    <div class="quizhint">▸ 먼저 스스로 답해보세요</div>
+    <div class="ans">
+      <div class="one"><span class="lab">한줄답</span>근거로 건강하게 충돌하되 결정되면 확실히 지지하고, 실패해도 '이식 가능한 플레이북'이라는 산출물로 책임집니다.</div>
+      <div class="body">안 맞을 때: 감으로 불편해하지 않고 <b>코호트·단위경제 숫자로 이견</b> → 결정 나면 내 안이 아니어도 확실히 지지·실행. 실패하면 둘로 책임: ①<b>실패를 싸게·빨리 확정</b> — 시작부터 STOP 기준 선설정("이상한 프로젝트에 자원 계속 낭비"가 신사업 최악, 나는 멈출 시점을 데이터로 먼저 정의) ②설령 접혀도 <b>검증된 단위경제 플레이북은 남아</b> 일본/영어권·다른 포맷에 이식 → "책임의 산출물은 흑자가 아니라 회사가 다음에 덜 비싸게 실패하거나 더 빨리 성공하게 만드는 학습." 이게 '절대 포기 안 함'을 무모한 고집 아닌 학습 누적으로 해석.</div>
+      <div class="chip">연결 · ④ 건강한 충돌→commitment + ⑦ 절대 포기 안 함</div>
+      <div class="mine"><span class="lab">⚠ 후속</span>"STOP 기준을 경영진이 무시하면?" / "플레이북 남는다는 건 실패 미화 아닌가?" / "진짜 세게 부딪힌 사례 있나?"</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 weakness -->
+<section>
+  <h2><span class="snum">5</span> 약점·곤란질문 대응</h2>
+  <div class="tblwrap"><table>
+    <thead><tr><th>곤란 질문</th><th>대응 핵심</th></tr></thead>
+    <tbody>
+      <tr><td><b>하드워크 / 경영진 평판</b></td><td><b>먼저 거론 금지.</b> 워라밸·근무시간 먼저 묻지 마라(=충분히 hungry하지 않다 신호). '절대 포기 안 함'·원팀에 진정성 호응. 경영진 평판은 <b>역질문(kill criteria·신사업 거버넌스)으로 우회 검증</b> — "신사업 성공/중단 기준은 누가 어떻게 정하나"</td></tr>
+      <tr><td><b>라이브커머스 → 오디오소설 전환</b></td><td>"둘 다 <b>콘텐츠 × 결제 × 유저행동</b>을 지표로 다루는 일. 그립에서 모수 정의·유저수 지표·결제 대시보드를 한 게 팟노블 WPAL·ARPPU·코인 퍼널에 그대로 이식. 도메인이 아니라 <b>'지표로 모호함을 줄이는 방식'이 전이 가능한 자산.</b>"</td></tr>
+      <tr><td><b>왜 스푼 / 팟노블</b></td><td>표면(펀딩·평판) 금지. <b>"시키기 전에 팟노블 AS-IS를 직접 해부하다가, 한국=테스트베드로 단위경제를 싸게 증명하는 일이 제 강점과 정확히 맞닿는다고 느껴 지원."</b> (동기·가치·역량 한 번에)</td></tr>
+      <tr><td><b>처우보다 비전</b></td><td><b>3차에서 연봉·복지·근무시간 절대 먼저 꺼내지 말 것.</b> 보상은 HR/오퍼 단계. 굳이면 "역할에 확신 있고 만들 가치에 보상이 따라올 거라 믿는다, 범위만 참고로."</td></tr>
+      <tr><td><b>데이터 과신 약점 후속</b></td><td>"그래서 신사업에선 분석만 붙잡지 않고 <b>작게 베팅해 데이터를 직접 만든다</b>. 약점을 알기에 타임박스·MVP·반증 찾기로 제도화."</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 6 reverse -->
+<section>
+  <h2><span class="snum">6</span> 라운드별 역질문</h2>
+  <div class="card">
+    <div style="font-weight:800;color:var(--pur2);margin-bottom:8px">2차용 — 협업/문화 3개</div>
+    <ol class="rq">
+      <li><span class="rqtag">개발리드께</span><br>PO와 개발팀이 가장 잘 협업한 사례는 어떤 모습이었나요? 반대로 PO가 어떻게 일하면 개발팀이 힘들어지나요? 제가 피해야 할 패턴을 미리 알고 싶습니다.</li>
+      <li><span class="rqtag">HR리드께</span><br>입사 6개월 안에 '컬처핏 좋다'고 느끼게 되는 분들은 보통 어떤 행동을 하나요? 핵심가치 중 실제로 가장 자주 회자되는 가치는 무엇인가요?</li>
+      <li><span class="rqtag">공통</span><br>셀프스타터를 중요하게 보신다고 이해했는데, 신사업 Lead PO의 '주도적으로 일한다'가 이 조직에선 어디까지가 자율이고 어디부터 정렬이 필요한가요?</li>
+    </ol>
+    <div style="font-weight:800;color:var(--teal2);margin:16px 0 8px">3차용 — 전략/비전 4개</div>
+    <ol class="rq">
+      <li><span class="rqtag">가장 강력</span><br>비글루가 미국에서 AI 제작·단위경제를 비싸게 증명하는 동안, 오디오/팟노블에서 회사가 기대하는 <b>고유한 베팅 논리</b>는 무엇인가요? 제가 보는 그림은 '가장 싼 글로벌 학습 실험'인데 맞닿아 있는지 궁금합니다.</li>
+      <li><span class="rqtag">경영진 평판 우회</span><br>신사업의 성공/중단(kill) 기준은 어떻게, 누가 정하시나요? 자원을 회수하는 의사결정이 어떤 근거로 이뤄지는지 궁금합니다.</li>
+      <li><span class="rqtag">테스트베드 가설 검증</span><br>저는 '한국=테스트베드, 매출은 일본/영어권' 가설을 갖고 있는데 동의하시나요, 다른 그림이 있으신가요? 팟노블 본진을 일본과 영어권 중 어디로 보시는지?</li>
+      <li><span class="rqtag">외부 변수</span><br>2~5년 내 시장·기술·규제 변화 중 가장 큰 영향은? 특히 <b>AI 생성물 저작권·음성 합성 라이선스</b> 변화를 어떻게 보시는지?</li>
+    </ol>
+    <div class="nocite" style="margin-top:14px"><span class="lab">⚠</span>3차에서 연봉·처우·복지·근무시간은 절대 먼저 꺼내지 말 것.</div>
+  </div>
+</section>
+
+<div class="closer">
+  ⚓ 두 라운드 공통 닻<br>
+  <span style="color:var(--star)">"프로토타입으로 싸게 검증하고, 모호한 지표를 직접 정의하는 PM."</span><br>
+  <span style="font-size:13px;font-weight:600;color:var(--mut)">대표가 개발자 출신이니 '말보다 만들어 보여주는' 공통 언어가 통한다.</span>
+</div>
+
+<div class="foot">
+  스푼랩스 2차·3차 면접 카드 · 2026-06 · 9에이전트 리서치+적대적 검증. 공식 핵심가치는 spoonlabs.com 직접 확인분만 인용.
+  모든 <span class="ph">[ ]</span>는 본인 실제 경험으로 교체 후 사용(거짓 금지). 검증 오류 수치(영익 83억·크래프톤 추가 1,890억·MAU 35만)는 인용 금지.
+</div>
+</div>
+
+<script>
+function toggleQuiz(){
+  var on=document.body.classList.toggle("quiz");
+  var b=document.getElementById("quizBtn");
+  b.classList.toggle("on",on);
+  b.textContent=on?"👁 답 보기":"🙈 답 가리고 연습";
+}
+function jump(id){var el=document.getElementById(id);if(el){el.scrollIntoView({behavior:"smooth"});}}
+</script>
