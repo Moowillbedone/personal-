@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단골즈 배지 기능 - IA 구조도 & 유저 플로우</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f5f5f5; color: #333; }
+
+  .page { padding: 60px 40px; max-width: 1700px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .page-subtitle { font-size: 15px; color: #888; margin-bottom: 48px; }
+  .section-divider { border: none; border-top: 2px solid #e0e0e0; margin: 80px 0; }
+
+  /* ===== IA DIAGRAM (Top-Down) ===== */
+  .ia-container { background: #eaeaea; border-radius: 16px; padding: 48px 24px 60px; overflow-x: auto; }
+  .ia-node {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    white-space: nowrap; text-align: center; position: relative;
+  }
+  .ia-node.root { background: #4A7BF7; color: #fff; font-size: 18px; padding: 14px 36px; border-radius: 10px; }
+  .ia-node.l1-green { background: #E8F5E9; border: 2px solid #4CAF50; color: #2E7D32; }
+  .ia-node.l1-orange { background: #FFF3E0; border: 2px solid #FF9800; color: #E65100; }
+  .ia-node.l1-purple { background: #F3E5F5; border: 2px solid #9C27B0; color: #6A1B9A; }
+
+  .ia-mega-row { display: flex; gap: 20px; justify-content: center; align-items: flex-start; flex-wrap: nowrap; }
+  .ia-mega-col { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .ia-connector-down { width: 2px; height: 24px; background: #999; }
+  .ia-connector-down-short { width: 2px; height: 16px; background: #bbb; }
+
+  .ia-l2-box {
+    background: #fff; border: 1.5px solid #bbb; border-radius: 8px;
+    padding: 10px 16px; font-size: 13px; font-weight: 600; text-align: center; color: #333;
+  }
+  .ia-l3-box {
+    background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px;
+    padding: 6px 10px; font-size: 11px; color: #555; text-align: center; line-height: 1.4;
+  }
+  .ia-l3-group { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+
+  /* ===== USER FLOW (Left-to-Right) ===== */
+  .flow-container { background: #1a1a1a; border-radius: 16px; padding: 48px 40px; overflow-x: auto; }
+  .flow-section-title { color: #fff; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .flow-section-desc { color: #aaa; font-size: 13px; margin-bottom: 28px; }
+  .flow-row { display: flex; align-items: center; gap: 0; min-width: max-content; }
+
+  .flow-node {
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: 13px; font-weight: 500; flex-shrink: 0;
+  }
+  .flow-node.start { background: #333; color: #fff; padding: 14px 24px; border-radius: 8px; font-weight: 600; }
+  .flow-node.process { background: #333; color: #fff; padding: 14px 22px; border-radius: 8px; }
+  .flow-node.decision {
+    width: 130px; height: 130px; background: #E53935; color: #fff;
+    transform: rotate(45deg); display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  .flow-node.decision > span { transform: rotate(-45deg); display: block; line-height: 1.4; }
+  .flow-node.result { background: #4CAF50; color: #fff; padding: 16px 22px; border-radius: 8px; min-width: 140px; }
+  .flow-node.end { background: #222; color: #fff; padding: 18px 24px; border-radius: 8px; font-size: 14px; min-width: 170px; line-height: 1.6; }
+  .flow-node.note { background: none; font-size: 11px; padding: 8px; font-weight: 600; text-align: center; }
+
+  .flow-arrow { width: 38px; height: 2px; background: #666; position: relative; flex-shrink: 0; }
+  .flow-arrow::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border-left: 8px solid #666; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+  }
+  .flow-branch { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .flow-branch-row { display: flex; align-items: center; gap: 0; }
+
+  .badge-example { display: inline-flex; align-items: center; gap: 4px; background: #2a2a2a; padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
+  .badge-icon { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 700; }
+  .badge-nick { color: #eee; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ========================================== -->
+  <!-- SECTION 1: IA 구조도 -->
+  <!-- ========================================== -->
+  <div class="page-title">1. 단골즈 배지 기능 — IA 구조도</div>
+  <div class="page-subtitle">PRD(ver 0.2) 기반 정보 구조 · 상하 계층형</div>
+
+  <div class="ia-container">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div class="ia-node root">단골즈 배지 기능</div>
+      <div class="ia-connector-down" style="height:32px;"></div>
+
+      <div class="ia-mega-row">
+
+        <!-- L1-1: 서비스(App) 라이브 채팅 -->
+        <div class="ia-mega-col">
+          <div class="ia-node l1-green" style="min-width:300px;">1. 서비스 (App) — 라이브 채팅</div>
+          <div class="ia-connector-down"></div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">배지 노출</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">닉네임 앞<br>배지 아이콘</div>
+                <div class="ia-l3-box">전체 방송<br>지속 노출</div>
+                <div class="ia-l3-box">일반 유저와 구분</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">입장 알림</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">시스템<br>메시지 노출</div>
+                <div class="ia-l3-box">"(단골즈) OO님이<br>들어왔습니다"</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">배지 설명 팝업</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">배지 선택 시<br>팝업 노출</div>
+                <div class="ia-l3-box">획득 방법<br>텍스트 안내</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">다중 배지<br>노출 순서</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">닉네임 앞 최대 2개</div>
+                <div class="ia-l3-box">[레벨][구독]<br>{닉네임}[특수]</div>
+                <div class="ia-l3-box">초과 시<br>닉네임 뒤 배치</div>
+                <div class="ia-l3-box">노출 순서 서버 싱크</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- L1-2: 어드민(Admin) 배지 관리 -->
+        <div class="ia-mega-col">
+          <div class="ia-node l1-orange" style="min-width:340px;">2. 어드민 (Admin) — 배지 관리 (신규)</div>
+          <div class="ia-connector-down"></div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">배지 리스트 생성</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">프로모션 명</div>
+                <div class="ia-l3-box">설명</div>
+                <div class="ia-l3-box">배지 식별 키</div>
+                <div class="ia-l3-box">대상자 엑셀 업로드<br>(이용자 코드)</div>
+                <div class="ia-l3-box">템플릿 다운로드 / 리셋</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">리스트 상세 / 상태</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">대기 / 완료</div>
+                <div class="ia-l3-box">회수 / 일부 회수</div>
+                <div class="ia-l3-box">등록 일시 · 등록자</div>
+                <div class="ia-l3-box">대상자 목록 상세보기</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">배지 부여</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">단체 부여<br>(이용자 코드 기반)</div>
+                <div class="ia-l3-box">Confirm 팝업</div>
+                <div class="ia-l3-box">부여 즉시<br>채팅 반영</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">배지 회수</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">단체 회수</div>
+                <div class="ia-l3-box">Confirm 팝업</div>
+                <div class="ia-l3-box">미노출분<br>즉시 회수</div>
+                <div class="ia-l3-box">노출분은<br>이후 채팅부터</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">부가 기능</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">프로모션 명 검색</div>
+                <div class="ia-l3-box">페이지네이션<br>(20/30/50/100)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- L1-3: 확장 기능 Phase 2 -->
+        <div class="ia-mega-col">
+          <div class="ia-node l1-purple" style="min-width:210px;">3. 확장 기능 (Phase 2)</div>
+          <div class="ia-connector-down"></div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">단골즈 전용<br>리액션</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">특수 이모지</div>
+                <div class="ia-l3-box">특수 스티커</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">전용 젬 후원<br>이펙트</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">전용 애니메이션</div>
+                <div class="ia-l3-box">기존 이펙트와 별도</div>
+              </div>
+            </div>
+            <div class="ia-mega-col">
+              <div class="ia-l2-box">개별 부여 / 회수</div>
+              <div class="ia-connector-down-short"></div>
+              <div class="ia-l3-group">
+                <div class="ia-l3-box">일부만 배지 회수</div>
+                <div class="ia-l3-box">일부만 재부여</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ========================================== -->
+  <!-- SECTION 2: USER FLOW -->
+  <!-- ========================================== -->
+  <div class="page-title">2. 단골즈 배지 기능 — 유저 플로우</div>
+  <div class="page-subtitle">PRD 기반 주요 사용자 흐름 · 좌우 형태</div>
+
+  <!-- FLOW A -->
+  <div class="flow-container" style="margin-bottom:32px;">
+    <div class="flow-section-title">(A) 어드민 — 배지 부여 플로우</div>
+    <div class="flow-section-desc">운영자가 어드민에서 단골즈 배지를 단체 부여하는 전체 흐름</div>
+    <div class="flow-row">
+      <div class="flow-node start">어드민 접속<br><span style="font-size:11px;color:#aaa;">이용자 관리 ><br>배지 관리</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node process">리스트 생성<br><span style="font-size:11px;color:#aaa;">프로모션 명·설명·<br>배지 식별 키</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node process">대상자 업로드<br><span style="font-size:11px;color:#aaa;">이용자 코드<br>엑셀 업로드</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node process" style="background:#444;">저장<br><span style="font-size:11px;color:#aaa;">상태: 대기</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node decision"><span>배지 부여<br>실행?</span></div>
+      <div class="flow-arrow" style="margin-left:6px;"></div>
+      <div class="flow-branch">
+        <div class="flow-branch-row">
+          <div class="flow-node note" style="color:#4CAF50;width:34px;">Yes</div>
+          <div class="flow-arrow" style="width:22px;"></div>
+          <div class="flow-node process" style="background:#2E7D32;">Confirm 팝업<br><span style="font-size:11px;color:#ccc;">부여 재확인</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node result">단체 부여 완료<br><span style="font-size:11px;">상태: 완료</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node end" style="background:#1B5E20;">즉시 채팅 반영<br><span style="font-size:11px;color:#aaa;">방송 중 라이브<br>채팅에 배지 즉각 노출</span></div>
+        </div>
+        <div class="flow-branch-row">
+          <div class="flow-node note" style="color:#F44336;width:34px;">No</div>
+          <div class="flow-arrow" style="width:22px;"></div>
+          <div class="flow-node process" style="background:#555;">리스트 대기 유지<br><span style="font-size:11px;color:#aaa;">추후 부여 가능</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW B -->
+  <div class="flow-container" style="margin-bottom:32px;">
+    <div class="flow-section-title">(B) 어드민 — 배지 회수 플로우</div>
+    <div class="flow-section-desc">운영자가 단골즈 배지를 회수할 때 노출 상태에 따른 분기</div>
+    <div class="flow-row">
+      <div class="flow-node start">배지 관리<br><span style="font-size:11px;color:#aaa;">기존 리스트 선택</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node process">[회수] 클릭</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node decision"><span>회수<br>확인?</span></div>
+      <div class="flow-arrow" style="margin-left:6px;"></div>
+      <div class="flow-node process" style="background:#C62828;">Confirm 팝업<br><span style="font-size:11px;color:#ccc;">회수 재확인</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-branch">
+        <div class="flow-branch-row">
+          <div class="flow-node result" style="background:#FF9800;min-width:160px;">미노출 채팅<br><span style="font-size:11px;">즉시 배지 회수</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node end" style="min-width:200px;">배지 즉시 미노출<br><span style="font-size:11px;color:#aaa;">상태: 회수</span></div>
+        </div>
+        <div class="flow-branch-row">
+          <div class="flow-node result" style="background:#F57C00;min-width:160px;">노출된 채팅<br><span style="font-size:11px;">권한 회수 이후<br>작성분부터</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node end" style="min-width:200px;">이후 채팅부터<br>배지 미노출<br><span style="font-size:11px;color:#aaa;">기존 노출 채팅 유지</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW C -->
+  <div class="flow-container">
+    <div class="flow-section-title">(C) 서비스(App) — 단골즈 유저 / 일반 유저 경험 플로우</div>
+    <div class="flow-section-desc">배지를 부여받은 유저가 라이브에서 경험하고, 일반 유저가 인지·전환되는 흐름</div>
+    <div class="flow-row">
+      <div class="flow-node start">라이브 방송 입장<br><span style="font-size:11px;color:#aaa;">단골즈 배지 보유 유저</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node result" style="min-width:175px;">입장 시스템 메시지<br><span style="font-size:11px;">"(단골즈) OO님이<br>들어왔습니다"</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node process" style="background:#1565C0;">채팅 참여<br><span style="font-size:11px;color:#ccc;">닉네임 앞<br>단골즈 배지 노출</span></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-branch">
+        <div class="flow-branch-row">
+          <div class="flow-node note" style="color:#64B5F6;min-width:62px;">일반 유저<br>시점</div>
+          <div class="flow-arrow" style="width:22px;"></div>
+          <div class="flow-node process" style="background:#1E88E5;">배지 아이콘 탭</div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node result" style="background:#1565C0;min-width:155px;">배지 설명 팝업<br><span style="font-size:11px;">"단골즈 배지란?"<br>획득 방법 안내</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node end" style="background:#0D47A1;">참여·구매·팔로우<br>전환 유도<br><span style="font-size:11px;color:#aaa;">신뢰 형성 →<br>구매 전환율↑</span></div>
+        </div>
+        <div class="flow-branch-row">
+          <div class="flow-node note" style="color:#FFB74D;min-width:62px;">배지<br>표시</div>
+          <div class="flow-arrow" style="width:22px;"></div>
+          <div class="flow-node process" style="background:#E65100;">다중 배지 노출<br><span style="font-size:11px;color:#ccc;">[레벨][구독] 닉네임 [특수]<br>앞 최대 2개 / 초과 시 뒤</span></div>
+          <div class="flow-arrow"></div>
+          <div class="flow-node end" style="background:#BF360C;">전체 방송<br>지속 노출<br><span style="font-size:11px;color:#aaa;">단골즈 유저 차별화</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px; padding:16px 20px; background:#2a2a2a; border-radius:8px; display:inline-block;">
+      <div style="color:#888; font-size:11px; margin-bottom:8px;">채팅 배지 노출 예시</div>
+      <div class="badge-example">
+        <span class="badge-icon" style="background:#FFD600;color:#333;">Lv3</span>
+        <span class="badge-icon" style="background:#FF9800;">단골즈</span>
+        <span class="badge-nick">다희님</span>
+        <span class="badge-icon" style="background:#9C27B0;margin-left:4px;">후원</span>
+      </div>
+      <div style="color:#666; font-size:10px; margin-top:6px;">← [레벨배지] [구독배지] {닉네임} [특수배지] →</div>
+    </div>
+  </div>
+
+  <div style="margin-top:40px; padding:20px; background:#fff; border-radius:8px; border:1px solid #e0e0e0;">
+    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">문서 정보</div>
+    <div style="font-size:12px; color:#666; line-height:1.8;">
+      기반 문서: [PRD] 단골즈 배지 기능 (ver 0.2, 2026.03.30)<br>
+      적용 범위: App > 라이브 > 채팅 / Admin > 이용자 관리 > 배지 관리 (신규)<br>
+      Phase 1(필수): 배지 노출 + 어드민 단체 부여/회수 &nbsp;|&nbsp; Phase 2(확장): 전용 리액션 · 젬 이펙트 · 개별 부여/회수<br>
+      타겟: 1차 파일럿 20인 (운영 수동 선정, 35~55세 중심) &nbsp;|&nbsp; KPI: 참여도 · 전환율 · 리텐션
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
