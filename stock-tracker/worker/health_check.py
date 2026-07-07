@@ -347,6 +347,100 @@ def check_watchlist_coverage(sb) -> CheckResult:
     )
 
 
+# ─── DB footprint guard (2026-07, "다시는 pause 안 당한다" 장치) ────────────
+# Supabase 무료티어는 DB 500MB 초과가 지속되면 프로젝트를 pause시킨다 (6-7월
+# egress 사고와 동일한 결말). 내부에서 pg_database_size를 직접 못 읽는 대신,
+# 행 수 × 실측 기반 행당 바이트 상수로 풋프린트를 추정해 한도 훨씬 전에
+# 텔레그램으로 경고한다. 상수는 보수적으로(인덱스 포함) 잡았다.
+#
+# 또한 retention(400d signals / 7d price_snapshots / ai_analysis 400d)이
+# 실제로 돌고 있는지 oldest-row 나이로 검증 — 프루닝이 조용히 죽으면 이게
+# 용량 초과의 유일한 경로이므로, 그 자체를 감시한다.
+DB_EST_WARN_MB = int(os.getenv("HC_DB_WARN_MB", "300"))
+DB_EST_ERROR_MB = int(os.getenv("HC_DB_ERROR_MB", "400"))
+# (테이블, 카운트용 컬럼, 행당 추정 바이트 [heap+인덱스], retention 한도일 or None)
+_FOOTPRINT_TABLES = (
+    ("signals", "id", 700, 410),          # keep 400d + 여유 10d
+    ("price_snapshots", "symbol", 300, 9),  # keep 7d + 여유 2d
+    ("ai_analysis", "id", 6000, 410),     # context는 120d 후 슬림 — 평균치 반영
+    ("assets", "symbol", 250, None),
+    ("trade_log", "id", 400, None),
+)
+
+
+def check_db_footprint(sb) -> CheckResult:
+    """행 수 기반 DB 용량 추정 + retention 동작 검증."""
+    total_mb = 0.0
+    parts: list[str] = []
+    stale_retention: list[str] = []
+    now = datetime.now(timezone.utc)
+    ts_col = {"signals": "ts", "price_snapshots": "ts", "ai_analysis": "created_at"}
+
+    for table, col, row_bytes, keep_days in _FOOTPRINT_TABLES:
+        try:
+            res = (
+                sb.table(table)
+                .select(col, count="exact")
+                .limit(1)
+                .execute()
+            )
+            n = res.count or 0
+        except Exception as e:
+            return CheckResult("db_footprint", False, f"{table} count 실패: {e}", "error")
+        mb = n * row_bytes / 1e6
+        total_mb += mb
+        parts.append(f"{table} {n:,}행(~{mb:.0f}MB)")
+
+        # retention 검증: 가장 오래된 행이 keep_days를 크게 넘으면 프루닝 죽음.
+        if keep_days and n > 0:
+            tcol = ts_col.get(table)
+            try:
+                oldest = (
+                    sb.table(table)
+                    .select(tcol)
+                    .order(tcol, desc=False)
+                    .limit(1)
+                    .execute()
+                )
+                if oldest.data:
+                    odt = datetime.fromisoformat(
+                        oldest.data[0][tcol].replace("Z", "+00:00")
+                    )
+                    age_d = (now - odt).days
+                    if age_d > keep_days:
+                        stale_retention.append(f"{table} 최고령 {age_d}d(>{keep_days}d)")
+            except Exception:
+                pass  # retention 검증 실패는 풋프린트 결과에 비치명
+
+    detail = " · ".join(parts)
+    if stale_retention:
+        return CheckResult(
+            "db_footprint",
+            False,
+            f"retention 미동작 의심: {', '.join(stale_retention)}. "
+            f"refresh-universe 워크플로 로그 확인 필요. (추정 {total_mb:.0f}MB) {detail}",
+            "error",
+        )
+    if total_mb >= DB_EST_ERROR_MB:
+        return CheckResult(
+            "db_footprint",
+            False,
+            f"DB 추정 {total_mb:.0f}MB ≥ {DB_EST_ERROR_MB}MB — 500MB pause 한도 임박! "
+            f"retention 일수 축소 필요. {detail}",
+            "error",
+        )
+    if total_mb >= DB_EST_WARN_MB:
+        return CheckResult(
+            "db_footprint",
+            False,
+            f"DB 추정 {total_mb:.0f}MB ≥ {DB_EST_WARN_MB}MB (한도 500MB). {detail}",
+            "warning",
+        )
+    return CheckResult(
+        "db_footprint", True, f"DB 추정 {total_mb:.0f}MB / 500MB · {detail}", "info"
+    )
+
+
 # 6-12h 윈도우는 backtest 발동 cycle (4회/일 = 6h 간격) 한 번 이상 지난 시간대.
 # 그 시간대 시그널이 expected_* NULL이면 backtest 워커 또는 GitHub Actions
 # 트리거 실패 의심 — 사후 backfill이 안 되고 있는 상태.
@@ -502,6 +596,7 @@ def main() -> int:
         check_alpaca_alive,
         check_watchlist_coverage,
         check_backtest_freshness,
+        check_db_footprint,
     ]
 
     results: list[CheckResult] = []
