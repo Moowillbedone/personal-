@@ -125,7 +125,7 @@ export default function TickerPage({ params }: PageProps) {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <Link href="/" className="text-sm text-sky-400 hover:underline">
+        <Link href="/signals" className="text-sm text-sky-400 hover:underline">
           ← back to signals
         </Link>
         {/* One-click jump to the trade page with this symbol pre-selected.

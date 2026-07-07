@@ -1,628 +1,401 @@
 "use client";
 
+// 스윙 콘솔 대시보드 (2026-07 pivot) — the new home page.
+//
+// Layout, top to bottom:
+//   1. RegimeBanner    — market traffic light (QQQ trend + VIX) + mode advice.
+//   2. PositionsRx     — open positions with mechanical prescriptions
+//                        (분할익절 / 물타기 / 손절 / decay), regime-gated.
+//   3. SectorStrength  — where the money is rotating (kept from /stats,
+//                        mounted here because it drives WHAT to trade).
+//   4. SignalsTeaser   — latest raw signals, link to /signals for the full list.
+
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Signal, SignalType, Ticker } from "@/lib/types";
+import SectorStrengthPanel from "@/app/stats/SectorStrengthPanel";
+import {
+  prescribe,
+  regimeAdvice,
+  DEFAULT_RX,
+  type Regime,
+  type Prescription,
+} from "@/lib/prescription";
 
-const PAGE_SIZE = 500;
-
-type Exchange = "NASDAQ" | "NYSE";
-type Session = "pre" | "regular" | "after";
-
-const EXCHANGES: Exchange[] = ["NASDAQ", "NYSE"];
-const TYPES: SignalType[] = ["gap_up", "gap_down", "volume_spike"];
-const SESSIONS: Session[] = ["pre", "regular", "after"];
-
-function fmtPct(v: number) {
-  return `${(v * 100).toFixed(2)}%`;
-}
-function fmtMoney(v: number | null) {
+// ─── shared formatters ──────────────────────────────────────────────────────
+function fmtPct(v: number | null | undefined, dp = 1): string {
   if (v == null) return "—";
-  return `$${v.toFixed(2)}`;
+  return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(dp)}%`;
 }
-function pad(n: number) {
-  return String(n).padStart(2, "0");
+function fmtMoney(v: number | null | undefined): string {
+  if (v == null) return "—";
+  return `$${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
-function fmtTime(iso: string) {
-  // YYYY/MM/DD HH:mm in user's local timezone (24-hour)
-  const d = new Date(iso);
-  return (
-    `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ` +
-    `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  );
-}
-function fmtTimeShort(iso: string) {
-  // HH:mm only — used inside a date-grouped row where the date is in the header
-  const d = new Date(iso);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-/** YYYY-MM-DD in user's local timezone, used as a stable group key. */
-function dateKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-/** Friendly date label: "오늘", "어제", or "M/D (요일)". */
-const KOREAN_DOW = ["일", "월", "화", "수", "목", "금", "토"];
-function fmtDateLabel(key: string): string {
-  const [y, m, d] = key.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const today = new Date();
-  const todayKey = dateKey(today.toISOString());
-  const yesterday = new Date(today.getTime() - 24 * 3600 * 1000);
-  const yesterdayKey = dateKey(yesterday.toISOString());
-  if (key === todayKey) return `오늘 (${m}/${d} ${KOREAN_DOW[dt.getDay()]})`;
-  if (key === yesterdayKey) return `어제 (${m}/${d} ${KOREAN_DOW[dt.getDay()]})`;
-  return `${y}-${pad(m)}-${pad(d)} (${KOREAN_DOW[dt.getDay()]})`;
+function pctClass(v: number | null | undefined): string {
+  if (v == null) return "text-neutral-500";
+  return v >= 0 ? "text-emerald-400" : "text-rose-400";
 }
 
-const TYPE_BADGE: Record<SignalType, string> = {
-  gap_up: "bg-emerald-900/40 text-emerald-300 border-emerald-700",
-  gap_down: "bg-rose-900/40 text-rose-300 border-rose-700",
-  volume_spike: "bg-amber-900/40 text-amber-300 border-amber-700",
+// ─── /api/regime response ───────────────────────────────────────────────────
+interface RegimeResp {
+  regime: Regime;
+  benchmark: string;
+  price: number;
+  sma20: number | null;
+  sma50: number | null;
+  sma200: number | null;
+  pctFromSma20: number | null;
+  pctFromSma50: number | null;
+  pctFromSma200: number | null;
+  ret5d: number | null;
+  ret20d: number | null;
+  realizedVol20d: number | null;
+  vix: number | null;
+  reasons: string[];
+  error?: string;
+}
+
+// ─── /api/trades/positions response (subset we use) ────────────────────────
+interface PositionTrade {
+  id: string;
+  ts: string;
+  action: "buy" | "sell";
+  qty: number;
+  price: number;
+}
+interface Position {
+  symbol: string;
+  mode: "paper" | "real";
+  openQty: number;
+  avgBuyPrice: number | null;
+  costBasisOpen: number | null;
+  realizedPnl: number;
+  trades: PositionTrade[];
+  currentPrice?: number | null;
+  unrealizedPnl?: number | null;
+  unrealizedPct?: number | null;
+  priceStale?: boolean;
+}
+interface PositionsResp {
+  positions?: Position[];
+  error?: string;
+}
+
+interface SignalRow {
+  id: string;
+  ts: string;
+  symbol: string;
+  signal_type: "gap_up" | "gap_down" | "volume_spike";
+  pct_change: number;
+  volume_ratio: number;
+}
+
+const SEV_STYLE: Record<Prescription["severity"], string> = {
+  good: "border-emerald-700 bg-emerald-900/30 text-emerald-300",
+  info: "border-neutral-700 bg-neutral-900/40 text-neutral-300",
+  warn: "border-amber-700 bg-amber-900/30 text-amber-300",
+  danger: "border-rose-700 bg-rose-900/30 text-rose-300",
 };
 
-/**
- * Sortable column header. The label + indicator are inside a button so the
- * entire header cell is clickable. Indicator: ⇅ inactive, ↓ desc, ↑ asc.
- */
-function SortHeader({
-  label,
-  active,
-  indicator,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  indicator: string;
-  onClick: () => void;
-}) {
+const REGIME_CARD: Record<Regime, string> = {
+  risk_on: "border-emerald-700/60 bg-emerald-950/40",
+  neutral: "border-amber-700/60 bg-amber-950/30",
+  risk_off: "border-rose-700/60 bg-rose-950/40",
+};
+
+function RegimeBanner({ data, loading }: { data: RegimeResp | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <section className="border border-neutral-800 rounded-lg p-4 text-sm text-neutral-500">
+        시장 레짐 계산 중…
+      </section>
+    );
+  }
+  if (!data || data.error) {
+    return (
+      <section className="border border-neutral-800 rounded-lg p-4 text-sm text-neutral-500">
+        레짐 조회 실패{data?.error ? ` — ${data.error}` : ""}. 새로고침 해주세요.
+      </section>
+    );
+  }
+  const adv = regimeAdvice(data.regime);
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 hover:text-neutral-200 transition-colors ${
-        active ? "text-sky-300" : "text-neutral-400"
-      }`}
-      title={active ? "다시 누르면 방향 전환 / 한 번 더 누르면 정렬 해제" : "정렬"}
-    >
-      <span>{label}</span>
-      <span className="text-[10px] opacity-80">{indicator}</span>
-    </button>
+    <section className={`border rounded-lg p-4 ${REGIME_CARD[data.regime]}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold">
+            {adv.emoji} 시장 레짐: {adv.label}
+          </div>
+          <p className="text-sm text-neutral-300 mt-1 max-w-3xl">{adv.advice}</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            근거: {data.reasons.join(" · ")}
+          </p>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-x-5 gap-y-2 text-xs">
+          <Metric label={`${data.benchmark}`} value={fmtMoney(data.price)} />
+          <Metric label="vs 20일선" value={fmtPct(data.pctFromSma20)} cls={pctClass(data.pctFromSma20)} />
+          <Metric label="vs 50일선" value={fmtPct(data.pctFromSma50)} cls={pctClass(data.pctFromSma50)} />
+          <Metric label="vs 200일선" value={fmtPct(data.pctFromSma200)} cls={pctClass(data.pctFromSma200)} />
+          <Metric label="5일 수익률" value={fmtPct(data.ret5d)} cls={pctClass(data.ret5d)} />
+          <Metric
+            label="VIX"
+            value={data.vix != null ? data.vix.toFixed(1) : "—"}
+            cls={
+              data.vix == null
+                ? "text-neutral-500"
+                : data.vix >= 28
+                  ? "text-rose-400"
+                  : data.vix >= 20
+                    ? "text-amber-400"
+                    : "text-emerald-400"
+            }
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
-function FilterChip<T extends string>({
-  label,
-  active,
-  onToggle,
-}: {
-  label: T;
-  active: boolean;
-  onToggle: () => void;
-}) {
+function Metric({ label, value, cls }: { label: string; value: string; cls?: string }) {
   return (
-    <button
-      onClick={onToggle}
-      className={`px-2 py-1 text-xs border rounded transition-colors ${
-        active
-          ? "bg-sky-900/40 text-sky-200 border-sky-700"
-          : "bg-neutral-900/40 text-neutral-500 border-neutral-800 hover:border-neutral-600"
-      }`}
-    >
-      {label}
-    </button>
+    <div>
+      <div className="text-neutral-500">{label}</div>
+      <div className={`font-semibold ${cls ?? "text-neutral-200"}`}>{value}</div>
+    </div>
   );
 }
 
-/**
- * Merge new rows into existing list, deduped by id, preserving DESC order by ts.
- * Used for both initial load and "Load more" appends + realtime prepends.
- */
-function mergeSignals(prev: Signal[], incoming: Signal[]): Signal[] {
-  const map = new Map<string, Signal>();
-  for (const s of prev) map.set(s.id, s);
-  for (const s of incoming) map.set(s.id, s);
-  return Array.from(map.values()).sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
-}
-
-export default function Page() {
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [tickers, setTickers] = useState<Record<string, Ticker>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
-  const [exchanges, setExchanges] = useState<Set<Exchange>>(new Set(EXCHANGES));
-  const [types, setTypes] = useState<Set<SignalType>>(new Set(TYPES));
-  const [sessions, setSessions] = useState<Set<Session>>(new Set(SESSIONS));
-  const [minPct, setMinPct] = useState(0);
-  const [minVolX, setMinVolX] = useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      const [sigRes, tickRes] = await Promise.all([
-        supabase
-          .from("signals")
-          .select("*")
-          .order("ts", { ascending: false })
-          .limit(PAGE_SIZE),
-        supabase.from("tickers").select("symbol,exchange,name,rank_in_exch"),
-      ]);
-      if (!mounted) return;
-      if (sigRes.error) console.error(sigRes.error);
-      if (tickRes.error) console.error(tickRes.error);
-      const initial = (sigRes.data as Signal[]) ?? [];
-      setSignals(initial);
-      setHasMore(initial.length === PAGE_SIZE);
-      const map: Record<string, Ticker> = {};
-      ((tickRes.data as Ticker[]) ?? []).forEach((t) => (map[t.symbol] = t));
-      setTickers(map);
-      setLoading(false);
-    }
-    load();
-
-    const channel = supabase
-      .channel("signals-stream")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "signals" },
-        (payload) => {
-          // Prepend; dedupe in case the row was also fetched via load.
-          setSignals((prev) => mergeSignals(prev, [payload.new as Signal]));
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "signals" },
-        (payload) => {
-          setSignals((prev) =>
-            prev.map((s) => (s.id === (payload.new as Signal).id ? (payload.new as Signal) : s)),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function loadMore() {
-    if (loadingMore || !hasMore || signals.length === 0) return;
-    setLoadingMore(true);
-    try {
-      // Cursor pagination: rows older than the oldest currently shown.
-      const cursor = signals[signals.length - 1].ts;
-      const { data, error } = await supabase
-        .from("signals")
-        .select("*")
-        .lt("ts", cursor)
-        .order("ts", { ascending: false })
-        .limit(PAGE_SIZE);
-      if (error) {
-        console.error(error);
-        return;
+// Buys in the CURRENT open cycle: walk fills oldest→newest, reset the
+// counter whenever openQty crosses to ~0 (a closed round trip). This keeps
+// tranche counting honest across re-entry cycles despite the lifetime
+// weighted-average convention in lib/trades.ts.
+function openCycleBuys(trades: PositionTrade[]): { count: number; firstTs: string | null } {
+  const asc = [...trades].sort((a, b) => (a.ts < b.ts ? -1 : 1));
+  let qty = 0;
+  let count = 0;
+  let firstTs: string | null = null;
+  for (const t of asc) {
+    if (t.action === "buy") {
+      if (qty <= 1e-9) {
+        count = 0;
+        firstTs = t.ts;
       }
-      const more = (data as Signal[]) ?? [];
-      setSignals((prev) => mergeSignals(prev, more));
-      if (more.length < PAGE_SIZE) setHasMore(false);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  const filtered = useMemo(() => {
-    return signals.filter((s) => {
-      const t = tickers[s.symbol];
-      if (t && !exchanges.has(t.exchange)) return false;
-      if (!types.has(s.signal_type)) return false;
-      if (!sessions.has(s.session)) return false;
-      if (Math.abs(s.pct_change) * 100 < minPct) return false;
-      if (s.volume_ratio < minVolX) return false;
-      return true;
-    });
-  }, [signals, tickers, exchanges, types, sessions, minPct, minVolX]);
-
-  /**
-   * Group filtered signals by local-date YYYY-MM-DD with per-group counts.
-   * Date order: most recent first (matches the underlying ts-desc ordering
-   * so realtime inserts naturally land in the top group).
-   */
-  const groups = useMemo(() => {
-    const buckets = new Map<string, Signal[]>();
-    for (const s of filtered) {
-      const key = dateKey(s.ts);
-      const arr = buckets.get(key);
-      if (arr) arr.push(s);
-      else buckets.set(key, [s]);
-    }
-    const out = Array.from(buckets.entries()).map(([date, sigs]) => {
-      const buy = sigs.filter((s) => s.signal_type === "gap_up").length;
-      const sell = sigs.filter((s) => s.signal_type === "gap_down").length;
-      const spike = sigs.filter((s) => s.signal_type === "volume_spike").length;
-      return { date, signals: sigs, count: sigs.length, buy, sell, spike };
-    });
-    out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    return out;
-  }, [filtered]);
-
-  /**
-   * Which date groups are expanded. Default: only the most recent date is open
-   * (so initial render shows the day's signals at a glance, history collapsed).
-   * Realtime inserts on a new day will create a new group; user expands manually.
-   */
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const autoExpandedRef = useRef(false);
-  useEffect(() => {
-    if (autoExpandedRef.current) return;
-    if (groups.length === 0) return;
-    setExpanded(new Set([groups[0].date]));
-    autoExpandedRef.current = true;
-  }, [groups]);
-
-  // Optional sort by numeric columns. Three-state cycle per column:
-  //   inactive → desc (highest first) → asc (lowest first) → inactive
-  // NULL values always sink to the bottom so they don't dominate either end.
-  // When no column is selected, signals stay in natural ts-desc order.
-  type SortKey =
-    | "volume_ratio"
-    | "expected_1d"
-    | "expected_3d"
-    | "expected_5d";
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  function cycleSort(key: SortKey) {
-    if (sortKey !== key) {
-      setSortKey(key);
-      setSortDir("desc");
-    } else if (sortDir === "desc") {
-      setSortDir("asc");
+      qty += t.qty;
+      count += 1;
     } else {
-      setSortKey(null);
+      qty -= t.qty;
+      if (qty <= 1e-9) {
+        qty = 0;
+        count = 0;
+        firstTs = null;
+      }
     }
   }
-  function sortIndicator(key: SortKey): string {
-    if (sortKey !== key) return "⇅";
-    return sortDir === "desc" ? "↓" : "↑";
-  }
-  function sortSignals(rows: Signal[]): Signal[] {
-    if (!sortKey) return rows;
-    return [...rows].sort((a, b) => {
-      const va = a[sortKey];
-      const vb = b[sortKey];
-      // NULL → bottom regardless of dir.
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
-      return sortDir === "desc" ? vb - va : va - vb;
-    });
-  }
+  return { count, firstTs };
+}
 
-  function toggleGroup(date: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
-    });
-  }
-  function expandAll() {
-    setExpanded(new Set(groups.map((g) => g.date)));
-  }
-  function collapseAll() {
-    setExpanded(new Set());
-  }
-
-  function toggle<T>(set: Set<T>, val: T, setter: (s: Set<T>) => void) {
-    const next = new Set(set);
-    if (next.has(val)) next.delete(val);
-    else next.add(val);
-    setter(next);
-  }
-
+function PositionsRx({
+  positions,
+  regime,
+  loading,
+  error,
+}: {
+  positions: Position[];
+  regime: Regime;
+  loading: boolean;
+  error: string | null;
+}) {
+  const open = positions.filter((p) => p.openQty > 1e-9 && p.mode === "real");
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Live Signals</h1>
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-base font-semibold">💊 내 포지션 · 처방</h2>
         <span className="text-xs text-neutral-500">
-          {filtered.length} / {signals.length}
+          룰: +{DEFAULT_RX.tp1 * 100}% 1차 익절 · +{DEFAULT_RX.tp2 * 100}% 2차 ·{" "}
+          {DEFAULT_RX.avgDown * 100}% 물타기(레짐 게이트) · {DEFAULT_RX.hardStop * 100}% 손절 검토
         </span>
       </div>
-
-      <div className="border border-neutral-800 rounded-lg p-3 mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">Exchange:</span>
-          {EXCHANGES.map((e) => (
-            <FilterChip
-              key={e}
-              label={e}
-              active={exchanges.has(e)}
-              onToggle={() => toggle(exchanges, e, setExchanges)}
-            />
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">Type:</span>
-          {TYPES.map((t) => (
-            <FilterChip
-              key={t}
-              label={t}
-              active={types.has(t)}
-              onToggle={() => toggle(types, t, setTypes)}
-            />
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">Session:</span>
-          {SESSIONS.map((s) => (
-            <FilterChip
-              key={s}
-              label={s}
-              active={sessions.has(s)}
-              onToggle={() => toggle(sessions, s, setSessions)}
-            />
-          ))}
-        </div>
-        <label className="flex items-center gap-2">
-          <span className="text-neutral-500">Min |Δ|%:</span>
-          <input
-            type="number"
-            value={minPct}
-            min={0}
-            step={0.1}
-            onChange={(e) => setMinPct(Number(e.target.value))}
-            className="w-16 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-          />
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-neutral-500">Min Vol×:</span>
-          <input
-            type="number"
-            value={minVolX}
-            min={0}
-            step={0.5}
-            onChange={(e) => setMinVolX(Number(e.target.value))}
-            className="w-16 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-right"
-          />
-        </label>
-      </div>
-
       {loading ? (
-        <p className="text-neutral-500">loading…</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-neutral-500">
-          {signals.length === 0
-            ? "No signals yet. The worker will publish here as it detects gaps and volume spikes."
-            : "No signals match the current filters."}
+        <p className="text-sm text-neutral-500 border border-neutral-800 rounded-lg p-4">
+          포지션 로딩 중…
+        </p>
+      ) : error ? (
+        <p className="text-sm text-rose-400 border border-neutral-800 rounded-lg p-4">{error}</p>
+      ) : open.length === 0 ? (
+        <p className="text-sm text-neutral-500 border border-neutral-800 rounded-lg p-4">
+          열려있는 실전 포지션이 없습니다.{" "}
+          <Link href="/trade" className="text-sky-400 hover:underline">
+            Trade 탭
+          </Link>
+          에서 매수를 기록하면 여기에 처방이 표시됩니다.
         </p>
       ) : (
-        <>
-          {/* Group expand/collapse controls — only when multiple groups exist */}
-          {groups.length > 1 && (
-            <div className="flex items-center justify-end gap-2 mb-2 text-[11px] text-neutral-500">
-              <button
-                onClick={expandAll}
-                className="hover:text-neutral-200"
-              >
-                전체 펼치기
-              </button>
-              <span className="text-neutral-700">·</span>
-              <button
-                onClick={collapseAll}
-                className="hover:text-neutral-200"
-              >
-                전체 접기
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {groups.map((g) => {
-              const isOpen = expanded.has(g.date);
-              return (
-                <section
-                  key={g.date}
-                  className="border border-neutral-800 rounded-lg overflow-hidden"
-                >
-                  <button
-                    onClick={() => toggleGroup(g.date)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-900/40 hover:bg-neutral-900/70 text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-neutral-500 text-xs">
-                        {isOpen ? "▼" : "▶"}
-                      </span>
-                      <span className="text-sm font-semibold text-neutral-100">
-                        {fmtDateLabel(g.date)}
-                      </span>
-                      <span className="text-xs text-neutral-500">
-                        {g.count}건
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      {g.buy > 0 && (
-                        <span className="text-emerald-400">▲ {g.buy}</span>
-                      )}
-                      {g.sell > 0 && (
-                        <span className="text-rose-400">▼ {g.sell}</span>
-                      )}
-                      {g.spike > 0 && (
-                        <span className="text-amber-400">⚡ {g.spike}</span>
-                      )}
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div className="overflow-x-auto border-t border-neutral-800">
-                      <table className="w-full text-sm">
-                        <thead className="bg-neutral-900/30 text-neutral-400 uppercase text-xs">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Time</th>
-                            <th className="px-3 py-2 text-left">Symbol</th>
-                            <th className="px-3 py-2 text-left">Exch</th>
-                            <th className="px-3 py-2 text-left">Type</th>
-                            <th className="px-3 py-2 text-right">Price</th>
-                            <th className="px-3 py-2 text-right">Δ%</th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="Vol×"
-                                active={sortKey === "volume_ratio"}
-                                indicator={sortIndicator("volume_ratio")}
-                                onClick={() => cycleSort("volume_ratio")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-left">Session</th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[1d]"
-                                active={sortKey === "expected_1d"}
-                                indicator={sortIndicator("expected_1d")}
-                                onClick={() => cycleSort("expected_1d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[3d]"
-                                active={sortKey === "expected_3d"}
-                                indicator={sortIndicator("expected_3d")}
-                                onClick={() => cycleSort("expected_3d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[5d]"
-                                active={sortKey === "expected_5d"}
-                                indicator={sortIndicator("expected_5d")}
-                                onClick={() => cycleSort("expected_5d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">n</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortSignals(g.signals).map((s) => {
-                            const t = tickers[s.symbol];
-                            return (
-                              <tr
-                                key={s.id}
-                                className="border-t border-neutral-800 hover:bg-neutral-900/40"
-                              >
-                                <td className="px-3 py-2 text-neutral-400">
-                                  {fmtTimeShort(s.ts)}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <Link
-                                    href={`/ticker/${s.symbol}`}
-                                    className="font-semibold text-sky-300 hover:underline"
-                                  >
-                                    {s.symbol}
-                                  </Link>
-                                </td>
-                                <td className="px-3 py-2 text-neutral-500">
-                                  {t?.exchange ?? "—"}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={`px-2 py-0.5 border rounded text-xs ${TYPE_BADGE[s.signal_type]}`}
-                                  >
-                                    {s.signal_type}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  {fmtMoney(s.price)}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.pct_change >= 0
-                                      ? "text-emerald-400"
-                                      : "text-rose-400"
-                                  }`}
-                                >
-                                  {fmtPct(s.pct_change)}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  {s.volume_ratio.toFixed(1)}×
-                                </td>
-                                <td className="px-3 py-2 text-neutral-400">
-                                  {s.session}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_1d != null && s.expected_1d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_1d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_1d != null
-                                    ? fmtPct(s.expected_1d)
-                                    : "—"}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_3d != null && s.expected_3d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_3d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_3d != null
-                                    ? fmtPct(s.expected_3d)
-                                    : "—"}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_5d != null && s.expected_5d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_5d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_5d != null
-                                    ? fmtPct(s.expected_5d)
-                                    : "—"}
-                                </td>
-                                <td className="px-3 py-2 text-right text-neutral-500">
-                                  {s.sample_size ?? "—"}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {!loading && signals.length > 0 && (
-        <div className="mt-4 flex items-center justify-center gap-3 text-xs">
-          {hasMore ? (
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="px-3 py-1.5 border border-neutral-700 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50"
-            >
-              {loadingMore ? "loading…" : `Load older signals (+${PAGE_SIZE})`}
-            </button>
-          ) : (
-            <span className="text-neutral-600">end of history ({signals.length} total)</span>
-          )}
+        <div className="grid gap-3 md:grid-cols-2">
+          {open.map((p) => {
+            const cyc = openCycleBuys(p.trades ?? []);
+            const rx = prescribe({
+              unrealizedPct: p.unrealizedPct ?? null,
+              buyFillCount: Math.max(1, cyc.count),
+              openQty: p.openQty,
+              firstBuyTs: cyc.firstTs,
+              regime,
+            });
+            return (
+              <div key={p.symbol} className="border border-neutral-800 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/trade?symbol=${p.symbol}`}
+                      className="font-semibold text-sky-300 hover:underline"
+                    >
+                      {p.symbol}
+                    </Link>
+                    <span className={`px-2 py-0.5 border rounded text-xs ${SEV_STYLE[rx.severity]}`}>
+                      {rx.badge}
+                    </span>
+                    {p.priceStale && (
+                      <span className="text-[10px] text-amber-500">⚠ 시세 지연</span>
+                    )}
+                  </div>
+                  <span className={`text-lg font-semibold ${pctClass(p.unrealizedPct)}`}>
+                    {fmtPct(p.unrealizedPct)}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {p.openQty.toLocaleString()}주 · 평단 {fmtMoney(p.avgBuyPrice)} · 현재{" "}
+                  {fmtMoney(p.currentPrice)} · 트랜치 {Math.max(1, cyc.count)}/{DEFAULT_RX.maxTranches}
+                </div>
+                <div className="mt-2 text-sm text-neutral-200">{rx.action}</div>
+                <p className="mt-1 text-xs text-neutral-500 leading-relaxed">{rx.detail}</p>
+              </div>
+            );
+          })}
         </div>
       )}
+    </section>
+  );
+}
 
-      <p className="text-xs text-neutral-600 mt-4">
-        E[1d/3d/5d] = mean realized return of similar historical signals (same type, ±50% gap_pct & vol_ratio).
-        Not investment advice.
+const TYPE_BADGE: Record<SignalRow["signal_type"], string> = {
+  gap_up: "text-emerald-400",
+  gap_down: "text-rose-400",
+  volume_spike: "text-amber-400",
+};
+
+function SignalsTeaser({ rows }: { rows: SignalRow[] }) {
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-base font-semibold">⚡ 최근 시그널</h2>
+        <Link href="/signals" className="text-xs text-sky-400 hover:underline">
+          전체 보기 →
+        </Link>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-neutral-500 border border-neutral-800 rounded-lg p-4">
+          최근 시그널이 없습니다.
+        </p>
+      ) : (
+        <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800/70 text-sm">
+          {rows.map((s) => (
+            <div key={s.id} className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-3">
+                <span className="text-neutral-500 text-xs w-24">
+                  {new Date(s.ts).toLocaleString("ko-KR", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <Link
+                  href={`/ticker/${s.symbol}`}
+                  className="font-semibold text-sky-300 hover:underline"
+                >
+                  {s.symbol}
+                </Link>
+                <span className={`text-xs ${TYPE_BADGE[s.signal_type]}`}>{s.signal_type}</span>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <span className={pctClass(s.pct_change)}>{fmtPct(s.pct_change, 2)}</span>
+                <span className="text-neutral-500">vol×{s.volume_ratio.toFixed(1)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function DashboardPage() {
+  const [regime, setRegime] = useState<RegimeResp | null>(null);
+  const [regimeLoading, setRegimeLoading] = useState(true);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [posLoading, setPosLoading] = useState(true);
+  const [posError, setPosError] = useState<string | null>(null);
+  const [signals, setSignals] = useState<SignalRow[]>([]);
+
+  const load = useCallback(async () => {
+    setRegimeLoading(true);
+    setPosLoading(true);
+    setPosError(null);
+    const [regRes, posRes, sigRes] = await Promise.allSettled([
+      fetch("/api/regime").then((r) => r.json() as Promise<RegimeResp>),
+      fetch("/api/trades/positions?mode=real&lookback=3650").then(
+        (r) => r.json() as Promise<PositionsResp>,
+      ),
+      supabase
+        .from("signals")
+        .select("id,ts,symbol,signal_type,pct_change,volume_ratio")
+        .order("ts", { ascending: false })
+        .limit(10),
+    ]);
+    if (regRes.status === "fulfilled") setRegime(regRes.value);
+    setRegimeLoading(false);
+    if (posRes.status === "fulfilled") {
+      if (posRes.value.error) setPosError(posRes.value.error);
+      setPositions(posRes.value.positions ?? []);
+    } else {
+      setPosError("포지션 조회 실패");
+    }
+    setPosLoading(false);
+    if (sigRes.status === "fulfilled" && !sigRes.value.error) {
+      setSignals((sigRes.value.data as SignalRow[]) ?? []);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const effectiveRegime: Regime = regime?.regime ?? "neutral";
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">스윙 콘솔</h1>
+        <button
+          onClick={load}
+          className="text-xs px-3 py-1.5 border border-neutral-700 rounded bg-neutral-900 hover:bg-neutral-800"
+        >
+          ↻ 새로고침
+        </button>
+      </div>
+
+      <RegimeBanner data={regime} loading={regimeLoading} />
+      <PositionsRx
+        positions={positions}
+        regime={effectiveRegime}
+        loading={posLoading}
+        error={posError}
+      />
+      <SectorStrengthPanel />
+      <SignalsTeaser rows={signals} />
+
+      <p className="text-xs text-neutral-600">
+        처방은 기계적 규칙(기본값) 기반 참고 정보이며 투자 판단의 책임은 본인에게 있습니다. 물타기
+        처방은 시장 레짐이 risk-off일 때 자동 차단됩니다.
       </p>
     </div>
   );

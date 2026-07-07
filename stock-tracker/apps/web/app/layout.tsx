@@ -3,27 +3,29 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stock Signal Tracker",
-  description: "Real-time gap & volume-spike detector for NASDAQ + NYSE top 100",
+  title: "Stock Tracker — 스윙 콘솔",
+  description:
+    "2x leveraged-ETF swing console: market regime, sector money flow, tranche prescriptions, NDX-100 signals",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body className="font-mono">
         <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/" className="text-lg font-semibold tracking-tight">
-              ⚡ Stock Signal Tracker
+              ⚡ Stock Tracker
             </Link>
             <nav className="flex items-center gap-4 text-sm text-neutral-400">
-              <Link href="/" className="hover:text-neutral-100">Signals</Link>
+              <Link href="/" className="hover:text-neutral-100">대시보드</Link>
               <Link href="/trade" className="hover:text-neutral-100">Trade</Link>
+              <Link href="/signals" className="hover:text-neutral-100">Signals</Link>
               <Link href="/stats" className="hover:text-neutral-100">Stats</Link>
             </nav>
           </div>
           <span className="text-xs text-neutral-500">
-            data delayed ~15 min · top 100 NASDAQ + 100 NYSE
+            2x ETF 스윙 · NDX-100 시그널 · data ~15min delayed
           </span>
         </header>
         <main className="px-6 py-6">{children}</main>

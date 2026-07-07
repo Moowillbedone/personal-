@@ -88,6 +88,28 @@ def get_active_symbols(sb: Client) -> list[str]:
     return [r["symbol"] for r in res.data]
 
 
+def get_nasdaq_top100(sb: Client) -> set[str]:
+    """NASDAQ top-100 by market cap — the NDX-100 proxy that gates telegram
+    signal alerts (2026-07 swing pivot: user wants alerts only for the
+    high-volatility mega/large-cap NASDAQ names, not the full 200 universe).
+
+    Proxy note: true NDX-100 membership isn't available from our free data
+    sources; top-100 NASDAQ by mcap (refreshed daily by refresh_universe.py)
+    overlaps it ~90% and needs zero maintenance. Empty set on failure —
+    callers treat that as "filter unavailable" and skip notifications rather
+    than spamming the full universe.
+    """
+    res = (
+        sb.table("tickers")
+        .select("symbol")
+        .eq("exchange", "NASDAQ")
+        .eq("is_active", True)
+        .lte("rank_in_exch", 100)
+        .execute()
+    )
+    return {r["symbol"] for r in (res.data or []) if r.get("symbol")}
+
+
 def get_recent_bars(sb: Client, symbol: str, limit: int = 25) -> list[dict]:
     res = (
         sb.table("price_snapshots")

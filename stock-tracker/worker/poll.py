@@ -168,7 +168,14 @@ def run_once(sb, symbols: list[str]) -> tuple[int, int]:
                 f"  [{f['signal_type']}] {f['symbol']} "
                 f"{f['pct_change']*100:+.2f}% volx{f['volume_ratio']:.1f} @ {f['price']}  ·  {news_tag}"
             )
-        notify.notify_batch(fired)
+        # Telegram gate (2026-07 swing pivot): only NASDAQ-100-proxy names
+        # get pushed. All signals still land in the DB / signals page.
+        try:
+            ndx = db.get_nasdaq_top100(sb)
+        except Exception as e:
+            print(f"  ndx-100 fetch failed (suppressing notifications): {e}", file=sys.stderr)
+            ndx = set()
+        notify.notify_batch(fired, allowed_symbols=ndx)
 
     return len(all_price_rows), len(fired)
 

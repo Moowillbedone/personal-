@@ -170,10 +170,19 @@ def notify_signal(signal: dict) -> None:
         _send_discord(signal)
 
 
-def notify_batch(signals: list[dict]) -> None:
+def notify_batch(signals: list[dict], allowed_symbols: set[str] | None = None) -> None:
+    """Send alerts for eligible signals.
+
+    allowed_symbols: optional ticker allow-list (2026-07: the NASDAQ-100
+    proxy set from db.get_nasdaq_top100). None = no symbol filter (legacy
+    behavior). An EMPTY set means the filter fetch failed — suppress all
+    rather than fall open to the full 200-name universe.
+    """
     eligible = [
         s for s in signals
-        if s["signal_type"] in NOTIFY_TYPES and _passes_news_gate(s)
+        if s["signal_type"] in NOTIFY_TYPES
+        and _passes_news_gate(s)
+        and (allowed_symbols is None or s["symbol"] in allowed_symbols)
     ]
     if not eligible:
         return
