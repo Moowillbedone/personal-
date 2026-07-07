@@ -3,7 +3,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, ColorType, IChartApi, ISeriesApi } from "lightweight-charts";
 import SectorStrengthPanel from "./SectorStrengthPanel";
-import BulkTradeEntry from "./BulkTradeEntry";
 
 interface Stats {
   count: number;
@@ -503,8 +502,8 @@ export default function StatsPage() {
                 </section>
               )}
 
-              {/* Backfill tool: log skipped trades in bulk, then refresh all panels. */}
-              <BulkTradeEntry onDone={loadAll} />
+              {/* 일괄기록(BulkTradeEntry)은 2026-07에 Trade 탭으로 이관됨 —
+                  기록 경로를 한 곳으로 모아 중복 입력을 방지. */}
 
               {trades && (
                 <section className="border border-neutral-800 rounded-lg p-4">

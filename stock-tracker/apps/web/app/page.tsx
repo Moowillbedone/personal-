@@ -182,6 +182,7 @@ function openCycleBuys(trades: PositionTrade[]): {
   count: number;
   firstTs: string | null;
   avgCost: number | null;
+  ids: string[]; // exact fill ids belonging to the CURRENT open cycle
 } {
   const asc = [...trades].sort((a, b) =>
     a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : a.action === b.action ? 0 : a.action === "sell" ? -1 : 1,
@@ -190,6 +191,12 @@ function openCycleBuys(trades: PositionTrade[]): {
   let cost = 0;
   let count = 0;
   let firstTs: string | null = null;
+  // ids of the fills in the currently-open cycle. Tracked by exact id (not a
+  // ts>=firstTs string compare) because bulk-backfilled fills share a
+  // day-granular timestamp, so a same-day close+re-enter would otherwise let
+  // a prior closed cycle's sell match the filter — deleting it and corrupting
+  // that cycle's realized P&L.
+  let ids: string[] = [];
   for (const t of asc) {
     if (t.action === "buy") {
       if (qty <= 1e-9) {
@@ -197,19 +204,23 @@ function openCycleBuys(trades: PositionTrade[]): {
         cost = 0;
         count = 0;
         firstTs = t.ts;
+        ids = [];
       }
       qty += t.qty;
       cost += t.qty * t.price;
       count += 1;
+      ids.push(t.id);
     } else {
       const avg = qty > 1e-9 ? cost / qty : 0;
       qty -= t.qty;
       cost -= t.qty * avg;
+      ids.push(t.id); // part of the current cycle until proven closed…
       if (qty <= 1e-9) {
         qty = 0;
         cost = 0;
         count = 0;
         firstTs = null;
+        ids = []; // …cycle closed → these fills are no longer "open"
       }
     }
   }
@@ -217,6 +228,7 @@ function openCycleBuys(trades: PositionTrade[]): {
     count,
     firstTs,
     avgCost: qty > 1e-9 && cost > 0 ? cost / qty : null,
+    ids,
   };
 }
 
@@ -225,13 +237,58 @@ function PositionsRx({
   regime,
   loading,
   error,
+  onChanged,
 }: {
   positions: Position[];
   regime: Regime | null; // null = 레짐 조회 실패 → 물타기 게이트 fail-closed
   loading: boolean;
   error: string | null;
+  onChanged: () => void;
 }) {
   const open = positions.filter((p) => p.openQty > 1e-9 && p.mode === "real");
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  // "삭제": the user already exited this IRL but never journaled the close,
+  // so the card lingers on a stale open position. Delete EXACTLY the current
+  // open cycle's fills (tracked by id in openCycleBuys — buys and any
+  // in-cycle partial sells). Prior fully-closed cycles are never touched, so
+  // their realized P&L survives. If the open cycle also had partial-profit
+  // sells, those in-progress records go with it — the confirm text says so.
+  async function deletePosition(p: Position) {
+    const ids = openCycleBuys(p.trades ?? []).ids;
+    if (ids.length === 0) return; // card shouldn't render without an open cycle; no-op if so
+    if (
+      !window.confirm(
+        `${p.symbol}의 현재 열린 사이클 기록 ${ids.length}건(매수 및 이 사이클 내 부분매도 포함)을 삭제합니다.\n` +
+          `이미 청산한 종목을 목록에서 지울 때 사용하세요.\n` +
+          `• 과거에 완전히 청산된 사이클의 손익 기록은 그대로 보존됩니다.\n` +
+          `• 이 사이클 내에서 부분 익절한 실현손익이 있다면 함께 삭제됩니다.`,
+      )
+    )
+      return;
+    setDeleting(p.symbol);
+    try {
+      // fetch never rejects on 4xx/5xx, so check res.ok per request. A partial
+      // failure would leave a corrupted derived position; warn the user.
+      const oks = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/trades?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+            .then((res) => res.ok)
+            .catch(() => false),
+        ),
+      );
+      onChanged(); // reload either way so the UI reflects the true state
+      const failed = oks.filter((ok) => !ok).length;
+      if (failed > 0) {
+        window.alert(
+          `${p.symbol}: ${ids.length}건 중 ${failed}건 삭제 실패. 일부만 삭제돼 값이 어긋날 수 있으니 다시 시도하세요. (id 기반 삭제라 재시도는 안전)`,
+        );
+      }
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   return (
     <section>
       <div className="flex items-center justify-between mb-2">
@@ -291,9 +348,19 @@ function PositionsRx({
                       <span className="text-[10px] text-amber-500">⚠ 시세 지연</span>
                     )}
                   </div>
-                  <span className={`text-lg font-semibold ${pctClass(cyclePct)}`}>
-                    {fmtPct(cyclePct)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-lg font-semibold ${pctClass(cyclePct)}`}>
+                      {fmtPct(cyclePct)}
+                    </span>
+                    <button
+                      onClick={() => deletePosition(p)}
+                      disabled={deleting === p.symbol}
+                      title="이미 청산한 종목이면 목록에서 삭제 (현재 열린 사이클 기록 삭제)"
+                      className="text-xs px-2 py-0.5 border border-neutral-700 rounded text-neutral-400 hover:border-rose-600 hover:text-rose-300 disabled:opacity-40"
+                    >
+                      {deleting === p.symbol ? "삭제 중…" : "🗑 삭제"}
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-1 text-xs text-neutral-500">
                   {p.openQty.toLocaleString()}주 · 평단 {fmtMoney(avgCost)}
@@ -426,6 +493,7 @@ export default function DashboardPage() {
         regime={effectiveRegime}
         loading={posLoading}
         error={posError}
+        onChanged={load}
       />
       <SectorStrengthPanel />
       <SignalsTeaser rows={signals} />

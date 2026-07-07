@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BulkTradeEntry from "@/app/stats/BulkTradeEntry";
 
 interface SearchHit {
   symbol: string;
@@ -218,6 +219,9 @@ export default function TradePage() {
   // selection
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedSnap, setSelectedSnap] = useState<Snapshot | null>(null);
+  // Bumped after a bulk-trade insert to force the journal panel to reload
+  // (it keys off this) and to refresh watchlist snapshots.
+  const [journalRefreshKey, setJournalRefreshKey] = useState(0);
 
   // Deep-link from the ticker detail page: /trade?symbol=AAPL pre-selects
   // AAPL on mount. The user goes "signal interesting → ticker page → one
@@ -729,8 +733,10 @@ export default function TradePage() {
               </div>
             </div>
 
-            {/* Trade journal — log buys/sells, see realized P&L per symbol */}
+            {/* Trade journal — log buys/sells, see realized P&L per symbol.
+                key includes journalRefreshKey so a bulk insert below forces a reload. */}
             <TradeJournalPanel
+              key={`${selected}-${journalRefreshKey}`}
               symbol={selected}
               currentPrice={selectedSnap?.lastPrice ?? null}
               aiAnalysisId={result?.analysis.id ?? null}
@@ -954,6 +960,19 @@ export default function TradePage() {
           </>
         )}
       </section>
+      </div>
+
+      {/* Bulk trade backfill — moved here from the (now hidden) Stats tab so
+          all trade recording lives on one page. onDone reloads the current
+          symbol's journal + watchlist snapshots. */}
+      <div className="mt-8">
+        <BulkTradeEntry
+          onDone={() => {
+            setJournalRefreshKey((k) => k + 1);
+            loadWatchlist();
+            loadSnapshots();
+          }}
+        />
       </div>
     </div>
   );
