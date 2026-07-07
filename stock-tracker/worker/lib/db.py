@@ -1,5 +1,14 @@
-"""Supabase client + thin DB helpers."""
+"""Supabase client + thin DB helpers.
+
+Egress discipline (2026-07): every write passes ``returning="minimal"`` so
+PostgREST does NOT echo the written rows back in the response body. The
+default is ``return=representation``, which meant every price_snapshots
+upsert downloaded the full ~100k-row batch back to the worker each 5-min
+cycle — the single biggest driver of the Supabase free-tier egress blowout
+that paused the project. ``minimal`` drops that return payload to empty.
+"""
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from supabase import Client, create_client
@@ -16,14 +25,40 @@ def upsert_tickers(sb: Client, rows: list[dict]) -> None:
         return
     # Chunk to avoid request-size limits.
     for i in range(0, len(rows), 200):
-        sb.table("tickers").upsert(rows[i : i + 200]).execute()
+        sb.table("tickers").upsert(rows[i : i + 200], returning="minimal").execute()
 
 
 def upsert_price_snapshots(sb: Client, rows: list[dict]) -> None:
     if not rows:
         return
     for i in range(0, len(rows), 500):
-        sb.table("price_snapshots").upsert(rows[i : i + 500]).execute()
+        sb.table("price_snapshots").upsert(
+            rows[i : i + 500], returning="minimal"
+        ).execute()
+
+
+# Retention: price_snapshots is a rolling liveness log (read only by
+# health_check's "latest bar" probe — the ticker chart and analyze route
+# fetch history live from Alpaca, and get_recent_bars() has no callers).
+# Without pruning the table grows unbounded (~38k new rows/day) and marches
+# toward the free-tier 500MB DB cap. Keep a short window; a fresh restore's
+# backlog should be cleared once via 010_price_snapshots_retention.sql.
+PRICE_SNAPSHOT_KEEP_DAYS = int(os.getenv("PRICE_SNAPSHOT_KEEP_DAYS", "7"))
+
+
+def prune_price_snapshots(sb: Client, keep_days: int = PRICE_SNAPSHOT_KEEP_DAYS) -> int:
+    """Delete price_snapshots rows older than keep_days. Returns rows deleted
+    (best-effort — 0 if the count header is absent). Safe to run repeatedly."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    res = (
+        sb.table("price_snapshots")
+        .delete(returning="minimal", count="exact")
+        .lt("ts", cutoff)
+        .execute()
+    )
+    return getattr(res, "count", 0) or 0
 
 
 def insert_signals(sb: Client, rows: list[dict]) -> None:
@@ -44,6 +79,7 @@ def insert_signals(sb: Client, rows: list[dict]) -> None:
         rows,
         on_conflict="symbol,ts",
         ignore_duplicates=True,
+        returning="minimal",
     ).execute()
 
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -34,6 +34,15 @@ BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
 # making it into the DB. 25min gives ~10min margin past the feed's
 # delay while still rejecting truly stale data (e.g. weekend gaps).
 MAX_AGE_MIN = int(os.getenv("MAX_AGE_MIN", "25"))
+
+# Only PERSIST bars newer than this many minutes. Signal detection still runs
+# on the full fetched window (it needs the 20-bar volume average + prev close),
+# but re-writing the entire 5-day × 200-symbol window to Supabase every 5-min
+# cycle (~100k row-upserts/cycle) was the egress blowout that paused the
+# free-tier project. Older bars are already stored; the (symbol, ts) PK makes
+# re-writes pure waste. 30min comfortably exceeds the 5-min poll cadence + the
+# feed's ~15min delay, so no freshly-rolled bar is ever missed.
+PERSIST_MAX_AGE_MIN = int(os.getenv("PERSIST_MAX_AGE_MIN", "30"))
 
 # Loop-mode controls
 LOOP_MIN = int(os.getenv("LOOP_MIN", "0"))                # 0 = single shot
@@ -107,8 +116,15 @@ def run_once(sb, symbols: list[str]) -> tuple[int, int]:
             continue
 
         now = datetime.now(timezone.utc)
+        persist_cutoff = now - timedelta(minutes=PERSIST_MAX_AGE_MIN)
         for sym, df in frames.items():
-            all_price_rows.extend(_bars_to_rows(sym, df))
+            # Persist ONLY the newest bars (egress discipline — see
+            # PERSIST_MAX_AGE_MIN). Detection below still uses the full df.
+            try:
+                recent = df[df.index >= persist_cutoff]
+            except TypeError:
+                recent = df  # tz-naive index (non-Alpaca fetcher) — keep all
+            all_price_rows.extend(_bars_to_rows(sym, recent))
             signal = sig.detect_for_symbol(sym, df)
             if not signal:
                 continue

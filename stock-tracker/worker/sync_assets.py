@@ -73,7 +73,7 @@ def upsert_assets(sb, rows: list[dict]) -> None:
     if not rows:
         return
     for i in range(0, len(rows), 500):
-        sb.table("assets").upsert(rows[i : i + 500]).execute()
+        sb.table("assets").upsert(rows[i : i + 500], returning="minimal").execute()
 
 
 def main() -> int:

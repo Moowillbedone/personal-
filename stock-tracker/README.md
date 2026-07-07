@@ -120,3 +120,31 @@ stock-tracker/
 
 - 본 프로젝트는 **연구/취미 목적**입니다. 실제 투자 결정에 사용 시 발생하는 모든 손실은 사용자 책임입니다.
 - yfinance 는 비공식 Yahoo Finance scraper 라 갑자기 차단/스로틀될 수 있음. 그 경우 Finnhub free tier (`finnhub-python`) 로 어댑터를 추가하면 됨.
+
+## 장애 복구 & 프리티어 한도 관리
+
+### 증상: 사이트/텔레그램/트레이드 탭이 전부 죽음
+- `curl https://stock-tracker-khaki-mu.vercel.app/api/signal-stats` → `{"error":"TypeError: fetch failed"}`
+- `nslookup <project-ref>.supabase.co` → **NXDOMAIN**
+
+→ **Supabase 프로젝트가 일시정지(paused)된 상태.** 프리티어는 한도(egress 5GB/월 · DB 500MB) 초과 시
+프로젝트를 정지시키고, 정지되면 서브도메인이 DNS에서 사라져 워커·프론트의 모든 DB 호출이
+`fetch failed` 로 떨어진다. AI 분석(trade 탭)도 첫 줄에서 `ai_analysis` 캐시를 읽으므로 같이 죽는다.
+
+### 복구 순서
+1. **Supabase 대시보드 → 프로젝트 → Restore/Unpause** (콘솔에서만 가능, 코드로 불가).
+2. 복구 직후 **SQL Editor** 에서 [`supabase/migrations/010_price_snapshots_retention.sql`](./supabase/migrations/010_price_snapshots_retention.sql) 실행
+   → 쌓인 `price_snapshots` 백로그를 7일치만 남기고 삭제(용량 회복) + `ts` 인덱스 추가.
+3. Vercel/워커는 자동 복구됨(재배포 불필요).
+
+### 왜 한도를 넘었나 (2026-07 수정 완료)
+poll 워커가 **5분마다 200종목 × 5일치 봉(~10만 행)을 통째로 upsert** 했고, supabase-py 기본값이
+`return=representation` 이라 **그 10만 행을 매 사이클 응답으로 되돌려받아** 하루 수 GB egress 를 소모했다.
+
+수정:
+- `worker/lib/db.py` — 모든 write 에 `returning="minimal"` (응답 페이로드 제거).
+- `worker/poll.py` — `PERSIST_MAX_AGE_MIN`(기본 30분) 이내 봉만 저장. 시그널 감지는 여전히 전체 윈도우 사용.
+- `worker/refresh_universe.py` — 매일 `prune_price_snapshots()` 로 7일 초과분 삭제(`PRICE_SNAPSHOT_KEEP_DAYS`).
+
+효과: 사이클당 egress 가 ~수십 MB → **거의 0** 으로 떨어짐. `price_snapshots` 는 health_check 의
+freshness 프로브만 읽는 롤링 로그라(차트·분석은 Alpaca 라이브) 최근 봉만 저장해도 기능 영향 없음.
