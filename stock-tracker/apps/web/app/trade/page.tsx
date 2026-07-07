@@ -452,6 +452,19 @@ export default function TradePage() {
     [selected, watchlist],
   );
 
+  // Direct-ticker selection: let the user pick a ticker that isn't in the
+  // `assets` search index yet (brand-new listings like SPCX on IPO day lag
+  // the daily sync). The snapshot/analyze/bars APIs work for any valid
+  // ticker regardless of the index, so this never blocks a real symbol.
+  function selectTicker(sym: string) {
+    setSelected(sym);
+    setQuery("");
+    setHits([]);
+  }
+  const directSym = query.trim().toUpperCase();
+  const directValid = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(directSym);
+  const showDirect = directValid && !hits.some((h) => h.symbol === directSym);
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Global market clock — shows the user the current US session in their local time. */}
@@ -464,12 +477,27 @@ export default function TradePage() {
           <h2 className="text-xs uppercase text-neutral-400 mb-2">티커 검색</h2>
           <input
             type="text"
-            placeholder="AAPL, microsoft, ..."
+            placeholder="AAPL, SPCX, microsoft, ..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter selects the typed ticker directly (works even if the
+              // search index hasn't caught up to a new listing).
+              if (e.key === "Enter" && directValid) selectTicker(directSym);
+            }}
             className="w-full bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-sky-600"
           />
           {searching && <p className="text-xs text-neutral-500 mt-1">검색 중…</p>}
+          {showDirect && (
+            <button
+              onClick={() => selectTicker(directSym)}
+              className="mt-2 w-full text-left px-3 py-2 border border-sky-800 rounded bg-sky-950/40 hover:bg-sky-900/50 text-sm"
+              title="검색 목록에 없어도 티커를 직접 선택해 분석/기록"
+            >
+              <span className="font-semibold text-sky-300">「{directSym}」</span>
+              <span className="text-neutral-400"> 직접 선택 → (Enter) · 목록에 없어도 분석·기록 가능</span>
+            </button>
+          )}
           {hits.length > 0 && (
             <ul className="mt-2 border border-neutral-800 rounded divide-y divide-neutral-800 max-h-72 overflow-auto">
               {hits.map((h) => (
