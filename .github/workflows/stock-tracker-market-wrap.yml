@@ -1,0 +1,42 @@
+name: stock-tracker / market-wrap
+
+# 장 마감 정리 리포트 — 21:00 UTC Mon-Fri = KST 화~토 06:00 (US 마감 +1h).
+# ZERO Gemini calls (mechanical aggregation only) — see worker/market_wrap.py.
+#
+# Trigger: GitHub Actions native cron. Unlike ai-scan/backtest (which need
+# minute-precision and moved to cron-job.org), a morning wrap report arriving
+# anywhere 06:00~07:30 KST is fine, so GH cron's drift is acceptable and no
+# external scheduler setup is required. If a cron-job.org job is ever added
+# for this workflow, DELETE the schedule block below (duplicate-send
+# postmortem: ai-scan 2026-05-19).
+on:
+  schedule:
+    - cron: "0 21 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  wrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FRONT_URL: ${{ secrets.FRONT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python market_wrap.py
