@@ -58,10 +58,16 @@ def main() -> int:
     cutoff_iso = (
         datetime.now(timezone.utc) - timedelta(days=MIN_AGE_DAYS)
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Select ONLY context->>last_price, not the whole context jsonb. Rows
+    # waiting on realized_30d sit in this query for ~28 days after their 5d
+    # fill, and full context is ~3KB/row — selecting it re-downloaded
+    # megabytes of dead weight every run (~4×/day). The ->> path pulls the
+    # one scalar we actually use (~30B/row).
     res = (
         sb.table("ai_analysis")
         .select(
-            "id,symbol,created_at,context,realized_1d,realized_3d,realized_5d,realized_30d"
+            "id,symbol,created_at,last_price:context->>last_price,"
+            "realized_1d,realized_3d,realized_5d,realized_30d"
         )
         .or_("realized_5d.is.null,realized_30d.is.null")
         .lt("created_at", cutoff_iso)
@@ -115,8 +121,7 @@ def main() -> int:
 
         for r in rows:
             ts = pd.Timestamp(r["created_at"])
-            ctx = r.get("context") or {}
-            base_raw = ctx.get("last_price")
+            base_raw = r.get("last_price")  # aliased from context->>last_price
             if base_raw is None:
                 skipped_no_price += 1
                 continue
@@ -148,7 +153,11 @@ def main() -> int:
                 skipped_no_change += 1
                 continue
 
-            sb.table("ai_analysis").update(updates).eq("id", r["id"]).execute()
+            # minimal: ai_analysis rows are ~8KB (context+horizons jsonb) —
+            # echoing them back per update was real egress.
+            sb.table("ai_analysis").update(updates, returning="minimal").eq(
+                "id", r["id"]
+            ).execute()
             updated += 1
 
     print(

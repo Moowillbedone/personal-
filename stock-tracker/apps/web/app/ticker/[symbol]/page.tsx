@@ -37,7 +37,7 @@ export default function TickerPage({ params }: PageProps) {
           .catch(() => ({ bars: [] as PriceBar[] })),
         supabase
           .from("signals")
-          .select("*")
+          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
           .eq("symbol", sym)
           .order("ts", { ascending: false })
           .limit(20),

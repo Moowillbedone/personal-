@@ -66,13 +66,17 @@ def main() -> int:
         e1, e3, e5, n = bt.aggregate_expected(analogues)
         if n == 0:
             continue
+        # returning="minimal": the default return=representation echoes the
+        # FULL updated row (incl. recent_news_titles jsonb) back per update —
+        # pure egress waste at ~1KB × hundreds of rows × 4 runs/day.
         sb.table("signals").update(
             {
                 "expected_1d": e1,
                 "expected_3d": e3,
                 "expected_5d": e5,
                 "sample_size": n,
-            }
+            },
+            returning="minimal",
         ).eq("id", t["id"]).execute()
         updates += 1
 

@@ -140,7 +140,10 @@ def main() -> int:
                 skipped_partial += 1
                 continue
 
-            sb.table("signals").update(updates).eq("id", r["id"]).execute()
+            # minimal: don't echo the full row back per update (egress).
+            sb.table("signals").update(updates, returning="minimal").eq(
+                "id", r["id"]
+            ).execute()
             updated += 1
 
     print(

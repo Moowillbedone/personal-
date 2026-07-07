@@ -168,3 +168,16 @@ poll 워커가 **5분마다 200종목 × 5일치 봉(~10만 행)을 통째로 up
 
 효과: 사이클당 egress 가 ~수십 MB → **거의 0** 으로 떨어짐. `price_snapshots` 는 health_check 의
 freshness 프로브만 읽는 롤링 로그라(차트·분석은 Alpaca 라이브) 최근 봉만 저장해도 기능 영향 없음.
+
+### 지속 가능성 감사 (2026-07, 2차)
+실측(시그널 ~330건/일 · AI 분석 ~50건/일) 기준 잔여 부하까지 제거:
+- **백필 워커 에코백 제거** — backtest/realize/ai_realize 의 `.update()` 가 기본값으로 수정된
+  행 전체(ai_analysis 는 ~8KB)를 되돌려받던 것 → 전부 `returning="minimal"`.
+- **ai_realize slim select** — 30d 백필 대기 행이 최대 35일간 매 run 마다 context jsonb(~3KB)를
+  통째로 재다운로드하던 것 → `context->>last_price` 스칼라만 선택 (~20MB/일 → ~0.5MB/일).
+- **/signals 페이지** — `select("*")` 가 렌더링하지 않는 뉴스 jsonb 포함 ~1KB/행을 당기던 것 →
+  명시적 컬럼 (~150B/행, 방문당 6배 절감).
+- **영구 스토리지 상한(retention)** — `refresh_universe.py` 가 매일: signals 400일 초과 삭제,
+  ai_analysis context 120일 후 NULL(행의 ⅓~½), ai_analysis 400일 초과 삭제. FK 는 모두
+  on-delete-set-null 이라 trade_log 는 안전. `/stats` 최대 lookback(365일) < 400일이라 기능 무손실.
+  → **정상 상태 DB ~180MB / 월 egress ~수백 MB 로 수렴** (한도 500MB / 5GB 대비 안전).

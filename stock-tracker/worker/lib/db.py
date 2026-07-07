@@ -61,6 +61,70 @@ def prune_price_snapshots(sb: Client, keep_days: int = PRICE_SNAPSHOT_KEEP_DAYS)
     return getattr(res, "count", 0) or 0
 
 
+# ── Long-horizon retention (2026-07 sustainability audit) ───────────────────
+# Growth math at steady state (~330 signals/day, ~50 ai_analysis/day):
+#   signals     ~650B/row w/ indexes → ~80MB/year unbounded
+#   ai_analysis ~9KB/row (context+horizons jsonb) → ~160MB/year unbounded
+# Unbounded, the 500MB free-tier DB cap is hit in ~2 years. The windows below
+# bound both tables to a steady state (~180MB total) while keeping every
+# consumer working: /stats max lookback is 365d (< 400d), ai_realize needs
+# context.last_price only until realized_30d fills (~40d < 120d), and
+# rec-performance slippage on trades older than the context window degrades
+# to null (already handled in that route).
+SIGNALS_KEEP_DAYS = int(os.getenv("SIGNALS_KEEP_DAYS", "400"))
+AI_ANALYSIS_KEEP_DAYS = int(os.getenv("AI_ANALYSIS_KEEP_DAYS", "400"))
+AI_CONTEXT_KEEP_FULL_DAYS = int(os.getenv("AI_CONTEXT_KEEP_FULL_DAYS", "120"))
+
+
+def prune_signals(sb: Client, keep_days: int = SIGNALS_KEEP_DAYS) -> int:
+    """Delete signals older than keep_days. trade_log.signal_id FK is
+    on-delete-set-null, so journal rows survive. Safe to re-run."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    res = (
+        sb.table("signals")
+        .delete(returning="minimal", count="exact")
+        .lt("ts", cutoff)
+        .execute()
+    )
+    return getattr(res, "count", 0) or 0
+
+
+def slim_ai_analysis_context(
+    sb: Client, keep_full_days: int = AI_CONTEXT_KEEP_FULL_DAYS
+) -> int:
+    """NULL out the fat context jsonb on ai_analysis rows older than
+    keep_full_days. context is ~⅓–½ of each row; verdict/summary/horizons
+    (what /stats and /trade actually render for history) are kept intact."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_full_days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    res = (
+        sb.table("ai_analysis")
+        .update({"context": None}, returning="minimal", count="exact")
+        .lt("created_at", cutoff)
+        .not_.is_("context", "null")
+        .execute()
+    )
+    return getattr(res, "count", 0) or 0
+
+
+def prune_ai_analysis(sb: Client, keep_days: int = AI_ANALYSIS_KEEP_DAYS) -> int:
+    """Delete ai_analysis rows older than keep_days. trade_log.ai_analysis_id
+    FK is on-delete-set-null, so journal rows survive."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    res = (
+        sb.table("ai_analysis")
+        .delete(returning="minimal", count="exact")
+        .lt("created_at", cutoff)
+        .execute()
+    )
+    return getattr(res, "count", 0) or 0
+
+
 def insert_signals(sb: Client, rows: list[dict]) -> None:
     """signals 테이블에 새 시그널 행 추가.
 

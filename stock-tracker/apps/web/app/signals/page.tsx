@@ -145,7 +145,10 @@ export default function Page() {
       const [sigRes, tickRes] = await Promise.all([
         supabase
           .from("signals")
-          .select("*")
+          // Explicit columns — select("*") pulled recent_news_titles jsonb +
+          // realized_* that this page never renders (~1KB/row → ~150B/row,
+          // a 6x egress cut on every 500-row page load).
+          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
           .order("ts", { ascending: false })
           .limit(PAGE_SIZE),
         supabase.from("tickers").select("symbol,exchange,name,rank_in_exch"),
@@ -198,7 +201,7 @@ export default function Page() {
       const cursor = signals[signals.length - 1].ts;
       const { data, error } = await supabase
         .from("signals")
-        .select("*")
+        .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
         .lt("ts", cursor)
         .order("ts", { ascending: false })
         .limit(PAGE_SIZE);
