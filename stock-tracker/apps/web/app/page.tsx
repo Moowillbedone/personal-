@@ -6,13 +6,12 @@
 //   1. RegimeBanner    — market traffic light (QQQ trend + VIX) + mode advice.
 //   2. PositionsRx     — open positions with mechanical prescriptions
 //                        (분할익절 / 물타기 / 손절 / decay), regime-gated.
-//   3. SectorStrength  — where the money is rotating (kept from /stats,
-//                        mounted here because it drives WHAT to trade).
-//   4. SignalsTeaser   — latest raw signals, link to /signals for the full list.
+//   3. SectorStrength  — where the money is rotating (all sectors expanded),
+//                        the primary "what to trade" panel.
+// (Raw signals live on the /signals tab — intentionally not on the dashboard.)
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import SectorStrengthPanel from "@/app/stats/SectorStrengthPanel";
 import {
   prescribe,
@@ -81,13 +80,9 @@ interface PositionsResp {
   error?: string;
 }
 
-interface SignalRow {
-  id: string;
-  ts: string;
-  symbol: string;
-  signal_type: "gap_up" | "gap_down" | "volume_spike";
-  pct_change: number;
-  volume_ratio: number;
+interface AvgOverride {
+  avg: number;
+  updatedAt: string; // ISO — when the override was set (for cycle gating)
 }
 
 const SEV_STYLE: Record<Prescription["severity"], string> = {
@@ -238,15 +233,61 @@ function PositionsRx({
   loading,
   error,
   onChanged,
+  overrides,
 }: {
   positions: Position[];
   regime: Regime | null; // null = 레짐 조회 실패 → 물타기 게이트 fail-closed
   loading: boolean;
   error: string | null;
   onChanged: () => void;
+  overrides: Record<string, AvgOverride>; // symbol → manual avg-cost override
 }) {
   const open = positions.filter((p) => p.openQty > 1e-9 && p.mode === "real");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Persist a manual average-cost override (migration 011). The derived
+  // avg is wrong when the journal is incomplete; this pins the correct one
+  // and the prescription recomputes from it. onChanged() reloads positions
+  // + overrides so the card reflects the new basis immediately.
+  async function saveOverride(symbol: string) {
+    const avg = Number(editVal);
+    if (!Number.isFinite(avg) || avg <= 0) {
+      window.alert("평단가는 0보다 큰 숫자여야 합니다.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/positions/override", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symbol, avg_cost: avg }),
+      });
+      if (!res.ok) {
+        window.alert("평단 저장에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      setEditing(null);
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearOverride(symbol: string) {
+    setSaving(true);
+    try {
+      await fetch(`/api/positions/override?symbol=${encodeURIComponent(symbol)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+      setEditing(null);
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // "삭제": the user already exited this IRL but never journaled the close,
   // so the card lingers on a stale open position. Delete EXACTLY the current
@@ -277,6 +318,11 @@ function PositionsRx({
             .catch(() => false),
         ),
       );
+      // Clear any manual override too, so it doesn't silently reapply if the
+      // symbol is re-entered later (best-effort, non-blocking).
+      fetch(`/api/positions/override?symbol=${encodeURIComponent(p.symbol)}`, {
+        method: "DELETE",
+      }).catch(() => {});
       onChanged(); // reload either way so the UI reflects the true state
       const failed = oks.filter((ok) => !ok).length;
       if (failed > 0) {
@@ -316,10 +362,20 @@ function PositionsRx({
         <div className="grid gap-3 md:grid-cols-2">
           {open.map((p) => {
             const cyc = openCycleBuys(p.trades ?? []);
-            // Judge prescriptions against the OPEN CYCLE's average cost
-            // (falls back to the lifetime basis only when cycle math is
-            // unavailable, e.g. sells-without-recorded-buys history).
-            const avgCost = cyc.avgCost ?? p.avgBuyPrice ?? null;
+            // Prescription basis, in priority order:
+            //   1. manual override (user-pinned correct avg cost)
+            //   2. open-cycle weighted avg
+            //   3. lifetime avg (fallback)
+            const derivedAvg = cyc.avgCost ?? p.avgBuyPrice ?? null;
+            const ov = overrides[p.symbol];
+            // Honor the override ONLY if it was set during the CURRENT open
+            // cycle. A pin from a prior (since-closed) cycle must not reapply
+            // to a fresh re-entry — that would show a bogus P&L/prescription.
+            const hasOverride =
+              ov != null &&
+              ov.avg > 0 &&
+              (cyc.firstTs == null || ov.updatedAt >= cyc.firstTs);
+            const avgCost = hasOverride ? ov.avg : derivedAvg;
             const cyclePct =
               p.currentPrice != null && avgCost != null && avgCost > 0
                 ? p.currentPrice / avgCost - 1
@@ -344,6 +400,11 @@ function PositionsRx({
                     <span className={`px-2 py-0.5 border rounded text-xs ${SEV_STYLE[rx.severity]}`}>
                       {rx.badge}
                     </span>
+                    {hasOverride && (
+                      <span className="text-[10px] px-1.5 py-0.5 border border-sky-800 rounded text-sky-300" title="평단이 수동 수정된 상태">
+                        평단 수정됨
+                      </span>
+                    )}
                     {p.priceStale && (
                       <span className="text-[10px] text-amber-500">⚠ 시세 지연</span>
                     )}
@@ -362,10 +423,63 @@ function PositionsRx({
                     </button>
                   </div>
                 </div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {p.openQty.toLocaleString()}주 · 평단 {fmtMoney(avgCost)}
-                  {cyc.avgCost == null && p.avgBuyPrice != null ? " (누적)" : ""} · 현재{" "}
-                  {fmtMoney(p.currentPrice)} · 트랜치 {Math.max(1, cyc.count)}/{DEFAULT_RX.maxTranches}
+                <div className="mt-1 text-xs text-neutral-500 flex items-center flex-wrap gap-x-1.5 gap-y-1">
+                  <span>{p.openQty.toLocaleString()}주 · 평단 {fmtMoney(avgCost)}</span>
+                  {hasOverride ? (
+                    <span className="text-neutral-600">(수정, 자동 {fmtMoney(derivedAvg)})</span>
+                  ) : cyc.avgCost == null && p.avgBuyPrice != null ? (
+                    <span className="text-neutral-600">(누적)</span>
+                  ) : null}
+                  {editing === p.symbol ? (
+                    <span className="inline-flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        autoFocus
+                        value={editVal}
+                        onChange={(e) => setEditVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveOverride(p.symbol);
+                          if (e.key === "Escape") setEditing(null);
+                        }}
+                        placeholder="평단"
+                        className="w-20 bg-neutral-900 border border-sky-700 rounded px-1.5 py-0.5 text-right text-neutral-200"
+                      />
+                      <button
+                        onClick={() => saveOverride(p.symbol)}
+                        disabled={saving}
+                        className="px-1.5 py-0.5 border border-sky-700 rounded text-sky-300 hover:bg-sky-900/40 disabled:opacity-40"
+                      >
+                        저장
+                      </button>
+                      <button onClick={() => setEditing(null)} className="px-1.5 py-0.5 text-neutral-500 hover:text-neutral-300">
+                        취소
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditVal(avgCost != null ? String(Number(avgCost.toFixed(4))) : "");
+                        setEditing(p.symbol);
+                      }}
+                      className="text-sky-400 hover:underline"
+                      title="현재 평단가를 수정하면 처방이 새 평단 기준으로 갱신됩니다"
+                    >
+                      ✏️ 평단 수정
+                    </button>
+                  )}
+                  {hasOverride && editing !== p.symbol && (
+                    <button
+                      onClick={() => clearOverride(p.symbol)}
+                      disabled={saving}
+                      className="text-neutral-500 hover:text-neutral-300 disabled:opacity-40"
+                      title="수정 취소 — 기록 기반 자동 평단으로 되돌림"
+                    >
+                      되돌리기
+                    </button>
+                  )}
+                  <span>· 현재 {fmtMoney(p.currentPrice)} · 트랜치 {Math.max(1, cyc.count)}/{DEFAULT_RX.maxTranches}</span>
                 </div>
                 <div className="mt-2 text-sm text-neutral-200">{rx.action}</div>
                 <p className="mt-1 text-xs text-neutral-500 leading-relaxed">{rx.detail}</p>
@@ -378,80 +492,31 @@ function PositionsRx({
   );
 }
 
-const TYPE_BADGE: Record<SignalRow["signal_type"], string> = {
-  gap_up: "text-emerald-400",
-  gap_down: "text-rose-400",
-  volume_spike: "text-amber-400",
-};
-
-function SignalsTeaser({ rows }: { rows: SignalRow[] }) {
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base font-semibold">⚡ 최근 시그널</h2>
-        <Link href="/signals" className="text-xs text-sky-400 hover:underline">
-          전체 보기 →
-        </Link>
-      </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-neutral-500 border border-neutral-800 rounded-lg p-4">
-          최근 시그널이 없습니다.
-        </p>
-      ) : (
-        <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800/70 text-sm">
-          {rows.map((s) => (
-            <div key={s.id} className="flex items-center justify-between px-3 py-2">
-              <div className="flex items-center gap-3">
-                <span className="text-neutral-500 text-xs w-24">
-                  {new Date(s.ts).toLocaleString("ko-KR", {
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                <Link
-                  href={`/ticker/${s.symbol}`}
-                  className="font-semibold text-sky-300 hover:underline"
-                >
-                  {s.symbol}
-                </Link>
-                <span className={`text-xs ${TYPE_BADGE[s.signal_type]}`}>{s.signal_type}</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className={pctClass(s.pct_change)}>{fmtPct(s.pct_change, 2)}</span>
-                <span className="text-neutral-500">vol×{s.volume_ratio.toFixed(1)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 export default function DashboardPage() {
   const [regime, setRegime] = useState<RegimeResp | null>(null);
   const [regimeLoading, setRegimeLoading] = useState(true);
   const [positions, setPositions] = useState<Position[]>([]);
   const [posLoading, setPosLoading] = useState(true);
   const [posError, setPosError] = useState<string | null>(null);
-  const [signals, setSignals] = useState<SignalRow[]>([]);
+  // symbol → { avg cost, when it was set }. updatedAt lets the card ignore an
+  // override left over from a PRIOR closed cycle (see AvgOverride usage).
+  const [overrides, setOverrides] = useState<Record<string, AvgOverride>>({});
 
   const load = useCallback(async () => {
     setRegimeLoading(true);
     setPosLoading(true);
     setPosError(null);
-    const [regRes, posRes, sigRes] = await Promise.allSettled([
+    const [regRes, posRes, ovrRes] = await Promise.allSettled([
       fetch("/api/regime").then((r) => r.json() as Promise<RegimeResp>),
       fetch("/api/trades/positions?mode=real&lookback=3650").then(
         (r) => r.json() as Promise<PositionsResp>,
       ),
-      supabase
-        .from("signals")
-        .select("id,ts,symbol,signal_type,pct_change,volume_ratio")
-        .order("ts", { ascending: false })
-        .limit(10),
+      fetch("/api/positions/override").then(
+        (r) =>
+          r.json() as Promise<{
+            overrides?: { symbol: string; avg_cost: number; updated_at: string }[];
+          }>,
+      ),
     ]);
     if (regRes.status === "fulfilled") setRegime(regRes.value);
     setRegimeLoading(false);
@@ -462,8 +527,12 @@ export default function DashboardPage() {
       setPosError("포지션 조회 실패");
     }
     setPosLoading(false);
-    if (sigRes.status === "fulfilled" && !sigRes.value.error) {
-      setSignals((sigRes.value.data as SignalRow[]) ?? []);
+    if (ovrRes.status === "fulfilled" && ovrRes.value.overrides) {
+      const map: Record<string, AvgOverride> = {};
+      for (const o of ovrRes.value.overrides) {
+        map[o.symbol] = { avg: Number(o.avg_cost), updatedAt: o.updated_at };
+      }
+      setOverrides(map);
     }
   }, []);
 
@@ -494,9 +563,9 @@ export default function DashboardPage() {
         loading={posLoading}
         error={posError}
         onChanged={load}
+        overrides={overrides}
       />
       <SectorStrengthPanel />
-      <SignalsTeaser rows={signals} />
 
       <p className="text-xs text-neutral-600">
         처방은 기계적 규칙(기본값) 기반 참고 정보이며 투자 판단의 책임은 본인에게 있습니다. 물타기

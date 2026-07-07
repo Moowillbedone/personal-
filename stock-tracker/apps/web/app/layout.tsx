@@ -1,17 +1,42 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import RegisterSW from "./register-sw";
 
 export const metadata: Metadata = {
   title: "Stock Tracker — 스윙 콘솔",
   description:
     "2x leveraged-ETF swing console: market regime, sector money flow, tranche prescriptions, NDX-100 signals",
+  applicationName: "스윙콘솔",
+  // Installable-app metadata (iOS Safari standalone + home-screen icon).
+  appleWebApp: {
+    capable: true,
+    title: "스윙콘솔",
+    statusBarStyle: "black-translucent",
+  },
+  // Next 15 emits only the modern `mobile-web-app-capable`; add the legacy
+  // apple-prefixed tag too so older iOS Safari also launches standalone.
+  other: { "apple-mobile-web-app-capable": "yes" },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0d12",
+  // Fill the notch/safe areas so it reads as a native app when launched
+  // from the home screen in standalone mode.
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
       <body className="font-mono">
+        <RegisterSW />
         <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/" className="text-lg font-semibold tracking-tight">

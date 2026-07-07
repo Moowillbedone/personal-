@@ -269,7 +269,9 @@ export default function SectorStrengthPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showAll, setShowAll] = useState(false);
+  // Default to showing ALL sectors (19) — the dashboard promotes money-flow
+  // as a primary panel, so show the full list, not a top-5 teaser (2026-07).
+  const [showAll, setShowAll] = useState(true);
   const [sortBy, setSortBy] = useState<SortKey>("strength");
   const [refreshing, setRefreshing] = useState(false);
   const didAutoExpand = useRef(false);
