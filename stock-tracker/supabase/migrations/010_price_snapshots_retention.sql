@@ -1,39 +1,44 @@
 -- 010: bound price_snapshots growth + speed up retention/liveness queries
 --
 -- Context: price_snapshots was the source of the free-tier blowout that
--- paused this project. Two problems, two fixes:
---   1) EGRESS — the poll worker re-wrote the full 5-day × 200-symbol window
---      every 5 min and PostgREST echoed all ~100k rows back each cycle.
---      Fixed in code (worker/lib/db.py: returning="minimal";
---      worker/poll.py: persist only bars < PERSIST_MAX_AGE_MIN old).
---   2) STORAGE — the table grew unbounded (~38k new rows/day) toward the
---      500MB DB cap. Fixed by the retention below + worker daily prune
---      (refresh_universe.py calls db.prune_price_snapshots()).
+-- paused this project. Two SEPARATE limits, don't conflate them:
+--   * EGRESS (5GB/mo bandwidth) — the actual thing that tripped the pause.
+--     Cause: poll re-wrote the full 5-day × 200-symbol window every 5 min and
+--     PostgREST echoed all ~100k rows back each cycle. Fixed IN CODE only
+--     (worker/lib/db.py returning="minimal"; poll.py PERSIST_MAX_AGE_MIN).
+--     Nothing in THIS file affects egress — egress resets each billing month.
+--   * STORAGE (500MB DB) — a slower, separate concern. Bounded by the
+--     retention below + the worker's daily db.prune_price_snapshots().
 --
--- Run this ONCE in the Supabase SQL editor after restoring the project.
+-- ── HOW TO RUN in the Supabase SQL editor ────────────────────────────────
+-- The editor wraps a multi-statement run in ONE transaction, and VACUUM
+-- cannot run in a transaction. So run STEP 1 (index + delete) as one shot,
+-- then STEP 2 (vacuum) SEPARATELY, and only if storage is actually the
+-- constraint. STEP 3 is optional automation.
 
--- 1) Index on ts alone. Serves both the retention DELETE (ts < cutoff) and
---    health_check's global "latest bar" probe (order by ts desc limit 1),
---    neither of which the existing (symbol, ts) composite index can satisfy
---    efficiently.
+-- ===== STEP 1 — paste + Run (safe together) ==============================
 create index if not exists price_snapshots_ts_idx
   on public.price_snapshots (ts desc);
 
--- 2) ONE-TIME cleanup of the backlog that bloated the table. Keeps 7 days.
---    If the table is very large this DELETE may take a while and generate a
---    lot of WAL — run it in the SQL editor, not via the API. Safe to re-run.
---    (For a huge table you can loop in smaller batches, e.g. delete the
---    oldest month first, but a single statement is usually fine.)
 delete from public.price_snapshots
   where ts < now() - interval '7 days';
+-- If this DELETE times out on a large backlog, delete oldest-first in chunks,
+-- e.g. repeatedly:  delete from public.price_snapshots
+--                   where ts < now() - interval '7 days'
+--                   and ctid = any (array(
+--                     select ctid from public.price_snapshots
+--                     where ts < now() - interval '7 days' limit 100000));
 
--- After a large delete, reclaim space + refresh planner stats.
--- (VACUUM cannot run inside a transaction block; run this line on its own.)
-vacuum analyze public.price_snapshots;
+-- ===== STEP 2 — OPTIONAL, run BY ITSELF (paste only this line, then Run) ==
+-- Only worth it if the DB size (Dashboard → Settings → Usage, or
+--   select pg_size_pretty(pg_database_size(current_database())); )
+-- is near the 500MB cap. VACUUM FULL rewrites the table to actually return
+-- disk to the OS (plain VACUUM does not). It takes an ACCESS EXCLUSIVE lock
+-- and needs free headroom, so run it while the app is idle.
+--   vacuum full analyze public.price_snapshots;
 
--- 3) OPTIONAL — automate nightly retention with pg_cron (included on Supabase
---    free tier) so pruning happens even if the worker misses a day. The
---    worker already prunes daily, so this is belt-and-suspenders. Uncomment:
+-- ===== STEP 3 — OPTIONAL nightly automation via pg_cron (free tier) =======
+-- Belt-and-suspenders; the worker already prunes daily. Uncomment to enable:
 -- create extension if not exists pg_cron;
 -- select cron.schedule(
 --   'prune_price_snapshots',
