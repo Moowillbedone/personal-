@@ -181,13 +181,22 @@ async function fetchBars(symbol: string, timeframe: string, days: number, limit:
     //                chart rendering and analyze-route bar context.
     // See worker/lib/alpaca.py for full rationale (diagnosed 2026-05-19).
   });
-  const r = await fetch(`${DATA_BASE}/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`, {
-    headers: headers(),
-    cache: "no-store",
-  });
-  if (!r.ok) return [];
-  const data = (await r.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> };
-  return (data.bars ?? []).map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
+  try {
+    const r = await fetch(`${DATA_BASE}/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`, {
+      headers: headers(),
+      cache: "no-store",
+      // Same 8s ceiling as the other Alpaca helpers (getDailyVolumeStats,
+      // getNewsForSymbols, ...). Without it a slow-but-connected Alpaca
+      // incident hangs /api/regime and /api/bars until Vercel kills the
+      // function; with it we fall through to the []-on-failure contract.
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const data = (await r.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> };
+    return (data.bars ?? []).map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
+  } catch {
+    return []; // timeout / network error — same degraded path as HTTP failure
+  }
 }
 
 /**

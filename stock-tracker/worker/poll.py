@@ -17,7 +17,15 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from dotenv import load_dotenv
 
-from lib import alpaca, data, db, news, notify, signals as sig
+# load_dotenv MUST run before `from lib import ...`: notify.py reads
+# TELEGRAM_*/NOTIFY_TYPES at import time (module-level constants), as do
+# this module's own MAX_AGE_MIN/LOOP_MIN below. Calling it inside main()
+# (the old placement) meant a local .env was silently ignored for all of
+# those — telegram would no-op with no error. GH Actions is unaffected
+# (job env exists before Python starts) but local runs need this order.
+load_dotenv()
+
+from lib import alpaca, data, db, news, notify, signals as sig  # noqa: E402
 
 BATCH_SIZE = 100  # Alpaca multi-symbol query supports ~100/call
 
@@ -181,7 +189,6 @@ def run_once(sb, symbols: list[str]) -> tuple[int, int]:
 
 
 def main() -> int:
-    load_dotenv()
     sb = db.client()
 
     symbols = db.get_active_symbols(sb)

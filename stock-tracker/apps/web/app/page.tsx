@@ -165,33 +165,59 @@ function Metric({ label, value, cls }: { label: string; value: string; cls?: str
   );
 }
 
-// Buys in the CURRENT open cycle: walk fills oldest→newest, reset the
-// counter whenever openQty crosses to ~0 (a closed round trip). This keeps
-// tranche counting honest across re-entry cycles despite the lifetime
-// weighted-average convention in lib/trades.ts.
-function openCycleBuys(trades: PositionTrade[]): { count: number; firstTs: string | null } {
-  const asc = [...trades].sort((a, b) => (a.ts < b.ts ? -1 : 1));
+// CURRENT open cycle state: walk fills oldest→newest, resetting whenever
+// openQty crosses to ~0 (a closed round trip). Returns BOTH the tranche
+// count AND the cycle's own weighted-average cost. The cycle avg cost is
+// essential: lib/trades.ts avgBuyPrice is a LIFETIME average that never
+// resets after a closed cycle, so judging ±10/20/30% prescription lines
+// against it inverts prescriptions after any re-entry at a different price
+// (e.g. old cycle @$100 closed, re-entered @$50, now $60 → lifetime basis
+// says -20% "물타기" when the open position is actually +20% "익절").
+//
+// Tie-break on identical timestamps (bulk backfill stamps all same-day
+// fills at local noon): process SELLS before BUYS. That only changes the
+// outcome for a same-day close-then-re-enter, where reset-first is correct;
+// a same-day open-then-full-close ends flat and is filtered out anyway.
+function openCycleBuys(trades: PositionTrade[]): {
+  count: number;
+  firstTs: string | null;
+  avgCost: number | null;
+} {
+  const asc = [...trades].sort((a, b) =>
+    a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : a.action === b.action ? 0 : a.action === "sell" ? -1 : 1,
+  );
   let qty = 0;
+  let cost = 0;
   let count = 0;
   let firstTs: string | null = null;
   for (const t of asc) {
     if (t.action === "buy") {
       if (qty <= 1e-9) {
+        qty = 0;
+        cost = 0;
         count = 0;
         firstTs = t.ts;
       }
       qty += t.qty;
+      cost += t.qty * t.price;
       count += 1;
     } else {
+      const avg = qty > 1e-9 ? cost / qty : 0;
       qty -= t.qty;
+      cost -= t.qty * avg;
       if (qty <= 1e-9) {
         qty = 0;
+        cost = 0;
         count = 0;
         firstTs = null;
       }
     }
   }
-  return { count, firstTs };
+  return {
+    count,
+    firstTs,
+    avgCost: qty > 1e-9 && cost > 0 ? cost / qty : null,
+  };
 }
 
 function PositionsRx({
@@ -201,7 +227,7 @@ function PositionsRx({
   error,
 }: {
   positions: Position[];
-  regime: Regime;
+  regime: Regime | null; // null = 레짐 조회 실패 → 물타기 게이트 fail-closed
   loading: boolean;
   error: string | null;
 }) {
@@ -233,8 +259,16 @@ function PositionsRx({
         <div className="grid gap-3 md:grid-cols-2">
           {open.map((p) => {
             const cyc = openCycleBuys(p.trades ?? []);
+            // Judge prescriptions against the OPEN CYCLE's average cost
+            // (falls back to the lifetime basis only when cycle math is
+            // unavailable, e.g. sells-without-recorded-buys history).
+            const avgCost = cyc.avgCost ?? p.avgBuyPrice ?? null;
+            const cyclePct =
+              p.currentPrice != null && avgCost != null && avgCost > 0
+                ? p.currentPrice / avgCost - 1
+                : (p.unrealizedPct ?? null);
             const rx = prescribe({
-              unrealizedPct: p.unrealizedPct ?? null,
+              unrealizedPct: cyclePct,
               buyFillCount: Math.max(1, cyc.count),
               openQty: p.openQty,
               firstBuyTs: cyc.firstTs,
@@ -257,12 +291,13 @@ function PositionsRx({
                       <span className="text-[10px] text-amber-500">⚠ 시세 지연</span>
                     )}
                   </div>
-                  <span className={`text-lg font-semibold ${pctClass(p.unrealizedPct)}`}>
-                    {fmtPct(p.unrealizedPct)}
+                  <span className={`text-lg font-semibold ${pctClass(cyclePct)}`}>
+                    {fmtPct(cyclePct)}
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-neutral-500">
-                  {p.openQty.toLocaleString()}주 · 평단 {fmtMoney(p.avgBuyPrice)} · 현재{" "}
+                  {p.openQty.toLocaleString()}주 · 평단 {fmtMoney(avgCost)}
+                  {cyc.avgCost == null && p.avgBuyPrice != null ? " (누적)" : ""} · 현재{" "}
                   {fmtMoney(p.currentPrice)} · 트랜치 {Math.max(1, cyc.count)}/{DEFAULT_RX.maxTranches}
                 </div>
                 <div className="mt-2 text-sm text-neutral-200">{rx.action}</div>
@@ -369,7 +404,9 @@ export default function DashboardPage() {
     load();
   }, [load]);
 
-  const effectiveRegime: Regime = regime?.regime ?? "neutral";
+  // Fail CLOSED: when the regime lookup failed, pass null so the
+  // prescription engine blocks 물타기 instead of assuming "neutral".
+  const effectiveRegime: Regime | null = regime?.regime ?? null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -395,7 +432,8 @@ export default function DashboardPage() {
 
       <p className="text-xs text-neutral-600">
         처방은 기계적 규칙(기본값) 기반 참고 정보이며 투자 판단의 책임은 본인에게 있습니다. 물타기
-        처방은 시장 레짐이 risk-off일 때 자동 차단됩니다.
+        처방은 시장 레짐이 risk-off이거나 <b>레짐 조회에 실패했을 때</b> 자동 차단됩니다(fail-closed).
+        손익률·평단은 현재 열린 사이클 기준입니다.
       </p>
     </div>
   );

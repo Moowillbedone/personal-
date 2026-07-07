@@ -61,11 +61,13 @@ export interface Prescription {
 }
 
 export interface RxInput {
-  unrealizedPct: number | null; // fraction (0.12 = +12%) — from /api/trades/positions
+  unrealizedPct: number | null; // fraction (0.12 = +12%) — OPEN-CYCLE basis
   buyFillCount: number;         // number of BUY fills = tranches used
   openQty: number;
   firstBuyTs?: string | null;   // ISO of the earliest open-cycle buy (for time stop)
-  regime: Regime;
+  // null = regime lookup FAILED. The 물타기 gate fails CLOSED on null:
+  // unknown regime must never green-light averaging down a 2x ETF.
+  regime: Regime | null;
 }
 
 function daysBetween(iso: string, now: Date): number {
@@ -132,6 +134,18 @@ export function prescribe(
     };
   }
   if (pct <= rx.avgDown) {
+    if (regime == null) {
+      return {
+        level: "avg_blocked",
+        severity: "danger",
+        badge: "레짐 미확인",
+        action: `평가 ${pctLabel} — 레짐 조회 실패: 물타기 보류 (fail-closed)`,
+        detail:
+          `물타기 구간(${(rx.avgDown * 100).toFixed(0)}% 이하)이지만 시장 레짐을 확인할 수 ` +
+          `없습니다. 레짐 불명 상태에서 2배 ETF 트랜치 투입은 금지 — 새로고침으로 레짐 조회가 ` +
+          `복구된 뒤 재판단하세요.`,
+      };
+    }
     if (regime === "risk_off") {
       return {
         level: "avg_blocked",
