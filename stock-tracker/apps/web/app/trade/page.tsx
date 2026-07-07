@@ -813,6 +813,9 @@ export default function TradePage() {
                   </div>
                 )}
 
+                {/* 매매 플랜 — 언제 사고 언제 팔지 (context.trade_plan, ATR 검증 통과분) */}
+                <TradePlanCard analysis={result.analysis} />
+
                 {/* long-term horizons (3m / 6m / 1y) */}
                 {result.analysis.horizons && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1080,6 +1083,74 @@ function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?
           </div>
         </details>
       ) : null}
+    </div>
+  );
+}
+
+// "언제 사고 언제 팔지" — analyze가 검증까지 마친 trade_plan을 렌더.
+// 플랜이 없는(구버전) 분석 행에선 아무것도 그리지 않음.
+interface TradePlanShape {
+  entry_low: number;
+  entry_high: number;
+  stop: number;
+  target_1: number;
+  target_2: number;
+  horizon_days: number;
+  note: string;
+}
+function readTradePlan(analysis: AiAnalysis): TradePlanShape | null {
+  const raw = (analysis.context as { trade_plan?: unknown } | null)?.trade_plan;
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Partial<TradePlanShape>;
+  const nums = [p.entry_low, p.entry_high, p.stop, p.target_1, p.target_2];
+  if (nums.some((v) => typeof v !== "number" || !isFinite(v))) return null;
+  return p as TradePlanShape;
+}
+
+function TradePlanCard({ analysis }: { analysis: AiAnalysis }) {
+  const plan = readTradePlan(analysis);
+  if (!plan) return null;
+  const v = analysis.verdict;
+  const frame =
+    v === "buy"
+      ? "border-emerald-800 bg-emerald-950/30"
+      : v === "sell"
+        ? "border-rose-800 bg-rose-950/30"
+        : "border-neutral-800 bg-neutral-900/30";
+  const entryLabel = v === "buy" ? "진입 존" : v === "sell" ? "반등 매도 존" : "진입 대기 존";
+  return (
+    <div className={`border rounded-lg p-4 ${frame}`}>
+      <div className="text-xs uppercase tracking-wider text-neutral-500 mb-3">
+        📋 매매 플랜 — 언제 사고 언제 팔지 (기초자산 가격 기준)
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm">
+        <div>
+          <div className="text-xs text-neutral-500">📍 {entryLabel}</div>
+          <div className="font-semibold text-sky-300">
+            ${plan.entry_low.toFixed(2)} ~ ${plan.entry_high.toFixed(2)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-neutral-500">🎯 목표 (1차 / 2차)</div>
+          <div className="font-semibold text-emerald-400">
+            ${plan.target_1.toFixed(2)} / ${plan.target_2.toFixed(2)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-neutral-500">🛑 손절</div>
+          <div className="font-semibold text-rose-400">${plan.stop.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-neutral-500">⏳ 예상 보유</div>
+          <div className="font-semibold text-neutral-200">~{plan.horizon_days} 거래일</div>
+        </div>
+      </div>
+      {plan.note && (
+        <p className="mt-3 text-xs text-neutral-400 leading-relaxed">💡 {plan.note}</p>
+      )}
+      <p className="mt-2 text-[11px] text-neutral-600">
+        2배 레버리지 ETF로 실행 시 손익률은 위 % 거리의 약 2배로 움직입니다.
+      </p>
     </div>
   );
 }

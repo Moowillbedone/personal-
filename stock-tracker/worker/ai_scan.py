@@ -1,6 +1,25 @@
-"""Twice-daily AI scan: call /api/analyze on the union of watchlist symbols
-and the top-conviction signals_24h, then telegram-digest the resulting
-BUY / SELL / HOLD verdicts.
+"""Twice-daily AI scan → high-conviction telegram digest (2026-07 개편).
+
+Two-stage funnel over the NASDAQ-100 (+watchlist):
+  1. CHEAP mechanical pre-filter (no LLM cost):
+       - momentum screen: NDX-100 daily bars → relative volume ≥ threshold,
+         positive last-session return, above/below SMA20 weighting
+       - strong-sector screen: /api/sector-strength top sectors' highest
+         dollar-volume names ∩ NDX-100 (돈이 몰리는 섹터의 주도주)
+       - top-conviction signals_24h ∩ NDX-100
+       - watchlist (always, user's active focus)
+     → ~15-20 candidates max.
+  2. Gemini deep analysis per candidate via /api/analyze (options call/put
+     skew, insider, news, technicals, sector ctx — 17 sections) → verdict +
+     confidence + trade_plan (진입존/목표1·2/손절/기간, ATR-검증됨).
+
+Digest gates (only conviction survives; the rest collapses to one line):
+  🎯 강한 매수  buy  & conf ≥ CONF_STRONG (0.70)
+  🟢 매수 후보  buy  & conf ≥ CONF_BUY    (0.55)
+  🔴 매도/정리  sell & conf ≥ CONF_SELL   (0.55)
+  🟡 관망       everything else — symbols only, one line
+Market regime (𝑓 /api/regime) heads the digest; in risk_off both buy
+thresholds are raised +0.10 (하락추세에선 더 확실한 것만).
 
 Why: until now AI verdicts only existed when the user manually clicked
 "분석" on a single ticker. There was no proactive "AI says BUY today"
@@ -36,7 +55,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 from dotenv import load_dotenv
 
-from lib import db
+from lib import alpaca, db
 
 # Hard safety cap on scan size. Real per-scan size is controlled by
 # SCAN_BUDGET below — this just protects against runaway list growth.
@@ -71,6 +90,20 @@ SCAN_BUDGET = int(os.getenv("AI_SCAN_BUDGET", "25"))
 # detector's MIN_DOLLAR_VOL gate ($1M default) already ensures every
 # row in the pool meets the liquidity baseline.
 NEWS_FACTOR = float(os.getenv("AI_SCAN_NEWS_FACTOR", "1.2"))
+
+# ── Conviction-funnel knobs (2026-07 개편) ──────────────────────────────────
+# Momentum screen: last-session relative volume floor + how many top-scoring
+# NDX names advance to Gemini.
+MIN_RELVOL = float(os.getenv("AI_SCAN_MIN_RELVOL", "1.3"))
+MOMO_TOP = int(os.getenv("AI_SCAN_MOMO_TOP", "8"))
+# Strong-sector screen: top-N sectors by avgReturn from /api/sector-strength;
+# their top dollar-volume names ∩ NDX advance (cap).
+SECTOR_TOP = int(os.getenv("AI_SCAN_SECTOR_TOP", "4"))
+SECTOR_SYMS_CAP = int(os.getenv("AI_SCAN_SECTOR_SYMS_CAP", "6"))
+# Digest confidence gates. In risk_off regime the two buy gates get +0.10.
+CONF_STRONG = float(os.getenv("AI_SCAN_CONF_STRONG", "0.70"))
+CONF_BUY = float(os.getenv("AI_SCAN_CONF_BUY", "0.55"))
+CONF_SELL = float(os.getenv("AI_SCAN_CONF_SELL", "0.55"))
 
 # Per-call HTTP timeout. The /api/analyze route's maxDuration is 60s on
 # Vercel; the buffer here gives us a clean error rather than a half-read
@@ -143,30 +176,150 @@ def _conviction_score(row: dict) -> float:
     return vr * pc * news_factor
 
 
-def collect_target_symbols(
-    sb,
-) -> tuple[list[str], set[str], set[str], int]:
-    """Returns (target_list, watchlist_set, signals_set_all, signals_selected_count).
+def _fetch_regime() -> dict | None:
+    """GET /api/regime — fail-soft (None on any error)."""
+    try:
+        r = requests.get(f"{FRONT_URL}/api/regime", timeout=30)
+        if r.status_code != 200:
+            return None
+        d = r.json()
+        return d if d.get("regime") else None
+    except Exception:
+        return None
 
-    Composition of target_list:
-      1. ALL watchlist symbols (priority — these are user's active focus)
-      2. signals_24h symbols ranked by conviction score, descending, taking
-         enough to fill up to SCAN_BUDGET total
-    Hard cap at MAX_SYMBOLS_PER_RUN for runaway protection.
 
-    signals_set_all is the full 24h signal-fired set (used for digest header
-    attribution: "X of Y signals selected"). signals_selected_count is the
-    count actually included in target_list after conviction filtering.
+def _fetch_strong_sectors() -> list[dict]:
+    """GET /api/sector-strength → top SECTOR_TOP sectors (already sorted by
+    avgReturn desc server-side). Fail-soft (empty list)."""
+    try:
+        r = requests.get(f"{FRONT_URL}/api/sector-strength", timeout=60)
+        if r.status_code != 200:
+            return []
+        sectors = (r.json() or {}).get("sectors") or []
+        out = [s for s in sectors if s.get("avgReturn") is not None][:SECTOR_TOP]
+        return out
+    except Exception:
+        return []
+
+
+def _score_ndx_momentum(ndx: set[str]) -> dict[str, dict]:
+    """Last-session momentum/relative-volume screen over the NDX-100 proxy.
+
+    One batched Alpaca daily-bars fetch. Note the ~15min free-tier delay
+    means "today" is the last COMPLETED session during pre-market scans —
+    intentional: we're ranking where money flowed in the latest session.
+    Returns {sym: {ret1, rel_vol, above_sma20, score}}.
     """
+    out: dict[str, dict] = {}
+    if not ndx:
+        return out
+    try:
+        frames = alpaca.fetch_recent_bars(sorted(ndx), interval="1d", lookback="35d")
+    except Exception as e:
+        print(f"  ndx momentum bars fetch failed: {e}", file=sys.stderr)
+        return out
+    for sym, df in frames.items():
+        try:
+            if df is None or len(df) < 21:
+                continue
+            closes = df["Close"]
+            vols = df["Volume"]
+            last_close = float(closes.iloc[-1])
+            prev_close = float(closes.iloc[-2])
+            if prev_close <= 0 or last_close <= 0:
+                continue
+            ret1 = last_close / prev_close - 1
+            avg20 = float(vols.iloc[-21:-1].mean())
+            rel_vol = float(vols.iloc[-1]) / avg20 if avg20 > 0 else 0.0
+            sma20 = float(closes.iloc[-20:].mean())
+            above = last_close > sma20
+            score = rel_vol * max(ret1, 0.0) * (1.2 if above else 0.8)
+            out[sym] = {
+                "ret1": ret1,
+                "rel_vol": rel_vol,
+                "above_sma20": above,
+                "score": score,
+            }
+        except Exception:
+            continue
+    return out
+
+
+def collect_conviction_targets(
+    sb,
+) -> tuple[list[str], dict[str, list[str]], dict[str, int]]:
+    """Two-stage funnel, stage 1 (cheap): assemble the candidate list that
+    advances to Gemini. Returns (targets, tags_by_symbol, source_counts).
+
+    Sources (in priority order, dedup by first tag):
+      1. watchlist — always analyzed (user's active focus; not NDX-gated)
+      2. NDX momentum screen — rel_vol ≥ MIN_RELVOL and positive last-session
+         return, top MOMO_TOP by rel_vol × return score
+      3. strong sectors' top dollar-volume names ∩ NDX (≤ SECTOR_SYMS_CAP)
+      4. signals_24h ∩ NDX by conviction score — fills up to SCAN_BUDGET
+    """
+    tags: dict[str, list[str]] = {}
+    counts = {"watchlist": 0, "momentum": 0, "sector": 0, "signal": 0}
+
+    def add(sym: str, tag: str, bucket: str) -> None:
+        if sym not in tags:
+            tags[sym] = []
+            counts[bucket] += 1
+        tags[sym].append(tag)
+
+    # 1) watchlist
     watchlist: set[str] = set()
     try:
         res = sb.table("watchlist").select("symbol").execute()
         watchlist = {r["symbol"].upper() for r in (res.data or []) if r.get("symbol")}
     except Exception as e:
         print(f"  watchlist fetch failed: {e}", file=sys.stderr)
+    for sym in sorted(watchlist):
+        add(sym, "관심종목", "watchlist")
 
-    # Pull signals_24h with full metadata for scoring. Z suffix avoids the
-    # `+00:00 → space` URL-encoding trap that bit realize.py earlier.
+    # NDX-100 proxy set — gate for every non-watchlist source.
+    try:
+        ndx = db.get_nasdaq_top100(sb)
+    except Exception as e:
+        print(f"  ndx fetch failed: {e}", file=sys.stderr)
+        ndx = set()
+
+    # 2) momentum screen
+    momo = _score_ndx_momentum(ndx)
+    ranked = sorted(
+        (
+            (sym, m)
+            for sym, m in momo.items()
+            if m["rel_vol"] >= MIN_RELVOL and m["ret1"] > 0
+        ),
+        key=lambda kv: kv[1]["score"],
+        reverse=True,
+    )[:MOMO_TOP]
+    for sym, m in ranked:
+        add(
+            sym,
+            f"모멘텀 vol×{m['rel_vol']:.1f} {m['ret1']*100:+.1f}%",
+            "momentum",
+        )
+
+    # 3) strong sectors' leaders ∩ NDX
+    sector_added = 0
+    for sec in _fetch_strong_sectors():
+        label = sec.get("labelKo") or sec.get("key") or "?"
+        for row in (sec.get("topByDollarVolume") or [])[:5]:
+            sym = (row.get("symbol") or "").upper()
+            if not sym or sym not in ndx:
+                continue
+            if sector_added >= SECTOR_SYMS_CAP:
+                break
+            before = sym in tags
+            add(sym, f"강세섹터 {label}", "sector")
+            if not before:
+                sector_added += 1
+        if sector_added >= SECTOR_SYMS_CAP:
+            break
+
+    # 4) signals_24h ∩ NDX conviction fill
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
@@ -174,42 +327,29 @@ def collect_target_symbols(
     try:
         res = (
             sb.table("signals")
-            .select("symbol,volume_ratio,pct_change,recent_news_count,ts")
+            .select("symbol,signal_type,volume_ratio,pct_change,recent_news_count,ts")
             .gte("ts", cutoff)
             .execute()
         )
         raw_signals = res.data or []
     except Exception as e:
         print(f"  signals fetch failed: {e}", file=sys.stderr)
-
-    # All distinct symbols in the 24h signal window (used for stats display).
-    signals_set_all: set[str] = {
-        (r.get("symbol") or "").upper() for r in raw_signals if r.get("symbol")
-    }
-    signals_set_all.discard("")
-
-    # For each symbol, keep its BEST conviction score across however many
-    # signals fired on it in 24h. Exclude symbols already in watchlist
-    # (those get analyzed unconditionally, no need to score them).
-    best_score: dict[str, float] = {}
+    best: dict[str, tuple[float, dict]] = {}
     for r in raw_signals:
         sym = (r.get("symbol") or "").upper()
-        if not sym or sym in watchlist:
+        if not sym or sym not in ndx or sym in tags:
             continue
         s = _conviction_score(r)
-        if s > best_score.get(sym, -1.0):
-            best_score[sym] = s
+        if s > best.get(sym, (-1.0, {}))[0]:
+            best[sym] = (s, r)
+    remaining = max(0, SCAN_BUDGET - len(tags))
+    for sym, (_, r) in sorted(best.items(), key=lambda kv: kv[1][0], reverse=True)[
+        :remaining
+    ]:
+        add(sym, f"시그널 {r.get('signal_type', '?')}", "signal")
 
-    # Build target list: watchlist (alphabetical for determinism) + top-N
-    # signals by conviction score. Top-N count = SCAN_BUDGET - watchlist_size.
-    wl_sorted = sorted(watchlist)
-    remaining = max(0, SCAN_BUDGET - len(wl_sorted))
-    ranked_signals = sorted(
-        best_score.items(), key=lambda kv: kv[1], reverse=True
-    )[:remaining]
-    selected_signals = [sym for sym, _ in ranked_signals]
-    targets = (wl_sorted + selected_signals)[:MAX_SYMBOLS_PER_RUN]
-    return targets, watchlist, signals_set_all, len(selected_signals)
+    targets = list(tags.keys())[:MAX_SYMBOLS_PER_RUN]
+    return targets, tags, counts
 
 
 # Failure-reason taxonomy. Returned alongside None when call_analyze fails,
@@ -411,24 +551,61 @@ def _md_safe(text: str) -> str:
     )
 
 
-def _format_entry(v: dict) -> str:
-    """One BUY/SELL entry block — symbol header + summary if present."""
+def _plan_of(analysis: dict) -> dict | None:
+    """Extract the validated trade_plan from an analysis row (context jsonb).
+    None for legacy rows or plans that failed server-side validation."""
+    ctx = analysis.get("context") or {}
+    tp = ctx.get("trade_plan")
+    if not isinstance(tp, dict):
+        return None
+    for k in ("entry_low", "entry_high", "stop", "target_1", "target_2"):
+        v = tp.get(k)
+        if not isinstance(v, (int, float)):
+            return None
+    return tp
+
+
+def _plan_line(tp: dict, verdict: str) -> str:
+    """One-line 언제 사고/팔지: 진입존 · 목표 · 손절 · 기간 (기초자산 USD)."""
+    zone = "진입" if verdict == "buy" else ("정리존" if verdict == "sell" else "진입대기")
+    horizon = tp.get("horizon_days")
+    h = f" · ⏳ ~{int(horizon)}일" if isinstance(horizon, (int, float)) else ""
+    return (
+        f"📍 {zone} {tp['entry_low']:.2f}~{tp['entry_high']:.2f}"
+        f" · 🎯 {tp['target_1']:.2f}/{tp['target_2']:.2f}"
+        f" · 🛑 {tp['stop']:.2f}{h}"
+    )
+
+
+def _trim_summary(text: str, cap: int = SUMMARY_CHAR_CAP) -> str:
+    summary = _md_safe((text or "").strip())
+    if len(summary) <= cap:
+        return summary
+    cut = summary[:cap]
+    last_period = max(cut.rfind(". "), cut.rfind("다. "), cut.rfind("다.\n"))
+    if last_period > cap - 40:
+        return cut[: last_period + 2]
+    return cut.rstrip() + "…"
+
+
+def _format_pick(v: dict, full: bool) -> str:
+    """One conviction pick. full=True adds the summary paragraph + plan note;
+    compact picks keep symbol/confidence/tags + the plan line only."""
     sym = v.get("symbol", "?")
     conf = int(round(float(v.get("confidence") or 0) * 100))
-    summary = _md_safe((v.get("summary") or "").strip())
-    if len(summary) > SUMMARY_CHAR_CAP:
-        # Cut at the previous sentence boundary if there is one in the
-        # last ~40 chars; otherwise hard-cut and append ellipsis.
-        cut = summary[:SUMMARY_CHAR_CAP]
-        last_period = max(cut.rfind(". "), cut.rfind("다. "), cut.rfind("다.\n"))
-        if last_period > SUMMARY_CHAR_CAP - 40:
-            summary = cut[: last_period + 2]
-        else:
-            summary = cut.rstrip() + "…"
-    line = f"• *{sym}*  신뢰도 {conf}%"
-    if summary:
-        line += f"\n  _{summary}_"
-    return line
+    tag_str = " · ".join(_md_safe(t) for t in (v.get("tags") or [])[:2])
+    lines = [f"• *{sym}*  신뢰 {conf}%" + (f" · {tag_str}" if tag_str else "")]
+    if full:
+        summary = _trim_summary(v.get("summary") or "")
+        if summary:
+            lines.append(f"  _{summary}_")
+    tp = v.get("plan")
+    if tp:
+        lines.append(f"  {_plan_line(tp, (v.get('verdict') or 'buy').lower())}")
+        note = _md_safe(str(tp.get("note") or "").strip())
+        if full and note:
+            lines.append(f"  💡 {note[:140]}")
+    return "\n".join(lines)
 
 
 def _reason_label(reason: str) -> str:
@@ -453,100 +630,124 @@ def _format_reason_breakdown(counts: dict[str, int]) -> str:
     return " + ".join(parts)
 
 
+REGIME_LABEL = {
+    "risk_on": "🟢 상승추세 (risk-on)",
+    "neutral": "🟡 중립·박스",
+    "risk_off": "🔴 하락추세 (risk-off) — 매수 기준 +10%p 강화",
+}
+
+
 def _build_blocks(
     verdicts: list[dict],
     total_scanned: int,
-    watchlist_n: int,
-    signals_n: int,
-    signals_selected: int = 0,
+    counts: dict[str, int],
+    regime: dict | None,
     missing_list: list[dict] | None = None,
 ) -> list[str]:
-    """Emit a list of atomic content blocks. The packer never splits inside
-    a block — keeps each BUY/SELL entry intact across message boundaries.
-
-    missing_list: [{symbol, reason}, ...] for symbols whose fresh /api/analyze
-    call failed (rare transient). They're named in the header and retried on
-    the next scan — never backfilled from cache.
-    """
+    """Conviction-tiered digest blocks (2026-07 개편). Only high-conviction
+    picks get full entries; everything else collapses. The packer never
+    splits inside a block."""
     missing_list = missing_list or []
-    by_v: dict[str, list[dict]] = {"buy": [], "sell": [], "hold": []}
+
+    # Regime-adjusted gates: in a confirmed downtrend only the very best
+    # longs are worth the user's attention (같은 철학: 대시보드 물타기 게이트).
+    regime_key = (regime or {}).get("regime")
+    bump = 0.10 if regime_key == "risk_off" else 0.0
+    strong_gate = CONF_STRONG + bump
+    buy_gate = CONF_BUY + bump
+
+    strong: list[dict] = []
+    buys: list[dict] = []
+    sells: list[dict] = []
+    watch: list[dict] = []
     for v in verdicts:
-        bucket = (v.get("verdict") or "hold").lower()
-        if bucket not in by_v:
-            bucket = "hold"
-        by_v[bucket].append(v)
-    for k in by_v:
-        by_v[k].sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
+        vd = (v.get("verdict") or "hold").lower()
+        conf = float(v.get("confidence") or 0)
+        if vd == "buy" and conf >= strong_gate:
+            strong.append(v)
+        elif vd == "buy" and conf >= buy_gate:
+            buys.append(v)
+        elif vd == "sell" and conf >= CONF_SELL:
+            sells.append(v)
+        else:
+            watch.append(v)
+    for lst in (strong, buys, sells, watch):
+        lst.sort(key=lambda x: float(x.get("confidence") or 0), reverse=True)
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
-    # Header explains exactly which symbols were picked: all watchlist, plus
-    # the top-N conviction-ranked signals_24h. Lets the user verify nothing
-    # important was silently filtered out.
-    selection_summary = (
-        f"watchlist {watchlist_n} + 시그널 24h {signals_n}건 중 conviction 상위 "
-        f"{signals_selected}건"
-        if signals_n > 0
-        else f"watchlist {watchlist_n}"
-    )
     header_lines = [
-        f"🤖 *AI 일일 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
-        f"스캔 종목: {total_scanned}건 ({selection_summary})",
+        f"🤖 *AI 매수/매도 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
     ]
+    if regime:
+        vix = regime.get("vix")
+        p50 = regime.get("pctFromSma50")
+        extra = []
+        if isinstance(p50, (int, float)):
+            extra.append(f"QQQ {p50*100:+.1f}% vs 50일선")
+        if isinstance(vix, (int, float)):
+            extra.append(f"VIX {vix:.1f}")
+        suffix = f" · {' · '.join(extra)}" if extra else ""
+        header_lines.append(
+            f"레짐: {REGIME_LABEL.get(regime_key, regime_key or '?')}{suffix}"
+        )
+    src = (
+        f"관심 {counts.get('watchlist', 0)} · 모멘텀 {counts.get('momentum', 0)} · "
+        f"강세섹터 {counts.get('sector', 0)} · 시그널 {counts.get('signal', 0)}"
+    )
+    header_lines.append(f"스캔 {total_scanned}종목 (NDX-100 필터 · {src})")
     if missing_list:
-        # Per-symbol breakdown when reasons differ; otherwise single bucket.
         miss_counts: dict[str, int] = {}
         for m in missing_list:
             miss_counts[m["reason"]] = miss_counts.get(m["reason"], 0) + 1
-        reason_breakdown = _format_reason_breakdown(miss_counts)
-        # 사용자 요청 — "외 N건" 축약 제거, 모든 티커 노출. missing은
-        # SCAN_BUDGET(최대 25) 이내라 티커 전부 나열해도 telegram 4096자 한도
-        # 안전 (25 × ~6자 = 150자).
         symbols_str = ", ".join(m["symbol"] for m in missing_list)
         header_lines.append(
-            f"⚠️ {len(missing_list)}건 verdict 생성 실패 ({symbols_str}) — "
-            f"{reason_breakdown}. 다음 스캔에서 자동 재시도."
+            f"⚠️ {len(missing_list)}건 분석 실패 ({symbols_str}) — "
+            f"{_format_reason_breakdown(miss_counts)}. 다음 스캔에서 재시도."
         )
     blocks: list[str] = ["\n".join(header_lines)]
 
-    # All three buckets use the same per-entry block format now: symbol +
-    # confidence + truncated summary. Section header is its own block so
-    # the packer can split between header and entries if needed. No silent
-    # drops — DIGEST_MAX_PER_BUCKET is a soft safety only.
-    if by_v["buy"]:
-        blocks.append(f"🟢 *BUY ({len(by_v['buy'])})*")
-        for v in by_v["buy"][:DIGEST_MAX_PER_BUCKET]:
-            blocks.append(_format_entry(v))
+    if not strong and not buys:
+        blocks.append(
+            "🚫 *오늘 확실한 매수 후보 없음* — 신규 진입 대신 현금/기존 플랜 유지. "
+            "기준 미달 종목은 관망 목록 참고."
+        )
+    if strong:
+        blocks.append(f"🎯 *강한 매수 ({len(strong)})* — 신뢰 {int(strong_gate*100)}%+")
+        for v in strong[:DIGEST_MAX_PER_BUCKET]:
+            blocks.append(_format_pick(v, full=True))
+    if buys:
+        blocks.append(f"🟢 *매수 후보 ({len(buys)})*")
+        for v in buys[:DIGEST_MAX_PER_BUCKET]:
+            blocks.append(_format_pick(v, full=False))
+    if sells:
+        blocks.append(f"🔴 *매도/정리 ({len(sells)})* — 보유 중이면 플랜 확인")
+        for v in sells[:DIGEST_MAX_PER_BUCKET]:
+            blocks.append(_format_pick(v, full=False))
 
-    if by_v["sell"]:
-        blocks.append(f"🔴 *SELL ({len(by_v['sell'])})*")
-        for v in by_v["sell"][:DIGEST_MAX_PER_BUCKET]:
-            blocks.append(_format_entry(v))
-
-    if by_v["hold"]:
-        # HOLD is the "no clear edge" bucket — per-entry summaries would
-        # bloat the digest without adding decision value. Compact format:
-        # `TICKER(conf%)` tokens wrapped at ~60 chars/line, sorted by
-        # confidence descending (same as BUY/SELL).
-        hold_lines = [f"🟡 *HOLD ({len(by_v['hold'])})*"]
-        entries: list[str] = []
-        for v in by_v["hold"][:DIGEST_MAX_PER_BUCKET]:
-            sym = v.get("symbol", "?")
-            conf = int(round(float(v.get("confidence") or 0) * 100))
-            entries.append(f"{sym}({conf}%)")
-        line_buf: list[str] = []
-        line_chars = 0
+    if watch:
+        # 관망: symbols+conf only, wrapped — 수십 개를 나열하지 않는 게 목적.
+        entries = [
+            f"{v.get('symbol', '?')}({int(round(float(v.get('confidence') or 0) * 100))}%)"
+            for v in watch[:DIGEST_MAX_PER_BUCKET]
+        ]
+        watch_lines = [f"🟡 *관망 ({len(watch)})*"]
+        buf: list[str] = []
+        chars = 0
         for e in entries:
-            if line_chars + len(e) + 1 > 60 and line_buf:
-                hold_lines.append("  " + " ".join(line_buf))
-                line_buf = []
-                line_chars = 0
-            line_buf.append(e)
-            line_chars += len(e) + 1
-        if line_buf:
-            hold_lines.append("  " + " ".join(line_buf))
-        blocks.append("\n".join(hold_lines))
+            if chars + len(e) + 1 > 60 and buf:
+                watch_lines.append("  " + " ".join(buf))
+                buf = []
+                chars = 0
+            buf.append(e)
+            chars += len(e) + 1
+        if buf:
+            watch_lines.append("  " + " ".join(buf))
+        blocks.append("\n".join(watch_lines))
 
-    blocks.append(f"[전체 분석 →]({FRONT_URL}/trade)")
+    blocks.append(
+        f"가격은 기초자산 USD 기준 — 2배 ETF 실행 시 손익 ≈ 2배."
+        f"\n[전체 분석 →]({FRONT_URL}/trade)"
+    )
     return blocks
 
 
@@ -573,18 +774,16 @@ def pack_messages(blocks: list[str], cap: int = TG_MSG_CHAR_CAP) -> list[str]:
 def format_digest(
     verdicts: list[dict],
     total_scanned: int,
-    watchlist_n: int,
-    signals_n: int,
-    signals_selected: int = 0,
+    counts: dict[str, int],
+    regime: dict | None,
     missing_list: list[dict] | None = None,
 ) -> list[str]:
     """Returns a list of telegram-sized messages (1 normal, 2-3 if dense)."""
     blocks = _build_blocks(
         verdicts,
         total_scanned,
-        watchlist_n,
-        signals_n,
-        signals_selected,
+        counts,
+        regime,
         missing_list or [],
     )
     return pack_messages(blocks)
@@ -622,13 +821,17 @@ def main() -> int:
     load_dotenv()
     sb = db.client()
 
-    targets, watchlist, signals, signals_selected = collect_target_symbols(sb)
+    targets, tags, counts = collect_conviction_targets(sb)
+    regime = _fetch_regime()
 
     print(
-        f"ai_scan: {len(targets)} target symbols "
-        f"(watchlist={len(watchlist)} + {signals_selected} of {len(signals)} "
-        f"signals_24h by conviction score, budget={SCAN_BUDGET})"
+        f"ai_scan: {len(targets)} candidates "
+        f"(watchlist={counts['watchlist']} momentum={counts['momentum']} "
+        f"sector={counts['sector']} signal={counts['signal']}, "
+        f"budget={SCAN_BUDGET}, regime={(regime or {}).get('regime', '?')})"
     )
+    for sym in targets:
+        print(f"    {sym}: {', '.join(tags.get(sym, []))}")
 
     if not targets:
         print("ai_scan: no symbols to scan, exiting")
@@ -694,6 +897,8 @@ def main() -> int:
                 "verdict": analysis.get("verdict") or "hold",
                 "confidence": analysis.get("confidence") or 0,
                 "summary": analysis.get("summary") or "",
+                "plan": _plan_of(analysis),
+                "tags": tags.get(sym, []),
             }
         )
         fresh_count += 1
@@ -701,14 +906,17 @@ def main() -> int:
         # input-token (TPM) ceiling; the chain absorbs the rest.
         time.sleep(INTER_CALL_DELAY_SEC)
 
-    counts = {"buy": 0, "sell": 0, "hold": 0}
+    # NOTE: distinct name — `counts` (funnel source breakdown from
+    # collect_conviction_targets) is still needed by format_digest below;
+    # shadowing it here zeroed the digest header's source line.
+    verdict_counts = {"buy": 0, "sell": 0, "hold": 0}
     for v in verdicts:
         b = (v.get("verdict") or "hold").lower()
-        counts[b] = counts.get(b, 0) + 1
+        verdict_counts[b] = verdict_counts.get(b, 0) + 1
     print(
         f"ai_scan: collected {len(verdicts)} verdicts "
-        f"(buy={counts.get('buy', 0)}, sell={counts.get('sell', 0)}, "
-        f"hold={counts.get('hold', 0)}); fresh={fresh_count}, "
+        f"(buy={verdict_counts.get('buy', 0)}, sell={verdict_counts.get('sell', 0)}, "
+        f"hold={verdict_counts.get('hold', 0)}); fresh={fresh_count}, "
         f"missing={len(missing)}"
     )
     if fail_reason_counts:
@@ -724,9 +932,8 @@ def main() -> int:
     messages = format_digest(
         verdicts,
         total_scanned=len(targets),
-        watchlist_n=len(watchlist),
-        signals_n=len(signals),
-        signals_selected=signals_selected,
+        counts=counts,
+        regime=regime,
         missing_list=missing,
     )
     sent_ok = 0

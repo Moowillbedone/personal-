@@ -12,7 +12,8 @@ import {
   type CorporateActionsItem,
 } from "@/lib/alpaca";
 import { getPrimarySnapshot, getPrimaryRecentBars } from "@/lib/marketData";
-import { generateVerdict, ACTIVE_MODEL, type GeminiVerdict } from "@/lib/gemini";
+import { generateVerdict, ACTIVE_MODEL, type GeminiVerdict, type TradePlan } from "@/lib/gemini";
+import { mechanicalPlan, sanitizeTradePlan } from "@/lib/tradePlan";
 import { computeAll, type IndicatorBundle } from "@/lib/indicators";
 import { getSectorInfo, MARKET_TICKERS, type SectorInfo } from "@/lib/sectorMap";
 import { fetchTickerNews, fetchMacroNews, type HeadlineItem } from "@/lib/macroNews";
@@ -191,6 +192,14 @@ export async function POST(req: NextRequest) {
       const dailyBars: Bar[] = bars?.daily ?? [];
       const indicators = dailyBars.length > 0 ? computeAll(dailyBars) : null;
 
+      // Mechanical ATR-based trade plan: prompt baseline for Gemini AND the
+      // validation fallback (see lib/tradePlan.ts).
+      const basePlan = mechanicalPlan(
+        snap.lastPrice,
+        indicators?.atr14 ?? null,
+        indicators?.sma20 ?? null,
+      );
+
       // Build a unified news list and DIVERSIFY: premium outlets (Reuters/
       // Bloomberg/CNBC/WSJ/FT/MarketWatch) first, then Alpaca (Benzinga/Zacks).
       // Cap each source at 3 entries so a single outlet can't dominate the
@@ -236,6 +245,7 @@ export async function POST(req: NextRequest) {
         ownSignals: ownSignals ?? null,
         watchSnaps: watchSnaps ?? {},
         insider: insider ?? null,
+        basePlan,
       });
 
       let verdict: GeminiVerdict;
@@ -279,6 +289,17 @@ export async function POST(req: NextRequest) {
         throw genErr;
       }
 
+      // Gemini's plan passes only if internally coherent + near the live
+      // price; otherwise the ATR baseline ships instead (fail-safe numbers).
+      // For SELL verdicts the buy-framed mechanical baseline (눌림 진입 note,
+      // pullback zone) would contradict the verdict — suppress the fallback
+      // and persist no plan rather than a misleading one.
+      const tradePlan: TradePlan | null = sanitizeTradePlan(
+        verdict.trade_plan,
+        snap.lastPrice,
+        verdict.verdict === "sell" ? null : basePlan,
+      );
+
       // 3) Persist
       const { data: inserted, error: insErr } = await supabaseAdmin
         .from("ai_analysis")
@@ -292,6 +313,11 @@ export async function POST(req: NextRequest) {
           horizons: verdict.horizons,
           context: {
             last_price: snap.lastPrice,
+            // "언제 사고 언제 팔지" — consumed by the telegram digest
+            // (worker/ai_scan.py) and the /trade result card. Lives in
+            // context (no migration; a >120d-old plan is worthless anyway
+            // so the context slimming is harmless).
+            trade_plan: tradePlan,
             prev_close: snap.prevClose,
             change_pct: snap.changePct,
             session: snap.session,
@@ -379,6 +405,7 @@ interface PromptInputs {
   ownSignals: OwnSignalSummary | null;
   watchSnaps: Record<string, Snapshot>;
   insider: InsiderSummary | null;
+  basePlan: TradePlan | null;
 }
 
 function pct(v: number | null | undefined): string {
@@ -428,7 +455,7 @@ function sessionDisclosure(
 }
 
 function buildPrompt(p: PromptInputs): string {
-  const { symbol, snap, indicators, bars, alpacaNews, macroHeadlines, tickerHeadlines, secFilings, marketSnaps, sectorInfo, sectorSnaps, fredMacro, finnhub, optionsCtx, corpActions, ownSignals, watchSnaps, insider } = p;
+  const { symbol, snap, indicators, bars, alpacaNews, macroHeadlines, tickerHeadlines, secFilings, marketSnaps, sectorInfo, sectorSnaps, fredMacro, finnhub, optionsCtx, corpActions, ownSignals, watchSnaps, insider, basePlan } = p;
 
   const fiveMinTail = (bars?.fiveMin ?? []).slice(-40).map(
     (b) => `${b.ts.slice(11, 16)} c=${b.c.toFixed(2)} v=${b.v}`,
@@ -781,6 +808,19 @@ function buildPrompt(p: PromptInputs): string {
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
     "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
+    "",
+    "### trade_plan — 언제 사고 언제 팔지 (필수)",
+    "**롱 스윙 포지션 기준의 실행 가능한 가격 플랜**을 trade_plan에 채울 것:",
+    "- entry_low~entry_high: 진입 존 (buy면 지금/눌림 진입가, hold면 진입을 정당화할 눌림 레벨, sell이면 보유분 정리에 유리한 반등 매도 존)",
+    "- stop: 손절 라인 (이 아래는 시나리오 무효 — 지지선/SMA/ATR 근거로)",
+    "- target_1 / target_2: 1차·2차 분할 익절 목표 (저항선·전고점·ATR 배수 근거)",
+    "- horizon_days: 예상 보유 기간 (1~30 거래일, 일~주 단위 스윙)",
+    "- note: 진입/청산 조건 한 줄 (예: '갭업 시 추격 금지, 178 눌림 대기. 어닝 D-2 전량 정리')",
+    basePlan
+      ? `- ATR 기반 기계적 베이스라인 (참고·조정 가능): 진입 ${basePlan.entry_low}~${basePlan.entry_high} · 손절 ${basePlan.stop} · 목표 ${basePlan.target_1}/${basePlan.target_2} · ${basePlan.horizon_days}일. 지지/저항·어닝 일정·옵션 레벨을 반영해 조정하되, 크게 벗어나면 근거를 note에 명시`
+      : "- (ATR 미산출 — 일봉 지지/저항 기준으로 직접 산정)",
+    "- 모든 가격은 이 종목(기초자산) 기준 USD. 사용자는 2배 레버리지 ETF로 실행하므로 % 거리감이 중요",
+    "- 숫자 순서 필수: stop < entry_low ≤ entry_high < target_1 ≤ target_2",
     "- JSON 스키마에 정확히 맞춰 응답",
   ].join("\n"));
 

@@ -159,6 +159,25 @@ export interface HorizonOpinion {
   key_points: string[];
 }
 
+// Actionable price plan — "언제 사고 언제 팔지" (2026-07). Always framed for
+// a LONG swing position on THIS symbol's price:
+//   buy  → enter in [entry_low, entry_high], take profit at targets, cut at stop
+//   hold → wait; entry zone = the pullback level that would justify entering
+//   sell → no new entry; holders exit into strength / cut below stop
+// The analyze route computes an ATR-based mechanical baseline, feeds it to
+// Gemini, then VALIDATES Gemini's numbers (ordering + sane ranges) and falls
+// back to the baseline if they're off — LLM numeric sloppiness never reaches
+// the UI or telegram.
+export interface TradePlan {
+  entry_low: number;
+  entry_high: number;
+  stop: number;
+  target_1: number;
+  target_2: number;
+  horizon_days: number;
+  note: string; // 진입/청산 조건 한 줄 (한국어)
+}
+
 export interface GeminiVerdict {
   // Short-term (single-day to 1-week swing/day trade) — kept as top-level
   // fields for backwards compatibility with existing DB rows.
@@ -167,6 +186,7 @@ export interface GeminiVerdict {
   summary: string;
   bull_points: string[];
   bear_points: string[];
+  trade_plan: TradePlan;
   // Multi-horizon long-term opinions
   horizons: {
     three_month: HorizonOpinion;
@@ -186,6 +206,20 @@ const HORIZON_SCHEMA = {
   required: ["verdict", "confidence", "summary", "key_points"],
 } as const;
 
+const TRADE_PLAN_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    entry_low: { type: "NUMBER" },
+    entry_high: { type: "NUMBER" },
+    stop: { type: "NUMBER" },
+    target_1: { type: "NUMBER" },
+    target_2: { type: "NUMBER" },
+    horizon_days: { type: "NUMBER" },
+    note: { type: "STRING" },
+  },
+  required: ["entry_low", "entry_high", "stop", "target_1", "target_2", "horizon_days", "note"],
+} as const;
+
 async function callOnce(model: string, apiKey: string, prompt: string): Promise<string> {
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -200,6 +234,7 @@ async function callOnce(model: string, apiKey: string, prompt: string): Promise<
           summary: { type: "STRING" },
           bull_points: { type: "ARRAY", items: { type: "STRING" } },
           bear_points: { type: "ARRAY", items: { type: "STRING" } },
+          trade_plan: TRADE_PLAN_SCHEMA,
           horizons: {
             type: "OBJECT",
             properties: {
@@ -210,7 +245,7 @@ async function callOnce(model: string, apiKey: string, prompt: string): Promise<
             required: ["three_month", "six_month", "one_year"],
           },
         },
-        required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "horizons"],
+        required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "trade_plan", "horizons"],
       },
     },
   };
