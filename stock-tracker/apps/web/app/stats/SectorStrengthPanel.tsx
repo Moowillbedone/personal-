@@ -16,6 +16,8 @@ interface StockRow {
   volume: number;
   dollarVolume: number;
   relVol: number | null;
+  /** Money Flow Multiplier −1..+1 (close-location); +1 buyers, −1 sellers. */
+  pressure: number | null;
 }
 
 interface Headline {
@@ -103,6 +105,29 @@ function shares(v: number): string {
   return v.toLocaleString();
 }
 
+/**
+ * Buy/sell pressure badge from the close-location proxy (−1..+1).
+ * buyPct = (v+1)/2 — share of the day's range the close sits above the low.
+ */
+function pressureInfo(
+  v: number | null,
+): { label: string; color: string; title: string } | null {
+  if (v == null || !isFinite(v)) return null;
+  const buyPct = Math.round(((v + 1) / 2) * 100);
+  // Framed as INTRADAY pressure, not a recommendation — and explicitly
+  // independent of the day's % change (a gap-down name bought back to its
+  // highs is genuine intraday buying, so green next to a red change is
+  // informative, not contradictory).
+  const title =
+    `장중 매수세 ${buyPct}% (종가가 당일 고·저 범위의 상단 ${buyPct}% 지점 마감). ` +
+    `당일 등락률과는 별개 — 갭 이후 장중 수급만 반영. 종가 위치 프록시(체결 단위 아님).`;
+  if (v >= 0.5) return { label: "매수세 강", color: "text-emerald-300", title };
+  if (v >= 0.15) return { label: "매수 우위", color: "text-emerald-400/80", title };
+  if (v > -0.15) return { label: "중립", color: "text-neutral-500", title };
+  if (v > -0.5) return { label: "매도 우위", color: "text-rose-400/80", title };
+  return { label: "매도세 강", color: "text-rose-300", title };
+}
+
 /** "3시간 전" style relative time. */
 function ago(iso: string): string {
   const t = new Date(iso).getTime();
@@ -125,35 +150,44 @@ function MiniTable({
   metric: "volume" | "dollarVolume";
 }) {
   return (
-    <div className="flex-1 min-w-[210px]">
+    <div className="flex-1 min-w-[260px]">
       <div className="text-[11px] uppercase tracking-wide text-neutral-500 mb-1">{title}</div>
       {rows.length === 0 ? (
         <p className="text-xs text-neutral-600">데이터 없음</p>
       ) : (
         <ol className="space-y-0.5">
-          {rows.map((r, i) => (
-            <li key={r.symbol} className="flex items-center gap-2 text-xs">
-              <span className="text-neutral-600 w-3 text-right">{i + 1}</span>
-              <a
-                href={`/ticker/${r.symbol}`}
-                className="font-medium text-neutral-200 hover:text-sky-300 w-14"
-              >
-                {r.symbol}
-              </a>
-              <span className="text-neutral-400 tabular-nums w-16 text-right">
-                {metric === "volume" ? shares(r.volume) : money(r.dollarVolume)}
-              </span>
-              <span
-                className={`tabular-nums w-10 text-right ${relVolColor(r.relVol)}`}
-                title="상대 거래량 (평균 대비)"
-              >
-                {relVolText(r.relVol)}
-              </span>
-              <span className={`tabular-nums w-16 text-right ${pctColor(r.changePct)}`}>
-                {pctText(r.changePct)}
-              </span>
-            </li>
-          ))}
+          {rows.map((r, i) => {
+            const p = pressureInfo(r.pressure);
+            return (
+              <li key={r.symbol} className="flex items-center gap-2 text-xs">
+                <span className="text-neutral-600 w-3 text-right">{i + 1}</span>
+                <a
+                  href={`/ticker/${r.symbol}`}
+                  className="font-medium text-neutral-200 hover:text-sky-300 w-14"
+                >
+                  {r.symbol}
+                </a>
+                <span className="text-neutral-400 tabular-nums w-16 text-right">
+                  {metric === "volume" ? shares(r.volume) : money(r.dollarVolume)}
+                </span>
+                <span
+                  className={`tabular-nums w-9 text-right ${relVolColor(r.relVol)}`}
+                  title="상대 거래량 (평균 대비)"
+                >
+                  {relVolText(r.relVol)}
+                </span>
+                <span className={`tabular-nums w-14 text-right ${pctColor(r.changePct)}`}>
+                  {pctText(r.changePct)}
+                </span>
+                <span
+                  className={`w-14 text-right ${p ? p.color : "text-neutral-600"}`}
+                  title={p ? p.title : "매수/매도세 추정 불가 (범위 없음 또는 프리마켓)"}
+                >
+                  {p ? p.label : "—"}
+                </span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
@@ -427,7 +461,10 @@ export default function SectorStrengthPanel() {
             ⚠️ 가격은 Alpaca 무료 IEX(실시간), <b className="text-neutral-500">거래량은 통합 거래소 일봉</b>(장중 약 15분 지연) 기준. <b className="text-neutral-500">강세</b> = 구성 종목 당일 등락률 평균(상승
             종목 수로 신뢰도 확인), <b className="text-neutral-500">거래대금</b> = 당일 거래량 × 현재가,{" "}
             <b className="text-neutral-500">상대 거래량(N×)</b> = {data.relVolProjected ? "당일 거래량을 장중 진행률로 환산한 추정치를 " : ""}
-            20일 평균 대비{data.relVolProjected ? " 비교" : ""} (프리마켓은 비교 불가로 제외). 뉴스는 강세 <b className="text-neutral-500">이유 참고용</b>이며 순위 산정에는 쓰지 않습니다.
+            20일 평균 대비{data.relVolProjected ? " 비교" : ""} (프리마켓은 비교 불가로 제외).{" "}
+            <b className="text-neutral-500">매수/매도세</b> = 당일 종가가 고·저 범위의 어디에 마감했는지(Money Flow) 기반 <b className="text-neutral-500">장중 수급</b> 추정 — 고가권 마감이면 매수세, 저가권이면 매도세.
+            <b className="text-neutral-500">당일 등락률과는 별개</b>라 갭다운했어도 장중 매수세가 강할 수 있습니다. 무료 데이터로는 체결 단위 매수/매도량 구분이 불가해 이 <b className="text-neutral-500">종가 위치 프록시</b>로 대체하며, 프리마켓엔 표시하지 않습니다.
+            뉴스는 강세 <b className="text-neutral-500">이유 참고용</b>이며 순위 산정에는 쓰지 않습니다.
             큐레이션된 {data.sectorCount}개 섹터·테마만 평가하므로 목록에 없는 신생 테마는 자동으로 잡히지 않습니다.
           </p>
         </>

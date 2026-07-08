@@ -52,6 +52,17 @@ interface StockRow {
   dollarVolume: number;
   /** Projected-full-day volume ÷ 20d avg. Null when no baseline / not comparable. */
   relVol: number | null;
+  /**
+   * Buy/sell pressure PROXY, −1..+1 (Money Flow Multiplier / close-location
+   * value): ((c−l) − (h−c)) / (h−l) from today's OHLC. +1 = closed at the
+   * high (buyers won the session), −1 = at the low (sellers won). This is
+   * NOT tick-level order flow (free data can't classify each trade as
+   * buy/sell) — it's the textbook accumulation/distribution read of "did the
+   * session's heavy volume push price up into the range or down out of it".
+   * Null when no usable range (illiquid) or pre-market (today's H/L not formed
+   * yet, so it'd mix a pre-market price with yesterday's range).
+   */
+  pressure: number | null;
 }
 
 interface Headline {
@@ -89,6 +100,29 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 function mean(xs: number[]): number | null {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
+
+/**
+ * Money Flow Multiplier from today's OHLC — where the session closed within
+ * its range. See StockRow.pressure. Returns null in pre-market (H/L not yet
+ * formed) or when there's no usable range.
+ */
+function closePressure(
+  s: Snapshot,
+  session: "pre" | "regular" | "after" | "closed",
+): number | null {
+  if (session === "pre") return null;
+  const h = s.todayHigh;
+  const l = s.todayLow;
+  // Prefer the official regular close once set; otherwise the live price.
+  const c = s.todayClose ?? s.lastPrice;
+  if (h == null || l == null || c == null) return null;
+  if (!isFinite(h) || !isFinite(l) || !isFinite(c)) return null;
+  const range = h - l;
+  if (range <= 0) return null;
+  // Clamp: an after-hours lastPrice can sit outside the regular H/L.
+  const cc = Math.min(h, Math.max(l, c));
+  return (cc - l - (h - cc)) / range; // −1..+1
 }
 
 export async function GET() {
@@ -142,6 +176,7 @@ export async function GET() {
       volume,
       dollarVolume: volume * price,
       relVol,
+      pressure: closePressure(s, session),
     };
   };
 
