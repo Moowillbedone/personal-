@@ -111,16 +111,20 @@ function shares(v: number): string {
  */
 function pressureInfo(
   v: number | null,
+  session?: SectorStrengthResponse["session"],
 ): { label: string; color: string; title: string } | null {
   if (v == null || !isFinite(v)) return null;
   const buyPct = Math.round(((v + 1) / 2) * 100);
-  // Framed as INTRADAY pressure, not a recommendation — and explicitly
+  // During pre-market the value is the PREVIOUS session's close-location
+  // (today's range not formed yet), so label it as such.
+  const basis = session === "pre" ? "전일 세션 " : "장중 ";
+  // Framed as intraday pressure, not a recommendation — and explicitly
   // independent of the day's % change (a gap-down name bought back to its
-  // highs is genuine intraday buying, so green next to a red change is
-  // informative, not contradictory).
+  // highs is genuine buying, so green next to a red change is informative,
+  // not contradictory).
   const title =
-    `장중 매수세 ${buyPct}% (종가가 당일 고·저 범위의 상단 ${buyPct}% 지점 마감). ` +
-    `당일 등락률과는 별개 — 갭 이후 장중 수급만 반영. 종가 위치 프록시(체결 단위 아님).`;
+    `${basis}매수세 ${buyPct}% (종가가 고·저 범위의 상단 ${buyPct}% 지점 마감). ` +
+    `등락률과는 별개 — 그 세션 수급만 반영. 종가 위치 프록시(체결 단위 아님).`;
   if (v >= 0.5) return { label: "매수세 강", color: "text-emerald-300", title };
   if (v >= 0.15) return { label: "매수 우위", color: "text-emerald-400/80", title };
   if (v > -0.15) return { label: "중립", color: "text-neutral-500", title };
@@ -144,10 +148,12 @@ function MiniTable({
   title,
   rows,
   metric,
+  session,
 }: {
   title: string;
   rows: StockRow[];
   metric: "volume" | "dollarVolume";
+  session: SectorStrengthResponse["session"];
 }) {
   return (
     <div className="flex-1 min-w-[260px]">
@@ -157,7 +163,7 @@ function MiniTable({
       ) : (
         <ol className="space-y-0.5">
           {rows.map((r, i) => {
-            const p = pressureInfo(r.pressure);
+            const p = pressureInfo(r.pressure, session);
             return (
               <li key={r.symbol} className="flex items-center gap-2 text-xs">
                 <span className="text-neutral-600 w-3 text-right">{i + 1}</span>
@@ -199,11 +205,13 @@ function SectorRowItem({
   rank,
   expanded,
   onToggle,
+  session,
 }: {
   row: SectorRow;
   rank: number;
   expanded: boolean;
   onToggle: () => void;
+  session: SectorStrengthResponse["session"];
 }) {
   const breadthPct =
     row.breadthTotal > 0 ? Math.round((row.breadthUp / row.breadthTotal) * 100) : null;
@@ -254,9 +262,14 @@ function SectorRowItem({
       {expanded && (
         <div className="border-t border-neutral-800 bg-neutral-950/40 px-3 py-3">
           <div className="flex gap-6 flex-wrap">
-            <MiniTable title="거래량 TOP 5" rows={row.topByVolume} metric="volume" />
-            <MiniTable title="거래대금 TOP 5" rows={row.topByDollarVolume} metric="dollarVolume" />
+            <MiniTable title="거래량 TOP 5" rows={row.topByVolume} metric="volume" session={session} />
+            <MiniTable title="거래대금 TOP 5" rows={row.topByDollarVolume} metric="dollarVolume" session={session} />
           </div>
+          {session === "pre" && (
+            <p className="mt-1.5 text-[10px] text-neutral-600">
+              ⓘ 프리마켓 — 매수/매도세는 <b className="text-neutral-500">전일 세션 마감</b> 기준 (당일 범위 미형성)
+            </p>
+          )}
 
           {row.headline && (
             <a
@@ -444,6 +457,7 @@ export default function SectorStrengthPanel() {
                 rank={i + 1}
                 expanded={expanded.has(row.key)}
                 onToggle={() => toggle(row.key)}
+                session={data.session}
               />
             ))}
           </div>

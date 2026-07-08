@@ -25,6 +25,10 @@ export interface Snapshot {
   session: "pre" | "regular" | "after" | "closed";
   // daily-bar reference points
   prevClose: number | null;
+  // previous completed session's range — used for the close-location
+  // (money-flow) read during pre-market, when today's H/L isn't formed yet.
+  prevHigh: number | null;
+  prevLow: number | null;
   todayOpen: number | null;
   todayHigh: number | null;
   todayLow: number | null;
@@ -113,6 +117,8 @@ export async function getSnapshot(symbol: string): Promise<Snapshot> {
     lastTradeTs,
     session: currentMarketSession(),
     prevClose,
+    prevHigh: raw.prevDailyBar?.h ?? null,
+    prevLow: raw.prevDailyBar?.l ?? null,
     todayOpen,
     todayHigh,
     todayLow,
@@ -252,6 +258,8 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
       lastTradeTs,
       session: currentMarketSession(),
       prevClose,
+      prevHigh: s.prevDailyBar?.h ?? null,
+      prevLow: s.prevDailyBar?.l ?? null,
       todayOpen: s.dailyBar?.o ?? null,
       todayHigh: s.dailyBar?.h ?? null,
       todayLow: s.dailyBar?.l ?? null,

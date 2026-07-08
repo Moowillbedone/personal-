@@ -103,19 +103,31 @@ function mean(xs: number[]): number | null {
 }
 
 /**
- * Money Flow Multiplier from today's OHLC — where the session closed within
- * its range. See StockRow.pressure. Returns null in pre-market (H/L not yet
- * formed) or when there's no usable range.
+ * Money Flow Multiplier (close-location value) — where a session closed within
+ * its range. See StockRow.pressure. Range −1..+1.
+ *
+ * During pre-market today's H/L isn't formed yet, so we read the PREVIOUS
+ * completed session (prevHigh/prevLow/prevClose) — "어제 마감 수급" — which is
+ * meaningful context for the user's evening (KST) viewing. Regular/after/closed
+ * use today's OHLC. Null when the chosen session has no usable range.
  */
 function closePressure(
   s: Snapshot,
   session: "pre" | "regular" | "after" | "closed",
 ): number | null {
-  if (session === "pre") return null;
-  const h = s.todayHigh;
-  const l = s.todayLow;
-  // Prefer the official regular close once set; otherwise the live price.
-  const c = s.todayClose ?? s.lastPrice;
+  let h: number | null;
+  let l: number | null;
+  let c: number | null;
+  if (session === "pre") {
+    h = s.prevHigh;
+    l = s.prevLow;
+    c = s.prevClose;
+  } else {
+    h = s.todayHigh;
+    l = s.todayLow;
+    // Prefer the official regular close once set; otherwise the live price.
+    c = s.todayClose ?? s.lastPrice;
+  }
   if (h == null || l == null || c == null) return null;
   if (!isFinite(h) || !isFinite(l) || !isFinite(c)) return null;
   const range = h - l;
