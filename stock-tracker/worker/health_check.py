@@ -39,16 +39,18 @@ from lib import alpaca, db
 # ─── Config ────────────────────────────────────────────────────────────────
 TG_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 TG_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-# chain 전체 안전망(flash-lite 1,000 RPD) 기준 — ai_scan.py와 정합.
-# 하루 50 calls(25×2)는 1,000 한도의 5%라 정상. 2.5-flash 20 RPD 기준이
-# 아니라 chain 가용량 기준으로 봐야 false alarm 안 뜸 (2026-05-28).
-GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "1000"))
+# Chain deep-net capacity (2026-07-09): the real high-RPD free model is now
+# gemini-3.1-flash-lite at 500 RPD (the old "2.5-flash-lite = 1,000 RPD"
+# assumption was false — it's 20). Full-Flash tiers add ~60 on top, but the
+# floor that prevents failure is the 500. Judge quota vs this, not the 20-RPD
+# per-model caps, so we don't false-alarm at normal ~30-40 calls/day.
+GEMINI_FREE_RPD = int(os.getenv("GEMINI_FREE_RPD", "500"))
 
 # Per-check thresholds (env-overridable so we can tune without redeploying).
 SIGNALS_STALE_HOURS = int(os.getenv("HC_SIGNALS_STALE_H", "24"))
 PRICE_BARS_STALE_HOURS = int(os.getenv("HC_PRICE_STALE_H", "6"))
 AI_ANALYSIS_STALE_HOURS = int(os.getenv("HC_AI_STALE_H", "30"))
-QUOTA_WARN_THRESHOLD = int(os.getenv("HC_QUOTA_WARN", "900"))  # chain 1000 기준 90%
+QUOTA_WARN_THRESHOLD = int(os.getenv("HC_QUOTA_WARN", "450"))  # 500 deep-net 기준 90%
 ALPACA_LATEST_BAR_STALE_MIN = int(os.getenv("HC_ALPACA_STALE_M", "60"))
 WATCHLIST_STALE_HOURS = int(os.getenv("HC_WATCHLIST_STALE_H", "30"))
 

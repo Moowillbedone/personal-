@@ -27,40 +27,34 @@
 // get a 75s cooldown via the smart-classifier and recover within the
 // next call.
 //
-// Model chain (2026-05-28 최종 — 사용자 승인):
-//   1. gemini-2.5-flash      (20 RPD, 최고 품질) — primary, 매 호출 먼저 시도
-//   2. gemini-flash-latest   (별도 quota bucket) — primary 소진 시
-//   3. gemini-2.5-flash-lite (1,000 RPD, 중품질) — 최후 안전망
+// Model chain (2026-07-09 — 사용자 계정 rate-limit 대시보드 실측 기반, 승인):
+//   1. gemini-3.5-flash        (풀 Flash, 최고 품질, ~20 RPD)  — primary
+//   2. gemini-2.5-flash        (풀 Flash, GA, ~20 RPD)         — 폴백1
+//   3. gemini-3-flash-preview  (풀 Flash, 최신, ~20 RPD)       — 폴백2 (preview)
+//   4. gemini-3.1-flash-lite   (**500 RPD**, GA, 저추론 Lite)  — 깊은 안전망
 //
-// 동작: 매 호출은 항상 primary(고품질)부터. primary가 429(20 RPD 소진)면
-// flash-latest, 그것도 막히면 lite로 폴백. 즉 하루 첫 ~40개(2.5-flash +
-// flash-latest)는 최고 품질, 그 이후만 lite. 평소 운영(25×2=50 calls/day)
-// 에선 대부분 고품질 모델이 처리하고 lite는 진짜 안전망 역할.
+// 이전(05-28) 설계는 "gemini-2.5-flash-lite = 1,000 RPD 안전망"을 전제했으나
+// 2026-07 사용자 AI Studio 대시보드 실측 결과 그 가정이 거짓으로 판명:
+// 2.5-flash / 3.5-flash / 2.5-flash-lite 세 모델 모두 **각 20 RPD**뿐이었고
+// (2.5-lite도 1,000이 아니라 20), 폴백 캐스케이드+재시도가 셋을 다 태워
+// 매일 22:30(=PT 06:00, 리셋 후 이미 소진) 스캔이 대량 실패했다.
 //
-// lite를 최후 fallback에 둔 이유: 2025-12-07 Google이 free tier 2.5-flash를
-// 250→20 RPD로 80% 축소. lite만 1,000 RPD 유지. lite가 chain 맨 뒤에
-// 있으면 quota 소진으로 인한 verdict 실패(missing/stale)가 사실상 0이 됨
-// (1,000 RPD는 우리 사용량의 20배). 옛 5/11-15 정상 시기 매일 70-90건
-// 처리했던 게 바로 이 lite 포함 chain 덕분이었음.
+// 해결: 진짜 고RPD 무료 모델(gemini-3.1-flash-lite, **500 RPD**, GA)을 깊은
+// 안전망으로 배치. 풀 Flash 3개(3.5/2.5/3-preview)가 하루 ~60건까지 최고
+// 품질로 처리하고(우리 수요 ~30-40건 → 사실상 전부 풀Flash), 그걸 넘겨도
+// 3.1-flash-lite가 500 RPD로 받아 **verdict 실패가 사실상 0**. 500은 우리
+// 사용량의 10배 이상이라 워커 브레더/재시도 낭비 로직도 실질적으로 발동 안 함.
 //
-// 품질 영향 최소: 평소엔 2.5-flash로 고품질 유지. lite는 2.5-flash +
-// flash-latest 둘 다 소진된 극단에서만 발동.
-//
-// 2026-05-30 운영 진단 (22:00 KST 스캔 16/25 실패 사례):
-//   - 실패의 본질은 RPD(일일) 소진이 아니라 "분당(per-minute) 버스트 429".
-//     동일 키로 같은 날 ~4h 뒤 직접 probe 시 3개 모델 모두 200 정상 →
-//     일일 한도였다면 PT 자정까지 안 풀렸을 것. 즉 분당 한도였다.
-//   - 증폭된 원인(버그): per-minute 429를 markModelCooled가 per-day로
-//     오분류 → 3개 모델 전부 1h 쿨다운 → 스캔 나머지가 요청조차 못 보내고
-//     fast-fail("gemini call failed" → 워커가 "unknown" 집계 → 90s retry
-//     14회 = 27분 전멸). 아래 markModelCooled가 retryDelay/PerDay/PerMinute를
-//     구분하고, 미분류 시 1h가 아닌 90s만 쿨다운하도록 고침. generateVerdict는
-//     all-cooled 시 분류 가능한 메시지를 던지도록 고침.
-//   - 미해결 가설: free tier 한도가 모델별이 아니라 프로젝트 공유일 수 있음
-//     (그렇다면 3-chain이 쿼터를 늘려주지 못함). 다음 429 발생 시
-//     gemini_429_body 로그의 quotaId로 확정할 것.
-const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const FALLBACK_MODELS: string[] = ["gemini-flash-latest", "gemini-2.5-flash-lite"];
+// 주의: -latest 별칭은 이 계정 ListModels에 없어 명시 버전 ID를 쓴다.
+// 3-flash는 GA가 없고 preview만 존재(gemini-3-flash-preview) — preview는
+// 한도가 바뀔 수 있으나 폴백2라 죽으면 체인이 자동 스킵(404→다음 모델).
+// Pro(2.5/3.1)는 무료 0/0 = 유료 전용이라 체인에서 제외.
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const FALLBACK_MODELS: string[] = [
+  "gemini-2.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.1-flash-lite",
+];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
