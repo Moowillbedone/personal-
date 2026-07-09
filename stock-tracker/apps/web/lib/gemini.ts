@@ -50,9 +50,14 @@
 // 한도가 바뀔 수 있으나 폴백2라 죽으면 체인이 자동 스킵(404→다음 모델).
 // Pro(2.5/3.1)는 무료 0/0 = 유료 전용이라 체인에서 제외.
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+// Quality-first order (사용자 선호, 2026-07-09): gen 3.5 → 3 → 2.5 → lite.
+// "gemini-3-flash-preview" IS the "Gemini 3 Flash" from the dashboard — no GA
+// `gemini-3-flash` exists yet, only the preview id. Placed ahead of 2.5-flash
+// for higher gen-3 quality; if the preview ever 404s/changes, the chain skips
+// it gracefully to 2.5-flash.
 const FALLBACK_MODELS: string[] = [
-  "gemini-2.5-flash",
   "gemini-3-flash-preview",
+  "gemini-2.5-flash",
   "gemini-3.1-flash-lite",
 ];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
