@@ -49,7 +49,11 @@
 // 3-flash는 GA가 없고 preview만 존재(gemini-3-flash-preview) — preview는
 // 한도가 바뀔 수 있으나 폴백2라 죽으면 체인이 자동 스킵(404→다음 모델).
 // Pro(2.5/3.1)는 무료 0/0 = 유료 전용이라 체인에서 제외.
-const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+// GEMINI_MODEL env is intentionally NOT read: a stale Production override
+// (=gemini-2.5-flash) was silently pinning the primary and couldn't be
+// cleared cleanly from the dashboard (project sprawl / shared vars), so we
+// hardcode the primary here. Change the model by editing this line.
+const PRIMARY_MODEL = "gemini-3.5-flash";
 // Quality-first order (사용자 선호, 2026-07-09): gen 3.5 → 3 → 2.5 → lite.
 // "gemini-3-flash-preview" IS the "Gemini 3 Flash" from the dashboard — no GA
 // `gemini-3-flash` exists yet, only the preview id. Placed ahead of 2.5-flash
