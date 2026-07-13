@@ -126,28 +126,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
     }
 
-    // ── TEMP thinking-budget probe params (remove after verification) ──
-    // ?think=off|<int> caps thinking; ?nocache=1 forces a fresh Gemini call;
-    // ?onlymodel=<id> pins one model. Absent → identical to production.
-    const sp = req.nextUrl.searchParams;
-    const thinkRaw = sp.get("think");
-    const thinkingBudget =
-      thinkRaw == null ? undefined : thinkRaw === "off" ? 0 : Number(thinkRaw);
-    const onlyModel = sp.get("onlymodel") || undefined;
-    const noCache = sp.get("nocache") === "1";
-
     // 1) Cache lookup
     const cutoffIso = new Date(Date.now() - CACHE_TTL_MS).toISOString();
-    const { data: cached } = noCache
-      ? { data: null }
-      : await supabaseAdmin
-          .from("ai_analysis")
-          .select("*")
-          .eq("symbol", symbol)
-          .gte("created_at", cutoffIso)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+    const { data: cached } = await supabaseAdmin
+      .from("ai_analysis")
+      .select("*")
+      .eq("symbol", symbol)
+      .gte("created_at", cutoffIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     let verdictRow = cached;
     let snapshot: Snapshot | null = null;
@@ -262,7 +250,7 @@ export async function POST(req: NextRequest) {
 
       let verdict: GeminiVerdict;
       try {
-        verdict = await generateVerdict(prompt, { thinkingBudget, onlyModel });
+        verdict = await generateVerdict(prompt);
       } catch (genErr) {
         // Gemini unavailable (rate-limit / cooldown / 5xx / timeout). For
         // interactive callers, degrade to the most recent stored analysis

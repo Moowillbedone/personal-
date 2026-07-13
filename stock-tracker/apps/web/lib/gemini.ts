@@ -66,6 +66,15 @@ const FALLBACK_MODELS: string[] = [
 ];
 const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter((m) => m !== PRIMARY_MODEL)];
 
+// Thinking-budget cap (2026-07-13, live-validated). gemini-3.5-flash with
+// UNLIMITED thinking took >60s on heavy watchlist names (SPCX/SOXL) and hit
+// Vercel's 60s timeout → those symbols never got analyzed (stale). Capping
+// thinking to 512 cut SPCX from timeout → 24-32s with IDENTICAL verdict/
+// confidence/entry/stop (only cosmetic target variance). Validated on all
+// chain models (2.5-flash 14s / 3-preview 24s / 3.1-flash-lite 6s). Bump this
+// if you ever want deeper reasoning at the cost of latency.
+const THINKING_BUDGET = 512;
+
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS_PER_MODEL = 2;
 
@@ -227,7 +236,7 @@ async function callOnce(
   model: string,
   apiKey: string,
   prompt: string,
-  thinkingBudget?: number | null,
+  thinkingBudget: number | null = THINKING_BUDGET,
 ): Promise<string> {
   const generationConfig: Record<string, unknown> = {
     temperature: 0.3,
@@ -306,18 +315,14 @@ async function callOnce(
   return text;
 }
 
-export async function generateVerdict(
-  prompt: string,
-  opts?: { thinkingBudget?: number | null; onlyModel?: string },
-): Promise<GeminiVerdict> {
+export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set");
 
   let lastErr: Error | null = null;
   let text: string | null = null;
 
-  const chain = opts?.onlyModel ? [opts.onlyModel] : MODEL_CHAIN;
-  outer: for (const model of chain) {
+  outer: for (const model of MODEL_CHAIN) {
     // Skip models that recently 429'd — assume they're still capped and
     // jump straight to the next available model. Avoids the 8-attempts-
     // per-failed-call cascade that ate today's whole quota budget.
@@ -326,7 +331,7 @@ export async function generateVerdict(
     }
     for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
       try {
-        text = await callOnce(model, apiKey, prompt, opts?.thinkingBudget);
+        text = await callOnce(model, apiKey, prompt); // thinking-budget default applies
         break outer; // success
       } catch (e) {
         lastErr = e as Error;
