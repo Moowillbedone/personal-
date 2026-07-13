@@ -140,8 +140,20 @@ def main() -> int:
         print(f"earnings_alert: watchlist fetch failed — {e}", file=sys.stderr)
         return 1
 
-    if not watchlist:
-        print("earnings_alert: empty watchlist, exiting")
+    # Universe = watchlist ∪ NASDAQ-100 proxy (2026-07-13). Watchlist alone is
+    # tiny and often ETFs (SOXL/SOXX have no earnings), so earnings season went
+    # silent. The NDX-100 set is the universe the AI scan + digest already
+    # target, so this surfaces the big-cap names the user actually trades.
+    # Watchlist names are still starred (⭐) so "yours" stand out from the broad
+    # NDX list.
+    try:
+        ndx = db.get_nasdaq_top100(sb)
+    except Exception as e:
+        print(f"earnings_alert: ndx fetch failed — {e}", file=sys.stderr)
+        ndx = set()
+    universe = watchlist | ndx
+    if not universe:
+        print("earnings_alert: empty universe, exiting")
         return 0
 
     today = datetime.now(timezone.utc).date()
@@ -149,14 +161,14 @@ def main() -> int:
     cal = fetch_earnings_calendar(today.isoformat(), end.isoformat())
     print(
         f"earnings_alert: {len(cal)} earnings in {LOOKBACK_DAYS}d window, "
-        f"watchlist={len(watchlist)}"
+        f"universe={len(universe)} (watchlist={len(watchlist)}, ndx={len(ndx)})"
     )
 
     relevant = [
-        c for c in cal if (c.get("symbol") or "").upper() in watchlist
+        c for c in cal if (c.get("symbol") or "").upper() in universe
     ]
     if not relevant:
-        print("earnings_alert: no upcoming watchlist earnings — skipping send")
+        print("earnings_alert: no upcoming earnings in universe — skipping send")
         return 0
 
     today_iso = today.isoformat()
@@ -178,15 +190,16 @@ def main() -> int:
     # defensive split.
     blocks: list[str] = [
         f"📅 *어닝 캘린더 알림* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})\n"
-        f"watchlist {len(watchlist)}종목 중 7일 내 어닝 {len(relevant)}건"
+        f"NDX-100 + 관심종목 중 7일 내 어닝 {len(relevant)}건 (⭐=관심종목)"
     ]
 
     if today_evts:
         today_lines = ["🚨 *오늘 어닝 (D-day)*"]
         for c in today_evts:
             sym = (c.get("symbol") or "?").upper()
+            star = "⭐" if sym in watchlist else ""
             today_lines.append(
-                f"• *{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
+                f"• {star}*{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
             )
             today_lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
         blocks.append("\n".join(today_lines))
@@ -195,8 +208,9 @@ def main() -> int:
         tom_lines = ["⏰ *내일 어닝 (D+1)*"]
         for c in tomorrow_evts:
             sym = (c.get("symbol") or "?").upper()
+            star = "⭐" if sym in watchlist else ""
             tom_lines.append(
-                f"• *{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
+                f"• {star}*{sym}*  {fmt_hour(c.get('hour') or '')}  {fmt_eps(c.get('epsEstimate'))}"
             )
             tom_lines.append(f"  [→ AI 분석]({FRONT_URL}/trade?symbol={sym})")
         blocks.append("\n".join(tom_lines))
@@ -207,15 +221,16 @@ def main() -> int:
         ]
         for c in later_evts:
             sym = (c.get("symbol") or "?").upper()
+            star = "⭐" if sym in watchlist else ""
             d = c.get("date") or ""
             hour = (c.get("hour") or "").upper()
             hour_str = f" ({hour})" if hour else ""
             est = c.get("epsEstimate")
             est_str = f" · EPS ${est:.2f}" if est is not None else ""
-            later_lines.append(f"• {d}: *{sym}*{hour_str}{est_str}")
+            later_lines.append(f"• {d}: {star}*{sym}*{hour_str}{est_str}")
         blocks.append("\n".join(later_lines))
 
-    blocks.append(f"[전체 워치리스트 →]({FRONT_URL}/trade)")
+    blocks.append(f"[전체 분석 →]({FRONT_URL}/trade)")
 
     messages = pack_messages(blocks)
     print(
