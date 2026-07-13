@@ -223,34 +223,44 @@ const TRADE_PLAN_SCHEMA = {
   required: ["entry_low", "entry_high", "stop", "target_1", "target_2", "horizon_days", "note"],
 } as const;
 
-async function callOnce(model: string, apiKey: string, prompt: string): Promise<string> {
+async function callOnce(
+  model: string,
+  apiKey: string,
+  prompt: string,
+  thinkingBudget?: number | null,
+): Promise<string> {
+  const generationConfig: Record<string, unknown> = {
+    temperature: 0.3,
+    responseMimeType: "application/json",
+    responseSchema: {
+      type: "OBJECT",
+      properties: {
+        verdict: { type: "STRING", enum: ["buy", "hold", "sell"] },
+        confidence: { type: "NUMBER" },
+        summary: { type: "STRING" },
+        bull_points: { type: "ARRAY", items: { type: "STRING" } },
+        bear_points: { type: "ARRAY", items: { type: "STRING" } },
+        trade_plan: TRADE_PLAN_SCHEMA,
+        horizons: {
+          type: "OBJECT",
+          properties: {
+            three_month: HORIZON_SCHEMA,
+            six_month: HORIZON_SCHEMA,
+            one_year: HORIZON_SCHEMA,
+          },
+          required: ["three_month", "six_month", "one_year"],
+        },
+      },
+      required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "trade_plan", "horizons"],
+    },
+  };
+  // Optional thinking-budget cap (undefined = model default, unchanged).
+  if (thinkingBudget !== undefined && thinkingBudget !== null) {
+    generationConfig.thinkingConfig = { thinkingBudget };
+  }
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.3,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          verdict: { type: "STRING", enum: ["buy", "hold", "sell"] },
-          confidence: { type: "NUMBER" },
-          summary: { type: "STRING" },
-          bull_points: { type: "ARRAY", items: { type: "STRING" } },
-          bear_points: { type: "ARRAY", items: { type: "STRING" } },
-          trade_plan: TRADE_PLAN_SCHEMA,
-          horizons: {
-            type: "OBJECT",
-            properties: {
-              three_month: HORIZON_SCHEMA,
-              six_month: HORIZON_SCHEMA,
-              one_year: HORIZON_SCHEMA,
-            },
-            required: ["three_month", "six_month", "one_year"],
-          },
-        },
-        required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "trade_plan", "horizons"],
-      },
-    },
+    generationConfig,
   };
 
   const r = await fetch(`${endpointFor(model)}?key=${encodeURIComponent(apiKey)}`, {
@@ -296,14 +306,18 @@ async function callOnce(model: string, apiKey: string, prompt: string): Promise<
   return text;
 }
 
-export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
+export async function generateVerdict(
+  prompt: string,
+  opts?: { thinkingBudget?: number | null; onlyModel?: string },
+): Promise<GeminiVerdict> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set");
 
   let lastErr: Error | null = null;
   let text: string | null = null;
 
-  outer: for (const model of MODEL_CHAIN) {
+  const chain = opts?.onlyModel ? [opts.onlyModel] : MODEL_CHAIN;
+  outer: for (const model of chain) {
     // Skip models that recently 429'd — assume they're still capped and
     // jump straight to the next available model. Avoids the 8-attempts-
     // per-failed-call cascade that ate today's whole quota budget.
@@ -312,7 +326,7 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
     }
     for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
       try {
-        text = await callOnce(model, apiKey, prompt);
+        text = await callOnce(model, apiKey, prompt, opts?.thinkingBudget);
         break outer; // success
       } catch (e) {
         lastErr = e as Error;
