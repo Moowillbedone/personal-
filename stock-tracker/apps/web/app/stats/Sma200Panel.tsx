@@ -82,7 +82,8 @@ const SECTOR_RULES: [RegExp, string][] = [
   [/auto/, "자동차"],
   [/retail|e-commerce|distributor|distribution/, "유통·소매"],
   [/hotel|restaurant|leisure|travel|gaming|casino/, "호텔·레저"],
-  [/beverage|food|tobacco|agricult|grocery/, "식음료"],
+  [/tobacco/, "담배"],
+  [/beverage|food|agricult|grocery/, "식음료"],
   [/apparel|luxury|textile|footwear/, "의류·소비재"],
   [/household|consumer products|personal products|cosmetic/, "생활소비재"],
   [/media|entertainment|broadcast|publishing/, "미디어"],
@@ -90,6 +91,7 @@ const SECTOR_RULES: [RegExp, string][] = [
   [/machinery|industrial|manufactur|electrical equipment|conglomerate/, "산업재"],
   [/transport|logistics|rail|marine|trucking|shipping|airport/, "운송·물류"],
   [/construction|building|engineering|homebuild|cement/, "건설·건자재"],
+  [/professional services|commercial services|business services|consulting/, "서비스"],
 ];
 
 function koSector(raw: string | null): string | null {
