@@ -128,7 +128,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
   const distColor = tone === "buy" ? "text-emerald-400" : "text-amber-400";
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[280px]">
+      <div className="min-w-0">
         <div
           className={`${GRID} text-[10px] text-neutral-500 pb-1 mb-0.5 border-b border-neutral-800`}
         >
