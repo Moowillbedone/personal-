@@ -119,8 +119,10 @@ function fmtUpdated(iso: string | null): string {
 // col1 (종목·섹터) flexes and can shrink/truncate; the 4 numeric columns hold a
 // small min-width and stay right-aligned. Wrapped in overflow-x-auto so a very
 // narrow phone scrolls inside the card instead of breaking the page layout.
+// On phones the 200선 column is hidden (이격도 already encodes price-vs-line),
+// leaving 4 columns that fit ~360px; from sm up all 5 show.
 const GRID =
-  "grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.7rem,auto))] gap-x-2 sm:gap-x-3";
+  "grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(2.6rem,auto))] sm:grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.6rem,auto))] gap-x-2 sm:gap-x-3";
 
 function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
   const distColor = tone === "buy" ? "text-emerald-400" : "text-amber-400";
@@ -132,7 +134,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
         >
           <span>종목 · 섹터</span>
           <span className="text-right">현재가</span>
-          <span className="text-right">200선</span>
+          <span className="text-right hidden sm:block">200선</span>
           <span className="text-right">이격도</span>
           <span className="text-right">당일</span>
         </div>
@@ -142,7 +144,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
           rows.map((r) => (
             <div
               key={r.symbol}
-              className={`${GRID} items-center py-1.5 text-sm border-b border-neutral-800/40 last:border-0`}
+              className={`${GRID} items-center py-1.5 text-xs sm:text-sm border-b border-neutral-800/40 last:border-0`}
             >
               <div className="min-w-0">
                 <a
@@ -160,7 +162,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
               <span className="text-right tabular-nums text-neutral-300">
                 ${r.price.toFixed(2)}
               </span>
-              <span className="text-right tabular-nums text-neutral-600">
+              <span className="text-right tabular-nums text-neutral-600 hidden sm:block">
                 {r.sma200.toFixed(2)}
               </span>
               <span className={`text-right tabular-nums ${distColor}`}>
