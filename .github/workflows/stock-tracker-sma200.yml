@@ -27,6 +27,9 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
       ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+      # Sector labels (finnhubIndustry) — fetched incrementally, ~0 calls after
+      # the first fill. Optional: without it, rows just have no sector.
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

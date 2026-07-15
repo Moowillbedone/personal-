@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 interface Row {
   symbol: string;
+  sector: string | null; // raw finnhubIndustry (mapped to Korean at render)
   price: number;
   sma200: number;
   distPct: number; // signed percent, e.g. +1.8 / −0.9
@@ -53,6 +54,51 @@ function changeColor(v: number | null): string {
   return v >= 0 ? "text-emerald-400" : "text-red-400";
 }
 
+// Map a raw finnhubIndustry string → short Korean sector label. Keyword-based
+// (substring) so it's resilient to Finnhub's exact wording; ORDER MATTERS —
+// more specific rules first (semiconductor before technology, oil before
+// energy). Unmapped values fall back to the raw string so nothing is blank.
+const SECTOR_RULES: [RegExp, string][] = [
+  [/semiconductor/, "반도체"],
+  [/software|saas/, "소프트웨어"],
+  [/internet|interactive media/, "인터넷"],
+  [/it services|information technology|technology/, "기술·IT"],
+  [/hardware|computer|electronic equipment|consumer electronics/, "하드웨어"],
+  [/aerospace|defense|defence/, "항공·방산"],
+  [/bank/, "은행"],
+  [/insurance/, "보험"],
+  [/financial exchanges|capital markets|asset management|investment/, "금융·자산"],
+  [/financial/, "금융"],
+  [/pharmaceutic/, "제약"],
+  [/biotech/, "바이오"],
+  [/health|medical|life sciences|managed care|hospital/, "헬스케어"],
+  [/oil|gas|petroleum|drilling/, "석유·가스"],
+  [/energy|renewable|solar/, "에너지"],
+  [/electric utilities|util/, "유틸리티"],
+  [/real estate|reit/, "부동산"],
+  [/chemical/, "화학"],
+  [/metal|mining|steel|gold/, "금속·광업"],
+  [/airline/, "항공"],
+  [/auto/, "자동차"],
+  [/retail|e-commerce|distributor|distribution/, "유통·소매"],
+  [/hotel|restaurant|leisure|travel|gaming|casino/, "호텔·레저"],
+  [/beverage|food|tobacco|agricult|grocery/, "식음료"],
+  [/apparel|luxury|textile|footwear/, "의류·소비재"],
+  [/household|consumer products|personal products|cosmetic/, "생활소비재"],
+  [/media|entertainment|broadcast|publishing/, "미디어"],
+  [/telecom|communication/, "통신"],
+  [/machinery|industrial|manufactur|electrical equipment|conglomerate/, "산업재"],
+  [/transport|logistics|rail|marine|trucking|shipping|airport/, "운송·물류"],
+  [/construction|building|engineering|homebuild|cement/, "건설·건자재"],
+];
+
+function koSector(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  for (const [re, ko] of SECTOR_RULES) if (re.test(s)) return ko;
+  return raw; // fallback: show the raw industry string
+}
+
 function fmtUpdated(iso: string | null): string {
   if (!iso) return "";
   try {
@@ -69,39 +115,68 @@ function fmtUpdated(iso: string | null): string {
   }
 }
 
+// Shared column template so the header row and every data row line up.
+// col1 (종목·섹터) flexes and can shrink/truncate; the 4 numeric columns hold a
+// small min-width and stay right-aligned. Wrapped in overflow-x-auto so a very
+// narrow phone scrolls inside the card instead of breaking the page layout.
+const GRID =
+  "grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.7rem,auto))] gap-x-2 sm:gap-x-3";
+
 function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
-  if (rows.length === 0) {
-    return <p className="text-xs text-neutral-600 py-2">해당 종목 없음</p>;
-  }
   const distColor = tone === "buy" ? "text-emerald-400" : "text-amber-400";
   return (
-    <ul className="divide-y divide-neutral-800">
-      {rows.map((r) => (
-        <li key={r.symbol} className="flex items-center gap-2 py-1.5 text-sm">
-          <a
-            href={`/trade?symbol=${r.symbol}`}
-            className="font-semibold w-16 shrink-0 hover:underline"
-          >
-            {r.symbol}
-          </a>
-          <span className="text-neutral-300 tabular-nums w-20 text-right">
-            ${r.price.toFixed(2)}
-          </span>
-          <span className="text-neutral-600 tabular-nums w-20 text-right">
-            {r.sma200.toFixed(2)}
-          </span>
-          <span className={`${distColor} tabular-nums w-16 text-right`}>
-            {r.distPct >= 0 ? "+" : ""}
-            {r.distPct.toFixed(2)}%
-          </span>
-          <span
-            className={`${changeColor(r.changePct)} tabular-nums w-16 text-right`}
-          >
-            {changeText(r.changePct)}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="overflow-x-auto">
+      <div className="min-w-[280px]">
+        <div
+          className={`${GRID} text-[10px] text-neutral-500 pb-1 mb-0.5 border-b border-neutral-800`}
+        >
+          <span>종목 · 섹터</span>
+          <span className="text-right">현재가</span>
+          <span className="text-right">200선</span>
+          <span className="text-right">이격도</span>
+          <span className="text-right">당일</span>
+        </div>
+        {rows.length === 0 ? (
+          <p className="text-xs text-neutral-600 py-2">해당 종목 없음</p>
+        ) : (
+          rows.map((r) => (
+            <div
+              key={r.symbol}
+              className={`${GRID} items-center py-1.5 text-sm border-b border-neutral-800/40 last:border-0`}
+            >
+              <div className="min-w-0">
+                <a
+                  href={`/trade?symbol=${r.symbol}`}
+                  className="font-semibold hover:underline"
+                >
+                  {r.symbol}
+                </a>
+                {koSector(r.sector) && (
+                  <div className="text-[10px] text-neutral-500 leading-tight truncate">
+                    {koSector(r.sector)}
+                  </div>
+                )}
+              </div>
+              <span className="text-right tabular-nums text-neutral-300">
+                ${r.price.toFixed(2)}
+              </span>
+              <span className="text-right tabular-nums text-neutral-600">
+                {r.sma200.toFixed(2)}
+              </span>
+              <span className={`text-right tabular-nums ${distColor}`}>
+                {r.distPct >= 0 ? "+" : ""}
+                {r.distPct.toFixed(2)}%
+              </span>
+              <span
+                className={`text-right tabular-nums ${changeColor(r.changePct)}`}
+              >
+                {changeText(r.changePct)}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -174,6 +249,16 @@ export default function Sma200Panel() {
         ))}
       </div>
 
+      {/* 각 수치 의미 범례 */}
+      <div className="text-[11px] text-neutral-500 leading-relaxed border border-neutral-800/70 rounded bg-neutral-900/40 px-2.5 py-1.5">
+        <b className="text-neutral-300">이격도</b> = 현재가가 {tab === "weekly" ? "주봉" : "일봉"} 200일선에서 벗어난 정도
+        <span className="text-neutral-600">(+ 위 / − 아래, 0%에 가까울수록 선에 “터치”)</span>
+        {" · "}
+        <b className="text-neutral-300">당일</b> = 오늘 등락률
+        {" · "}
+        <b className="text-neutral-300">200선</b> = SMA200 값
+      </div>
+
       {loading && <p className="text-xs text-neutral-500 py-4">불러오는 중…</p>}
       {error && (
         <p className="text-xs text-red-400 py-4">불러오기 실패: {error}</p>
@@ -214,10 +299,9 @@ export default function Sma200Panel() {
       )}
 
       <p className="text-[11px] text-neutral-600 leading-relaxed">
-        열: 종목 · 현재가 · 200선값 · 이격도(현재가−선) · 당일등락. 이격도 0에
-        가까울수록 "터치"에 근접. SMA200은 매일 장 마감 후 일봉/주봉 각각
-        200개 종가로 계산됩니다. 참고 지표이며 매매 판단의 책임은 본인에게
-        있습니다.
+        SMA200은 매일 장 마감 후 일봉/주봉 각각 200개 종가(액면분할 조정)로
+        계산됩니다. 섹터는 참고용 대분류. 참고 지표이며 매매 판단의 책임은
+        본인에게 있습니다.
       </p>
     </section>
   );

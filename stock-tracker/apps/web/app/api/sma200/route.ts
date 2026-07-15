@@ -29,6 +29,7 @@ const MAX_BAND = 0.1;
 
 interface Row {
   symbol: string;
+  sector: string | null; // raw finnhubIndustry; panel maps to Korean
   price: number;
   sma200: number;
   distPct: number; // (price − sma) / sma, signed
@@ -37,6 +38,7 @@ interface Row {
 
 interface Sma200Record {
   symbol: string;
+  sector: string | null;
   sma200_daily: number | null;
   sma200_weekly: number | null;
   updated_at: string;
@@ -58,6 +60,7 @@ function classify(
     if (Math.abs(distPct) > band) continue; // not near the line
     const row: Row = {
       symbol: rec.symbol,
+      sector: rec.sector ?? null,
       price: Number(live.price.toFixed(2)),
       sma200: Number(sma.toFixed(2)),
       distPct: Number((distPct * 100).toFixed(2)), // percent
@@ -82,9 +85,23 @@ export async function GET(req: Request) {
       ? Math.min(MAX_BAND, Math.max(MIN_BAND, bandParam))
       : DEFAULT_BAND;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("sma200")
-    .select("symbol, sma200_daily, sma200_weekly, updated_at");
+    .select("symbol, sector, sma200_daily, sma200_weekly, updated_at");
+
+  // Migration 013 (sector column) may not be applied yet. If the column is
+  // missing, Postgres/PostgREST errors with 42703 ("column … does not exist")
+  // — retry without it so the scanner keeps working, just without sector labels
+  // until the migration lands. Order-independent deploy.
+  if (
+    error &&
+    (error.code === "42703" ||
+      (error.message || "").toLowerCase().includes("sector"))
+  ) {
+    ({ data, error } = await supabase
+      .from("sma200")
+      .select("symbol, sma200_daily, sma200_weekly, updated_at"));
+  }
 
   const session = currentMarketSession();
 

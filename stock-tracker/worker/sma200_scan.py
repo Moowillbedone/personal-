@@ -17,9 +17,12 @@ Run: python sma200_scan.py   (GitHub Actions cron, daily after US close)
 """
 from __future__ import annotations
 
+import os
 import sys
+import time
 from datetime import datetime, timezone
 
+import requests
 from dotenv import load_dotenv
 
 from lib import alpaca, db
@@ -31,6 +34,32 @@ SMA_PERIOD = 200
 # resolve and there's slack for exchange holidays / thin history.
 DAILY_LOOKBACK = "400d"    # ~275 trading days ≥ 200
 WEEKLY_LOOKBACK = "1600d"  # ~228 weeks ≥ 200
+
+FINNHUB_KEY = (os.getenv("FINNHUB_API_KEY") or "").strip()
+# Per-run cap on Finnhub profile lookups. Sector is fetched only for symbols
+# that don't already have one stored (see main), so after the first fill this
+# is ~0. Paced under Finnhub's free 60 req/min. Cap protects the job timeout if
+# the universe ever balloons.
+SECTOR_FETCH_CAP = 260
+
+
+def fetch_industry(sym: str) -> str | None:
+    """finnhubIndustry for one symbol (e.g. 'Semiconductors', 'Banking'), or
+    None on any failure / empty. The panel maps this to a Korean label."""
+    if not FINNHUB_KEY:
+        return None
+    url = f"https://finnhub.io/api/v1/stock/profile2?symbol={sym}&token={FINNHUB_KEY}"
+    try:
+        r = requests.get(url, timeout=15)
+        if r.status_code == 429:
+            time.sleep(2)
+            r = requests.get(url, timeout=15)
+        if not r.ok:
+            return None
+        ind = (r.json() or {}).get("finnhubIndustry")
+        return ind.strip() if isinstance(ind, str) and ind.strip() else None
+    except Exception:
+        return None
 
 
 def _sma(df, period: int) -> float | None:
@@ -93,14 +122,50 @@ def main() -> int:
         print("sma200_scan: nothing to upsert (no symbol had 200 bars)")
         return 0
 
+    # Sector labels (finnhubIndustry). Fetched INCREMENTALLY — only for symbols
+    # that don't already have one stored — so after the first fill this is ~0
+    # Finnhub calls. Sector rarely changes, so carrying the stored value forward
+    # is correct. Paced under the free 60 req/min limit.
+    existing_sector: dict[str, str] = {}
+    try:
+        res = sb.table("sma200").select("symbol, sector").execute()
+        existing_sector = {
+            r["symbol"]: r["sector"] for r in (res.data or []) if r.get("sector")
+        }
+    except Exception as e:
+        print(f"sma200_scan: existing-sector read failed — {e}", file=sys.stderr)
+
+    to_fetch = [r["symbol"] for r in rows if not existing_sector.get(r["symbol"])]
+    fetched_sector: dict[str, str] = {}
+    if FINNHUB_KEY and to_fetch:
+        capped = to_fetch[:SECTOR_FETCH_CAP]
+        print(f"sma200_scan: fetching sector for {len(capped)} new symbols (finnhub)")
+        for sym in capped:
+            ind = fetch_industry(sym)
+            if ind:
+                fetched_sector[sym] = ind
+            time.sleep(1.1)  # ≤ 55/min, under Finnhub free tier
+        if len(to_fetch) > SECTOR_FETCH_CAP:
+            print(
+                f"sma200_scan: sector fetch capped at {SECTOR_FETCH_CAP}; "
+                f"{len(to_fetch) - SECTOR_FETCH_CAP} deferred to next run"
+            )
+    elif not FINNHUB_KEY:
+        print("sma200_scan: FINNHUB_API_KEY not set — sectors skipped", file=sys.stderr)
+
+    for r in rows:
+        r["sector"] = fetched_sector.get(r["symbol"]) or existing_sector.get(r["symbol"])
+
     # Upsert in chunks; returning="minimal" keeps egress flat (no row echo).
     for i in range(0, len(rows), 200):
         sb.table("sma200").upsert(rows[i : i + 200], returning="minimal").execute()
 
     daily_n = sum(1 for r in rows if r["sma200_daily"] is not None)
     weekly_n = sum(1 for r in rows if r["sma200_weekly"] is not None)
+    sector_n = sum(1 for r in rows if r.get("sector"))
     print(
-        f"sma200_scan: upserted {len(rows)} rows (daily={daily_n}, weekly={weekly_n})"
+        f"sma200_scan: upserted {len(rows)} rows "
+        f"(daily={daily_n}, weekly={weekly_n}, sector={sector_n})"
     )
     return 0
 
