@@ -89,10 +89,17 @@ export async function GET(req: Request) {
   const session = currentMarketSession();
 
   if (error) {
-    // Migration 012 not yet applied → relation missing (Postgres 42P01).
-    // Treat as "not ready" so the dashboard shows a calm placeholder instead
-    // of a 500. Any other error is surfaced.
-    if (error.code === "42P01") {
+    // Migration 012 not yet applied → relation missing. PostgREST reports this
+    // as PGRST205 ("Could not find the table … in the schema cache") rather
+    // than the raw Postgres 42P01, so match both (plus a message fallback).
+    // Treat as "not ready" → dashboard shows a calm placeholder, not a 500.
+    const msg = (error.message || "").toLowerCase();
+    const tableMissing =
+      error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      msg.includes("schema cache") ||
+      msg.includes("does not exist");
+    if (tableMissing) {
       return NextResponse.json({
         session,
         band,
