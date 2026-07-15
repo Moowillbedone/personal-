@@ -87,17 +87,34 @@ def _to_dataframe(bars: list[dict]) -> pd.DataFrame:
 
 
 def fetch_recent_bars(
-    symbols: list[str], interval: str = "5m", lookback: str = "5d"
+    symbols: list[str],
+    interval: str = "5m",
+    lookback: str = "5d",
+    adjustment: str = "raw",
 ) -> dict[str, pd.DataFrame]:
     """Fetch recent OHLCV bars for many symbols (drop-in for yfinance fetcher).
 
-    interval: '1m' | '5m' | '15m' | '1h' | '1d' (mapped to Alpaca timeframes)
+    interval: '1m' | '5m' | '15m' | '1h' | '1d' | '1wk' (mapped to Alpaca tf)
     lookback: like '1d', '5d', '60d' (parsed as integer days)
+    adjustment: 'raw' (default — actual traded prices, correct for intraday
+        signal work over a few days) | 'split' | 'dividend' | 'all'. Use
+        'split' for long-window trend math (e.g. SMA200): raw leaves splits
+        unadjusted, so a 10:1 split inside the window injects 10x closes and
+        wrecks the average. 'split' rebases history to today's share basis,
+        matching the raw live price we compare it against.
     """
     if not symbols:
         return {}
 
-    tf_map = {"1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day"}
+    tf_map = {
+        "1m": "1Min",
+        "5m": "5Min",
+        "15m": "15Min",
+        "1h": "1Hour",
+        "1d": "1Day",
+        "1wk": "1Week",
+        "1w": "1Week",
+    }
     tf = tf_map.get(interval, "5Min")
 
     days = int("".join(c for c in lookback if c.isdigit()) or "5")
@@ -115,7 +132,7 @@ def fetch_recent_bars(
                 "timeframe": tf,
                 "start": start.isoformat(timespec="seconds").replace("+00:00", "Z"),
                 "limit": 10000,
-                "adjustment": "raw",
+                "adjustment": adjustment,
             }
             # NEVER include explicit `end=now` — Alpaca's free tier rejects
             # that as "recent SIP". Omitting end → Alpaca defaults to its

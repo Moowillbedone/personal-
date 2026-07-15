@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import SectorStrengthPanel from "@/app/stats/SectorStrengthPanel";
+import Sma200Panel from "@/app/stats/Sma200Panel";
 import {
   prescribe,
   regimeAdvice,
@@ -557,6 +558,7 @@ export default function DashboardPage() {
       </div>
 
       <RegimeBanner data={regime} loading={regimeLoading} />
+      <Sma200Panel />
       <PositionsRx
         positions={positions}
         regime={effectiveRegime}

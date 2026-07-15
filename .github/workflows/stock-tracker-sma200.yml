@@ -1,0 +1,38 @@
+name: stock-tracker / sma200
+
+# 200일선(일봉·주봉) SMA200 사전 계산 — 21:30 UTC Mon-Fri = KST 화~토 06:30.
+# US 마감(20:00 UTC) 이후라 그날의 최종 일봉이 확정된 뒤 계산한다. SMA200은
+# 하루에 한 칸씩만 움직이므로 하루 1회면 충분하고, 주말엔 값이 변하지 않으므로
+# 평일 실행만으로 월요일 아침(KST)까지 커버된다.
+#
+# ZERO Gemini/telegram — 순수 Alpaca fetch + Supabase upsert(200 rows).
+# 대시보드 /api/sma200 가 이 테이블을 읽어 "200일선 위/아래 터치"를 판정한다.
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sma200:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+      ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python sma200_scan.py
