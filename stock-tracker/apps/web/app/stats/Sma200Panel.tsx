@@ -62,6 +62,7 @@ const SECTOR_RULES: [RegExp, string][] = [
   [/semiconductor/, "반도체"],
   [/software|saas/, "소프트웨어"],
   [/internet|interactive media/, "인터넷"],
+  [/biotech/, "바이오"], // must precede /technology/ — "bioTECHNOLOGY" would else match 기술
   [/it services|information technology|technology/, "기술·IT"],
   [/hardware|computer|electronic equipment|consumer electronics/, "하드웨어"],
   [/aerospace|defense|defence/, "항공·방산"],
@@ -70,7 +71,6 @@ const SECTOR_RULES: [RegExp, string][] = [
   [/financial exchanges|capital markets|asset management|investment/, "금융·자산"],
   [/financial/, "금융"],
   [/pharmaceutic/, "제약"],
-  [/biotech/, "바이오"],
   [/health|medical|life sciences|managed care|hospital/, "헬스케어"],
   [/oil|gas|petroleum|drilling/, "석유·가스"],
   [/energy|renewable|solar/, "에너지"],
