@@ -222,11 +222,24 @@ def check_ai_analysis(sb) -> CheckResult:
         return CheckResult("ai_analysis", False, f"DB query failed: {e}", "error")
 
     if count == 0:
+        # 휴장 가드: 헬스체크는 07:00 UTC(=ET 새벽)에 돌고 그날 첫 ai_scan은
+        # 08:00 UTC라, 항상 "직전 스캔" 기준으로 판정한다. 어제 ET가 거래일이
+        # 아니었으면(주말/휴일) 스캔이 안 도는 게 정상 → verdict 0건도 정상.
+        # 특히 월요일 아침엔 금요일 스캔이 이미 30h+ 지나 매주 오탐했다
+        # (check_signals_freshness와 동일한 Alpaca-calendar 가드).
+        if not _yesterday_was_us_trading_day():
+            return CheckResult(
+                "ai_analysis",
+                True,
+                f"ai_analysis {AI_ANALYSIS_STALE_HOURS}h: 0건 (어제 미국 휴장 — 정상)",
+                "info",
+            )
         return CheckResult(
             "ai_analysis",
             False,
             f"ai_scan이 {AI_ANALYSIS_STALE_HOURS}h 동안 verdict 0건. "
-            f"Gemini quota 전체 소진 / API key 만료 / ai_scan workflow 미발동 의심.",
+            f"ai_scan workflow 미발동 / Gemini API key 만료 / quota 소진 의심 "
+            f"(quota 여부는 아래 gemini_quota 항목 확인).",
             "error",
         )
     return CheckResult(
@@ -338,6 +351,16 @@ def check_watchlist_coverage(sb) -> CheckResult:
             stale_syms.append(f"{sym}({age_h:.0f}h)")
 
     if stale_syms:
+        # 휴장 가드(ai_analysis와 동일): 어제가 거래일이 아니었으면 워치리스트가
+        # stale한 게 정상 — 스캔이 안 돌았을 뿐이다. 월요일/휴일 다음날 오탐 방지.
+        if not _yesterday_was_us_trading_day():
+            return CheckResult(
+                "watchlist",
+                True,
+                f"워치리스트 {len(stale_syms)}개 stale (어제 미국 휴장 — 정상): "
+                f"{', '.join(stale_syms)}",
+                "info",
+            )
         return CheckResult(
             "watchlist",
             False,
