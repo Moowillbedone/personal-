@@ -74,6 +74,48 @@ def _sma(df, period: int) -> float | None:
     return round(float(closes.iloc[-period:].mean()), 4)
 
 
+# Ichimoku Kinko Hyo — standard params (Tenkan 9 / Kijun 26 / SpanB 52 / shift 26).
+ICHI_DISP = 26  # 선행 변위(displacement): spans are plotted 26 bars into the future
+ICHI_SPANB = 52
+ICHI_MIN_BARS = ICHI_SPANB + ICHI_DISP  # 78 — enough to see the cloud AT the latest bar
+
+
+def _ichimoku_spans(df) -> tuple[float | None, float | None]:
+    """(Senkou Span A, Senkou Span B) AS DISPLAYED at the latest bar.
+
+    The cloud drawn under *today's* price was computed ICHI_DISP(26) bars ago and
+    projected forward — that projection is exactly what price "touches" now. So we
+    take the calc bar = latest − 26 and read the Ichimoku midpoints there:
+        Tenkan = (9-high + 9-low)/2, Kijun = (26-high + 26-low)/2,
+        Span A = (Tenkan + Kijun)/2, Span B = (52-high + 52-low)/2.
+    None when there isn't enough history (< 78 bars) — recent IPOs.
+    """
+    if df is None or getattr(df, "empty", True):
+        return (None, None)
+    if "High" not in df.columns or "Low" not in df.columns:
+        return (None, None)
+    highs, lows = df["High"], df["Low"]
+    n = len(df)
+    if n < ICHI_MIN_BARS:
+        return (None, None)
+    calc_end = n - 1 - ICHI_DISP  # inclusive index of the projection's calc bar
+
+    def mid(period: int) -> float | None:
+        start = calc_end - period + 1
+        if start < 0:
+            return None
+        hh = float(highs.iloc[start : calc_end + 1].max())
+        ll = float(lows.iloc[start : calc_end + 1].min())
+        return (hh + ll) / 2.0
+
+    tenkan, kijun, span_b = mid(9), mid(26), mid(ICHI_SPANB)
+    span_a = (tenkan + kijun) / 2.0 if (tenkan is not None and kijun is not None) else None
+    return (
+        round(span_a, 4) if span_a is not None else None,
+        round(span_b, 4) if span_b is not None else None,
+    )
+
+
 def main() -> int:
     sb = db.client()
     symbols = db.get_active_symbols(sb)
@@ -103,8 +145,14 @@ def main() -> int:
         w = weekly.get(sym)
         sma_d = _sma(d, SMA_PERIOD)
         sma_w = _sma(w, SMA_PERIOD)
-        if sma_d is None and sma_w is None:
-            continue  # not enough history either way — skip (recent IPOs)
+        # Ichimoku Span A/B from the SAME bars (no extra fetch). Needs only 78
+        # bars vs 200 for SMA200, so a mid-life listing can have spans but no SMA.
+        spana_d, spanb_d = _ichimoku_spans(d)
+        spana_w, spanb_w = _ichimoku_spans(w)
+        if all(
+            v is None for v in (sma_d, sma_w, spanb_d, spanb_w)
+        ):
+            continue  # not enough history for ANY indicator — skip (recent IPOs)
         last_close = None
         if d is not None and not d.empty:
             last_close = round(float(d["Close"].iloc[-1]), 4)
@@ -113,6 +161,10 @@ def main() -> int:
                 "symbol": sym,
                 "sma200_daily": sma_d,
                 "sma200_weekly": sma_w,
+                "spana_daily": spana_d,
+                "spanb_daily": spanb_d,
+                "spana_weekly": spana_w,
+                "spanb_weekly": spanb_w,
                 "last_close": last_close,
                 "updated_at": now_iso,
             }
@@ -162,10 +214,13 @@ def main() -> int:
 
     daily_n = sum(1 for r in rows if r["sma200_daily"] is not None)
     weekly_n = sum(1 for r in rows if r["sma200_weekly"] is not None)
+    ichi_d = sum(1 for r in rows if r["spanb_daily"] is not None)
+    ichi_w = sum(1 for r in rows if r["spanb_weekly"] is not None)
     sector_n = sum(1 for r in rows if r.get("sector"))
     print(
         f"sma200_scan: upserted {len(rows)} rows "
-        f"(daily={daily_n}, weekly={weekly_n}, sector={sector_n})"
+        f"(sma200 daily={daily_n}/weekly={weekly_n}, "
+        f"ichimoku-spanB daily={ichi_d}/weekly={ichi_w}, sector={sector_n})"
     )
     return 0
 

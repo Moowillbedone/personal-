@@ -5,7 +5,8 @@
 // Layout, top to bottom:
 //   1. RegimeBanner    — market traffic light (QQQ trend + VIX) + mode advice.
 //   2. Sma200Panel     — NASDAQ-100 + NYSE-100 names touching their 200-day line.
-//   3. SectorStrength  — where the money is rotating (all sectors expanded),
+//   3. IchimokuPanel   — same universe touching their Ichimoku Leading Span B.
+//   4. SectorStrength  — where the money is rotating (all sectors expanded),
 //                        the primary "what to trade" panel.
 // (Raw signals live on the /signals tab, open positions on the /trade tab —
 //  intentionally not on the dashboard.)
@@ -13,6 +14,7 @@
 import { useCallback, useEffect, useState } from "react";
 import SectorStrengthPanel from "@/app/stats/SectorStrengthPanel";
 import Sma200Panel from "@/app/stats/Sma200Panel";
+import IchimokuPanel from "@/app/stats/IchimokuPanel";
 import { regimeAdvice, type Regime } from "@/lib/prescription";
 
 // ─── shared formatters ──────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export default function DashboardPage() {
 
       <RegimeBanner data={regime} loading={regimeLoading} />
       <Sma200Panel />
+      <IchimokuPanel />
       <SectorStrengthPanel />
     </div>
   );
