@@ -255,6 +255,11 @@ export default function TradePage() {
   // without spending a fresh quota point.
   const [cachedVerdict, setCachedVerdict] = useState<AiAnalysis | null>(null);
 
+  // 눌림목 분석 (pullback vs downtrend)
+  const [pbLoading, setPbLoading] = useState(false);
+  const [pbError, setPbError] = useState<string | null>(null);
+  const [pbResult, setPbResult] = useState<PullbackResponse | null>(null);
+
   // position settings
   const [position, setPosition] = useState<PositionSetting | null>(null);
   const [posStrategy, setPosStrategy] = useState<"lump_sum" | "dca">("dca");
@@ -335,6 +340,8 @@ export default function TradePage() {
     setResult(null);
     setAnalysisError(null);
     setCachedVerdict(null);
+    setPbResult(null);
+    setPbError(null);
     (async () => {
       const r = await fetch(`/api/positions?symbol=${encodeURIComponent(selected)}`);
       const data = (await r.json()) as { setting?: PositionSetting | null };
@@ -444,6 +451,41 @@ export default function TradePage() {
       );
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function runPullback() {
+    if (!selected) return;
+    setPbLoading(true);
+    setPbError(null);
+    try {
+      const r = await fetch("/api/pullback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symbol: selected }),
+      });
+      const raw = await r.text();
+      let data: PullbackResponse | { error: string } | null = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
+      }
+      if (!data) {
+        setPbError(
+          r.status === 504 || r.status === 408
+            ? "눌림목 분석이 시간 내(약 30~60초) 완료되지 못했습니다. 잠시 후 다시 시도해 주세요."
+            : `분석 서버 오류 (HTTP ${r.status}). 잠시 후 다시 시도해 주세요.`,
+        );
+      } else if ("error" in data) {
+        setPbError(data.error);
+      } else {
+        setPbResult(data);
+      }
+    } catch (err) {
+      setPbError(`요청이 실패했습니다: ${(err as Error).message}.`);
+    } finally {
+      setPbLoading(false);
     }
   }
 
@@ -770,8 +812,8 @@ export default function TradePage() {
               aiAnalysisId={result?.analysis.id ?? null}
             />
 
-            {/* Analyze button */}
-            <div className="flex items-center gap-3 mb-6">
+            {/* Analyze buttons */}
+            <div className="flex items-center gap-3 mb-6 flex-wrap">
               <button
                 onClick={analyze}
                 disabled={analyzing}
@@ -779,10 +821,29 @@ export default function TradePage() {
               >
                 {analyzing ? "분석 중…" : "📊 매수/매도 근거 분석"}
               </button>
+              <button
+                onClick={runPullback}
+                disabled={pbLoading}
+                title="상승추세 내 건강한 눌림인지, 추세 전환(하락)인지 5기준으로 판별"
+                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-50 text-white rounded text-sm font-semibold"
+              >
+                {pbLoading ? "눌림목 분석 중…" : "🎯 눌림목 분석"}
+              </button>
               {result?.cached && !result?.stale && (
                 <span className="text-xs text-neutral-500">(5분 캐시 결과)</span>
               )}
             </div>
+
+            {pbError && (
+              <div className="mb-6 border border-rose-800 bg-rose-950/50 text-rose-200 rounded p-3 text-sm">
+                {pbError}
+              </div>
+            )}
+            {pbResult && (
+              <div className="mb-6">
+                <PullbackCard r={pbResult} />
+              </div>
+            )}
 
             {analysisError && (
               <div className="mb-6 border border-rose-800 bg-rose-950/50 text-rose-200 rounded p-3 text-sm">
@@ -1856,6 +1917,206 @@ function MarketClock() {
         <span className="text-neutral-700">·</span>
         <span>ET {et}</span>
       </div>
+    </div>
+  );
+}
+
+// ─── 눌림목(pullback) analysis card ──────────────────────────────────────────
+
+type PbGrade = "pass" | "warn" | "fail";
+interface PbCriterion { grade: PbGrade; detail: string }
+interface PbSupport { label: string; level: number; distPct: number }
+interface PbPlan {
+  entryLow: number;
+  entryHigh: number;
+  stop: number;
+  target1: number;
+  target2: number;
+  rr: number | null;
+}
+interface PbFacts {
+  price: number;
+  sma20: number | null;
+  sma50: number | null;
+  sma200: number | null;
+  atr14: number | null;
+  swingHigh: number;
+  swingHighAgo: number;
+  legLow: number;
+  pullbackLow: number;
+  retracePct: number | null;
+  retraceDepth: number | null;
+  extended: boolean;
+  brokeLow: boolean;
+  lowerHigh: boolean;
+  volRatio: number | null;
+  downUpVolRatio: number | null;
+  distributionDays: number;
+  supports: PbSupport[];
+  confluence: number;
+  nearestSupport: number | null;
+  criteria: {
+    trend: PbCriterion;
+    volume: PbCriterion;
+    structure: PbCriterion;
+    support: PbCriterion;
+    confirmation: PbCriterion;
+  };
+  classification: PbClass;
+  plan: PbPlan | null;
+}
+type PbClass = "pullback" | "forming" | "downtrend" | "no_uptrend";
+interface PbAi {
+  classification: PbClass;
+  confidence: number;
+  headline: string;
+  summary: string;
+  action: string;
+  cautions: string[];
+}
+interface PullbackResponse {
+  symbol: string;
+  session: string | null;
+  price: number;
+  earnings: { date: string; daysUntil: number } | null;
+  facts: PbFacts;
+  ai: PbAi;
+  plan: PbPlan | null;
+}
+
+const PB_CLASS_META: Record<PbClass, { label: string; cls: string; buyable: boolean }> = {
+  pullback: { label: "🟢 눌림목 지지 확인 · 진입 가능", cls: "border-emerald-700 bg-emerald-950/40 text-emerald-200", buyable: true },
+  forming: { label: "🟡 눌림목 형성 중 · 확인 대기", cls: "border-amber-700 bg-amber-950/40 text-amber-200", buyable: true },
+  downtrend: { label: "🔴 하락 전환 의심 · 회피", cls: "border-rose-700 bg-rose-950/40 text-rose-200", buyable: false },
+  no_uptrend: { label: "⚪ 상승추세 아님 · 눌림 아님", cls: "border-neutral-600 bg-neutral-900/60 text-neutral-300", buyable: false },
+};
+
+const PB_GRADE_META: Record<PbGrade, { icon: string; cls: string }> = {
+  pass: { icon: "✅", cls: "text-emerald-400" },
+  warn: { icon: "⚠️", cls: "text-amber-400" },
+  fail: { icon: "❌", cls: "text-rose-400" },
+};
+
+const PB_CRITERIA: [keyof PbFacts["criteria"], string][] = [
+  ["trend", "0 · 추세 (상승추세인가?)"],
+  ["volume", "1 · 거래량 (마름 vs 붙음)"],
+  ["structure", "2 · 저점 구조 (되돌림·저점유지)"],
+  ["support", "3 · 지지 밀집 (의미있는 자리?)"],
+  ["confirmation", "4 · 확인 캔들 (반응 왔나?)"],
+];
+
+function PullbackCard({ r }: { r: PullbackResponse }) {
+  const meta = PB_CLASS_META[r.ai.classification] ?? PB_CLASS_META.forming;
+  const f = r.facts;
+  const plan = r.plan;
+  const retr = f.retraceDepth != null ? `${(f.retraceDepth * 100).toFixed(0)}%` : "?";
+  return (
+    <section className="border border-neutral-800 rounded-lg bg-neutral-950 overflow-hidden">
+      {/* verdict header */}
+      <div className={`border-b p-4 ${meta.cls}`}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-sm font-bold">{meta.label}</span>
+          <span className="text-xs opacity-80">신뢰도 {(r.ai.confidence * 100).toFixed(0)}%</span>
+        </div>
+        {r.ai.headline && <p className="text-sm mt-1 font-semibold">{r.ai.headline}</p>}
+        {r.earnings && r.earnings.daysUntil <= 7 && (
+          <p className="text-xs mt-1 text-amber-300">⚠️ 어닝 D-{r.earnings.daysUntil} ({r.earnings.date}) — 눌림이 어닝 도박이 될 수 있음</p>
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {r.ai.summary && <p className="text-sm leading-relaxed text-neutral-200">{r.ai.summary}</p>}
+
+        {/* action callout */}
+        {r.ai.action && (
+          <div className="rounded border border-sky-800 bg-sky-950/40 px-3 py-2">
+            <span className="text-[11px] uppercase tracking-wider text-sky-400">지금 할 일</span>
+            <p className="text-sm text-sky-100 mt-0.5">{r.ai.action}</p>
+          </div>
+        )}
+
+        {/* 5-criterion checklist (mechanical) */}
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">5기준 체크리스트 (실측)</div>
+          <ul className="space-y-1.5">
+            {PB_CRITERIA.map(([k, label]) => {
+              const cr = f.criteria[k];
+              const g = PB_GRADE_META[cr.grade];
+              return (
+                <li key={k} className="flex gap-2 text-sm">
+                  <span className={`shrink-0 ${g.cls}`}>{g.icon}</span>
+                  <span className="min-w-0">
+                    <span className="font-semibold text-neutral-300">{label}</span>
+                    <span className="text-neutral-400"> — {cr.detail}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* structure metrics strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <PbStat label="직전 고점" value={`$${f.swingHigh}`} />
+          <PbStat label="직전 저점" value={`$${f.legLow}`} />
+          <PbStat label="되돌림 깊이" value={retr} />
+          <PbStat label="분산일(조정중)" value={`${f.distributionDays}`} />
+        </div>
+
+        {/* support confluence */}
+        {f.supports.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">지지 밀집 (현재가 -3%~+0.5%)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {f.supports.map((s) => (
+                <span key={s.label} className="text-xs px-2 py-0.5 border border-neutral-700 rounded bg-neutral-900">
+                  {s.label} <span className="text-neutral-400">${s.level} ({s.distPct >= 0 ? "+" : ""}{s.distPct}%)</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* plan */}
+        {plan && (
+          <div className={`rounded border p-3 ${meta.buyable ? "border-neutral-700 bg-neutral-900/50" : "border-neutral-800 bg-neutral-900/30 opacity-70"}`}>
+            <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
+              매매 플랜 {meta.buyable ? "" : "(진입 보류 — 조건 미충족)"}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+              <PbStat label="진입" value={`$${plan.entryLow}~${plan.entryHigh}`} />
+              <PbStat label="손절" value={`$${plan.stop}`} tone="rose" />
+              <PbStat label="목표1 / 2" value={`$${plan.target1} / $${plan.target2}`} tone="emerald" />
+              <PbStat label="손익비 R:R" value={plan.rr != null ? `${plan.rr}` : "—"} />
+            </div>
+          </div>
+        )}
+
+        {/* cautions */}
+        {r.ai.cautions && r.ai.cautions.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">주의</div>
+            <ul className="list-disc list-inside space-y-0.5 text-xs text-neutral-400">
+              {r.ai.cautions.map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <p className="text-[11px] text-neutral-600 leading-relaxed">
+          체크리스트는 일봉에서 기계적으로 계산된 실측치이며, 판정·플랜은 AI가 종합한 참고 의견입니다.
+          &ldquo;형성 중&rdquo;은 확인 캔들 전까지 진입을 미루라는 뜻입니다. 최종 매매 판단·책임은 본인에게 있습니다.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function PbStat({ label, value, tone }: { label: string; value: string; tone?: "rose" | "emerald" }) {
+  const c = tone === "rose" ? "text-rose-300" : tone === "emerald" ? "text-emerald-300" : "text-neutral-200";
+  return (
+    <div className="border border-neutral-800 rounded px-2 py-1.5">
+      <div className="text-[10px] text-neutral-500">{label}</div>
+      <div className={`font-semibold tabular-nums ${c}`}>{value}</div>
     </div>
   );
 }

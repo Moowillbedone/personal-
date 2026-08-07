@@ -232,36 +232,39 @@ const TRADE_PLAN_SCHEMA = {
   required: ["entry_low", "entry_high", "stop", "target_1", "target_2", "horizon_days", "note"],
 } as const;
 
+const VERDICT_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    verdict: { type: "STRING", enum: ["buy", "hold", "sell"] },
+    confidence: { type: "NUMBER" },
+    summary: { type: "STRING" },
+    bull_points: { type: "ARRAY", items: { type: "STRING" } },
+    bear_points: { type: "ARRAY", items: { type: "STRING" } },
+    trade_plan: TRADE_PLAN_SCHEMA,
+    horizons: {
+      type: "OBJECT",
+      properties: {
+        three_month: HORIZON_SCHEMA,
+        six_month: HORIZON_SCHEMA,
+        one_year: HORIZON_SCHEMA,
+      },
+      required: ["three_month", "six_month", "one_year"],
+    },
+  },
+  required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "trade_plan", "horizons"],
+} as const;
+
 async function callOnce(
   model: string,
   apiKey: string,
   prompt: string,
+  responseSchema: object,
   thinkingBudget: number | null = THINKING_BUDGET,
 ): Promise<string> {
   const generationConfig: Record<string, unknown> = {
     temperature: 0.3,
     responseMimeType: "application/json",
-    responseSchema: {
-      type: "OBJECT",
-      properties: {
-        verdict: { type: "STRING", enum: ["buy", "hold", "sell"] },
-        confidence: { type: "NUMBER" },
-        summary: { type: "STRING" },
-        bull_points: { type: "ARRAY", items: { type: "STRING" } },
-        bear_points: { type: "ARRAY", items: { type: "STRING" } },
-        trade_plan: TRADE_PLAN_SCHEMA,
-        horizons: {
-          type: "OBJECT",
-          properties: {
-            three_month: HORIZON_SCHEMA,
-            six_month: HORIZON_SCHEMA,
-            one_year: HORIZON_SCHEMA,
-          },
-          required: ["three_month", "six_month", "one_year"],
-        },
-      },
-      required: ["verdict", "confidence", "summary", "bull_points", "bear_points", "trade_plan", "horizons"],
-    },
+    responseSchema,
   };
   // Optional thinking-budget cap (undefined = model default, unchanged).
   if (thinkingBudget !== undefined && thinkingBudget !== null) {
@@ -315,10 +318,14 @@ async function callOnce(
   return text;
 }
 
-export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
-
+// Generic model-chain runner: tries MODEL_CHAIN in order with per-model
+// cooldown + retry, returns the raw JSON text for the given responseSchema.
+// Shared by generateVerdict (buy/hold/sell) and generatePullback (눌림목).
+async function runChain(
+  apiKey: string,
+  prompt: string,
+  responseSchema: object,
+): Promise<string> {
   let lastErr: Error | null = null;
   let text: string | null = null;
 
@@ -331,23 +338,15 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
     }
     for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
       try {
-        text = await callOnce(model, apiKey, prompt); // thinking-budget default applies
+        text = await callOnce(model, apiKey, prompt, responseSchema); // thinking-budget default applies
         break outer; // success
       } catch (e) {
         lastErr = e as Error;
         const status = (e as Error & { status?: number }).status;
         // Auth / validation / unknown model — don't retry, jump to next model
         if (status && !RETRYABLE_STATUS.has(status)) break;
-        // 429: pick cooldown duration based on which quota was hit.
-        // Per-minute quotas (TPM/RPM) clear fast (75s). Per-day (RPD) needs
-        // hours. The 429 error body carries QuotaFailure details we parse
-        // for "PerMinute" vs "PerDay" markers.
+        // 429: mark the model cooled and move on (see markModelCooled).
         if (status === 429) {
-          // Log full body so we can debug regex misses. Cooldown classifier
-          // saw "per-day-or-unknown" in production but our SCAN_BUDGET math
-          // suggests we shouldn't be hitting RPD — body inspection will
-          // tell us if it's actually RPM/TPM with different format, or a
-          // different quota name we don't recognize.
           console.log(`gemini_429_body model=${model} body=${(e as Error).message.slice(0, 2500)}`);
           markModelCooled(model, (e as Error).message);
           break;
@@ -364,12 +363,6 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
     // No model produced text. Distinguish two very different causes so
     // callers (ai_scan worker, manual UI) can react correctly:
     if (!lastErr) {
-      // Every model was SKIPPED on cooldown — no request was even sent.
-      // The old bare "gemini call failed" got classified "unknown" by the
-      // worker, which then wasted a 90s retry per symbol (the 27-min,
-      // all-fail scan on 2026-05-29). Emit explicit rate-limit markers so
-      // it's classified as a transient limit (no pointless retry) and the
-      // UI shows a meaningful message instead of a bare "gemini error".
       throw new Error(
         "Gemini 모든 모델이 요청 한도(rate-limit)로 일시 쿨다운 중입니다. " +
           "잠시 후 자동 재시도됩니다. [all_models_cooldown]",
@@ -381,6 +374,14 @@ export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
         : lastErr.message ?? "gemini call failed",
     );
   }
+  return text;
+}
+
+export async function generateVerdict(prompt: string): Promise<GeminiVerdict> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+
+  const text = await runChain(apiKey, prompt, VERDICT_RESPONSE_SCHEMA);
 
   let parsed: GeminiVerdict;
   try {
@@ -416,3 +417,95 @@ function isVerdict(v: unknown): v is Verdict {
 }
 
 export const ACTIVE_MODEL = PRIMARY_MODEL;
+
+// ─── 눌림목(pullback) analysis ───────────────────────────────────────────────
+// The 4-way read: is this a healthy pullback in an uptrend, a pullback still
+// forming (wait for confirmation), a real downtrend, or is there no uptrend to
+// pull back from at all? The mechanical checklist + numbers come from
+// lib/pullback.ts; Gemini synthesizes the final call + narrative + plan and
+// weighs context the chart can't show (earnings proximity, regime, news).
+export type PullbackClass = "pullback" | "forming" | "downtrend" | "no_uptrend";
+
+export interface PullbackVerdict {
+  classification: PullbackClass;
+  confidence: number;
+  headline: string; // one-line Korean verdict
+  summary: string; // 2-4 sentence Korean reasoning
+  criteria_notes: {
+    trend: string;
+    volume: string;
+    structure: string;
+    support: string;
+    confirmation: string;
+  };
+  action: string; // 지금 무엇을 해야 하는가 (한국어)
+  entry_low: number;
+  entry_high: number;
+  stop: number;
+  target_1: number;
+  target_2: number;
+  horizon_days: number;
+  cautions: string[];
+}
+
+const PULLBACK_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    classification: {
+      type: "STRING",
+      enum: ["pullback", "forming", "downtrend", "no_uptrend"],
+    },
+    confidence: { type: "NUMBER" },
+    headline: { type: "STRING" },
+    summary: { type: "STRING" },
+    criteria_notes: {
+      type: "OBJECT",
+      properties: {
+        trend: { type: "STRING" },
+        volume: { type: "STRING" },
+        structure: { type: "STRING" },
+        support: { type: "STRING" },
+        confirmation: { type: "STRING" },
+      },
+      required: ["trend", "volume", "structure", "support", "confirmation"],
+    },
+    action: { type: "STRING" },
+    entry_low: { type: "NUMBER" },
+    entry_high: { type: "NUMBER" },
+    stop: { type: "NUMBER" },
+    target_1: { type: "NUMBER" },
+    target_2: { type: "NUMBER" },
+    horizon_days: { type: "NUMBER" },
+    cautions: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: [
+    "classification", "confidence", "headline", "summary", "criteria_notes",
+    "action", "entry_low", "entry_high", "stop", "target_1", "target_2",
+    "horizon_days", "cautions",
+  ],
+} as const;
+
+const PULLBACK_CLASSES: PullbackClass[] = [
+  "pullback", "forming", "downtrend", "no_uptrend",
+];
+
+export async function generatePullback(prompt: string): Promise<PullbackVerdict> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+
+  const text = await runChain(apiKey, prompt, PULLBACK_RESPONSE_SCHEMA);
+
+  let p: PullbackVerdict;
+  try {
+    p = JSON.parse(text) as PullbackVerdict;
+  } catch {
+    throw new Error(`gemini pullback: invalid JSON response: ${text.slice(0, 200)}`);
+  }
+  if (!PULLBACK_CLASSES.includes(p.classification)) p.classification = "forming";
+  p.confidence = clamp01(Number(p.confidence) || 0);
+  p.criteria_notes = p.criteria_notes ?? {
+    trend: "", volume: "", structure: "", support: "", confirmation: "",
+  };
+  p.cautions = p.cautions ?? [];
+  return p;
+}
