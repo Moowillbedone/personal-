@@ -8,9 +8,14 @@ name: stock-tracker / pullback-intraday
 # the signal poll is unaffected.
 on:
   schedule:
-    # UTC weekdays. 08:00 ≈ pre-market open (04:00 ET EDT); 20:00 ≈ close;
-    # the 20:00 launch's loop tail covers after-hours to ~01:20 UTC.
-    - cron: "0 8,12,16,20 * * 1-5"
+    # GH Actions scheduled cron is BEST-EFFORT — the top-of-hour slot is heavily
+    # congested and a launch can be delayed 30min~3h+ or skipped. So (like poll)
+    # fire every 2h and rely on the 5h20m loops OVERLAPPING: even if one launch
+    # is very late, an adjacent one already covers the window. Start at 06:00 UTC
+    # (2h before pre-market 08:00 UTC / KST 17:00) so a loop is already running
+    # when the session opens; the 22:00 launch's tail covers after-hours to
+    # ~03:20 UTC. Concurrent overlapping loops are idempotent (upsert).
+    - cron: "0 6,8,10,12,14,16,18,20,22 * * 1-5"
   workflow_dispatch:
     inputs:
       loop_min:
