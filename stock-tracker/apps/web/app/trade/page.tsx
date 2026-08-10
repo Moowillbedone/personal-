@@ -2027,7 +2027,6 @@ const PB_CLASS_SHORT: Record<PbClass, string> = {
 
 function PullbackCard({ r }: { r: PullbackResponse }) {
   const meta = PB_CLASS_META[r.ai.classification] ?? PB_CLASS_META.forming;
-  const plan = r.plan;
   const avail = r.timeframes.filter((t) => t.facts);
   // Default selected TF: the AI's operative one, else prefer swing TFs.
   const opTf = r.timeframes.find((t) => t.label === r.ai.operative_tf && t.facts);
@@ -2037,6 +2036,13 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
   const sel = r.timeframes.find((t) => t.key === selKey && t.facts) ?? avail[0] ?? null;
   const f = sel?.facts ?? null;
   const retr = f?.retraceDepth != null ? `${(f.retraceDepth * 100).toFixed(0)}%` : "?";
+  // Plan + its actionability follow the SELECTED timeframe, so entry/stop/target/
+  // R:R change per TF (they differ by TF and that's the point). For the operative
+  // TF we prefer the AI-refined plan (r.plan); other TFs show their own mechanical
+  // (ATR/structure) baseline from facts.plan.
+  const isOpSel = !!sel && sel.label === r.ai.operative_tf;
+  const plan = isOpSel && r.plan ? r.plan : f?.plan ?? null;
+  const selMeta = f ? PB_CLASS_META[f.classification] ?? meta : meta;
 
   return (
     <section className="border border-neutral-800 rounded-lg bg-neutral-950 overflow-hidden">
@@ -2144,19 +2150,26 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
           </>
         )}
 
-        {/* plan */}
-        {plan && (
-          <div className={`rounded border p-3 ${meta.buyable ? "border-neutral-700 bg-neutral-900/50" : "border-neutral-800 bg-neutral-900/30 opacity-70"}`}>
-            <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-              매매 플랜 · {r.ai.operative_tf} 기준 {meta.buyable ? "" : "(진입 보류 — 조건 미충족)"}
+        {/* plan — follows the SELECTED timeframe */}
+        {f && (
+          plan ? (
+            <div className={`rounded border p-3 ${selMeta.buyable ? "border-neutral-700 bg-neutral-900/50" : "border-neutral-800 bg-neutral-900/30 opacity-70"}`}>
+              <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
+                매매 플랜 · {sel?.label} 기준{isOpSel ? " · AI 추천 TF" : ""} {selMeta.buyable ? "" : "(이 TF는 진입 부적합 — 참고만)"}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                <PbStat label="진입" value={`$${plan.entryLow}~${plan.entryHigh}`} />
+                <PbStat label="손절" value={`$${plan.stop}`} tone="rose" />
+                <PbStat label="목표1 / 2" value={`$${plan.target1} / $${plan.target2}`} tone="emerald" />
+                <PbStat label="손익비 R:R" value={plan.rr != null ? `${plan.rr}` : "—"} />
+              </div>
+              <p className="text-[11px] text-neutral-500 mt-1.5 leading-relaxed">
+                {sel?.label} 기준{isOpSel ? "(AI 조정값)" : "(해당 TF ATR·구조 기계 산출)"} — 진입: 현재가~인근 지지 · 손절: 눌림 저점 아래(ATR 버퍼) · 목표1: 직전 고점 · 목표2: 상승폭 연장. <b className="text-neutral-400">타임프레임을 바꾸면 값이 달라집니다.</b>
+              </p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-              <PbStat label="진입" value={`$${plan.entryLow}~${plan.entryHigh}`} />
-              <PbStat label="손절" value={`$${plan.stop}`} tone="rose" />
-              <PbStat label="목표1 / 2" value={`$${plan.target1} / $${plan.target2}`} tone="emerald" />
-              <PbStat label="손익비 R:R" value={plan.rr != null ? `${plan.rr}` : "—"} />
-            </div>
-          </div>
+          ) : (
+            <p className="text-[11px] text-neutral-600 py-1">{sel?.label} 매매 플랜 산출 불가 (ATR/구조 데이터 부족)</p>
+          )
         )}
 
         {/* cautions */}
