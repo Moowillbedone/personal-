@@ -44,6 +44,17 @@ function retraceColor(pct: number | null): string {
   return "text-amber-400";
 }
 
+// 지지(pullback) 승격 게이트 = 구조③ pass + 지지④ ≠fail + 확인캔들⑤ pass.
+// forming인 종목이 지지로 못 넘어간 사유(무엇을 기다리는지)를 grades에서 도출.
+// (추세①·거래량② 주의는 게이트 아님 → 지지에도 있을 수 있음)
+function formingReason(grades: string | null, retrace: number | null): string {
+  const g = (grades || "").split(",");
+  if (g[4] !== "pass") return "확인캔들 대기";
+  if (g[2] !== "pass") return retrace != null && retrace <= 10 ? "돌파·되돌림 대기" : "되돌림 깊음";
+  if (g[3] === "fail") return "지지 부재";
+  return "대기";
+}
+
 const GRID =
   "grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 sm:gap-x-3";
 
@@ -59,12 +70,12 @@ function Grades({ grades }: { grades: string | null }) {
   );
 }
 
-function RowList({ rows }: { rows: Row[] }) {
+function RowList({ rows, forming = false }: { rows: Row[]; forming?: boolean }) {
   return (
     <div className="overflow-x-auto">
       <div className="min-w-0">
         <div className={`${GRID} text-[10px] text-neutral-500 pb-1 mb-0.5 border-b border-neutral-800`}>
-          <span>종목 · 섹터 · 되돌림</span>
+          <span>종목 · 섹터 · 되돌림{forming ? " · 대기사유" : ""}</span>
           <span className="text-right">가격(판정시)</span>
           <span className="text-right">5기준 ①②③④⑤</span>
         </div>
@@ -83,6 +94,9 @@ function RowList({ rows }: { rows: Row[] }) {
                     {sec && <span className="truncate min-w-0">{sec}</span>}
                     {sec && r.retrace != null && <span className="text-neutral-700 shrink-0">·</span>}
                     {r.retrace != null && <span className={`shrink-0 ${retraceColor(r.retrace)}`}>{r.retrace}%</span>}
+                    {forming && (
+                      <span className="shrink-0 text-amber-400/90">· {formingReason(r.grades, r.retrace)}</span>
+                    )}
                   </div>
                 </div>
                 <span className="text-right tabular-nums text-neutral-300">{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</span>
@@ -162,6 +176,11 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
           <b className="text-neutral-400">되돌림</b> = 직전 상승분 대비 눌린 깊이 · <b className="text-neutral-400">낮을수록 얕은 눌림 = 추세 강함</b>
           (<span className="text-emerald-400">초록 ≤38%</span> · <span className="text-sky-400">파랑 ~62% 정상존</span> · <span className="text-amber-400">주황 &gt;62% 깊어 주의</span>)
         </div>
+        <div className="text-neutral-500">
+          <b className="text-emerald-400">🟢 지지</b> = <b className="text-neutral-300">③구조·④지지·⑤확인</b> 모두 통과(진입 신호 확정) ·
+          <b className="text-amber-400"> 🟡 형성</b> = 그 중 하나 미충족(대개 <b className="text-neutral-300">⑤확인 대기</b> → 관망).
+          <span className="text-neutral-600"> ①추세·②거래량 ⚠️는 게이트가 아니라 지지에도 있을 수 있음 → 초록 개수로 두 리스트를 비교하지 마세요.</span>
+        </div>
         <div className="text-neutral-600">
           종목 클릭 → Trade 탭 <b className="text-neutral-500">실시간 멀티 타임프레임</b> 정밀 분석
         </div>
@@ -187,8 +206,8 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
             <h3 className="text-xs font-semibold text-amber-300 mb-1">
               🟡 형성 중 · 확인 대기 ({data.counts.forming})
             </h3>
-            <p className="text-[11px] text-neutral-500 mb-1">추세는 살아있으나 확인캔들 등 미완 — 관망</p>
-            <RowList rows={data.forming} />
+            <p className="text-[11px] text-neutral-500 mb-1">추세는 살아있으나 확인캔들 등 미완 — 관망 (오른쪽에 대기사유)</p>
+            <RowList rows={data.forming} forming />
           </div>
         </div>
       )}
