@@ -1,13 +1,15 @@
 // POST /api/pullback  { symbol }
 //
-// 눌림목(pullback) vs 하락(downtrend) analyzer for the Trade tab. Computes the
-// 5-criterion checklist MECHANICALLY (lib/pullback.ts) from daily bars, then
-// asks Gemini (lib/gemini.ts generatePullback) to synthesize the final read +
-// Korean narrative + action + plan on top of those facts. Returns both so the
-// UI can show the deterministic checklist AND the AI judgment.
+// MULTI-TIMEFRAME 눌림목(pullback vs downtrend) analyzer for the Trade tab.
+// Runs the SAME deterministic engine (lib/pullback.ts) on 1분/15분/1시간/4시간/
+// 일봉 so short-term (day ~ 1-3d swing) reads sit next to the daily big picture —
+// the previous version was daily-only, which didn't match the intraday chart.
+// Gemini (generatePullback) then synthesizes across timeframes: which TF is
+// operative, do the higher-TF trend and lower-TF timing agree, and the plan.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPrimarySnapshot, getPrimaryRecentBars } from "@/lib/marketData";
+import { getPrimarySnapshot } from "@/lib/marketData";
+import { fetchAlpacaBars } from "@/lib/alpaca";
 import { getFinnhubBundle, isFinnhubEnabled } from "@/lib/finnhub";
 import { generatePullback, type PullbackVerdict } from "@/lib/gemini";
 import { analyzePullback, type PullbackFacts, type Grade } from "@/lib/pullback";
@@ -29,6 +31,24 @@ function softly<T>(p: Promise<T>, ms = SOFT_TIMEOUT_MS): Promise<T | null> {
 
 const GRADE_KO: Record<Grade, string> = { pass: "충족", warn: "주의", fail: "위반" };
 
+// Each timeframe's fetch depth is chosen to yield ~200+ bars (so SMA200 + the
+// 60-bar swing window resolve) while the 60-bar window maps to a sensible span:
+// 1m→1h micro, 15m→~2.5d, 1h→~1-2wk, 4h→~6wk, 1d→~3mo.
+const TFS = [
+  { key: "1m", tf: "1Min", days: 4, limit: 1500, label: "1분봉" },
+  { key: "15m", tf: "15Min", days: 15, limit: 700, label: "15분봉" },
+  { key: "1h", tf: "1Hour", days: 45, limit: 700, label: "1시간봉" },
+  { key: "4h", tf: "4Hour", days: 260, limit: 500, label: "4시간봉" },
+  { key: "1d", tf: "1Day", days: 380, limit: 400, label: "일봉" },
+] as const;
+
+interface TimeframeResult {
+  key: string;
+  label: string;
+  bars: number;
+  facts: PullbackFacts | null; // null = not enough data
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => null)) as { symbol?: string } | null;
@@ -37,9 +57,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
     }
 
-    // 1) Daily bars (the chart we analyze) + live snapshot + Ichimoku cloud.
-    const [bars, snap, ichiRow, finnhub] = await Promise.all([
-      getPrimaryRecentBars(symbol),
+    // Fetch every timeframe's bars + snapshot + daily Ichimoku + earnings in parallel.
+    const [barsByTf, snap, ichiRow, finnhub] = await Promise.all([
+      Promise.all(
+        TFS.map((t) => softly(fetchAlpacaBars(symbol, t.tf, t.days, t.limit))),
+      ),
       softly(getPrimarySnapshot(symbol)),
       softly(
         (async () => {
@@ -54,29 +76,28 @@ export async function POST(req: NextRequest) {
       isFinnhubEnabled() ? softly(getFinnhubBundle(symbol)) : Promise.resolve(null),
     ]);
 
-    const daily: Bar[] = bars?.daily ?? [];
-    if (daily.length < 30) {
-      return NextResponse.json(
-        { error: "일봉 데이터가 부족해 눌림목 분석을 할 수 없습니다 (최소 30봉 필요)." },
-        { status: 422 },
-      );
-    }
+    // Daily Ichimoku spans are horizontal price levels → valid support on any TF.
+    const ichi = { spanA: ichiRow?.spana_daily ?? null, spanB: ichiRow?.spanb_daily ?? null };
 
-    const facts = analyzePullback(daily, {
-      spanA: ichiRow?.spana_daily ?? null,
-      spanB: ichiRow?.spanb_daily ?? null,
+    const timeframes: TimeframeResult[] = TFS.map((t, i) => {
+      const bars = (barsByTf[i] ?? []) as Bar[];
+      const facts = bars.length >= 30 ? analyzePullback(bars, ichi) : null;
+      return { key: t.key, label: t.label, bars: bars.length, facts };
     });
-    if (!facts) {
+
+    if (timeframes.every((t) => t.facts == null)) {
       return NextResponse.json(
-        { error: "눌림목 구조를 판별할 수 없습니다 (스윙 미형성)." },
+        { error: "어느 타임프레임에서도 눌림목 구조를 판별할 데이터가 부족합니다." },
         { status: 422 },
       );
     }
 
     const nextEarnings = finnhub?.nextEarnings ?? null;
+    const dailyFacts = timeframes.find((t) => t.key === "1d")?.facts ?? null;
+    const price =
+      snap?.lastPrice ?? dailyFacts?.price ?? timeframes.find((t) => t.facts)!.facts!.price;
 
-    // 2) Prompt → Gemini synthesis.
-    const prompt = buildPrompt(symbol, facts, snap, nextEarnings);
+    const prompt = buildPrompt(symbol, timeframes, snap, nextEarnings);
     let ai: PullbackVerdict;
     try {
       ai = await generatePullback(prompt);
@@ -87,19 +108,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3) Plan sanity — keep AI numbers only if internally ordered; else the
-    // mechanical baseline. LLM numeric sloppiness never reaches the card.
-    const finalPlan = coherentPlan(ai) ?? facts.plan;
+    // Plan: AI numbers if internally ordered, else the mechanical baseline from
+    // the longest timeframe that produced one (most stable structure).
+    const fallbackPlan =
+      ["1d", "4h", "1h", "15m", "1m"]
+        .map((k) => timeframes.find((t) => t.key === k)?.facts?.plan)
+        .find((p) => p != null) ?? null;
+    const finalPlan = coherentPlan(ai) ?? fallbackPlan;
 
     return NextResponse.json({
       symbol,
       session: snap?.session ?? null,
-      price: facts.price,
+      price: Number(price.toFixed(2)),
       earnings: nextEarnings
         ? { date: nextEarnings.date, daysUntil: nextEarnings.daysUntil }
         : null,
-      facts, // mechanical checklist + numbers
-      ai, // Gemini synthesis
+      timeframes,
+      ai,
       plan: finalPlan,
       gradeLabels: GRADE_KO,
     });
@@ -146,52 +171,56 @@ function pct(v: number | null): string {
 
 function buildPrompt(
   symbol: string,
-  f: PullbackFacts,
+  timeframes: TimeframeResult[],
   snap: Snapshot | null,
   earnings: { date: string; daysUntil: number } | null,
 ): string {
-  const c = f.criteria;
-  const supText =
-    f.supports.length > 0
-      ? f.supports.map((s) => `${s.label} ${s.level}(${s.distPct >= 0 ? "+" : ""}${s.distPct}%)`).join(", ")
-      : "없음";
+  const tfBlocks: string[] = [];
+  for (const t of timeframes) {
+    if (!t.facts) {
+      tfBlocks.push(`### ${t.label}: 데이터 부족(${t.bars}봉) — 판정 제외`);
+      continue;
+    }
+    const f = t.facts;
+    const c = f.criteria;
+    const sup =
+      f.supports.length > 0
+        ? f.supports.map((s) => `${s.label}(${s.distPct >= 0 ? "+" : ""}${s.distPct}%)`).join(", ")
+        : "없음";
+    tfBlocks.push(
+      [
+        `### ${t.label} — 기계적 판정: ${f.classification}`,
+        `  0추세[${GRADE_KO[c.trend.grade]}] 1거래량[${GRADE_KO[c.volume.grade]}] 2저점구조[${GRADE_KO[c.structure.grade]}] 3지지[${GRADE_KO[c.support.grade]}] 4확인캔들[${GRADE_KO[c.confirmation.grade]}]`,
+        `  직전고점 ${f.swingHigh}(${f.swingHighAgo}봉전) · 직전저점 ${f.legLow} · 눌림저점 ${f.pullbackLow} · 되돌림깊이 ${pct(f.retraceDepth)} · 저점이탈=${f.brokeLow} · 신고가/돌파=${f.extended}`,
+        `  거래량: ${c.volume.detail}`,
+        `  확인캔들: ${c.confirmation.detail}`,
+        `  지지(현재가 -3%~+0.5%): ${sup}`,
+      ].join("\n"),
+    );
+  }
 
   return [
-    `# ${symbol} 눌림목(pullback) vs 하락(downtrend) 판별 — 한국어`,
+    `# ${symbol} 눌림목 멀티 타임프레임 분석 — 한국어`,
     "",
-    "당신은 상승추세 내 '건강한 눌림'과 '추세 전환(하락)'을 구분하는 스윙 트레이더다.",
-    "아래는 일봉에서 기계적으로 계산된 사실(deterministic)이다. 이 숫자를 신뢰하고,",
-    "여기에 맥락(어닝 임박, 시장 상황)을 더해 최종 판정을 내려라. **애매하면 무리하게 매수로 몰지 말고 '확인 대기(forming)'로 판정**하라.",
+    "당신은 단타~1-3일 스윙 트레이더다. 아래는 여러 타임프레임에서 기계적으로 계산된 사실이다.",
+    "각 TF의 숫자를 신뢰하고, **타임프레임 정합성**을 핵심으로 종합 판정하라.",
     "",
-    "## 현재",
-    `- 가격 ${f.price} (${snap?.session ?? "?"} 세션)`,
-    earnings ? `- ⚠️ 다음 어닝 ${earnings.date} (D-${earnings.daysUntil}) — 임박 시 눌림이 어닝 도박이 됨, 신중` : "- 어닝 임박 정보 없음",
+    `## 현재: ${symbol} ${snap?.lastPrice ?? "?"} (${snap?.session ?? "?"} 세션)`,
+    earnings
+      ? `⚠️ 다음 어닝 ${earnings.date} (D-${earnings.daysUntil}) — 임박 시 눌림이 어닝 도박이 됨`
+      : "어닝 임박 정보 없음",
     "",
-    "## 기계적 5기준 채점 (사실)",
-    `0. 추세 [${GRADE_KO[c.trend.grade]}] ${c.trend.detail}`,
-    `   - SMA20=${f.sma20} SMA50=${f.sma50} SMA200=${f.sma200}`,
-    `1. 거래량 [${GRADE_KO[c.volume.grade]}] ${c.volume.detail}`,
-    `2. 저점구조 [${GRADE_KO[c.structure.grade]}] ${c.structure.detail}`,
-    `   - 직전 고점 ${f.swingHigh}(${f.swingHighAgo}봉 전) · 직전 저점 ${f.legLow} · 눌림 저점 ${f.pullbackLow} · 되돌림 깊이 ${pct(f.retraceDepth)}(현재 ${pct(f.retracePct)}) · 저점이탈=${f.brokeLow} · 고점낮아짐=${f.lowerHigh} · 신고가/돌파구간=${f.extended}`,
-    `3. 지지밀집 [${GRADE_KO[c.support.grade]}] ${c.support.detail}`,
-    `   - 현재가 -3%~+0.5% 지지: ${supText}`,
-    `4. 확인캔들 [${GRADE_KO[c.confirmation.grade]}] ${c.confirmation.detail}`,
-    `- 기계적 예비판정: ${f.classification}`,
-    f.plan
-      ? `- ATR 기반 기계적 플랜(참고): 진입 ${f.plan.entryLow}~${f.plan.entryHigh} · 손절 ${f.plan.stop} · 목표 ${f.plan.target1}/${f.plan.target2} · R:R ${f.plan.rr ?? "?"}`
-      : "- 기계적 플랜: ATR 미산출",
+    "## 타임프레임별 기계적 판정",
+    ...tfBlocks,
     "",
-    "## 판정 기준 (classification)",
-    "- pullback = 상승추세 유지 + 거래량 마름 + 저점 유지 + 지지 반응 + 확인캔들 O → 진입 가능",
-    "- forming = 추세는 살아있고 지지에 왔으나 확인캔들 아직 X → **지금 사지 말고 확인 대기(WAIT)**",
-    "- downtrend = 저점 이탈 / 거래량 붙으며 하락 / 지지 붕괴 → 회피 (물타기 금지)",
-    "- no_uptrend = 애초에 상승추세가 아님 → 눌림 개념 자체가 성립 안 함",
-    "",
-    "## 출력 (JSON 스키마 준수)",
-    "- classification, confidence(0~1), headline(한 줄), summary(2~4문장), 각 criteria_notes(한 줄씩, 위 사실 기반 한국어)",
-    "- action: 지금 무엇을 할지 (예: '확인 양봉 뜨면 47.5~48 분할진입, 46 이탈 시 손절'). forming/downtrend/no_uptrend면 '매수 대기/회피'를 명확히",
-    "- entry_low≤entry_high, stop<entry_low, entry_high<target_1≤target_2 (숫자 순서 필수). 매수 부적합(downtrend/no_uptrend)이면 기계적 플랜 값을 그대로 두되 action에서 '진입 보류'를 명시",
-    "- cautions: 솔직한 리스크 2~4개 (어닝/유동성/과최적화 등)",
-    "- 확신 없으면 confidence를 낮추고 forming으로. 초보를 지키는 게 목적이다.",
+    "## 종합 규칙 (매우 중요)",
+    "- **상위 TF가 추세를 정하고, 하위 TF가 진입 타이밍을 준다.** 단타~1-3일 스윙의 진입 타이밍은 15분/1시간봉에서, 추세 유효성은 4시간/일봉에서 확인.",
+    "- **상위 TF(4시간/일봉)가 하락/추세훼손이면, 하위 TF(1분/15분)의 반등은 데드캣일 확률이 높다 → 매수 금지.** 반대로 상위 TF 상승추세 + 하위 TF 확인캔들 = 진입 정렬.",
+    "- 1분봉은 노이즈가 크니 참고만. 4시간/1시간봉이 스윙의 주력 판단.",
+    "- operative_tf: 이 트레이드의 기준이 되는 타임프레임을 명시 (예: '1시간봉').",
+    "- classification: pullback(진입가능) / forming(확인대기, 지금 사지마) / downtrend(회피) / no_uptrend(눌림아님). TF가 엇갈리거나 확인 전이면 forming.",
+    "- action: 지금 무엇을 할지 + 어느 TF의 무엇을 기다릴지 (예: '일봉 추세 양호, 1시간봉 반전양봉+거래량 확인되면 진입').",
+    "- entry_low≤entry_high, stop<entry_low, entry_high<target_1≤target_2 (숫자 순서 필수, operative_tf 기준 가격).",
+    "- cautions: 솔직한 리스크 2~4개. 확신 없으면 confidence 낮추고 forming. 초보 보호가 목적.",
   ].join("\n");
 }

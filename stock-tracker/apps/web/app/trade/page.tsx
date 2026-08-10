@@ -1972,14 +1972,21 @@ interface PbAi {
   headline: string;
   summary: string;
   action: string;
+  operative_tf: string;
   cautions: string[];
+}
+interface PbTimeframe {
+  key: string;
+  label: string;
+  bars: number;
+  facts: PbFacts | null;
 }
 interface PullbackResponse {
   symbol: string;
   session: string | null;
   price: number;
   earnings: { date: string; daysUntil: number } | null;
-  facts: PbFacts;
+  timeframes: PbTimeframe[];
   ai: PbAi;
   plan: PbPlan | null;
 }
@@ -2005,11 +2012,32 @@ const PB_CRITERIA: [keyof PbFacts["criteria"], string][] = [
   ["confirmation", "4 · 확인 캔들 (반응 왔나?)"],
 ];
 
+const PB_CLASS_DOT: Record<PbClass, string> = {
+  pullback: "bg-emerald-400",
+  forming: "bg-amber-400",
+  downtrend: "bg-rose-400",
+  no_uptrend: "bg-neutral-500",
+};
+const PB_CLASS_SHORT: Record<PbClass, string> = {
+  pullback: "지지",
+  forming: "대기",
+  downtrend: "하락",
+  no_uptrend: "무추세",
+};
+
 function PullbackCard({ r }: { r: PullbackResponse }) {
   const meta = PB_CLASS_META[r.ai.classification] ?? PB_CLASS_META.forming;
-  const f = r.facts;
   const plan = r.plan;
-  const retr = f.retraceDepth != null ? `${(f.retraceDepth * 100).toFixed(0)}%` : "?";
+  const avail = r.timeframes.filter((t) => t.facts);
+  // Default selected TF: the AI's operative one, else prefer swing TFs.
+  const opTf = r.timeframes.find((t) => t.label === r.ai.operative_tf && t.facts);
+  const prefer = ["1h", "4h", "1d", "15m", "1m"];
+  const fallbackTf = prefer.map((k) => avail.find((t) => t.key === k)).find(Boolean) ?? avail[0];
+  const [selKey, setSelKey] = useState<string>((opTf ?? fallbackTf)?.key ?? "");
+  const sel = r.timeframes.find((t) => t.key === selKey && t.facts) ?? avail[0] ?? null;
+  const f = sel?.facts ?? null;
+  const retr = f?.retraceDepth != null ? `${(f.retraceDepth * 100).toFixed(0)}%` : "?";
+
   return (
     <section className="border border-neutral-800 rounded-lg bg-neutral-950 overflow-hidden">
       {/* verdict header */}
@@ -2019,6 +2047,7 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
           <span className="text-xs opacity-80">신뢰도 {(r.ai.confidence * 100).toFixed(0)}%</span>
         </div>
         {r.ai.headline && <p className="text-sm mt-1 font-semibold">{r.ai.headline}</p>}
+        <p className="text-xs mt-1 opacity-80">기준 타임프레임: {r.ai.operative_tf}</p>
         {r.earnings && r.earnings.daysUntil <= 7 && (
           <p className="text-xs mt-1 text-amber-300">⚠️ 어닝 D-{r.earnings.daysUntil} ({r.earnings.date}) — 눌림이 어닝 도박이 될 수 있음</p>
         )}
@@ -2035,53 +2064,91 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
           </div>
         )}
 
-        {/* 5-criterion checklist (mechanical) */}
+        {/* timeframe strip — per-TF mechanical verdict; click to inspect */}
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">5기준 체크리스트 (실측)</div>
-          <ul className="space-y-1.5">
-            {PB_CRITERIA.map(([k, label]) => {
-              const cr = f.criteria[k];
-              const g = PB_GRADE_META[cr.grade];
-              return (
-                <li key={k} className="flex gap-2 text-sm">
-                  <span className={`shrink-0 ${g.cls}`}>{g.icon}</span>
-                  <span className="min-w-0">
-                    <span className="font-semibold text-neutral-300">{label}</span>
-                    <span className="text-neutral-400"> — {cr.detail}</span>
+          <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
+            타임프레임별 판정 (클릭해 상세 보기)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {r.timeframes.map((t) => {
+              const isSel = t.key === sel?.key;
+              const isOp = t.label === r.ai.operative_tf;
+              if (!t.facts) {
+                return (
+                  <span key={t.key} className="text-xs px-2 py-1 border border-neutral-800 rounded text-neutral-600">
+                    {t.label} · 데이터부족
                   </span>
-                </li>
+                );
+              }
+              const cls = t.facts.classification;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setSelKey(t.key)}
+                  className={`text-xs px-2 py-1 border rounded flex items-center gap-1.5 ${
+                    isSel ? "border-neutral-400 bg-neutral-800 text-neutral-100" : "border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
+                  }`}
+                >
+                  <span className={`inline-block w-2 h-2 rounded-full ${PB_CLASS_DOT[cls]}`} />
+                  {isOp && <span className="text-sky-400">★</span>}
+                  {t.label} · {PB_CLASS_SHORT[cls]}
+                </button>
               );
             })}
-          </ul>
-        </div>
-
-        {/* structure metrics strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          <PbStat label="직전 고점" value={`$${f.swingHigh}`} />
-          <PbStat label="직전 저점" value={`$${f.legLow}`} />
-          <PbStat label="되돌림 깊이" value={retr} />
-          <PbStat label="분산일(조정중)" value={`${f.distributionDays}`} />
-        </div>
-
-        {/* support confluence */}
-        {f.supports.length > 0 && (
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">지지 밀집 (현재가 -3%~+0.5%)</div>
-            <div className="flex flex-wrap gap-1.5">
-              {f.supports.map((s) => (
-                <span key={s.label} className="text-xs px-2 py-0.5 border border-neutral-700 rounded bg-neutral-900">
-                  {s.label} <span className="text-neutral-400">${s.level} ({s.distPct >= 0 ? "+" : ""}{s.distPct}%)</span>
-                </span>
-              ))}
-            </div>
           </div>
+        </div>
+
+        {/* selected TF: 5-criterion checklist (mechanical) */}
+        {f && (
+          <>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
+                {sel?.label} · 5기준 체크리스트 (실측)
+              </div>
+              <ul className="space-y-1.5">
+                {PB_CRITERIA.map(([k, label]) => {
+                  const cr = f.criteria[k];
+                  const g = PB_GRADE_META[cr.grade];
+                  return (
+                    <li key={k} className="flex gap-2 text-sm">
+                      <span className={`shrink-0 ${g.cls}`}>{g.icon}</span>
+                      <span className="min-w-0">
+                        <span className="font-semibold text-neutral-300">{label}</span>
+                        <span className="text-neutral-400"> — {cr.detail}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <PbStat label="직전 고점" value={`$${f.swingHigh}`} />
+              <PbStat label="직전 저점" value={`$${f.legLow}`} />
+              <PbStat label="되돌림 깊이" value={retr} />
+              <PbStat label="분산일(조정중)" value={`${f.distributionDays}`} />
+            </div>
+
+            {f.supports.length > 0 && (
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">지지 밀집 (현재가 -3%~+0.5%)</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {f.supports.map((s) => (
+                    <span key={s.label} className="text-xs px-2 py-0.5 border border-neutral-700 rounded bg-neutral-900">
+                      {s.label} <span className="text-neutral-400">${s.level} ({s.distPct >= 0 ? "+" : ""}{s.distPct}%)</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* plan */}
         {plan && (
           <div className={`rounded border p-3 ${meta.buyable ? "border-neutral-700 bg-neutral-900/50" : "border-neutral-800 bg-neutral-900/30 opacity-70"}`}>
             <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-              매매 플랜 {meta.buyable ? "" : "(진입 보류 — 조건 미충족)"}
+              매매 플랜 · {r.ai.operative_tf} 기준 {meta.buyable ? "" : "(진입 보류 — 조건 미충족)"}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
               <PbStat label="진입" value={`$${plan.entryLow}~${plan.entryHigh}`} />
@@ -2103,8 +2170,9 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
         )}
 
         <p className="text-[11px] text-neutral-600 leading-relaxed">
-          체크리스트는 일봉에서 기계적으로 계산된 실측치이며, 판정·플랜은 AI가 종합한 참고 의견입니다.
-          &ldquo;형성 중&rdquo;은 확인 캔들 전까지 진입을 미루라는 뜻입니다. 최종 매매 판단·책임은 본인에게 있습니다.
+          각 타임프레임의 체크리스트는 해당 봉 데이터로 기계적으로 계산된 실측치이며(별 ★ = AI가 고른 기준 TF),
+          판정·플랜은 AI가 타임프레임을 종합한 참고 의견입니다. &ldquo;형성 중&rdquo;은 확인 캔들 전까지 진입을
+          미루라는 뜻입니다. 분/시간봉은 통합 테이프 기준 약 15분 지연됩니다. 최종 매매 판단·책임은 본인에게 있습니다.
         </p>
       </div>
     </section>

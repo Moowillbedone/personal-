@@ -439,6 +439,7 @@ export interface PullbackVerdict {
     confirmation: string;
   };
   action: string; // 지금 무엇을 해야 하는가 (한국어)
+  operative_tf: string; // 이 트레이드의 기준 타임프레임 (예: "1시간봉")
   entry_low: number;
   entry_high: number;
   stop: number;
@@ -470,6 +471,7 @@ const PULLBACK_RESPONSE_SCHEMA = {
       required: ["trend", "volume", "structure", "support", "confirmation"],
     },
     action: { type: "STRING" },
+    operative_tf: { type: "STRING" },
     entry_low: { type: "NUMBER" },
     entry_high: { type: "NUMBER" },
     stop: { type: "NUMBER" },
@@ -480,8 +482,8 @@ const PULLBACK_RESPONSE_SCHEMA = {
   },
   required: [
     "classification", "confidence", "headline", "summary", "criteria_notes",
-    "action", "entry_low", "entry_high", "stop", "target_1", "target_2",
-    "horizon_days", "cautions",
+    "action", "operative_tf", "entry_low", "entry_high", "stop", "target_1",
+    "target_2", "horizon_days", "cautions",
   ],
 } as const;
 
@@ -506,6 +508,7 @@ export async function generatePullback(prompt: string): Promise<PullbackVerdict>
   p.criteria_notes = p.criteria_notes ?? {
     trend: "", volume: "", structure: "", support: "", confirmation: "",
   };
+  p.operative_tf = p.operative_tf || "일봉";
   p.cautions = p.cautions ?? [];
   return p;
 }
