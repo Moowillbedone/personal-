@@ -130,7 +130,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "warn" }) {
   );
 }
 
-export default function IchimokuPanel() {
+export default function IchimokuPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [tab, setTab] = useState<Tab>("daily");
   const [data, setData] = useState<IchimokuResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -154,7 +154,7 @@ export default function IchimokuPanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const side = data ? (tab === "daily" ? data.daily : data.weekly) : null;
   const bandPct = data ? (data.band * 100).toFixed(1) : "3.0";

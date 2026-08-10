@@ -103,30 +103,39 @@ function RowList({ rows }: { rows: Row[] }) {
   );
 }
 
-export default function PullbackScanPanel() {
+export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<ScanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const fetchScan = async () => {
       try {
-        setLoading(true);
         const res = await fetch("/api/pullback-scan", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as ScanResponse;
-        if (alive) setData(json);
+        if (alive) {
+          setData(json);
+          setError(null);
+        }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
+    // Initial (mount / 새로고침) fetch shows the loading state; the 3-min
+    // auto-poll below refreshes silently so the panel stays live during the
+    // session (the worker rewrites the table every ~15 min) without a reload.
+    setLoading(true);
+    fetchScan();
+    const id = setInterval(fetchScan, 180_000);
     return () => {
       alive = false;
+      clearInterval(id);
     };
-  }, []);
+  }, [refreshKey]);
 
   return (
     <section className="border border-neutral-800 rounded-lg bg-neutral-950 p-4 space-y-3">

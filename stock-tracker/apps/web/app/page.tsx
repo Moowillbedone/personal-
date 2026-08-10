@@ -122,8 +122,13 @@ function Metric({ label, value, cls }: { label: string; value: string; cls?: str
 export default function DashboardPage() {
   const [regime, setRegime] = useState<RegimeResp | null>(null);
   const [regimeLoading, setRegimeLoading] = useState(true);
+  // Bumped by 새로고침; each self-fetching scanner panel re-fetches when it
+  // changes (they otherwise only fetch on mount). Lets the button refresh the
+  // whole dashboard, not just the regime banner.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
+    setRefreshKey((k) => k + 1);
     setRegimeLoading(true);
     try {
       const res = await fetch("/api/regime");
@@ -152,9 +157,9 @@ export default function DashboardPage() {
       </div>
 
       <RegimeBanner data={regime} loading={regimeLoading} />
-      <PullbackScanPanel />
-      <Sma200Panel />
-      <IchimokuPanel />
+      <PullbackScanPanel refreshKey={refreshKey} />
+      <Sma200Panel refreshKey={refreshKey} />
+      <IchimokuPanel refreshKey={refreshKey} />
       <SectorStrengthPanel />
     </div>
   );
