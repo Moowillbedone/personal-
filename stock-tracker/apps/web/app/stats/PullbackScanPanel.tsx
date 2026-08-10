@@ -75,10 +75,12 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "watch" }) {
               <div key={r.symbol} className={`${GRID} items-center py-1.5 text-xs sm:text-sm border-b border-neutral-800/40 last:border-0`}>
                 <div className="min-w-0">
                   <a href={`/trade?symbol=${r.symbol}`} className="font-semibold hover:underline">{r.symbol}</a>
-                  <div className="text-[10px] text-neutral-500 leading-tight truncate">
-                    {sec}
-                    {sec && r.retrace != null ? " · " : ""}
-                    {r.retrace != null && <span className={retrColor}>되돌림 {r.retrace}%</span>}
+                  {/* sector truncates if long, but the 되돌림 % (header-labeled)
+                      stays pinned (shrink-0) so it's never cut off on mobile. */}
+                  <div className="text-[10px] text-neutral-500 leading-tight flex items-center gap-1 min-w-0">
+                    {sec && <span className="truncate min-w-0">{sec}</span>}
+                    {sec && r.retrace != null && <span className="text-neutral-700 shrink-0">·</span>}
+                    {r.retrace != null && <span className={`shrink-0 ${retrColor}`}>{r.retrace}%</span>}
                   </div>
                 </div>
                 <span className="text-right tabular-nums text-neutral-300">{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</span>
