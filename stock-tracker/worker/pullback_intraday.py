@@ -66,12 +66,19 @@ def run_scan(sb, symbols: list[str], spans: dict) -> tuple[int, int, int]:
             pull += 1
         elif pb["classification"] == "forming":
             form += 1
+        # Price the verdict was computed on (last 15m close) — the route shows
+        # THIS, not a live snapshot, so the row stays internally consistent.
+        try:
+            price = round(float(df["Close"].iloc[-1]), 2)
+        except Exception:
+            price = None
         rows.append(
             {
                 "symbol": sym,
                 "pullback_class": pb["classification"],
                 "pullback_retrace": pb["retrace"],
                 "pullback_grades": pb["grades"],
+                "pullback_price": price,
                 "pullback_at": now_iso,
             }
         )

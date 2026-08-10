@@ -9,8 +9,6 @@
 import { useEffect, useState } from "react";
 import {
   SESSION_LABEL,
-  changeText,
-  changeColor,
   koSector,
   fmtUpdated,
   type MarketSession,
@@ -19,8 +17,7 @@ import {
 interface Row {
   symbol: string;
   sector: string | null;
-  price: number | null;
-  changePct: number | null;
+  price: number | null; // as-of 판정 (not live)
   retrace: number | null; // percent
   grades: string | null; // "trend,volume,structure,support,confirmation"
 }
@@ -28,8 +25,6 @@ interface Row {
 interface ScanResponse {
   session: MarketSession;
   ready: boolean;
-  degraded?: boolean;
-  priced?: number;
   updatedAt: string | null;
   universe?: number;
   counts: { pullback: number; forming: number; downtrend: number; no_uptrend: number };
@@ -50,7 +45,7 @@ function retraceColor(pct: number | null): string {
 }
 
 const GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 sm:gap-x-3";
+  "grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 sm:gap-x-3";
 
 function Grades({ grades }: { grades: string | null }) {
   if (!grades) return <span className="text-neutral-600">—</span>;
@@ -70,8 +65,7 @@ function RowList({ rows }: { rows: Row[] }) {
       <div className="min-w-0">
         <div className={`${GRID} text-[10px] text-neutral-500 pb-1 mb-0.5 border-b border-neutral-800`}>
           <span>종목 · 섹터 · 되돌림</span>
-          <span className="text-right">현재가</span>
-          <span className="text-right">당일</span>
+          <span className="text-right">가격(판정시)</span>
           <span className="text-right">5기준 ①②③④⑤</span>
         </div>
         {rows.length === 0 ? (
@@ -92,7 +86,6 @@ function RowList({ rows }: { rows: Row[] }) {
                   </div>
                 </div>
                 <span className="text-right tabular-nums text-neutral-300">{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</span>
-                <span className={`text-right tabular-nums ${changeColor(r.changePct)}`}>{changeText(r.changePct)}</span>
                 <span className="text-right"><Grades grades={r.grades} /></span>
               </div>
             );
@@ -181,11 +174,7 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
           데이터 준비 중 — 미국 세션 중(프리장 포함) 약 15분마다 갱신됩니다.
         </p>
       )}
-      {data && data.ready && data.degraded && !loading && (
-        <p className="text-xs text-amber-400 py-4">시세 조회 일시 실패 — 잠시 후 새로고침 해주세요.</p>
-      )}
-
-      {data && data.ready && !data.degraded && !loading && (
+      {data && data.ready && !loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded border border-emerald-900/50 bg-emerald-950/20 p-3">
             <h3 className="text-xs font-semibold text-emerald-300 mb-1">
@@ -206,7 +195,8 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
 
       <p className="text-[11px] text-neutral-600 leading-relaxed">
         15분봉 기준 기계적 판정이며, 미국 세션 동안(프리장 포함) 약 15분마다 갱신됩니다(데이터 ~15분 지연).
-        &ldquo;지지 후보&rdquo;도 진입 전 Trade 탭에서 멀티 타임프레임 확인을 권합니다. 참고 지표이며 매매 판단·책임은 본인에게 있습니다.
+        <b className="text-neutral-500">가격·되돌림·5기준은 모두 &ldquo;판정 시각&rdquo; 기준의 정합 스냅샷</b>입니다(실시간 아님 — 실시간·분/시간봉은 종목 클릭 후 Trade 탭).
+        참고 지표이며 매매 판단·책임은 본인에게 있습니다.
       </p>
     </section>
   );
