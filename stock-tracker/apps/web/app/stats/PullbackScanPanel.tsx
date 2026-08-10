@@ -64,7 +64,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "watch" }) {
           <span>종목 · 섹터 · 되돌림</span>
           <span className="text-right">현재가</span>
           <span className="text-right">당일</span>
-          <span className="text-right">5기준</span>
+          <span className="text-right">5기준 ①②③④⑤</span>
         </div>
         {rows.length === 0 ? (
           <p className="text-xs text-neutral-600 py-2">해당 종목 없음</p>
@@ -135,10 +135,20 @@ export default function PullbackScanPanel() {
         </div>
       </div>
 
-      <div className="text-[11px] text-neutral-500 leading-relaxed border border-neutral-800/70 rounded bg-neutral-900/40 px-2.5 py-1.5">
-        <b className="text-neutral-300">5기준</b> = 추세·거래량·저점구조·지지·확인캔들 (✅충족/⚠️주의/❌위반) ·
-        <b className="text-neutral-300"> 되돌림</b> = 직전 상승분 대비 눌린 깊이 ·
-        종목 클릭 → Trade 탭에서 <b className="text-neutral-300">실시간 멀티 타임프레임</b> 정밀 분석
+      <div className="text-[11px] text-neutral-500 leading-relaxed border border-neutral-800/70 rounded bg-neutral-900/40 px-2.5 py-1.5 space-y-1">
+        <div>
+          <b className="text-neutral-300">5기준 아이콘</b> — 왼쪽→오른쪽 순서 · <span className="text-emerald-400">✅ 충족</span> · <span className="text-amber-400">⚠️ 주의</span> · <span className="text-red-400">❌ 위반</span>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-neutral-400">
+          <span><b className="text-neutral-300">①</b> 추세 (상승추세인가)</span>
+          <span><b className="text-neutral-300">②</b> 거래량 (마름 vs 붙음)</span>
+          <span><b className="text-neutral-300">③</b> 저점구조 (되돌림·저점유지)</span>
+          <span><b className="text-neutral-300">④</b> 지지밀집 (의미있는 자리)</span>
+          <span><b className="text-neutral-300">⑤</b> 확인캔들 (반응 왔나)</span>
+        </div>
+        <div className="text-neutral-600">
+          되돌림 = 직전 상승분 대비 눌린 깊이 · 종목 클릭 → Trade 탭 <b className="text-neutral-500">실시간 멀티 타임프레임</b> 정밀 분석
+        </div>
       </div>
 
       {loading && <p className="text-xs text-neutral-500 py-4">불러오는 중…</p>}
