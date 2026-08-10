@@ -53,11 +53,24 @@ const NOT_READY = (session: string) =>
 export async function GET() {
   const session = currentMarketSession();
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("sma200")
     .select(
       "symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_price, pullback_at"
     );
+
+  // migration 017 (pullback_price) may not be applied yet → retry without it so
+  // the verdicts still show (price renders "—") instead of the whole scanner
+  // dropping to "준비 중". Order-independent deploy.
+  if (
+    error &&
+    error.code === "42703" &&
+    (error.message || "").toLowerCase().includes("pullback_price")
+  ) {
+    ({ data, error } = await supabase
+      .from("sma200")
+      .select("symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_at"));
+  }
 
   if (error) {
     // migration 015~017 (pullback columns) or the table not there yet → placeholder.
