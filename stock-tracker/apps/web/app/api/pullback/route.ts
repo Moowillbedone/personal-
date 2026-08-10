@@ -34,12 +34,16 @@ const GRADE_KO: Record<Grade, string> = { pass: "충족", warn: "주의", fail: 
 // Each timeframe's fetch depth is chosen to yield ~200+ bars (so SMA200 + the
 // 60-bar swing window resolve) while the 60-bar window maps to a sensible span:
 // 1m→1h micro, 15m→~2.5d, 1h→~1-2wk, 4h→~6wk, 1d→~3mo.
+// adj: 1d/4h use SPLIT-adjusted bars (a split inside the long window would else
+// inject an ~Nx price cliff into SMA200/swing/retrace) — matches the worker so
+// the dashboard scanner agrees with this daily read. Intraday windows are short
+// → raw (actual traded prices).
 const TFS = [
-  { key: "1m", tf: "1Min", days: 4, limit: 1500, label: "1분봉" },
-  { key: "15m", tf: "15Min", days: 15, limit: 700, label: "15분봉" },
-  { key: "1h", tf: "1Hour", days: 45, limit: 700, label: "1시간봉" },
-  { key: "4h", tf: "4Hour", days: 260, limit: 500, label: "4시간봉" },
-  { key: "1d", tf: "1Day", days: 380, limit: 400, label: "일봉" },
+  { key: "1m", tf: "1Min", days: 4, limit: 1500, label: "1분봉", adj: "raw" },
+  { key: "15m", tf: "15Min", days: 15, limit: 700, label: "15분봉", adj: "raw" },
+  { key: "1h", tf: "1Hour", days: 45, limit: 700, label: "1시간봉", adj: "raw" },
+  { key: "4h", tf: "4Hour", days: 260, limit: 500, label: "4시간봉", adj: "split" },
+  { key: "1d", tf: "1Day", days: 380, limit: 400, label: "일봉", adj: "split" },
 ] as const;
 
 interface TimeframeResult {
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
     // Fetch every timeframe's bars + snapshot + daily Ichimoku + earnings in parallel.
     const [barsByTf, snap, ichiRow, finnhub] = await Promise.all([
       Promise.all(
-        TFS.map((t) => softly(fetchAlpacaBars(symbol, t.tf, t.days, t.limit))),
+        TFS.map((t) => softly(fetchAlpacaBars(symbol, t.tf, t.days, t.limit, t.adj))),
       ),
       softly(getPrimarySnapshot(symbol)),
       softly(

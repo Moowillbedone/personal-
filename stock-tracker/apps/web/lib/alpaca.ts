@@ -172,14 +172,24 @@ export interface RecentBars {
   daily: Bar[];
 }
 
-async function fetchBars(symbol: string, timeframe: string, days: number, limit: number): Promise<Bar[]> {
+async function fetchBars(
+  symbol: string,
+  timeframe: string,
+  days: number,
+  limit: number,
+  adjustment: "raw" | "split" | "dividend" | "all" = "raw",
+): Promise<Bar[]> {
   const now = new Date();
   const start = new Date(now.getTime() - days * 24 * 3600 * 1000);
   const params = new URLSearchParams({
     timeframe,
     start: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
     limit: String(limit),
-    adjustment: "raw",
+    // Long-window daily/4h math (SMA200, swing, retrace) must be split-adjusted
+    // so a split inside the window doesn't inject an ~Nx price cliff — matches
+    // the worker (sma200_scan.py) so the dashboard scanner and this route agree.
+    // Intraday windows are short → raw (actual traded prices) is fine.
+    adjustment,
     // NOTE: omit `end` and `feed` for free-tier compatibility.
     // - end=<now>  → 403 "subscription does not permit querying recent SIP data"
     // - feed=iex   → very sparse coverage (IEX exchange only)
@@ -227,8 +237,9 @@ export async function fetchAlpacaBars(
   timeframe: string,
   days: number,
   limit?: number,
+  adjustment: "raw" | "split" | "dividend" | "all" = "raw",
 ): Promise<Bar[]> {
-  return fetchBars(symbol, timeframe, days, limit ?? Math.max(days, 600));
+  return fetchBars(symbol, timeframe, days, limit ?? Math.max(days, 600), adjustment);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
