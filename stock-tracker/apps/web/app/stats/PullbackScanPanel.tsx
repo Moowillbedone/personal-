@@ -40,6 +40,15 @@ interface ScanResponse {
 const GRADE_ICON: Record<string, string> = { pass: "✅", warn: "⚠️", fail: "❌" };
 const CRITERIA_SHORT = ["추세", "량", "구조", "지지", "확인"];
 
+// 되돌림 깊이 색 (Fibonacci 기준): 얕을수록 추세 강함.
+//   ≤38.2% 초록(얕음·강한 추세) · ~61.8% 파랑(정상 눌림존) · >61.8% 주황(깊음·주의)
+function retraceColor(pct: number | null): string {
+  if (pct == null) return "text-neutral-500";
+  if (pct <= 38.2) return "text-emerald-400";
+  if (pct <= 61.8) return "text-sky-400";
+  return "text-amber-400";
+}
+
 const GRID =
   "grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 sm:gap-x-3";
 
@@ -55,8 +64,7 @@ function Grades({ grades }: { grades: string | null }) {
   );
 }
 
-function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "watch" }) {
-  const retrColor = tone === "buy" ? "text-emerald-400" : "text-amber-400";
+function RowList({ rows }: { rows: Row[] }) {
   return (
     <div className="overflow-x-auto">
       <div className="min-w-0">
@@ -80,7 +88,7 @@ function RowList({ rows, tone }: { rows: Row[]; tone: "buy" | "watch" }) {
                   <div className="text-[10px] text-neutral-500 leading-tight flex items-center gap-1 min-w-0">
                     {sec && <span className="truncate min-w-0">{sec}</span>}
                     {sec && r.retrace != null && <span className="text-neutral-700 shrink-0">·</span>}
-                    {r.retrace != null && <span className={`shrink-0 ${retrColor}`}>{r.retrace}%</span>}
+                    {r.retrace != null && <span className={`shrink-0 ${retraceColor(r.retrace)}`}>{r.retrace}%</span>}
                   </div>
                 </div>
                 <span className="text-right tabular-nums text-neutral-300">{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</span>
@@ -149,7 +157,11 @@ export default function PullbackScanPanel() {
           <span><b className="text-neutral-300">⑤</b> 확인캔들 (반응 왔나)</span>
         </div>
         <div className="text-neutral-600">
-          되돌림 = 직전 상승분 대비 눌린 깊이 · 종목 클릭 → Trade 탭 <b className="text-neutral-500">실시간 멀티 타임프레임</b> 정밀 분석
+          <b className="text-neutral-400">되돌림</b> = 직전 상승분 대비 눌린 깊이 · <b className="text-neutral-400">낮을수록 얕은 눌림 = 추세 강함</b>
+          (<span className="text-emerald-400">초록 ≤38%</span> · <span className="text-sky-400">파랑 ~62% 정상존</span> · <span className="text-amber-400">주황 &gt;62% 깊어 주의</span>)
+        </div>
+        <div className="text-neutral-600">
+          종목 클릭 → Trade 탭 <b className="text-neutral-500">실시간 멀티 타임프레임</b> 정밀 분석
         </div>
       </div>
 
@@ -171,14 +183,14 @@ export default function PullbackScanPanel() {
               🟢 눌림목 지지 · 진입 후보 ({data.counts.pullback})
             </h3>
             <p className="text-[11px] text-neutral-500 mb-1">추세·거래량·저점·지지·확인 대체로 충족</p>
-            <RowList rows={data.pullback} tone="buy" />
+            <RowList rows={data.pullback} />
           </div>
           <div className="rounded border border-amber-900/50 bg-amber-950/20 p-3">
             <h3 className="text-xs font-semibold text-amber-300 mb-1">
               🟡 형성 중 · 확인 대기 ({data.counts.forming})
             </h3>
             <p className="text-[11px] text-neutral-500 mb-1">추세는 살아있으나 확인캔들 등 미완 — 관망</p>
-            <RowList rows={data.forming} tone="watch" />
+            <RowList rows={data.forming} />
           </div>
         </div>
       )}
