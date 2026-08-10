@@ -1,0 +1,46 @@
+name: stock-tracker / pullback-intraday
+
+# 15분봉 눌림목 스캐너 — recomputes the dashboard pullback verdict every ~15 min
+# during the US session (pre-market included). Long-running-loop pattern (like
+# poll): each launch loops internally every 15 min for ~5h20m, and launches
+# overlap so the effective cadence survives GitHub Actions cron drift. Public
+# repo ⇒ unlimited Actions minutes. Idempotent (upsert), separate from poll so
+# the signal poll is unaffected.
+on:
+  schedule:
+    # UTC weekdays. 08:00 ≈ pre-market open (04:00 ET EDT); 20:00 ≈ close;
+    # the 20:00 launch's loop tail covers after-hours to ~01:20 UTC.
+    - cron: "0 8,12,16,20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      loop_min:
+        description: "Loop minutes (0 = single-shot)"
+        default: "0"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  pullback-intraday:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        working-directory: stock-tracker/worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+      ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+      LOOP_MIN: ${{ github.event_name == 'schedule' && '320' || (inputs.loop_min || '0') }}
+      LOOP_INTERVAL_SEC: "900"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: stock-tracker/worker/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python pullback_intraday.py

@@ -1,10 +1,10 @@
 "use client";
 
 // 눌림목 스캐너 — dashboard block. Of the NASDAQ-100 + NYSE-100 universe, which
-// names are (DAILY) 🟢 눌림목 지지(pullback, buyable) or 🟡 형성 중(forming, watch)?
-// Classification is precomputed daily by the worker (mirrors the Trade-tab daily
-// read); this reads /api/pullback-scan. The live multi-timeframe analysis is on
-// the Trade tab — click a symbol to run it.
+// names are (15분봉) 🟢 눌림목 지지(pullback, buyable) or 🟡 형성 중(forming, watch)?
+// Classification is recomputed every ~15 min during the US session (incl.
+// pre-market) by worker/pullback_intraday.py; this reads /api/pullback-scan.
+// The live multi-timeframe analysis (1m~1d) is on the Trade tab — click a symbol.
 
 import { useEffect, useState } from "react";
 import {
@@ -122,7 +122,7 @@ export default function PullbackScanPanel() {
     <section className="border border-neutral-800 rounded-lg bg-neutral-950 p-4 space-y-3">
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="text-sm font-semibold">🎯 눌림목 스캐너 (일봉 기준)</h2>
+          <h2 className="text-sm font-semibold">🎯 눌림목 스캐너 (15분봉 · 장중 갱신)</h2>
           <p className="text-xs text-neutral-500 mt-0.5">
             나스닥100 + 뉴욕100 중 상승추세 내 건강한 눌림 후보
             {data?.universe ? ` · ${data.universe}종목 스캔` : ""}
@@ -131,7 +131,7 @@ export default function PullbackScanPanel() {
         </div>
         <div className="text-right text-xs text-neutral-500">
           {data && <div>{SESSION_LABEL[data.session]}</div>}
-          {data?.updatedAt && <div className="text-neutral-600">판정 {fmtUpdated(data.updatedAt)} 기준</div>}
+          {data?.updatedAt && <div className="text-neutral-600">판정 {fmtUpdated(data.updatedAt)} 갱신</div>}
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export default function PullbackScanPanel() {
       {error && <p className="text-xs text-red-400 py-4">불러오기 실패: {error}</p>}
       {data && !data.ready && !loading && (
         <p className="text-xs text-neutral-500 py-4">
-          데이터 준비 중 — 다음 계산(장 마감 후, 매일 KST 06:30) 이후 표시됩니다.
+          데이터 준비 중 — 미국 세션 중(프리장 포함) 약 15분마다 갱신됩니다.
         </p>
       )}
       {data && data.ready && data.degraded && !loading && (
@@ -172,8 +172,8 @@ export default function PullbackScanPanel() {
       )}
 
       <p className="text-[11px] text-neutral-600 leading-relaxed">
-        일봉 기준 기계적 판정입니다(장 마감 후 갱신). &ldquo;지지 후보&rdquo;도 진입 전 Trade 탭에서
-        분/시간봉 확인을 권합니다. 참고 지표이며 매매 판단·책임은 본인에게 있습니다.
+        15분봉 기준 기계적 판정이며, 미국 세션 동안(프리장 포함) 약 15분마다 갱신됩니다(데이터 ~15분 지연).
+        &ldquo;지지 후보&rdquo;도 진입 전 Trade 탭에서 멀티 타임프레임 확인을 권합니다. 참고 지표이며 매매 판단·책임은 본인에게 있습니다.
       </p>
     </section>
   );

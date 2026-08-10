@@ -26,7 +26,6 @@ import requests
 from dotenv import load_dotenv
 
 from lib import alpaca, db
-from lib.pullback import classify_pullback
 
 load_dotenv()
 
@@ -157,9 +156,6 @@ def main() -> int:
         last_close = None
         if d is not None and not d.empty:
             last_close = round(float(d["Close"].iloc[-1]), 4)
-        # Daily pullback classification (mirrors the Trade-tab daily read) for
-        # the dashboard scanner. None if <30 daily bars.
-        pb = classify_pullback(d, spana_d, spanb_d)
         rows.append(
             {
                 "symbol": sym,
@@ -169,9 +165,6 @@ def main() -> int:
                 "spanb_daily": spanb_d,
                 "spana_weekly": spana_w,
                 "spanb_weekly": spanb_w,
-                "pullback_class": pb["classification"] if pb else None,
-                "pullback_retrace": pb["retrace"] if pb else None,
-                "pullback_grades": pb["grades"] if pb else None,
                 "last_close": last_close,
                 "updated_at": now_iso,
             }
@@ -224,13 +217,10 @@ def main() -> int:
     ichi_d = sum(1 for r in rows if r["spanb_daily"] is not None)
     ichi_w = sum(1 for r in rows if r["spanb_weekly"] is not None)
     sector_n = sum(1 for r in rows if r.get("sector"))
-    pb_pull = sum(1 for r in rows if r.get("pullback_class") == "pullback")
-    pb_form = sum(1 for r in rows if r.get("pullback_class") == "forming")
     print(
         f"sma200_scan: upserted {len(rows)} rows "
         f"(sma200 daily={daily_n}/weekly={weekly_n}, "
-        f"ichimoku-spanB daily={ichi_d}/weekly={ichi_w}, sector={sector_n}, "
-        f"pullback 지지={pb_pull}/형성={pb_form})"
+        f"ichimoku-spanB daily={ichi_d}/weekly={ichi_w}, sector={sector_n})"
     )
     return 0
 

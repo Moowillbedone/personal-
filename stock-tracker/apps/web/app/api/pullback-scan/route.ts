@@ -23,7 +23,7 @@ interface Rec {
   pullback_class: PbClass | null;
   pullback_retrace: number | null;
   pullback_grades: string | null;
-  updated_at: string;
+  pullback_at: string | null; // when the 15m classification was computed
 }
 
 interface Row {
@@ -55,7 +55,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("sma200")
-    .select("symbol, sector, pullback_class, pullback_retrace, pullback_grades, updated_at");
+    .select("symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_at");
 
   if (error) {
     // migration 015 (pullback columns) or the table not there yet → placeholder.
@@ -119,7 +119,7 @@ export async function GET() {
   const forming = buyish.filter((r) => r.pullback_class === "forming").sort(rank).map(toRow);
 
   const updatedAt = records.reduce<string | null>(
-    (max, r) => (!max || r.updated_at > max ? r.updated_at : max),
+    (max, r) => (r.pullback_at && (!max || r.pullback_at > max) ? r.pullback_at : max),
     null
   );
   const priced = Object.keys(prices).length;
