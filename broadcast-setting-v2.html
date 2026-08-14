@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Grip - 방송 설정 v2</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/Cafe24Ohsquare.woff" rel="preload" as="font" type="font/woff" crossorigin>
+<style>@font-face{font-family:'Cafe24 Ohsquare';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/Cafe24Ohsquare.woff') format('woff');font-weight:normal;font-style:normal;font-display:swap}</style>
+<style>
+/* ===== 리셋 & 기본 ===== */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;background:#000;color:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh}
+
+/* ===== 폰 프레임 ===== */
+.phone{width:375px;height:812px;position:relative;overflow:hidden;background:#111;border-radius:40px;border:3px solid #333;box-shadow:0 0 40px rgba(0,0,0,.8)}
+
+/* ===== 공통 헤더/탭/스크롤 ===== */
+.sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:15px;font-weight:700}
+.hd{height:48px;display:flex;align-items:center;justify-content:center;position:relative}
+.hd .cb{position:absolute;left:16px;font-size:24px;cursor:pointer;color:#fff;background:none;border:none;line-height:1}
+.hd h1{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:8px;padding:10px 16px}
+.tabs button{flex:1;height:38px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer}
+.tabs button.on{background:#fff;color:#000;border:none}
+.tabs button:not(.on){background:#333;color:#888;border:none}
+.sc{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 20px}
+.sc::-webkit-scrollbar{display:none}
+
+/* ===== 메인화면 섹션 스타일 ===== */
+.req{color:#ff4757}
+
+/* ===== 커버 영역 ===== */
+.cov{display:flex;gap:16px;margin:16px 0 12px;align-items:flex-start}
+.cov-box{width:140px;min-height:170px;border:2px dashed #444;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;flex-shrink:0;position:relative;overflow:hidden}
+.cov-box .cm{font-size:28px;color:#666}
+.cov-box .ct{font-size:13px;color:#888;text-align:center;line-height:1.4}
+.cov-box .cs{font-size:11px;color:#555;text-align:center}
+.cov-box img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:10px}
+
+/* ===== 제목 입력 ===== */
+.ti{width:100%;background:transparent;border:none;color:#fff;font-size:15px;outline:none;padding:4px 0;border-bottom:1px solid #333;font-family:inherit}
+
+/* ===== AI 섹션 버튼 ===== */
+.ai-sec{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+.ai-sec .hl{width:18px;height:18px;border-radius:50%;border:1px solid #666;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#666;cursor:pointer}
+.ai-btn{background:#ff4757;color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+.ai-btn.rm{background:#333;color:#ccc}
+
+/* ===== 메뉴 아이템 ===== */
+.mi{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-top:1px solid #222;cursor:pointer}
+.mi span{font-size:15px}
+.mi .ar{color:#555;font-size:18px}
+.mi .val{color:#888;font-size:14px;display:flex;align-items:center;gap:4px}
+
+/* ===== 태그 ===== */
+.tg-sec{padding:12px 0;border-top:1px solid #222}
+.tg-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tg-h{font-size:18px;color:#888;font-weight:700}
+.tg-i{background:transparent;border:none;color:#888;font-size:14px;outline:none;flex:1;font-family:inherit}
+.tg-d{font-size:11px;color:#555;line-height:1.6}
+
+/* ===== 공지 ===== */
+.not-sec{border-top:1px solid #222}
+.not-h{display:flex;align-items:center;justify-content:space-between;padding:16px 0;cursor:pointer}
+.not-h span{font-size:15px}
+.not-lbl{font-size:13px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between}
+.not-lbl .c{color:#888;font-weight:400;font-size:12px}
+.not-ta{width:100%;height:80px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#888;font-size:13px;padding:12px;outline:none;resize:none;margin-bottom:12px;font-family:inherit}
+
+/* ===== 하단 버튼 ===== */
+.bbtn{position:absolute;bottom:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.bbtn span{font-size:17px;font-weight:600;color:#fff}
+
+/* ===== 혜택 스크롤 ===== */
+.bn-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.bn-scroll::-webkit-scrollbar{display:none}
+.bn-item{flex-shrink:0;cursor:pointer;text-align:center}
+.bn-ic{background:#333;border-radius:12px;width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:4px}
+.bn-ic.sel{border:2px solid #ff4757}
+
+/* ===== 스크린 레이어 ===== */
+.scr{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#111;z-index:10}
+.scr.on{display:block}
+
+/* ===== 로딩 화면 ===== */
+#sLoad{z-index:30}
+.lw{width:100%;height:calc(100% - 92px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px}
+.pr{width:100px;height:100px;position:relative;margin-bottom:24px}
+.pr svg{transform:rotate(-90deg)}
+.pr .bg{stroke:#333}
+.pr .fg{stroke:#ff4757;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.pt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px;font-weight:700;color:#ff4757}
+.lm{font-size:16px;font-weight:500;margin-bottom:8px;text-align:center}
+.ls{font-size:13px;color:#888;margin-bottom:30px}
+.sl{width:100%;max-width:280px}
+.si{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin-bottom:8px;border-radius:10px;background:#1a1a1a}
+.sic{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.sic.dn{background:#00b894;color:#fff}
+.sic.ac{border:2px solid #ff4757;color:#ff4757}
+.sic.pn{background:#333;color:#666}
+.sn{flex:1;margin-left:12px;font-size:14px}
+.ss{font-size:12px;color:#888}
+.ss.dn{color:#00b894}
+.ss.ac{color:#ff4757}
+
+/* ===== 결과 화면 ===== */
+#sRes{z-index:25}
+.res-tabs{display:flex;align-items:center;padding:8px 12px;gap:0;border-bottom:1px solid #222;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.res-tabs::-webkit-scrollbar{display:none}
+.res-tab{padding:8px 12px;font-size:13px;color:#888;cursor:pointer;border-radius:20px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.res-tab.on{background:#fff;color:#000;font-weight:600}
+.res-body{height:calc(812px - 92px - 50px - 60px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+.res-body::-webkit-scrollbar{display:none}
+
+/* ===== 결과 전체보기 그리드 ===== */
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ov-card{border-radius:12px;overflow:hidden;cursor:pointer;position:relative;background:#1a1a1a;aspect-ratio:9/16}
+.ov-card .badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;z-index:10}
+
+/* ===== 결과 상세 편집 ===== */
+.det-preview{width:100%;aspect-ratio:9/16;max-height:340px;border-radius:12px;overflow:hidden;position:relative;margin-bottom:12px;background:#1a1a1a}
+
+/* ===== 레이아웃 선택 ===== */
+.layout-row{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px}
+.layout-row::-webkit-scrollbar{display:none}
+.lo-item{flex-shrink:0;width:68px;text-align:center;cursor:pointer}
+.lo-item .lo-thumb{width:68px;height:68px;border-radius:8px;border:2px solid transparent;overflow:hidden;margin-bottom:3px;background:#222;display:flex;align-items:center;justify-content:center;font-size:8px;color:#888;padding:4px;text-align:center;line-height:1.3}
+.lo-item.sel .lo-thumb{border-color:#ff4757}
+.lo-item .lo-name{font-size:9px;color:#888;line-height:1.3;text-align:center}
+.lo-item.sel .lo-name{color:#ff4757}
+
+/* ===== 컨트롤 섹션 ===== */
+.ctrl-sec{margin-bottom:16px}
+.ctrl-label{font-size:13px;font-weight:600;margin-bottom:8px;color:#ccc}
+
+/* ===== 슬라이더 ===== */
+.sld-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sld-wrap .sld-val{font-size:12px;color:#ff4757;min-width:36px;text-align:right}
+.sld{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#333;outline:none;touch-action:none}
+.sld::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#ff4757;cursor:pointer}
+
+/* ===== 프로모 입력 ===== */
+.promo-row{margin-bottom:10px}
+.promo-label{font-size:12px;color:#888;margin-bottom:4px;display:flex;justify-content:space-between}
+.promo-label .lim{color:#555}
+.promo-inp{width:100%;height:38px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#fff;font-size:14px;padding:0 12px;outline:none;font-family:inherit}
+.promo-inp:focus{border-color:#ff4757}
+
+/* ===== 토스트 ===== */
+.toast{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:12px 24px;border-radius:8px;font-size:13px;z-index:100;white-space:nowrap;pointer-events:none;opacity:1;transition:opacity .4s}
+.toast.fade{opacity:0}
+
+/* ===== 바텀시트 (도움말) ===== */
+.ov{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:50}
+.ov.on{display:block}
+.bs{position:absolute;bottom:0;left:0;right:0;background:#1a1a1a;border-radius:16px 16px 0 0;padding:24px 20px 40px;z-index:51;transform:translateY(100%);transition:transform .3s ease}
+.bs.on{transform:translateY(0)}
+.bs-close{position:absolute;top:16px;right:16px;font-size:22px;color:#888;cursor:pointer;background:none;border:none}
+.bs h3{font-size:17px;font-weight:600;text-align:center;margin-bottom:20px}
+.bs .exs{display:flex;gap:10px;margin-bottom:16px}
+.bs .exi{flex:1;height:120px;border-radius:8px;overflow:hidden;position:relative;display:flex;align-items:flex-end}
+.bs .dsc{font-size:13px;color:#aaa;text-align:center;line-height:1.6}
+
+/* ===== 상품 선택 화면 ===== */
+/* Screen 1: 판매 상품 선택 메인 */
+.prod-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px}
+.prod-empty p{font-size:15px;color:#888;text-align:center}
+.prod-add-btn{background:#000;color:#fff;border:1.5px solid #fff;border-radius:24px;padding:12px 28px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.prod-hint{font-size:13px;color:#888;padding:12px 16px;text-align:center;line-height:1.6}
+.prod-summary{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 4px}
+.prod-summary .cnt{font-size:14px;color:#ccc}
+.prod-summary .del-all{font-size:13px;color:#888;cursor:pointer;background:none;border:none;font-family:inherit}
+.prod-list{padding:0 16px}
+.prod-card{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #222;position:relative}
+.prod-drag{font-size:18px;color:#555;cursor:grab;flex-shrink:0;margin-right:2px}
+.prod-thumb{width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#333}
+.prod-info{flex:1;min-width:0}
+.prod-info .pname{font-size:14px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod-info .pbadge{display:inline-block;background:#ff4757;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-bottom:4px}
+.prod-info .pstock{font-size:12px;color:#888;margin-bottom:2px}
+.prod-info .porig{font-size:12px;color:#555;text-decoration:line-through}
+.prod-info .plive{font-size:13px;color:#ff4757;font-weight:600}
+.prod-del{background:none;border:1px solid #444;border-radius:6px;color:#888;font-size:12px;padding:5px 10px;cursor:pointer;flex-shrink:0;font-family:inherit}
+/* Screen 2: 상품 추가 (검색+리스트) */
+.srch-wrap{padding:10px 16px}
+.srch-inp{width:100%;background:#1a1a1a;border:1px solid #333;border-radius:10px;color:#fff;font-size:14px;padding:10px 14px 10px 38px;outline:none;font-family:inherit}
+.srch-inp:focus{border-color:#ff4757}
+.srch-box{position:relative}
+.srch-box::before{content:'🔍';position:absolute;left:28px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
+.sel-all-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #222;cursor:pointer}
+.chk-circle{width:22px;height:22px;border-radius:50%;border:2px solid #555;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.chk-circle.on{background:#ff4757;border-color:#ff4757;color:#fff;font-size:13px}
+.sel-all-lbl{font-size:14px;color:#ccc}
+.prod-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #1e1e1e;cursor:pointer}
+.prod-item:active{background:#1a1a1a}
+.prod-item-img{width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#333}
+.prod-item-info{flex:1;min-width:0}
+.prod-item-info .iname{font-size:14px;font-weight:600;margin-bottom:4px;line-height:1.3}
+.prod-item-info .istock{font-size:12px;color:#888;margin-bottom:2px}
+.prod-item-info .iorig{font-size:12px;color:#555;text-decoration:line-through}
+.prod-item-info .ilive{font-size:13px;color:#ff4757;font-weight:600}
+/* 하단 버튼 2개 (취소/추가) */
+.prod-btns{position:absolute;bottom:0;left:0;right:0;height:60px;display:flex}
+.prod-btns .pbtn-cancel{flex:1;background:#333;color:#ccc;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+.prod-btns .pbtn-add{flex:2;background:#ff4757;color:#fff;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+/* 상품 선택 완료 하단 버튼 */
+.prod-done-btn{position:absolute;bottom:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:center;background:#ff4757;cursor:pointer}
+.prod-done-btn span{font-size:17px;font-weight:600;color:#fff}
+/* 메뉴 아이템의 상품 수량 배지 */
+.mi-badge{color:#ff4757;font-weight:700}
+</style>
+</head>
+<body>
+<div class="phone" id="app">
+
+<!-- ===== 메인 화면: 방송설정 ===== -->
+<div id="sMain">
+  <div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+  <div class="hd">
+    <button class="cb">&times;</button>
+    <h1>방송설정</h1>
+  </div>
+  <div class="tabs">
+    <button class="on" onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">라이브</button>
+    <button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">녹화</button>
+    <button onclick="this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">연습하기</button>
+  </div>
+
+  <div class="sc" style="height:calc(812px - 44px - 48px - 58px - 60px)">
+
+    <!-- 커버 이미지 + 제목 -->
+    <div class="cov">
+      <div class="cov-box" id="covBox" onclick="covBoxClick()">
+        <div class="cm" id="covCam">📷</div>
+        <div class="ct" id="covTxt">방송 커버<br>이미지 등록 <span class="req">*</span></div>
+        <div class="cs" id="covSub">이미지를 그립이<br>변경할 수도 있습니다</div>
+        <img id="covImg" style="display:none">
+        <input type="file" id="covF" accept="image/*" style="display:none" onchange="handleCov(event)">
+      </div>
+      <div style="flex:1;padding-top:4px">
+        <input class="ti" id="bTitle" placeholder="제목을 입력해 주세요 *">
+      </div>
+    </div>
+
+    <!-- AI 방송 커버 섹션 -->
+    <div class="ai-sec">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">AI 방송 커버 사용</span>
+        <div class="hl" onclick="showHelp()">?</div>
+      </div>
+      <button class="ai-btn" id="aiBtn" onclick="openAI()">✦ AI 커버 생성</button>
+    </div>
+
+    <!-- 판매 상품 선택 -->
+    <div class="mi" onclick="openProductScreen()" id="miProduct">
+      <span>판매 상품 선택</span>
+      <div class="val"><span id="productBadge" class="mi-badge" style="display:none"></span><span class="ar">›</span></div>
+    </div>
+
+    <!-- 태그 입력 -->
+    <div class="tg-sec">
+      <div class="tg-row">
+        <span class="tg-h">#</span>
+        <input class="tg-i" id="tagInput" placeholder="태그입력">
+      </div>
+      <div class="tg-d">띄어쓰기로 구분할 수 있어요. (최대 10개)<br>태그 추가 시 키워드 알림을 설정한 사용자에게 알림이 가요.</div>
+    </div>
+
+    <!-- 현재 위치 -->
+    <div class="mi"><span>현재 위치 설정</span><div class="val">상태값 <span class="ar">›</span></div></div>
+
+    <!-- 공지 작성 -->
+    <div class="not-sec">
+      <div class="not-h" onclick="toggleNot()">
+        <span>공지 작성</span>
+        <span class="ar" id="notAr">∨</span>
+      </div>
+      <div id="notBody" style="display:none">
+        <div class="not-lbl">라이브 소개 <span class="c">0 / 500</span></div>
+        <textarea class="not-ta" placeholder="방송에 대한 소개나 구매 방법 등을 알려주세요."></textarea>
+        <div class="not-lbl">혜택 <span class="c">0 / 300</span></div>
+        <textarea class="not-ta" placeholder="예) 사은품, 이벤트 등" style="height:60px"></textarea>
+        <div class="not-lbl">배송 정보 <span class="c">0 / 300</span></div>
+        <textarea class="not-ta" placeholder="예) 무료배송 조건, 출고 날짜 등" style="height:60px"></textarea>
+        <div class="not-lbl">사이즈 정보 <span class="c">0 / 300</span></div>
+        <textarea class="not-ta" placeholder="예) 모델 신체 정보, 사이즈 가이드" style="height:60px"></textarea>
+        <div style="margin-top:8px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:600">방송에서 강조할 혜택</span>
+            <span style="color:#ff4757;font-size:12px;font-weight:600">(추천)</span>
+          </div>
+          <div style="font-size:11px;color:#888;line-height:1.5;margin-bottom:12px">방송 화면 우측 상단에 아이콘이 표시돼요 (최대 1개)<br>혜택 내용을 공지에 꼭 작성해 주세요.</div>
+          <div class="bn-scroll">
+            <div class="bn-item" onclick="selBen(this)"><div class="bn-ic sel">🚫</div><div style="font-size:11px;color:#ccc">없음</div></div>
+            <div class="bn-item" onclick="selBen(this)"><div class="bn-ic">🚚</div><div style="font-size:11px;color:#ccc">무료배송</div></div>
+            <div class="bn-item" onclick="selBen(this)"><div class="bn-ic">❗</div><div style="font-size:11px;color:#ccc">구매전 필독</div></div>
+            <div class="bn-item" onclick="selBen(this)"><div class="bn-ic">📍</div><div style="font-size:11px;color:#ccc">팔로우<br>이벤트</div></div>
+            <div class="bn-item" onclick="selBen(this)"><div class="bn-ic">🎟️</div><div style="font-size:11px;color:#ccc">구매 이벤트</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bbtn" style="background:#ff4757"><span>다음</span></div>
+</div><!-- /sMain -->
+
+
+<!-- 로딩/결과/편집 화면 제거됨 — AI 커버는 메인화면 covBox에서 즉시 생성 -->
+
+
+<!-- ===== Screen 1: 판매 상품 선택 메인 ===== -->
+<div class="scr" id="sProduct">
+  <div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+  <div class="hd">
+    <button class="cb" onclick="closeProductScreen()">&#8592;</button>
+    <h1>판매 상품 선택</h1>
+  </div>
+
+  <!-- 상품이 없을 때 빈 상태 -->
+  <div id="prodEmpty" class="prod-empty">
+    <p>판매할 상품을 추가해주세요.</p>
+    <button class="prod-add-btn" onclick="openProductAddScreen()">상품 추가</button>
+  </div>
+
+  <!-- 상품이 있을 때 목록 영역 -->
+  <div id="prodFilled" style="display:none;height:calc(812px - 44px - 48px - 60px);overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <div class="prod-hint">
+      ☰ 를 잡고 상품 노출 순서를 변경해보세요<br>
+      첫번째 상품이 대표 상품이 됩니다.
+    </div>
+    <div class="prod-summary">
+      <span class="cnt" id="prodSelectedCnt">총0개 선택</span>
+      <button class="del-all" onclick="deleteAllProducts()">전체 삭제</button>
+    </div>
+    <div class="prod-list" id="prodListContainer"></div>
+    <div style="padding:0 16px;margin-top:8px">
+      <button class="prod-add-btn" onclick="openProductAddScreen()" style="width:100%;text-align:center;border-radius:10px;padding:14px 0">+ 상품 추가</button>
+    </div>
+  </div>
+
+  <!-- 상품 선택 완료 하단 버튼 (상품 있을 때만 표시) -->
+  <div class="prod-done-btn" id="prodDoneBtn" style="display:none" onclick="completeProductSelection()">
+    <span>상품 선택 완료</span>
+  </div>
+</div><!-- /sProduct -->
+
+
+<!-- ===== Screen 2: 상품 추가 (검색 + 체크박스 리스트) ===== -->
+<div class="scr" id="sProductAdd">
+  <div class="sb"><span>8:06</span><span style="font-size:11px">📶 🔋</span></div>
+  <div class="hd">
+    <button class="cb" onclick="closeProductAddScreen()">&#8592;</button>
+    <h1>판매 상품 선택</h1>
+  </div>
+
+  <!-- 검색창 -->
+  <div class="srch-wrap">
+    <div class="srch-box">
+      <input class="srch-inp" id="prodSearch" placeholder="상품명 또는 브랜드명" oninput="filterProducts()">
+    </div>
+  </div>
+
+  <!-- 전체 선택 -->
+  <div class="sel-all-row" onclick="toggleSelectAll()">
+    <div class="chk-circle" id="chkAll"></div>
+    <span class="sel-all-lbl">전체선택</span>
+  </div>
+
+  <!-- 상품 목록 -->
+  <div id="prodAddList" style="height:calc(812px - 44px - 48px - 52px - 48px - 60px);overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>
+
+  <!-- 하단 취소 / N개 상품 추가 버튼 -->
+  <div class="prod-btns">
+    <button class="pbtn-cancel" onclick="closeProductAddScreen()">취소</button>
+    <button class="pbtn-add" id="prodAddConfirmBtn" onclick="confirmAddProducts()">상품 추가</button>
+  </div>
+</div><!-- /sProductAdd -->
+
+
+<!-- ===== 도움말 바텀시트 ===== -->
+<div class="ov" id="hOv" onclick="closeHelp()"></div>
+<div class="bs" id="hBs">
+  <button class="bs-close" onclick="closeHelp()">&times;</button>
+  <h3>✦ AI 방송커버가 뭐예요?</h3>
+  <div class="exs">
+    <div class="exi" style="background:#c4a882;position:relative;overflow:hidden">
+      <img src="https://images.unsplash.com/photo-1570526383810-4f16b26e3711?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.85" onerror="this.style.display='none'">
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+        <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">하루종일 안 녹는</div>
+        <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">텀블러 <span style="color:#F9DF34">35%</span></div>
+      </div>
+    </div>
+    <div class="exi" style="background:#5a3a20;position:relative;overflow:hidden">
+      <img src="https://images.unsplash.com/photo-1623653387945-2fd25214f8fc?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.9" onerror="this.style.display='none'">
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+        <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);line-height:1.3">앞다리 순살 족발</div>
+        <div style="display:inline-block;background:#FF2D55;color:#fff;font-size:11px;font-weight:800;padding:1px 6px;border-radius:2px;margin-top:2px">6,900원!</div>
+      </div>
+    </div>
+    <div class="exi" style="background:#7ec8e3;position:relative;overflow:hidden">
+      <img src="https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop" style="width:100%;height:100%;object-fit:cover;opacity:0.9" onerror="this.style.display='none'">
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 6px;text-align:center">
+        <div style="display:inline-block;background:#FF2D55;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:2px;line-height:1.4">키즈 S/S 세일</div>
+        <div style="display:inline-block;background:#FF2D55;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:2px;margin-top:2px;line-height:1.4">7만원 이상 무배</div>
+      </div>
+    </div>
+  </div>
+  <div class="dsc">방송 제목과 커버 이미지를 기반으로<br>텍스트 오버레이를 자동으로 생성합니다.</div>
+</div><!-- /bs -->
+
+
+</div><!-- /phone -->
+
+<script>
+// ====================================================
+// 전역 상태
+// ====================================================
+var uploadedImageDataUrl = null; // 사용자가 업로드한 이미지 DataURL
+var currentVariant = null;       // 현재 적용된 AI 커버 시안 데이터
+
+// 상품 선택 관련 상태
+var selectedProducts = [];       // 최종 선택된 상품 배열 (Screen 1에 표시)
+var tempChecked = [];            // Screen 2에서 체크 중인 상품 id 배열 (임시)
+
+// 기본 상품 데이터 (프로토타입용 하드코딩)
+var PRODUCTS = [
+  {
+    id: 1,
+    name: '브라질 세라도 1.1kg',
+    image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=100&h=100&fit=crop',
+    stock: '12,391,283',
+    originalPrice: '9,999,999,999원',
+    livePrice: '123,112,123원'
+  },
+  {
+    id: 2,
+    name: '에티오피아 예가체프 200g',
+    image: 'https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?w=100&h=100&fit=crop',
+    stock: '5,820,100',
+    originalPrice: '18,900원',
+    livePrice: '12,500원'
+  },
+  {
+    id: 3,
+    name: '콜롬비아 수프리모 500g',
+    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=100&h=100&fit=crop',
+    stock: '3,204,500',
+    originalPrice: '25,000원',
+    livePrice: '17,800원'
+  }
+];
+
+// 피그마 스펙: 기본형 폰트 2종
+var FONT_SPECS = {
+  'Cafe24 Ohsquare': { size: 19, weight: 'normal' },
+  'Pretendard':      { size: 20, weight: '700' }
+};
+
+// 하이라이트 색상 3종 (피그마 가이드)
+var HIGHLIGHT_COLORS = ['#FFE13F', '#4AFDFD', '#FFA2C9'];
+
+// 강조형 배경색 3종 (피그마 가이드)
+var BLOCK_BG_COLORS = ['#F20000', '#261193', '#0E1011'];
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+
+// ====================================================
+// 메인화면 헬퍼
+// ====================================================
+function toggleNot() {
+  var b = document.getElementById('notBody');
+  var a = document.getElementById('notAr');
+  var isOpen = b.style.display !== 'none';
+  b.style.display = isOpen ? 'none' : 'block';
+  a.textContent = isOpen ? '∨' : '∧';
+}
+
+function showHelp() {
+  document.getElementById('hOv').classList.add('on');
+  document.getElementById('hBs').classList.add('on');
+}
+
+function closeHelp() {
+  document.getElementById('hOv').classList.remove('on');
+  document.getElementById('hBs').classList.remove('on');
+}
+
+function selBen(el) {
+  document.querySelectorAll('.bn-ic').forEach(function(b) { b.classList.remove('sel'); });
+  el.querySelector('.bn-ic').classList.add('sel');
+}
+
+// 커버 박스 클릭 — AI 커버 적용 중이면 무시
+function covBoxClick() {
+  var btn = document.getElementById('aiBtn');
+  if (btn.classList.contains('rm')) return;
+  document.getElementById('covF').click();
+}
+
+// 커버 이미지 업로드 처리
+function handleCov(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function(ev) {
+    uploadedImageDataUrl = ev.target.result;
+    var img = document.getElementById('covImg');
+    img.src = ev.target.result;
+    img.style.display = 'block';
+    document.getElementById('covCam').style.display = 'none';
+    document.getElementById('covTxt').style.display = 'none';
+    document.getElementById('covSub').style.display = 'none';
+  };
+  r.readAsDataURL(f);
+}
+
+
+// ====================================================
+// 토스트 메시지 (2초 후 자동 사라짐)
+// ====================================================
+function showToast(msg) {
+  var old = document.querySelector('.toast');
+  if (old) old.remove();
+
+  var t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.getElementById('app').appendChild(t);
+
+  setTimeout(function() {
+    t.classList.add('fade');
+    setTimeout(function() { t.remove(); }, 400);
+  }, 2000);
+}
+
+
+// ====================================================
+// AI 커버 생성 — 즉시 covBox에 텍스트 오버레이 썸네일 생성
+// 별도 로딩/결과/편집 화면 없이 그 자리에서 바로 적용
+// ====================================================
+function openAI() {
+  var hasImage = !!uploadedImageDataUrl;
+  var title = document.getElementById('bTitle').value.trim();
+
+  if (!hasImage) {
+    showToast('커버 이미지를 먼저 등록해주세요');
+    return;
+  }
+  if (!title) {
+    showToast('방송 제목을 입력해주세요');
+    return;
+  }
+
+  // 대표 상품명 (첫 번째 선택된 상품)
+  var productName = '';
+  if (selectedProducts.length > 0) {
+    productName = selectedProducts[0].name;
+  }
+
+  // 선택된 혜택 텍스트
+  var benefitText = getSelectedBenefit();
+
+  // 랜덤으로 1개 시안 즉시 생성
+  var copy = generateCopy(title, productName, benefitText);
+  var pick = copy[Math.floor(Math.random() * copy.length)];
+
+  // 랜덤 폰트
+  var fontKeys = Object.keys(FONT_SPECS);
+  var fontName = fontKeys[Math.floor(Math.random() * fontKeys.length)];
+  var fontSpec = FONT_SPECS[fontName];
+
+  // 랜덤 레이아웃 패턴 (1~4)
+  var layoutPatterns = [1, 2, 3, 4];
+  var layout = pickRandom(layoutPatterns);
+
+  var v = {
+    line1: pick.line1,
+    line2: pick.line2,
+    layout: layout,
+    fontName: fontName,
+    fontSpec: fontSpec,
+    highlightColor: pickRandom(HIGHLIGHT_COLORS),
+    blockBgColor: pickRandom(BLOCK_BG_COLORS),
+    vPos: 68
+  };
+
+  // covBox에 즉시 적용
+  applyCoverToBox(v);
+}
+
+
+// ====================================================
+// 카피 생성 로직
+// 방송 제목 + 상품명 + 혜택 기반으로 4개 변형 텍스트 생성
+// Line1: 8자 이내 (브랜드/상품명)
+// Line2: 8자 이내 (혜택/프로모션)
+// ====================================================
+function generateCopy(title, productName, benefitText) {
+  var t = title.trim();
+
+  // 할인율 패턴 감지 (예: "~88% 할인", "50%")
+  var discountMatch = t.match(/(\d+)\s*%/);
+  var discountLine = discountMatch ? ('~' + discountMatch[1] + '% 할인').substring(0, 8) : null;
+
+  // 단어 추출 (한글, 영문, 숫자만)
+  var cleaned = t.replace(/[^가-힣a-zA-Z0-9\s]/g, '');
+  var words = cleaned.split(/\s+/).filter(function(w) { return w.length > 0; });
+
+  // Line1 결정: 상품명이 있으면 상품명 앞부분 사용, 없으면 제목 기반
+  var line1Text;
+  if (productName) {
+    // 대표 상품명의 첫 8자 활용
+    line1Text = productName.substring(0, 8);
+  } else {
+    var brand = words[0] || '특가상품';
+    var category = words[1] || '';
+    line1Text = (brand + (category ? ' ' + category : '')).substring(0, 8);
+  }
+
+  // Line2 결정 우선순위:
+  //   1순위: 제목에 할인율이 있으면 할인율 사용
+  //   2순위: 혜택이 선택되어 있으면 혜택 텍스트 사용
+  //   3순위: 기본 프로모 문구
+  var benefitLine = '';
+  if (benefitText) {
+    // 혜택 텍스트를 8자 이내로 가공 (예: "무료배송" → "무료배송 혜택")
+    var benefitMap = {
+      '무료배송': '무료배송 혜택',
+      '구매전 필독': '구매전 필독',
+      '팔로우\n이벤트': '팔로우 이벤트',
+      '구매 이벤트': '구매 이벤트'
+    };
+    benefitLine = (benefitMap[benefitText] || benefitText).substring(0, 8);
+  }
+
+  // 4가지 강조문구 변형
+  var line2Options = [
+    discountLine || benefitLine || '라이브 특가',
+    discountLine || benefitLine || '단독 특가',
+    discountLine || benefitLine || '지금 득템',
+    discountLine || benefitLine || '한정 수량'
+  ];
+
+  return [
+    { line1: line1Text, line2: line2Options[0] },
+    { line1: line1Text, line2: line2Options[1] },
+    { line1: line1Text, line2: line2Options[2] },
+    { line1: line1Text, line2: line2Options[3] }
+  ];
+}
+
+
+// ====================================================
+// 선택된 혜택 텍스트 반환
+// ====================================================
+function getSelectedBenefit() {
+  var sel = document.querySelector('.bn-ic.sel');
+  if (!sel) return '';
+  var label = sel.parentElement.querySelector('div:last-child');
+  if (!label) return '';
+  var text = label.textContent.trim();
+  if (text === '없음') return '';
+  return text;
+}
+
+
+// ====================================================
+// covBox에 AI 커버 즉시 적용
+// 유저 이미지 위에 텍스트 오버레이를 씌워 표시
+// ====================================================
+function applyCoverToBox(v) {
+  var previewW = 343;
+  var previewH = 610;
+
+  var coverInnerHtml = '<img src="' + uploadedImageDataUrl + '" style="'
+    + 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;">'
+    + buildTextOverlayHtml(v);
+
+  // 버튼 → "AI 커버 제거" 상태로 변경
+  var btn = document.getElementById('aiBtn');
+  btn.textContent = '✦ AI 커버 제거';
+  btn.className = 'ai-btn rm';
+  btn.onclick = removeAI;
+
+  // 현재 시안 데이터 저장 (다시 생성 시 참조)
+  currentVariant = v;
+
+  // covBox 크기/스타일 조정
+  var box = document.getElementById('covBox');
+  box.style.width = '140px';
+  box.style.minHeight = '0';
+  box.style.height = 'auto';
+  box.style.aspectRatio = '9/16';
+  box.style.border = 'none';
+
+  var scale = 140 / previewW;
+  var scaledH = Math.round(previewH * scale);
+
+  box.innerHTML = '<div style="width:140px;height:' + scaledH + 'px;border-radius:10px;overflow:hidden;position:relative;">'
+    + '<div style="position:absolute;top:3px;left:3px;background:rgba(0,0,0,.5);border-radius:3px;padding:1px 4px;font-size:7px;display:flex;align-items:center;gap:2px;z-index:10;color:#fff;">🤖 AI</div>'
+    + '<div style="position:absolute;top:0;left:0;width:' + previewW + 'px;height:' + previewH + 'px;transform:scale(' + scale.toFixed(4) + ');transform-origin:top left;">'
+    + '<div style="position:relative;width:100%;height:100%;overflow:hidden;">'
+    + coverInnerHtml
+    + '</div></div></div>';
+
+  box.onclick = null;
+}
+
+
+// ====================================================
+// 텍스트 오버레이 HTML 생성 — 피그마 디자인 가이드 기반
+//
+// 기본형:    흰색 텍스트 + text-shadow + -webkit-text-stroke
+// 하이라이트: 기본형과 동일하나 색상만 변경 (기본형과 함께 사용)
+// 강조형:    색상 블록 배경 + 흰색 텍스트 + box-shadow
+//
+// layout 값:
+//   0 = 텍스트 없음
+//   1 = 기본 + 강조  (line1 기본형, line2 강조형)
+//   2 = 강조 + 기본  (line1 강조형, line2 기본형)
+//   3 = 기본 + 하이라이트 (line1 기본형, line2 하이라이트)
+//   4 = 강조 + 강조  (두 라인 동일 배경색, -2px 간격)
+// ====================================================
+
+function makeBasicTextHtml(text, fontName, fontSpec) {
+  // 피그마 스펙: Pretendard → stroke 1.5px, Cafe24 → stroke 1.3px
+  var strokeWidth = (fontName === 'Pretendard') ? '1.5px' : '1.3px';
+  return '<div style="'
+    + 'font-family:\'' + fontName + '\',sans-serif;'
+    + 'font-size:' + fontSpec.size + 'px;'
+    + 'font-weight:' + fontSpec.weight + ';'
+    + 'color:#FFFFFF;'
+    + 'text-shadow:0px 2px 50px rgba(0,0,0,0.4);'
+    + '-webkit-text-stroke:' + strokeWidth + ' #000000;'
+    + 'line-height:1.2;'
+    + 'white-space:nowrap;'
+    + '">' + escHtml(text) + '</div>';
+}
+
+function makeHighlightTextHtml(text, fontName, fontSpec, highlightColor) {
+  // 하이라이트: 기본형과 동일하지만 텍스트 색상만 변경
+  var strokeWidth = (fontName === 'Pretendard') ? '1.5px' : '1.3px';
+  return '<div style="'
+    + 'font-family:\'' + fontName + '\',sans-serif;'
+    + 'font-size:' + fontSpec.size + 'px;'
+    + 'font-weight:' + fontSpec.weight + ';'
+    + 'color:' + highlightColor + ';'
+    + 'text-shadow:0px 2px 50px rgba(0,0,0,0.4);'
+    + '-webkit-text-stroke:' + strokeWidth + ' #000000;'
+    + 'line-height:1.2;'
+    + 'white-space:nowrap;'
+    + '">' + escHtml(text) + '</div>';
+}
+
+function makeBlockTextHtml(text, fontName, fontSpec, blockBgColor, marginTop) {
+  // 강조형: 색상 블록 배경 + 흰색 텍스트
+  return '<div style="'
+    + 'display:inline-block;'
+    + 'background:' + blockBgColor + ';'
+    + 'color:#FFFFFF;'
+    + 'font-family:\'' + fontName + '\',sans-serif;'
+    + 'font-size:' + fontSpec.size + 'px;'
+    + 'font-weight:' + fontSpec.weight + ';'
+    + 'padding:4px 6px;'
+    + 'border-radius:4px;'
+    + 'box-shadow:0px 2px 50px rgba(0,0,0,0.4);'
+    + 'line-height:1.2;'
+    + 'margin-top:' + (marginTop || '0') + ';'
+    + 'white-space:nowrap;'
+    + '">' + escHtml(text) + '</div>';
+}
+
+// HTML 특수문자 이스케이프 (XSS 방지)
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// 시안의 전체 텍스트 오버레이 HTML 반환
+// vPos: 위에서 몇 % 위치에 텍스트 블록의 상단이 시작되는지
+function buildTextOverlayHtml(v) {
+  if (v.layout === 0) return ''; // 텍스트 없음
+
+  var line1Html = '';
+  var line2Html = '';
+  var gap = '4px'; // line1과 line2 사이 간격
+
+  if (v.layout === 1) {
+    // 기본 + 강조
+    line1Html = makeBasicTextHtml(v.line1, v.fontName, v.fontSpec);
+    line2Html = makeBlockTextHtml(v.line2, v.fontName, v.fontSpec, v.blockBgColor, '0');
+  } else if (v.layout === 2) {
+    // 강조 + 기본
+    line1Html = makeBlockTextHtml(v.line1, v.fontName, v.fontSpec, v.blockBgColor, '0');
+    line2Html = makeBasicTextHtml(v.line2, v.fontName, v.fontSpec);
+  } else if (v.layout === 3) {
+    // 기본 + 하이라이트 (하이라이트는 강조형과 절대 함께 쓰지 않음)
+    line1Html = makeBasicTextHtml(v.line1, v.fontName, v.fontSpec);
+    line2Html = makeHighlightTextHtml(v.line2, v.fontName, v.fontSpec, v.highlightColor);
+  } else if (v.layout === 4) {
+    // 강조 + 강조: 동일 배경색, -2px 간격
+    line1Html = makeBlockTextHtml(v.line1, v.fontName, v.fontSpec, v.blockBgColor, '0');
+    line2Html = makeBlockTextHtml(v.line2, v.fontName, v.fontSpec, v.blockBgColor, '-2px');
+    gap = '0';
+  }
+
+  // 텍스트 블록을 이미지 하단 영역에 배치
+  // vPos는 위에서의 % — 70% 기준이면 하단 30% 영역에 위치
+  return '<div style="'
+    + 'position:absolute;'
+    + 'top:' + v.vPos + '%;'
+    + 'left:0;right:0;'
+    + 'display:flex;'
+    + 'flex-direction:column;'
+    + 'align-items:center;'
+    + 'z-index:5;'
+    + 'padding:0 12px;'
+    + 'text-align:center;'
+    + '">'
+    + line1Html
+    + '<div style="margin-top:' + gap + '">' + line2Html + '</div>'
+    + '</div>';
+}
+
+
+// (로딩/결과/편집 화면 함수 제거됨 — 즉시 생성 방식으로 변경)
+
+
+// ====================================================
+// AI 커버 제거 — 커버박스를 원래 이미지 상태로 복원
+// ====================================================
+function removeAI() {
+  currentVariant = null;
+
+  var btn = document.getElementById('aiBtn');
+  btn.textContent = '✦ AI 커버 생성';
+  btn.className = 'ai-btn';
+  btn.onclick = openAI;
+
+  var box = document.getElementById('covBox');
+  box.style.width = '140px';
+  box.style.minHeight = '170px';
+  box.style.height = 'auto';
+  box.style.aspectRatio = '';
+  box.style.border = '2px dashed #444';
+  box.onclick = covBoxClick;
+
+  if (uploadedImageDataUrl) {
+    box.innerHTML = '<img id="covImg" src="' + uploadedImageDataUrl + '" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:10px;">'
+      + '<input type="file" id="covF" accept="image/*" style="display:none" onchange="handleCov(event)">';
+  } else {
+    box.innerHTML = '<div class="cm" id="covCam">📷</div>'
+      + '<div class="ct" id="covTxt">방송 커버<br>이미지 등록 <span class="req">*</span></div>'
+      + '<div class="cs" id="covSub">이미지를 그립이<br>변경할 수도 있습니다</div>'
+      + '<img id="covImg" style="display:none">'
+      + '<input type="file" id="covF" accept="image/*" style="display:none" onchange="handleCov(event)">';
+  }
+}
+
+
+// ====================================================
+// 판매 상품 선택 — Screen 1
+// ====================================================
+
+// 메인화면에서 "판매 상품 선택" 탭 클릭 시 Screen 1 열기
+function openProductScreen() {
+  document.getElementById('sProduct').classList.add('on');
+  renderProductList(); // 현재 selectedProducts 반영하여 렌더링
+}
+
+// Screen 1 닫기 (뒤로가기)
+function closeProductScreen() {
+  document.getElementById('sProduct').classList.remove('on');
+}
+
+// Screen 1의 상품 목록 렌더링
+function renderProductList() {
+  var empty = document.getElementById('prodEmpty');
+  var filled = document.getElementById('prodFilled');
+  var doneBtn = document.getElementById('prodDoneBtn');
+  var cnt = document.getElementById('prodSelectedCnt');
+  var container = document.getElementById('prodListContainer');
+
+  if (selectedProducts.length === 0) {
+    empty.style.display = 'flex';
+    filled.style.display = 'none';
+    doneBtn.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    filled.style.display = 'block';
+    doneBtn.style.display = 'flex';
+    cnt.textContent = '총' + selectedProducts.length + '개 선택';
+
+    // 상품 카드 목록 렌더링
+    container.innerHTML = '';
+    selectedProducts.forEach(function(p, idx) {
+      var card = document.createElement('div');
+      card.className = 'prod-card';
+
+      var isFirst = (idx === 0);
+      card.innerHTML = ''
+        + '<span class="prod-drag">&#9776;</span>'
+        + '<img class="prod-thumb" src="' + p.image + '" alt="' + escHtml(p.name) + '" onerror="this.style.background=\'#333\'">'
+        + '<div class="prod-info">'
+        + (isFirst ? '<span class="pbadge">대표상품</span><br>' : '')
+        + '<div class="pname">' + escHtml(p.name) + '</div>'
+        + '<div class="pstock">총수량: ' + escHtml(p.stock) + '</div>'
+        + '<div class="porig">' + escHtml(p.originalPrice) + '</div>'
+        + '<div class="plive">' + escHtml(p.livePrice) + '</div>'
+        + '</div>'
+        + '<button class="prod-del" onclick="removeProduct(' + p.id + ')">삭제</button>';
+
+      container.appendChild(card);
+    });
+  }
+}
+
+// Screen 1에서 특정 상품 삭제
+function removeProduct(productId) {
+  selectedProducts = selectedProducts.filter(function(p) { return p.id !== productId; });
+  renderProductList();
+}
+
+// Screen 1에서 전체 삭제
+function deleteAllProducts() {
+  selectedProducts = [];
+  renderProductList();
+}
+
+// Screen 1 "상품 선택 완료" 클릭 → 메인화면으로 복귀 + 배지 업데이트
+function completeProductSelection() {
+  closeProductScreen();
+  updateProductBadge();
+}
+
+// 메인화면 메뉴 아이템의 수량 배지 업데이트
+function updateProductBadge() {
+  var badge = document.getElementById('productBadge');
+  if (selectedProducts.length > 0) {
+    badge.textContent = selectedProducts.length;
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+
+// ====================================================
+// 상품 추가 — Screen 2
+// ====================================================
+
+// Screen 1에서 "상품 추가" 클릭 시 Screen 2 열기
+function openProductAddScreen() {
+  // 이미 selectedProducts에 있는 상품 id를 tempChecked에 복사
+  tempChecked = selectedProducts.map(function(p) { return p.id; });
+  document.getElementById('prodSearch').value = '';
+  document.getElementById('sProductAdd').classList.add('on');
+  renderProductAddList(PRODUCTS);
+  updateAddConfirmBtn();
+}
+
+// Screen 2 닫기 (취소 또는 뒤로가기) — 변경사항 버림
+function closeProductAddScreen() {
+  tempChecked = [];
+  document.getElementById('sProductAdd').classList.remove('on');
+}
+
+// Screen 2 상품 리스트 렌더링
+function renderProductAddList(list) {
+  var container = document.getElementById('prodAddList');
+  container.innerHTML = '';
+
+  list.forEach(function(p) {
+    var isChecked = (tempChecked.indexOf(p.id) !== -1);
+    var item = document.createElement('div');
+    item.className = 'prod-item';
+    item.setAttribute('data-id', p.id);
+    item.onclick = function() { toggleProductCheck(p.id); };
+
+    item.innerHTML = ''
+      + '<div class="chk-circle' + (isChecked ? ' on' : '') + '" id="chk-' + p.id + '">'
+      + (isChecked ? '&#10003;' : '')
+      + '</div>'
+      + '<img class="prod-item-img" src="' + p.image + '" alt="' + escHtml(p.name) + '" onerror="this.style.background=\'#333\'">'
+      + '<div class="prod-item-info">'
+      + '<div class="iname">' + escHtml(p.name) + '</div>'
+      + '<div class="istock">총수량 : ' + escHtml(p.stock) + '</div>'
+      + '<div class="iorig">' + escHtml(p.originalPrice) + '</div>'
+      + '<div class="ilive">' + escHtml(p.livePrice) + '</div>'
+      + '</div>';
+
+    container.appendChild(item);
+  });
+
+  updateAllCheckState(list);
+}
+
+// 개별 상품 체크/언체크 토글
+function toggleProductCheck(productId) {
+  var idx = tempChecked.indexOf(productId);
+  if (idx === -1) {
+    tempChecked.push(productId);
+  } else {
+    tempChecked.splice(idx, 1);
+  }
+
+  // UI 업데이트 (체크 원 상태)
+  var chkEl = document.getElementById('chk-' + productId);
+  if (chkEl) {
+    if (tempChecked.indexOf(productId) !== -1) {
+      chkEl.classList.add('on');
+      chkEl.innerHTML = '&#10003;';
+    } else {
+      chkEl.classList.remove('on');
+      chkEl.innerHTML = '';
+    }
+  }
+
+  // 전체선택 상태 및 하단 버튼 업데이트
+  var currentList = getFilteredList();
+  updateAllCheckState(currentList);
+  updateAddConfirmBtn();
+}
+
+// 전체선택 토글
+function toggleSelectAll() {
+  var currentList = getFilteredList();
+  var allSelected = currentList.every(function(p) { return tempChecked.indexOf(p.id) !== -1; });
+
+  if (allSelected) {
+    // 전체 해제
+    currentList.forEach(function(p) {
+      var i = tempChecked.indexOf(p.id);
+      if (i !== -1) tempChecked.splice(i, 1);
+      var chkEl = document.getElementById('chk-' + p.id);
+      if (chkEl) { chkEl.classList.remove('on'); chkEl.innerHTML = ''; }
+    });
+  } else {
+    // 전체 선택
+    currentList.forEach(function(p) {
+      if (tempChecked.indexOf(p.id) === -1) tempChecked.push(p.id);
+      var chkEl = document.getElementById('chk-' + p.id);
+      if (chkEl) { chkEl.classList.add('on'); chkEl.innerHTML = '&#10003;'; }
+    });
+  }
+
+  updateAllCheckState(currentList);
+  updateAddConfirmBtn();
+}
+
+// 전체선택 원 상태 업데이트
+function updateAllCheckState(list) {
+  var chkAll = document.getElementById('chkAll');
+  if (!chkAll) return;
+  var allSelected = list.length > 0 && list.every(function(p) { return tempChecked.indexOf(p.id) !== -1; });
+  if (allSelected) {
+    chkAll.classList.add('on');
+    chkAll.innerHTML = '&#10003;';
+  } else {
+    chkAll.classList.remove('on');
+    chkAll.innerHTML = '';
+  }
+}
+
+// 현재 검색어에 따른 필터링된 상품 목록 반환
+function getFilteredList() {
+  var query = document.getElementById('prodSearch').value.trim().toLowerCase();
+  if (!query) return PRODUCTS;
+  return PRODUCTS.filter(function(p) {
+    return p.name.toLowerCase().indexOf(query) !== -1;
+  });
+}
+
+// 검색어 입력 시 목록 필터링
+function filterProducts() {
+  var list = getFilteredList();
+  renderProductAddList(list);
+}
+
+// 하단 "N개 상품 추가" 버튼 텍스트 업데이트
+function updateAddConfirmBtn() {
+  var btn = document.getElementById('prodAddConfirmBtn');
+  if (!btn) return;
+  var count = tempChecked.length;
+  if (count > 0) {
+    btn.textContent = count + '개 상품 추가';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+  } else {
+    btn.textContent = '상품 추가';
+    btn.style.opacity = '0.5';
+    btn.disabled = true;
+  }
+}
+
+// "N개 상품 추가" 확정 — tempChecked 기반으로 selectedProducts 업데이트 후 Screen 1으로
+function confirmAddProducts() {
+  if (tempChecked.length === 0) return;
+
+  // 기존에 없던 상품만 새로 추가 (순서 유지)
+  var existingIds = selectedProducts.map(function(p) { return p.id; });
+
+  // 선택 해제된 상품 제거
+  selectedProducts = selectedProducts.filter(function(p) {
+    return tempChecked.indexOf(p.id) !== -1;
+  });
+
+  // 새로 추가된 상품 뒤에 붙이기
+  tempChecked.forEach(function(id) {
+    if (existingIds.indexOf(id) === -1) {
+      // Array.find 대신 filter[0] 사용 (호환성)
+      var matches = PRODUCTS.filter(function(p) { return p.id === id; });
+      if (matches.length > 0) selectedProducts.push(matches[0]);
+    }
+  });
+
+  tempChecked = [];
+  document.getElementById('sProductAdd').classList.remove('on');
+  renderProductList(); // Screen 1 목록 갱신
+}
+</script>
+</body>
+</html>
