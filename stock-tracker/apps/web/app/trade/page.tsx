@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BulkTradeEntry from "@/app/stats/BulkTradeEntry";
 
@@ -829,6 +830,13 @@ export default function TradePage() {
               >
                 {pbLoading ? "눌림목 분석 중…" : "🎯 눌림목 분석"}
               </button>
+              <Link
+                href={`/techview?symbol=${selected}`}
+                title="주봉 고고저 빗각 + 갭/피보나치 되돌림 + 라인 터치 기준 기술분석"
+                className="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded text-sm font-semibold"
+              >
+                📐 기술분석
+              </Link>
               {result?.cached && !result?.stale && (
                 <span className="text-xs text-neutral-500">(5분 캐시 결과)</span>
               )}

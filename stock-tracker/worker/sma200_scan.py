@@ -26,6 +26,7 @@ import requests
 from dotenv import load_dotenv
 
 from lib import alpaca, db
+from lib.techview import analyze_tech
 
 load_dotenv()
 
@@ -156,6 +157,12 @@ def main() -> int:
         last_close = None
         if d is not None and not d.empty:
             last_close = round(float(d["Close"].iloc[-1]), 4)
+        # Tech View (갭+피보+주봉 빗각+터치) scanner verdict — same bars, no extra fetch.
+        try:
+            tv = analyze_tech(d, w)
+        except Exception as e:  # never let one symbol kill the scan
+            print(f"sma200_scan: techview failed for {sym} — {e}", file=sys.stderr)
+            tv = None
         rows.append(
             {
                 "symbol": sym,
@@ -165,6 +172,13 @@ def main() -> int:
                 "spanb_daily": spanb_d,
                 "spana_weekly": spana_w,
                 "spanb_weekly": spanb_w,
+                "tech_setup": tv["setup"] if tv else None,
+                "tech_price": tv["price"] if tv else None,
+                "tech_nearest_label": tv["nearest_label"] if tv else None,
+                "tech_nearest_dist": tv["nearest_dist"] if tv else None,
+                "tech_target_upside": tv["target_upside"] if tv else None,
+                "tech_note": tv["note"] if tv else None,
+                "tech_at": now_iso if tv else None,
                 "last_close": last_close,
                 "updated_at": now_iso,
             }
@@ -217,10 +231,13 @@ def main() -> int:
     ichi_d = sum(1 for r in rows if r["spanb_daily"] is not None)
     ichi_w = sum(1 for r in rows if r["spanb_weekly"] is not None)
     sector_n = sum(1 for r in rows if r.get("sector"))
+    tv_touch = sum(1 for r in rows if r.get("tech_setup") in ("touch_confirmed", "touch_pending"))
+    tv_near = sum(1 for r in rows if r.get("tech_setup") in ("at_level", "approaching"))
     print(
         f"sma200_scan: upserted {len(rows)} rows "
         f"(sma200 daily={daily_n}/weekly={weekly_n}, "
-        f"ichimoku-spanB daily={ichi_d}/weekly={ichi_w}, sector={sector_n})"
+        f"ichimoku-spanB daily={ichi_d}/weekly={ichi_w}, sector={sector_n}, "
+        f"techview 터치={tv_touch}/근접={tv_near})"
     )
     return 0
 

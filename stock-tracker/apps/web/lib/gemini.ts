@@ -491,6 +491,55 @@ const PULLBACK_CLASSES: PullbackClass[] = [
   "pullback", "forming", "downtrend", "no_uptrend",
 ];
 
+// ─── Tech View (갭 + 피보 + 고고저 빗각) ────────────────────────────────────
+export interface TechVerdict {
+  headline: string;
+  summary: string;
+  scenario: string; // 지금 무엇을 할지 (진입/대기/회피) — 한국어
+  entry_low: number;
+  entry_high: number;
+  stop: number;
+  target_1: number;
+  target_2: number;
+  confidence: number;
+  cautions: string[];
+}
+
+const TECH_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    headline: { type: "STRING" },
+    summary: { type: "STRING" },
+    scenario: { type: "STRING" },
+    entry_low: { type: "NUMBER" },
+    entry_high: { type: "NUMBER" },
+    stop: { type: "NUMBER" },
+    target_1: { type: "NUMBER" },
+    target_2: { type: "NUMBER" },
+    confidence: { type: "NUMBER" },
+    cautions: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: [
+    "headline", "summary", "scenario", "entry_low", "entry_high", "stop",
+    "target_1", "target_2", "confidence", "cautions",
+  ],
+} as const;
+
+export async function generateTechView(prompt: string): Promise<TechVerdict> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+  const text = await runChain(apiKey, prompt, TECH_RESPONSE_SCHEMA);
+  let p: TechVerdict;
+  try {
+    p = JSON.parse(text) as TechVerdict;
+  } catch {
+    throw new Error(`gemini techview: invalid JSON response: ${text.slice(0, 200)}`);
+  }
+  p.confidence = clamp01(Number(p.confidence) || 0);
+  p.cautions = p.cautions ?? [];
+  return p;
+}
+
 export async function generatePullback(prompt: string): Promise<PullbackVerdict> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set");
