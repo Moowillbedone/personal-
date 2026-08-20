@@ -124,97 +124,131 @@ def _build_fib(highs, lows, gaps, pivots):
 
 
 LOG_BAND = 0.012
-CH_MIN, CH_MAX = -1, 2
-MAX_WIDTH_RATIO = 1.4
-MAX_ANCHOR_AGE = 156
-TOUCH_WINDOW = 104
-MAX_NEAR_PCT = 10
+K_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]
+MIN_PAIR_SEP = 10
+TOP_PIVOTS = 14
+MAX_NEAR_PCT = 12
 
 
-def _ch_label(k: int, kind: str) -> str:
+def _ch_label(k, kind: str) -> str:
     if k == 0:
         return "빗각(고-고)" if kind == "고고저" else "빗각(저-저)"
     if k == 1:
-        return "평행(저)" if kind == "고고저" else "평행(고)"
-    return f"채널+{k - 1}" if k > 1 else f"채널{k}"
+        return "채널 반대선"
+    half = float(k) != int(k)
+    return f"{'하프' if half else '채널'}{'+' if k > 0 else ''}{k}"
 
 
-def _build_diagonal(w_highs, w_lows, last_price):
-    """LOG-space 고고저/저저고 parallel channel — mirrors buildDiagonal in techview.ts.
-    Anchor choice is subjective in the wild, so candidates are ranked by how often
-    price historically touched the channel (data-driven tiebreak)."""
-    n = len(w_highs)
-    if n < 30:
-        return None
-    pv = _pivots(w_highs, w_lows, 3)
-    highs = [p for p in pv if p["kind"] == "high"]
-    lows = [p for p in pv if p["kind"] == "low"]
+def _significant_pivots(highs, lows, k: int = 4):
+    """'역사적 의미'가 큰 피벗만 — 되돌림 폭(prominence) 상위 TOP_PIVOTS개."""
+    pv = _pivots(highs, lows, k)
+    n = len(highs)
+    scored = []
+    for p in pv:
+        i = p["idx"]
+        f, t = max(0, i - 26), min(n - 1, i + 26)
+        opp = min(lows[f:t + 1]) if p["kind"] == "high" else max(highs[f:t + 1])
+        if opp <= 0 or p["price"] <= 0:
+            continue
+        scored.append((abs(math.log(p["price"]) - math.log(opp)), p))
+    scored.sort(key=lambda x: -x[0])
+    return sorted([p for _, p in scored[:TOP_PIVOTS]], key=lambda p: p["idx"])
+
+
+def _make_channel(highs, lows, last_price, kind, i1, i2, i3, space):
+    n = len(highs)
     last_idx = n - 1
+    pick = (lambda i: highs[i]) if kind == "고고저" else (lambda i: lows[i])
+    p1, p2 = pick(i1), pick(i2)
+    if not (p1 > 0 and p2 > 0):
+        return None
+    Y = (lambda v: math.log(v)) if space == "log" else (lambda v: v)
+    IY = (lambda v: math.exp(v)) if space == "log" else (lambda v: v)
+    m = (Y(p2) - Y(p1)) / (i2 - i1)
+    line3 = Y(p1) + m * (i3 - i1)
+    d = 0.0
+    for c in (highs[i3], lows[i3]):
+        dv = Y(c) - line3
+        if abs(dv) > abs(d):
+            d = dv
+    if d == 0:
+        return None
+    if space == "log" and math.exp(abs(d)) > 4:
+        return None
+    base_now = Y(p1) + m * (last_idx - i1)
+    lines = []
+    for k in K_STEPS:
+        v = IY(base_now + d * k)
+        if v <= 0 or math.isinf(v):
+            continue
+        lines.append({"label": _ch_label(k, kind), "price": _r(v), "half": float(k) != int(k)})
+    if not lines:
+        return None
+    lines.sort(key=lambda x: -x["price"])
+    touch = 0
+    in_range = set()
+    for b in range(i2 + 1, last_idx + 1):
+        lo, hi = lows[b], highs[b]
+        hit = False
+        for k in K_STEPS:
+            v = IY(Y(p1) + m * (b - i1) + d * k)
+            if v <= 0:
+                continue
+            if lo * 0.8 <= v <= hi * 1.2:
+                in_range.add(k)
+            if not hit and lo * (1 - LOG_BAND) <= v <= hi * (1 + LOG_BAND):
+                hit = True
+        if hit:
+            touch += 1
+    norm = round(touch / max(1, len(in_range)), 1)
+    nearest = None
+    for l in lines:
+        dist = (l["price"] - last_price) / last_price * 100
+        if nearest is None or abs(dist) < abs(nearest["dist_pct"]):
+            nearest = {"label": l["label"], "price": l["price"], "dist_pct": _r(dist)}
+    if nearest is None or abs(nearest["dist_pct"]) > MAX_NEAR_PCT:
+        return None
+    return {"kind": kind, "space": space, "lines": lines, "nearest": nearest,
+            "touch": touch, "norm": norm}
+
+
+def _build_diagonal(w_highs, w_lows, last_price, kind="고고저"):
+    """주봉 빗각 채널 — linear/log 둘 다 만들고 정규화 터치점수로 고른다.
+    (사용자 TSLA 채널이 linear에서만 재현되고 검증점수도 linear가 우월했다.)"""
+    n = len(w_highs)
+    if n < 60:
+        return None
+    sig = _significant_pivots(w_highs, w_lows, 4)
+    base = [p for p in sig if (p["kind"] == "high" if kind == "고고저" else p["kind"] == "low")]
+    if len(base) < 2 or len(sig) < 3:
+        return None
     cands = []
-
-    def build(kind, pair, others):
-        for i in range(len(pair) - 1, 0, -1):
-            for j in range(i - 1, -1, -1):
-                p2, p1 = pair[i], pair[j]
-                if p2["idx"] - p1["idx"] < 12:
-                    continue
-                if last_idx - p2["idx"] > MAX_ANCHOR_AGE:
-                    continue
-                if not (p1["price"] > 0 and p2["price"] > 0):
-                    continue
-                y1, y2 = math.log(p1["price"]), math.log(p2["price"])
-                m = (y2 - y1) / (p2["idx"] - p1["idx"])
-                third = None
-                max_dev = -1e18
-                for o in others:
-                    if o["idx"] < p1["idx"]:
+    for i in range(1, len(base)):
+        for j in range(i):
+            if base[i]["idx"] - base[j]["idx"] < MIN_PAIR_SEP:
+                continue
+            for space in ("linear", "log"):
+                Y = (lambda v: math.log(v)) if space == "log" else (lambda v: v)
+                pk = (lambda ii: w_highs[ii]) if kind == "고고저" else (lambda ii: w_lows[ii])
+                mm = (Y(pk(base[i]["idx"])) - Y(pk(base[j]["idx"]))) / (base[i]["idx"] - base[j]["idx"])
+                best3, best_dev = -1, 0.0
+                for o in sig:
+                    if o["idx"] <= base[j]["idx"]:
                         continue
-                    line_y = y1 + m * (o["idx"] - p1["idx"])
-                    dev = (line_y - math.log(o["price"])) if kind == "고고저" else (math.log(o["price"]) - line_y)
-                    if dev > max_dev:
-                        max_dev = dev
-                        third = o
-                if third is None or not max_dev > 0:
+                    line_y = Y(pk(base[j]["idx"])) + mm * (o["idx"] - base[j]["idx"])
+                    gap = Y(o["price"]) - line_y
+                    if abs(gap) > abs(best_dev):
+                        best_dev, best3 = gap, o["idx"]
+                if best3 < 0:
                     continue
-                d = max_dev
-                if math.exp(d) > MAX_WIDTH_RATIO:
-                    continue
-                base_now = y1 + m * (last_idx - p1["idx"])
-                dr = -1 if kind == "고고저" else 1
-                lines = []
-                for k in range(CH_MIN, CH_MAX + 1):
-                    price = math.exp(base_now + dr * d * k)
-                    if not price > 0 or math.isinf(price):
-                        continue
-                    lines.append({"label": _ch_label(k, kind), "price": _r(price)})
-                if not lines:
-                    continue
-                lines.sort(key=lambda x: -x["price"])
-                touch = 0
-                for b in range(max(p2["idx"] + 1, last_idx - TOUCH_WINDOW), last_idx + 1):
-                    y_lo, y_hi = math.log(w_lows[b]), math.log(w_highs[b])
-                    for k in range(CH_MIN, CH_MAX + 1):
-                        yk = y1 + m * (b - p1["idx"]) + dr * d * k
-                        if y_lo - LOG_BAND <= yk <= y_hi + LOG_BAND:
-                            touch += 1
-                            break
-                nearest = None
-                for l in lines:
-                    dist = (l["price"] - last_price) / last_price * 100
-                    if nearest is None or abs(dist) < abs(nearest["dist_pct"]):
-                        nearest = {"label": l["label"], "price": l["price"], "dist_pct": _r(dist)}
-                if nearest is None or abs(nearest["dist_pct"]) > MAX_NEAR_PCT:
-                    continue
-                cands.append({"kind": kind, "lines": lines, "nearest": nearest, "touch": touch})
-
-    if len(highs) >= 2 and lows:
-        build("고고저", highs, lows)
-    if len(lows) >= 2 and highs:
-        build("저저고", lows, highs)
+                ch = _make_channel(w_highs, w_lows, last_price, kind,
+                                   base[j]["idx"], base[i]["idx"], best3, space)
+                if ch:
+                    cands.append(ch)
     if not cands:
         return None
-    cands.sort(key=lambda c: (-c["touch"], abs(c["nearest"]["dist_pct"])))
-    return cands[0] if cands[0]["touch"] >= 2 else None
+    cands.sort(key=lambda c: (-c["norm"], abs(c["nearest"]["dist_pct"])))
+    return cands[0] if cands[0]["touch"] >= 3 else None
 
 
 def analyze_tech(daily_df, weekly_df) -> dict | None:

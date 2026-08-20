@@ -34,7 +34,7 @@ SMA_PERIOD = 200
 # Fetch generously past the 200-bar minimum so freshly-listed names still
 # resolve and there's slack for exchange holidays / thin history.
 DAILY_LOOKBACK = "400d"    # ~275 trading days ≥ 200
-WEEKLY_LOOKBACK = "1600d"  # ~228 weeks ≥ 200
+WEEKLY_LOOKBACK = "3650d"  # 10y — 빗각 앵커는 코로나(2020) 같은 장기 변곡점
 
 FINNHUB_KEY = (os.getenv("FINNHUB_API_KEY") or "").strip()
 # Per-run cap on Finnhub profile lookups. Sector is fetched only for symbols
