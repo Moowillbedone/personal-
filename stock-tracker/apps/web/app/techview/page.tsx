@@ -210,7 +210,10 @@ function TechViewInner() {
                           </a>
                           <div className="text-[10px] leading-tight flex items-center gap-1 min-w-0">
                             {m && <span className={`shrink-0 ${m.cls.split(" ").pop()}`}>{m.label}</span>}
-                            {sec && <span className="text-neutral-500 truncate min-w-0">· {sec}</span>}
+                            {sec && <span className="text-neutral-500 shrink-0">· {sec}</span>}
+                            {r.note && (
+                              <span className="text-neutral-500 truncate min-w-0">· {r.note}</span>
+                            )}
                           </div>
                         </div>
                         <span className="text-right tabular-nums text-neutral-300">

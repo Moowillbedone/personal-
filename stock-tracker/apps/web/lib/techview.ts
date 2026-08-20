@@ -364,6 +364,12 @@ export interface KeyLevel {
    * i.e. the shallow levels were drowning the list in noise.
    */
   trigger: boolean;
+  /**
+   * PRIME = 단독 터치만으로도 최상위 신호가 되는 자리. 사용자 기준:
+   * 빗각 라인(가장 확실한 자리)과 피보 0.618("0.618만큼 중요한 수치는 없다").
+   * 0.786은 trigger지만 prime은 아니라 겹침(confluence)이 있을 때 승격된다.
+   */
+  prime: boolean;
 }
 
 export interface TouchEvent {
@@ -469,6 +475,7 @@ export function analyzeTech(
           price: l.price,
           source: "diagonal",
           trigger: true, // 빗각 = 가장 확실한 자리
+          prime: true,
         });
       }
     }
@@ -483,6 +490,7 @@ export function analyzeTech(
           price: l.price,
           source: "fib",
           trigger: l.ratio >= 0.618,
+          prime: l.ratio === 0.618, // 피보의 핵심
         });
       }
     }
@@ -491,8 +499,8 @@ export function analyzeTech(
   const targetGap =
     gaps.find((g) => g.kind === "down" && !g.filled && g.top > price) ?? null;
   if (targetGap) {
-    keyLevels.push({ label: "갭 하단(목표)", price: targetGap.bottom, source: "gap", trigger: false });
-    keyLevels.push({ label: "갭 상단(목표)", price: targetGap.top, source: "gap", trigger: false });
+    keyLevels.push({ label: "갭 하단(목표)", price: targetGap.bottom, source: "gap", trigger: false, prime: false });
+    keyLevels.push({ label: "갭 상단(목표)", price: targetGap.top, source: "gap", trigger: false, prime: false });
   }
 
   const touches = findTouches(daily, keyLevels, 10);
@@ -529,8 +537,13 @@ export function analyzeTech(
   const touchConfluence = freshTouch ? confluenceAt(freshTouch.level.price) : 0;
   if (!diagonal && !fib) {
     setup = "no_structure";
-  } else if (freshTouch && freshTouch.confirmed && touchConfluence >= 2) {
-    setup = "touch_confirmed"; // 겹친 자리를 밟고 확인까지 = 최상위 신호
+  } else if (
+    freshTouch &&
+    freshTouch.confirmed &&
+    (freshTouch.level.prime || touchConfluence >= 2)
+  ) {
+    // 빗각/0.618 단독이면 그것만으로 최상위, 그 외(0.786 등)는 겹침 2개 이상일 때
+    setup = "touch_confirmed";
   } else if (freshTouch) {
     setup = "touch_pending"; // 밟았으나 확인 or 밀집 부족 → 대기
   } else if (nearestDistPct != null && Math.abs(nearestDistPct) <= 1) {

@@ -248,12 +248,13 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
         for ln in diagonal["lines"]:
             if abs((ln["price"] - price) / price) <= 0.25:
                 key_levels.append({"label": f"빗각 {ln['label']}", "price": ln["price"],
-                                   "source": "diagonal", "trigger": True})
+                                   "source": "diagonal", "trigger": True, "prime": True})
     if fib:
         for ln in fib["levels"]:
             if ln["ratio"] in (0.382, 0.5, 0.618, 0.786):
                 key_levels.append({"label": f"피보 {ln['label']}", "price": ln["price"],
-                                   "source": "fib", "trigger": ln["ratio"] >= 0.618})
+                                   "source": "fib", "trigger": ln["ratio"] >= 0.618,
+                                   "prime": ln["ratio"] == 0.618})
     target_gap = next((g for g in gaps if g["kind"] == "down" and not g["filled"] and g["top"] > price), None)
 
     # touches (last 10 bars, non-gap levels only for classification)
@@ -271,7 +272,7 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
                 touches.append(
                     {"label": lv["label"], "price": lv["price"], "bars_ago": n - 1 - i,
                      "wick": _r(wick, 2), "confirmed": bool(nxt_ok), "source": lv["source"],
-                     "trigger": lv.get("trigger", False)}
+                     "trigger": lv.get("trigger", False), "prime": lv.get("prime", False)}
                 )
     touches.sort(key=lambda t: t["bars_ago"])
 
@@ -296,7 +297,7 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
         confl = sum(1 for lv in key_levels if abs((lv["price"] - fresh["price"]) / fresh["price"]) <= 0.015)
     if not diagonal and not fib:
         setup = "no_structure"
-    elif fresh and fresh["confirmed"] and confl >= 2:
+    elif fresh and fresh["confirmed"] and (fresh.get("prime") or confl >= 2):
         setup = "touch_confirmed"
     elif fresh:
         setup = "touch_pending"
