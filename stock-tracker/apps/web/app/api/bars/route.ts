@@ -25,6 +25,7 @@ const TIMEFRAME_MAP: Record<string, string> = {
   "15m": "15Min",
   "1h": "1Hour",
   "1d": "1Day",
+  "1w": "1Week",
 };
 
 export async function GET(req: NextRequest) {
@@ -42,10 +43,12 @@ export async function GET(req: NextRequest) {
     );
   }
   // Cap days at ~5 years for safety; default 380 ≈ 1 year of trading days.
-  const days = Math.max(1, Math.min(1825, Number(sp.get("days") ?? "380") || 380));
+  // Weekly is allowed 10y — 빗각 앵커는 코로나(2020) 같은 장기 과거 변곡점에 박힌다.
+  const maxDays = interval === "1w" ? 3650 : 1825;
+  const days = Math.max(1, Math.min(maxDays, Number(sp.get("days") ?? "380") || 380));
 
   try {
-    const bars = await fetchAlpacaBars(symbol, tf, days);
+    const bars = await fetchAlpacaBars(symbol, tf, days, undefined, interval === "1w" ? "split" : "raw");
     return NextResponse.json({
       symbol,
       interval,
