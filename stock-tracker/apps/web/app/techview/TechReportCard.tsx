@@ -27,10 +27,13 @@ export interface TechDiagonal {
   anchor1: { ts: string; price: number };
   anchor2: { ts: string; price: number };
   anchor3: { ts: string; price: number };
+  space: "linear" | "log";
+  manual: boolean;
   widthRatio: number;
-  lines: { label: string; price: number }[];
+  lines: { label: string; price: number; half: boolean }[];
   nearest: { label: string; price: number; distPct: number } | null;
   touchScore: number;
+  touchScoreNorm: number;
 }
 export interface TechTouch {
   level: { label: string; price: number; source: string };
@@ -47,6 +50,7 @@ export interface TechAnalysisDto {
   targetGap: TechGap | null;
   fib: TechFib | null;
   diagonal: TechDiagonal | null;
+  resistChannel: TechDiagonal | null;
   touches: TechTouch[];
   setup: string;
   nearestDistPct: number | null;
@@ -137,14 +141,16 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
         {/* 주봉 고고저 빗각 */}
         <div>
           <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-            📐 주봉 {d?.kind ?? "고고저"} 빗각 채널 (로그 · 1:1)
+            📐 주봉 {d?.kind ?? "고고저"} 빗각 채널 ({d?.space === "log" ? "로그" : "선형"} · 1:1)
+            {d?.manual && <span className="ml-1 text-sky-400">· 내 앵커 고정</span>}
           </div>
           {d ? (
             <>
               <div className="text-[11px] text-neutral-500 mb-1">
                 앵커 {d.anchor1.ts}(${d.anchor1.price}) → {d.anchor2.ts}(${d.anchor2.price}) 기울기 ·{" "}
-                {d.anchor3.ts}(${d.anchor3.price}) 평행 · 폭 {d.widthRatio}× ·{" "}
-                <span className="text-neutral-400">과거 터치 {d.touchScore}회</span>
+                {d.anchor3.ts}(${d.anchor3.price}) 평행 · 폭 {d.widthRatio}
+                {d.space === "log" ? "×" : "$"} ·{" "}
+                <span className="text-neutral-400">과거 터치 {d.touchScore}회(정규화 {d.touchScoreNorm})</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {d.lines.map((l) => {
@@ -155,7 +161,9 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
                       className={`text-xs px-2 py-0.5 border rounded ${
                         isNear
                           ? "border-sky-600 bg-sky-950/50 text-sky-200"
-                          : "border-neutral-700 bg-neutral-900 text-neutral-400"
+                          : l.half
+                            ? "border-neutral-800 bg-neutral-900/60 text-neutral-500"
+                            : "border-neutral-700 bg-neutral-900 text-neutral-400"
                       }`}
                     >
                       {l.label} <span className="tabular-nums">${l.price}</span>

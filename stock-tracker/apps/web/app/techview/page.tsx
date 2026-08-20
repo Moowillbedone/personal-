@@ -42,19 +42,47 @@ function TechViewInner() {
   const [err, setErr] = useState<string | null>(null);
   const [report, setReport] = useState<TechResponse | null>(null);
 
+  // 앵커 수동 고정 (종목별로 브라우저에 저장) — 빗각 앵커는 주관적이라, 검증된
+  // 자기 앵커를 박아두면 이후 그 종목은 항상 그 채널로 분석된다.
+  const [a1, setA1] = useState("");
+  const [a2, setA2] = useState("");
+  const [a3, setA3] = useState("");
+  const [space, setSpace] = useState<"linear" | "log">("linear");
   const [scan, setScan] = useState<ScanResponse | null>(null);
   const [scanLoading, setScanLoading] = useState(true);
 
-  const run = useCallback(async (sym: string) => {
+  const anchorKey = (sym: string) => `techview:anchors:${sym}`;
+
+  const run = useCallback(async (sym: string, override?: { a1: string; a2: string; a3: string; space: "linear" | "log" }) => {
     const s = sym.trim().toUpperCase();
     if (!s) return;
+    // 저장된 앵커가 있으면 자동 적용
+    let pinned = override;
+    if (!pinned && typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(anchorKey(s));
+        if (raw) pinned = JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (pinned) {
+      setA1(pinned.a1);
+      setA2(pinned.a2);
+      setA3(pinned.a3);
+      setSpace(pinned.space);
+    }
     setRunning(true);
     setErr(null);
     try {
       const res = await fetch("/api/techview", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol: s }),
+        body: JSON.stringify(
+          pinned && pinned.a1 && pinned.a2 && pinned.a3
+            ? { symbol: s, anchors: [pinned.a1, pinned.a2, pinned.a3], space: pinned.space }
+            : { symbol: s },
+        ),
       });
       const raw = await res.text();
       let data: TechResponse | { error: string } | null = null;
@@ -146,6 +174,74 @@ function TechViewInner() {
             {err}
           </div>
         )}
+
+        {/* 빗각 앵커 직접 고정 */}
+        <details className="border border-neutral-800 rounded bg-neutral-900/40 px-3 py-2">
+          <summary className="text-xs text-neutral-400 cursor-pointer">
+            📐 빗각 앵커 직접 고정 (주봉 날짜 3개) — 자동 작도가 내 선과 다를 때
+          </summary>
+          <div className="mt-2 space-y-2">
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              고-고-저 순서로 주봉 날짜를 넣으세요. ①② = 기울기를 정하는 같은 종류 두 지점
+              (역사적 의미가 있는 고점 등), ③ = 1:1 채널 폭을 정하는 변곡점. 저장하면 이 종목은
+              이후 항상 이 앵커로 분석됩니다. <b className="text-neutral-400">예: TSLA 2020-02-03 / 2020-06-08 / 2020-08-31 (linear)</b>
+            </p>
+            <div className="flex gap-2 flex-wrap items-center">
+              {([["① 고", a1, setA1], ["② 고", a2, setA2], ["③ 변곡", a3, setA3]] as const).map(
+                ([lb, v, set]) => (
+                  <label key={lb} className="text-[11px] text-neutral-500">
+                    {lb}
+                    <input
+                      value={v}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder="2020-02-03"
+                      className="ml-1 w-28 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200"
+                    />
+                  </label>
+                ),
+              )}
+              <select
+                value={space}
+                onChange={(e) => setSpace(e.target.value as "linear" | "log")}
+                className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs"
+              >
+                <option value="linear">선형(등간격)</option>
+                <option value="log">로그(등비율)</option>
+              </select>
+              <button
+                onClick={() => {
+                  if (!symbol.trim() || !a1 || !a2 || !a3) return;
+                  const v = { a1, a2, a3, space };
+                  try {
+                    window.localStorage.setItem(anchorKey(symbol.trim().toUpperCase()), JSON.stringify(v));
+                  } catch {
+                    /* ignore */
+                  }
+                  run(symbol, v);
+                }}
+                className="px-3 py-1 text-xs bg-neutral-700 hover:bg-neutral-600 rounded"
+              >
+                저장 + 분석
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    window.localStorage.removeItem(anchorKey(symbol.trim().toUpperCase()));
+                  } catch {
+                    /* ignore */
+                  }
+                  setA1("");
+                  setA2("");
+                  setA3("");
+                  run(symbol, undefined);
+                }}
+                className="px-3 py-1 text-xs text-neutral-400 hover:text-neutral-200"
+              >
+                고정 해제(자동)
+              </button>
+            </div>
+          </div>
+        </details>
       </section>
 
       {report && <TechReportCard r={report} />}

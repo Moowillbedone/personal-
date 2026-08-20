@@ -26,7 +26,11 @@ function softly<T>(p: Promise<T>, ms = SOFT_MS): Promise<T | null> {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json().catch(() => null)) as { symbol?: string } | null;
+    const body = (await req.json().catch(() => null)) as {
+      symbol?: string;
+      anchors?: string[]; // 주봉 앵커 3개 (YYYY-MM-DD) — 사용자 수동 고정
+      space?: "linear" | "log";
+    } | null;
     const symbol = body?.symbol?.trim().toUpperCase();
     if (!symbol || !/^[A-Z][A-Z0-9.\-]{0,9}$/.test(symbol)) {
       return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
@@ -46,7 +50,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const tech = analyzeTech(symbol, daily, weekly ?? []);
+    const anchorDates =
+      Array.isArray(body?.anchors) && body!.anchors!.length === 3 &&
+      body!.anchors!.every((a) => /^\d{4}-\d{2}-\d{2}$/.test(a))
+        ? ([body!.anchors![0], body!.anchors![1], body!.anchors![2]] as [string, string, string])
+        : undefined;
+    const space = body?.space === "linear" || body?.space === "log" ? body.space : undefined;
+    const tech = analyzeTech(symbol, daily, weekly ?? [], { anchorDates, space });
     if (!tech) {
       return NextResponse.json({ error: "기술적 구조를 산출할 수 없습니다." }, { status: 422 });
     }
@@ -122,6 +132,9 @@ function buildPrompt(
   L.push("4. 터치 후 다음 캔들의 반응(양봉)이 확인이다. 확인 없으면 대기.");
   L.push("5. 목표는 **미충족 갭 구간** — 갭을 메우는 자리에서 정리(분할 매도).");
   L.push("6. 매크로/뉴스가 나쁘면 더 확실한 자리(빗각)를 밟을 때까지 기다린다.");
+  L.push("7. **핵심 매수 패턴 = '위에서 아래로 밟기'** — 라인이 저항이었다가 상향 돌파된 뒤, 눌림으로 그 라인을 다시 밟을 때 매수한다. 돌파는 이미 일어났으므로 추격은 금지, 되돌림 터치를 기다린다.");
+  L.push("8. 목표는 위쪽 rung 순서로 — **하프라인 먼저, 그다음 채널 상단**. 각 rung에서 기계적 분할 매도.");
+  L.push("9. 고고저 채널 = 매수(지지) 도구, 저저고 채널 = 매도(저항) 도구. 저저고 라인은 목표/저항으로만 쓰고 매수 근거로 쓰지 않는다.");
   L.push("");
   L.push(`## 현재: ${t.price} (${session ?? "?"} 세션, 기준일 ${t.asOf})`);
   if (earnings) L.push(`- ⚠️ 다음 어닝 ${earnings.date} (D-${earnings.daysUntil})`);
@@ -138,11 +151,21 @@ function buildPrompt(
     L.push(`- 현재 라인값: ${d.lines.map((l) => `${l.label} ${l.price}`).join(" · ")}`);
     if (d.nearest)
       L.push(`- 가장 가까운 라인: ${d.nearest.label} ${d.nearest.price} (${d.nearest.distPct >= 0 ? "+" : ""}${d.nearest.distPct}%)`);
+    if (d.manual) L.push("- ⭐ 이 채널은 사용자가 직접 고정한 앵커로 작도됨 (자동 탐색 아님)");
+    L.push(`- 작도 공간: ${d.space === "log" ? "로그(등비율)" : "선형(등간격)"}`);
     L.push("- (빗각 앵커 선택은 작도자마다 다름 — 위 채널은 '과거 터치 횟수'로 고른 후보다. 절대가격이 아니라 구간으로 취급할 것)");
   } else {
     L.push("## 주봉 빗각: 산출 불가 (유효 채널 없음/데이터 부족)");
   }
   L.push("");
+
+  if (t.resistChannel?.nearest) {
+    const rc = t.resistChannel;
+    L.push(
+      `## 저저고(저항) 채널 — 목표/저항 참고: ${rc.nearest!.label} ${rc.nearest!.price} (${rc.nearest!.distPct >= 0 ? "+" : ""}${rc.nearest!.distPct}%) · 과거터치 ${rc.touchScore}회`,
+    );
+    L.push("");
+  }
 
   if (t.fib) {
     const f = t.fib;
