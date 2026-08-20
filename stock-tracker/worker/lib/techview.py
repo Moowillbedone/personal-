@@ -124,7 +124,11 @@ def _build_fib(highs, lows, gaps, pivots):
 
 
 LOG_BAND = 0.012
-CH_MIN, CH_MAX = -2, 3
+CH_MIN, CH_MAX = -1, 2
+MAX_WIDTH_RATIO = 1.4
+MAX_ANCHOR_AGE = 156
+TOUCH_WINDOW = 104
+MAX_NEAR_PCT = 10
 
 
 def _ch_label(k: int, kind: str) -> str:
@@ -152,7 +156,9 @@ def _build_diagonal(w_highs, w_lows, last_price):
         for i in range(len(pair) - 1, 0, -1):
             for j in range(i - 1, -1, -1):
                 p2, p1 = pair[i], pair[j]
-                if p2["idx"] - p1["idx"] < 8:
+                if p2["idx"] - p1["idx"] < 12:
+                    continue
+                if last_idx - p2["idx"] > MAX_ANCHOR_AGE:
                     continue
                 if not (p1["price"] > 0 and p2["price"] > 0):
                     continue
@@ -171,6 +177,8 @@ def _build_diagonal(w_highs, w_lows, last_price):
                 if third is None or not max_dev > 0:
                     continue
                 d = max_dev
+                if math.exp(d) > MAX_WIDTH_RATIO:
+                    continue
                 base_now = y1 + m * (last_idx - p1["idx"])
                 dr = -1 if kind == "고고저" else 1
                 lines = []
@@ -183,7 +191,7 @@ def _build_diagonal(w_highs, w_lows, last_price):
                     continue
                 lines.sort(key=lambda x: -x["price"])
                 touch = 0
-                for b in range(p2["idx"] + 1, last_idx + 1):
+                for b in range(max(p2["idx"] + 1, last_idx - TOUCH_WINDOW), last_idx + 1):
                     y_lo, y_hi = math.log(w_lows[b]), math.log(w_highs[b])
                     for k in range(CH_MIN, CH_MAX + 1):
                         yk = y1 + m * (b - p1["idx"]) + dr * d * k
@@ -195,7 +203,7 @@ def _build_diagonal(w_highs, w_lows, last_price):
                     dist = (l["price"] - last_price) / last_price * 100
                     if nearest is None or abs(dist) < abs(nearest["dist_pct"]):
                         nearest = {"label": l["label"], "price": l["price"], "dist_pct": _r(dist)}
-                if nearest is None or abs(nearest["dist_pct"]) > 15:
+                if nearest is None or abs(nearest["dist_pct"]) > MAX_NEAR_PCT:
                     continue
                 cands.append({"kind": kind, "lines": lines, "nearest": nearest, "touch": touch})
 

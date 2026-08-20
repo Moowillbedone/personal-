@@ -206,8 +206,16 @@ export interface DiagonalChannel {
 }
 
 const LOG_BAND = 0.012; // ±1.2% — 주봉에서 라인을 "맞았다"고 볼 폭
-const CH_MIN = -2;
-const CH_MAX = 3;
+// Rungs kept near price: a huge ±3 ladder trivially "touches" everything, which
+// biased selection toward absurdly wide channels (TSLA picked a 2023-anchored
+// 1.57× channel with rungs at $748~$1838). Narrow ladder + width cap + recency
+// keeps the surfaced channel one a trader could actually act on.
+const CH_MIN = -1;
+const CH_MAX = 2;
+const MAX_WIDTH_RATIO = 1.4; // 채널 폭 ≤ 40%
+const MAX_ANCHOR_AGE = 156; // 두 번째 앵커는 최근 3년 이내
+const TOUCH_WINDOW = 104; // 최근 2년 내 터치만 신뢰도로 인정
+const MAX_NEAR_PCT = 10; // 어느 rung도 ±10% 밖이면 지금 볼 채널이 아님
 
 function channelLabel(k: number, kind: "고고저" | "저저고"): string {
   // k=0 is the anchor-pair line (고-고 or 저-저), k=1 is the parallel through
@@ -254,7 +262,8 @@ export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel
       for (let j = i - 1; j >= 0; j--) {
         const p2 = pair[i];
         const p1 = pair[j];
-        if (p2.idx - p1.idx < 8) continue;
+        if (p2.idx - p1.idx < 12) continue; // ≥3개월 떨어진 앵커만 (노이즈 기울기 배제)
+        if (lastIdx - p2.idx > MAX_ANCHOR_AGE) continue; // 너무 오래된 채널은 지금 안 봄
         if (!(p1.price > 0) || !(p2.price > 0)) continue;
         const y1 = Math.log(p1.price);
         const y2 = Math.log(p2.price);
@@ -275,6 +284,7 @@ export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel
         if (!third || !(maxDev > 0)) continue;
 
         const d = maxDev; // channel width in log space
+        if (Math.exp(d) > MAX_WIDTH_RATIO) continue; // 지나치게 넓은 채널 배제
         const baseYNow = y1 + m * (lastIdx - p1.idx); // k=0 line at the last bar
         const dir = kind === "고고저" ? -1 : 1; // parallel sits below (고고저) / above (저저고)
 
@@ -289,7 +299,8 @@ export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel
 
         // How often has price actually respected ANY rung of this channel?
         let touchScore = 0;
-        for (let b = p2.idx + 1; b <= lastIdx; b++) {
+        const touchFrom = Math.max(p2.idx + 1, lastIdx - TOUCH_WINDOW);
+        for (let b = touchFrom; b <= lastIdx; b++) {
           const yLo = Math.log(weekly[b].l);
           const yHi = Math.log(weekly[b].h);
           for (let k = CH_MIN; k <= CH_MAX; k++) {
@@ -309,7 +320,7 @@ export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel
           }
         }
         // Ignore channels whose every rung is miles from price — not actionable.
-        if (!nearest || Math.abs(nearest.distPct) > 15) continue;
+        if (!nearest || Math.abs(nearest.distPct) > MAX_NEAR_PCT) continue;
 
         candidates.push({
           kind,
