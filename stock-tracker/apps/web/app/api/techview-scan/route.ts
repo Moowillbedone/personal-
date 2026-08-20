@@ -74,20 +74,20 @@ export async function GET() {
     if (r.tech_setup) counts[r.tech_setup] = (counts[r.tech_setup] ?? 0) + 1;
   }
 
-  // Confluence ("겹침 N") is the conviction signal — how many key levels stack at
-  // the touched price. The worker writes it into tech_note, so read it back for
-  // ranking (own format, safe fallback 0) instead of adding a column just to sort.
-  const confluence = (note: string | null): number => {
-    const m = note?.match(/겹침\s*(\d+)/);
-    return m ? Number(m[1]) : 0;
-  };
+  // Ranking within a tier: 빗각(weekly channel) touches first. Backtest
+  // (30 symbols, 5y, walk-forward) showed 빗각 touches carried the only positive
+  // cross-sectional excess (+0.20/+0.03/+0.73% at 5/10/20d) while 피보-only
+  // touches were negative (−0.23/−0.47/−0.62%), and under stop/target rules
+  // 빗각 expectancy was ~2x 피보 (+1.09% vs +0.56% at −5%/+10%). Confluence is
+  // deliberately NOT used — it ranked inversely to forward returns.
+  const isDiagonal = (note: string | null): number => (note?.startsWith("빗각") ? 1 : 0);
 
   const rows = records
     .filter((r) => (SHOWN as readonly string[]).includes(r.tech_setup ?? ""))
     .sort(
       (a, b) =>
         (RANK[a.tech_setup ?? ""] ?? 9) - (RANK[b.tech_setup ?? ""] ?? 9) ||
-        confluence(b.tech_note) - confluence(a.tech_note) ||
+        isDiagonal(b.tech_note) - isDiagonal(a.tech_note) ||
         Math.abs(a.tech_nearest_dist ?? 99) - Math.abs(b.tech_nearest_dist ?? 99),
     )
     .map((r) => ({

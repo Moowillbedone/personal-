@@ -677,12 +677,11 @@ export function analyzeTech(
   const touchConfluence = freshTouch ? confluenceAt(freshTouch.level.price) : 0;
   if (!diagonal && !fib) {
     setup = "no_structure";
-  } else if (
-    freshTouch &&
-    freshTouch.confirmed &&
-    (freshTouch.level.prime || touchConfluence >= 2)
-  ) {
-    // 빗각/0.618 단독이면 그것만으로 최상위, 그 외(0.786 등)는 겹침 2개 이상일 때
+  } else if (freshTouch && freshTouch.confirmed && freshTouch.level.prime) {
+    // prime(빗각 / 피보 0.618) 터치 + 확인만 최상위. 겹침(confluence)은 승격
+    // 조건에서 제외했다 — 백테스트(30종목·5년·워크포워드)에서 겹침이 많을수록
+    // 오히려 20일 초과수익이 나빴다(겹침1 +1.45% vs 겹침4 −1.66%). 겹침이 몰리는
+    // 자리는 대개 하락으로 레벨이 압축된 훼손 차트였다. 참고 수치로만 표시한다.
     setup = "touch_confirmed";
   } else if (freshTouch) {
     setup = "touch_pending"; // 밟았으나 확인 or 밀집 부족 → 대기
