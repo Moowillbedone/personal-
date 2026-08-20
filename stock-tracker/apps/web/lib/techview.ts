@@ -140,9 +140,14 @@ export function buildFib(bars: Bar[], gaps: GapZone[], pivots: Pivot[]): FibSetu
 
   let hiIdx = -1;
   let anchoredOnGap = false;
-  const recentDownGap = gaps.find((g) => g.kind === "down" && g.barsAgo <= 90);
-  if (recentDownGap) {
-    hiIdx = n - 1 - recentDownGap.barsAgo;
+  // The anchor is the 장대음봉 that STARTED the decline — i.e. the BIGGEST down
+  // gap in the window, not merely the most recent one (a small −1.8% gap two
+  // days ago would otherwise hijack the anchor and produce meaningless levels).
+  const bigDownGap = gaps
+    .filter((g) => g.kind === "down" && g.barsAgo <= 120 && Math.abs(g.sizePct) >= 3)
+    .sort((a, b) => Math.abs(b.sizePct) - Math.abs(a.sizePct))[0];
+  if (bigDownGap) {
+    hiIdx = n - 1 - bigDownGap.barsAgo;
     anchoredOnGap = true;
   } else {
     const highs = pivots.filter((p) => p.kind === "high");
@@ -151,8 +156,10 @@ export function buildFib(bars: Bar[], gaps: GapZone[], pivots: Pivot[]): FibSetu
   }
   if (hiIdx < 0 || hiIdx >= n) return null;
 
-  // The gap candle's own high is the anchor (it's the last price before the void).
-  const anchorHigh = Math.max(bars[hiIdx].h, bars[Math.max(0, hiIdx - 1)].h);
+  // The GAP CANDLE'S OWN high is the anchor — verified against the user's own
+  // TSLA chart (fib 1.0 = 342.11 = the 07-23 gap-down candle's high, NOT the
+  // prior bar's high / prev close 374).
+  const anchorHigh = bars[hiIdx].h;
   let loIdx = hiIdx;
   let anchorLow = bars[hiIdx].l;
   for (let j = hiIdx; j < n; j++) {
@@ -181,102 +188,156 @@ export function buildFib(bars: Bar[], gaps: GapZone[], pivots: Pivot[]): FibSetu
 
 // ─── 고고저 빗각 (weekly diagonal channel) ──────────────────────────────────
 export interface DiagonalChannel {
-  /** price change per week along the line */
-  slopePerWeek: number;
-  /** the two highs that set the slope + the low that sets the parallel */
-  anchorHigh1: { ts: string; price: number };
-  anchorHigh2: { ts: string; price: number };
-  anchorLow: { ts: string; price: number };
-  /** channel width (vertical distance between the high-line and low-line) */
-  width: number;
+  /** 고고저 (두 고점이 기울기, 저점이 평행) | 저저고 (두 저점이 기울기, 고점이 평행) */
+  kind: "고고저" | "저저고";
+  /** log-space slope per weekly bar (channels are drawn on a LOG chart) */
+  slopeLogPerWeek: number;
+  anchor1: { ts: string; price: number };
+  anchor2: { ts: string; price: number };
+  anchor3: { ts: string; price: number };
+  /** channel width as a log-ratio; 1:1 copies are multiplicative in price */
+  widthRatio: number;
   /** every 1:1 channel line's value AT THE LATEST BAR, sorted desc */
   lines: { label: string; price: number }[];
   /** the single line closest to the current price (the one that matters now) */
   nearest: { label: string; price: number; distPct: number } | null;
+  /** how many times price historically touched any line of this channel */
+  touchScore: number;
+}
+
+const LOG_BAND = 0.012; // ±1.2% — 주봉에서 라인을 "맞았다"고 볼 폭
+const CH_MIN = -2;
+const CH_MAX = 3;
+
+function channelLabel(k: number, kind: "고고저" | "저저고"): string {
+  // k=0 is the anchor-pair line (고-고 or 저-저), k=1 is the parallel through
+  // the third anchor; the rest are the 1:1 복붙 rungs.
+  if (k === 0) return kind === "고고저" ? "빗각(고-고)" : "빗각(저-저)";
+  if (k === 1) return kind === "고고저" ? "평행(저)" : "평행(고)";
+  return k > 1 ? `채널+${k - 1}` : `채널${k}`;
 }
 
 /**
- * 고고저 빗각 — built from WEEKLY bars:
- *   ① 고, 고 : two structural pivot highs define the slope (the 빗각 itself)
- *   ② 저     : a pivot low between/after them gets a PARALLEL copy of that line
- *   ③ 1:1    : the high-line ↔ low-line distance is copied at equal (1:1)
- *              spacing above and below, forming the channel grid
- * Each line is evaluated at the latest bar, so "the line is at $332 today".
+ * 고고저/저저고 빗각 채널 — WEEKLY, LOG price space.
  *
- * NOTE on provenance: this is the standard parallel-trend-channel construction
- * that matches the user's description (weekly, high-high-low anchors, 1:1
- * spacing). It is NOT claimed to be a verbatim reproduction of any one
- * YouTuber's proprietary drawing rules.
+ * Research (2026-08, third-party reconstructions of 인범 빗각 — no primary source
+ * exists, practitioners explicitly disagree on anchor choice) converges on:
+ *   · 로그차트에서 작도한다 (every step-by-step guide opens with this)
+ *   · 3 anchors: 앞의 둘은 같은 종류(고,고 또는 저,저)로 기울기를 정하고,
+ *     세 번째(반대 종류)는 평행선의 위치만 정한다 = TradingView 평행채널
+ *   · 1:1 채널 = 같은 폭의 평행 복붙 (로그공간 등간격 → 가격은 배수)
+ *   · 하락추세면 고-고(고고저), 상승추세면 저-저(저저고)
+ *
+ * Because anchor CHOICE is subjective ("사람마다 해석이 다름"), we do NOT pick
+ * one arbitrarily: we enumerate candidate anchor pairs and keep the channel the
+ * market has actually RESPECTED most (historical touch count) — a data-driven
+ * tiebreak instead of a guess.
  */
 export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel | null {
   const n = weekly.length;
   if (n < 30) return null;
-  const pivots = findPivots(weekly, 2);
+  const pivots = findPivots(weekly, 3);
   const highs = pivots.filter((p) => p.kind === "high");
   const lows = pivots.filter((p) => p.kind === "low");
-  if (highs.length < 2 || lows.length < 1) return null;
-
-  // Two most recent structural highs, far enough apart to define a real slope.
-  let h2 = highs[highs.length - 1];
-  let h1: Pivot | null = null;
-  for (let i = highs.length - 2; i >= 0; i--) {
-    if (h2.idx - highs[i].idx >= 6) {
-      h1 = highs[i];
-      break;
-    }
-  }
-  if (!h1) h1 = highs[0];
-  if (h1.idx === h2.idx) return null;
-
-  const slope = (h2.price - h1.price) / (h2.idx - h1.idx); // per weekly bar
   const lastIdx = n - 1;
+  const lnLast = Math.log(lastPrice);
 
-  // Parallel through the DEEPEST low relative to the line (the 저 anchor).
-  let low = lows[0];
-  let maxDev = -Infinity;
-  for (const l of lows) {
-    if (l.idx < h1.idx) continue; // only lows inside/after the leg
-    const lineAt = h1.price + slope * (l.idx - h1.idx);
-    const dev = lineAt - l.price; // how far below the line
-    if (dev > maxDev) {
-      maxDev = dev;
-      low = l;
+  const candidates: DiagonalChannel[] = [];
+
+  const build = (
+    kind: "고고저" | "저저고",
+    pair: Pivot[],
+    others: Pivot[],
+  ): void => {
+    // Enumerate same-type anchor pairs (recent-biased, min 8 weeks apart).
+    for (let i = pair.length - 1; i >= 1; i--) {
+      for (let j = i - 1; j >= 0; j--) {
+        const p2 = pair[i];
+        const p1 = pair[j];
+        if (p2.idx - p1.idx < 8) continue;
+        if (!(p1.price > 0) || !(p2.price > 0)) continue;
+        const y1 = Math.log(p1.price);
+        const y2 = Math.log(p2.price);
+        const m = (y2 - y1) / (p2.idx - p1.idx); // log slope / week
+        // Third anchor: the opposite-type pivot furthest from the base line
+        // (that's the one the parallel actually has to reach).
+        let third: Pivot | null = null;
+        let maxDev = -Infinity;
+        for (const o of others) {
+          if (o.idx < p1.idx) continue;
+          const lineY = y1 + m * (o.idx - p1.idx);
+          const dev = kind === "고고저" ? lineY - Math.log(o.price) : Math.log(o.price) - lineY;
+          if (dev > maxDev) {
+            maxDev = dev;
+            third = o;
+          }
+        }
+        if (!third || !(maxDev > 0)) continue;
+
+        const d = maxDev; // channel width in log space
+        const baseYNow = y1 + m * (lastIdx - p1.idx); // k=0 line at the last bar
+        const dir = kind === "고고저" ? -1 : 1; // parallel sits below (고고저) / above (저저고)
+
+        const lines: { label: string; price: number }[] = [];
+        for (let k = CH_MIN; k <= CH_MAX; k++) {
+          const price = Math.exp(baseYNow + dir * d * k);
+          if (!isFinite(price) || price <= 0) continue;
+          lines.push({ label: channelLabel(k, kind), price: round(price) });
+        }
+        if (lines.length === 0) continue;
+        lines.sort((a, b) => b.price - a.price);
+
+        // How often has price actually respected ANY rung of this channel?
+        let touchScore = 0;
+        for (let b = p2.idx + 1; b <= lastIdx; b++) {
+          const yLo = Math.log(weekly[b].l);
+          const yHi = Math.log(weekly[b].h);
+          for (let k = CH_MIN; k <= CH_MAX; k++) {
+            const yk = y1 + m * (b - p1.idx) + dir * d * k;
+            if (yLo - LOG_BAND <= yk && yHi + LOG_BAND >= yk) {
+              touchScore++;
+              break; // one touch per bar
+            }
+          }
+        }
+
+        let nearest: DiagonalChannel["nearest"] = null;
+        for (const l of lines) {
+          const distPct = ((l.price - lastPrice) / lastPrice) * 100;
+          if (!nearest || Math.abs(distPct) < Math.abs(nearest.distPct)) {
+            nearest = { label: l.label, price: l.price, distPct: round(distPct) };
+          }
+        }
+        // Ignore channels whose every rung is miles from price — not actionable.
+        if (!nearest || Math.abs(nearest.distPct) > 15) continue;
+
+        candidates.push({
+          kind,
+          slopeLogPerWeek: Number(m.toFixed(5)),
+          anchor1: { ts: p1.ts.slice(0, 10), price: round(p1.price) },
+          anchor2: { ts: p2.ts.slice(0, 10), price: round(p2.price) },
+          anchor3: { ts: third.ts.slice(0, 10), price: round(third.price) },
+          widthRatio: Number(Math.exp(d).toFixed(4)),
+          lines,
+          nearest,
+          touchScore,
+        });
+      }
     }
-  }
-  const highLineNow = h1.price + slope * (lastIdx - h1.idx);
-  const lowLineNow = low.price + slope * (lastIdx - low.idx);
-  const width = Math.abs(highLineNow - lowLineNow);
-  if (!(width > 0)) return null;
-
-  // 1:1 channel grid: ±2 copies each way around the high/low pair.
-  const base = Math.min(highLineNow, lowLineNow);
-  const lines: { label: string; price: number }[] = [];
-  for (let m = -2; m <= 3; m++) {
-    const price = base + width * m;
-    if (!(price > 0)) continue;
-    const label =
-      m === 0 ? "채널 하단(저)" : m === 1 ? "채널 상단(고)" : m > 1 ? `상단+${m - 1}` : `하단${m}`;
-    lines.push({ label, price: round(price) });
-  }
-  lines.sort((a, b) => b.price - a.price);
-
-  let nearest: DiagonalChannel["nearest"] = null;
-  for (const l of lines) {
-    const distPct = ((l.price - lastPrice) / lastPrice) * 100;
-    if (!nearest || Math.abs(distPct) < Math.abs(nearest.distPct)) {
-      nearest = { label: l.label, price: l.price, distPct: round(distPct) };
-    }
-  }
-
-  return {
-    slopePerWeek: round(slope, 3),
-    anchorHigh1: { ts: h1.ts.slice(0, 10), price: round(h1.price) },
-    anchorHigh2: { ts: h2.ts.slice(0, 10), price: round(h2.price) },
-    anchorLow: { ts: low.ts.slice(0, 10), price: round(low.price) },
-    width: round(width),
-    lines,
-    nearest,
   };
+
+  if (highs.length >= 2 && lows.length >= 1) build("고고저", highs, lows);
+  if (lows.length >= 2 && highs.length >= 1) build("저저고", lows, highs);
+  if (candidates.length === 0) return null;
+
+  // The channel the market has respected most; ties → the one closest to price.
+  candidates.sort(
+    (a, b) =>
+      b.touchScore - a.touchScore ||
+      Math.abs(a.nearest?.distPct ?? 99) - Math.abs(b.nearest?.distPct ?? 99),
+  );
+  // Sanity: a channel nobody ever touched is noise.
+  return candidates[0].touchScore >= 2 ? candidates[0] : null;
 }
 
 // ─── touch detection ("밟아야 산다") ────────────────────────────────────────
@@ -388,7 +449,9 @@ export function analyzeTech(
   }
   if (fib) {
     for (const l of fib.levels) {
-      if (l.ratio === 0.382 || l.ratio === 0.5 || l.ratio === 0.618) {
+      // 0.382/0.618은 사용자가 주시하는 자리, 0.786은 깊은 되돌림 마지노선
+      // (TSLA 사례에서 0.786=332.54가 빗각 라인과 겹친 자리였다).
+      if (l.ratio === 0.382 || l.ratio === 0.5 || l.ratio === 0.618 || l.ratio === 0.786) {
         keyLevels.push({ label: `피보 ${l.label}`, price: l.price, source: "fib" });
       }
     }

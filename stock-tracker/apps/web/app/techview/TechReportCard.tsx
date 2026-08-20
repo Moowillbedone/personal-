@@ -22,13 +22,15 @@ export interface TechFib {
   levels: { ratio: number; label: string; price: number }[];
 }
 export interface TechDiagonal {
-  slopePerWeek: number;
-  anchorHigh1: { ts: string; price: number };
-  anchorHigh2: { ts: string; price: number };
-  anchorLow: { ts: string; price: number };
-  width: number;
+  kind: "고고저" | "저저고";
+  slopeLogPerWeek: number;
+  anchor1: { ts: string; price: number };
+  anchor2: { ts: string; price: number };
+  anchor3: { ts: string; price: number };
+  widthRatio: number;
   lines: { label: string; price: number }[];
   nearest: { label: string; price: number; distPct: number } | null;
+  touchScore: number;
 }
 export interface TechTouch {
   level: { label: string; price: number; source: string };
@@ -135,14 +137,14 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
         {/* 주봉 고고저 빗각 */}
         <div>
           <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-            📐 주봉 고고저 빗각 채널 (1:1)
+            📐 주봉 {d?.kind ?? "고고저"} 빗각 채널 (로그 · 1:1)
           </div>
           {d ? (
             <>
               <div className="text-[11px] text-neutral-500 mb-1">
-                앵커: 고 {d.anchorHigh1.ts}(${d.anchorHigh1.price}) → 고 {d.anchorHigh2.ts}($
-                {d.anchorHigh2.price}) · 저 {d.anchorLow.ts}(${d.anchorLow.price}) · 기울기{" "}
-                {d.slopePerWeek}/주 · 폭 ${d.width}
+                앵커 {d.anchor1.ts}(${d.anchor1.price}) → {d.anchor2.ts}(${d.anchor2.price}) 기울기 ·{" "}
+                {d.anchor3.ts}(${d.anchor3.price}) 평행 · 폭 {d.widthRatio}× ·{" "}
+                <span className="text-neutral-400">과거 터치 {d.touchScore}회</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {d.lines.map((l) => {

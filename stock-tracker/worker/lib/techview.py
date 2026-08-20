@@ -96,9 +96,11 @@ def _build_fib(highs, lows, gaps, pivots):
     if n < 20:
         return None
     hi_idx = -1
-    recent = next((g for g in gaps if g["kind"] == "down" and g["bars_ago"] <= 90), None)
-    if recent:
-        hi_idx = n - 1 - recent["bars_ago"]
+    # biggest 장대음봉 gap in the window (not merely the most recent small one)
+    big = [g for g in gaps if g["kind"] == "down" and g["bars_ago"] <= 120 and abs(g["size_pct"]) >= 3]
+    big.sort(key=lambda g: -abs(g["size_pct"]))
+    if big:
+        hi_idx = n - 1 - big[0]["bars_ago"]
     else:
         ph = [p for p in pivots if p["kind"] == "high"]
         if not ph:
@@ -106,7 +108,7 @@ def _build_fib(highs, lows, gaps, pivots):
         hi_idx = ph[-1]["idx"]
     if hi_idx < 0 or hi_idx >= n:
         return None
-    anchor_high = max(highs[hi_idx], highs[max(0, hi_idx - 1)])
+    anchor_high = highs[hi_idx]  # the gap candle's OWN high
     anchor_low = lows[hi_idx]
     for j in range(hi_idx, n):
         if lows[j] < anchor_low:
@@ -121,64 +123,90 @@ def _build_fib(highs, lows, gaps, pivots):
     }
 
 
+LOG_BAND = 0.012
+CH_MIN, CH_MAX = -2, 3
+
+
+def _ch_label(k: int, kind: str) -> str:
+    if k == 0:
+        return "빗각(고-고)" if kind == "고고저" else "빗각(저-저)"
+    if k == 1:
+        return "평행(저)" if kind == "고고저" else "평행(고)"
+    return f"채널+{k - 1}" if k > 1 else f"채널{k}"
+
+
 def _build_diagonal(w_highs, w_lows, last_price):
+    """LOG-space 고고저/저저고 parallel channel — mirrors buildDiagonal in techview.ts.
+    Anchor choice is subjective in the wild, so candidates are ranked by how often
+    price historically touched the channel (data-driven tiebreak)."""
     n = len(w_highs)
     if n < 30:
         return None
-    pv = _pivots(w_highs, w_lows, 2)
+    pv = _pivots(w_highs, w_lows, 3)
     highs = [p for p in pv if p["kind"] == "high"]
     lows = [p for p in pv if p["kind"] == "low"]
-    if len(highs) < 2 or not lows:
-        return None
-    h2 = highs[-1]
-    h1 = None
-    for i in range(len(highs) - 2, -1, -1):
-        if h2["idx"] - highs[i]["idx"] >= 6:
-            h1 = highs[i]
-            break
-    if h1 is None:
-        h1 = highs[0]
-    if h1["idx"] == h2["idx"]:
-        return None
-    slope = (h2["price"] - h1["price"]) / (h2["idx"] - h1["idx"])
     last_idx = n - 1
-    low = lows[0]
-    max_dev = -1e18
-    for l in lows:
-        if l["idx"] < h1["idx"]:
-            continue
-        line_at = h1["price"] + slope * (l["idx"] - h1["idx"])
-        dev = line_at - l["price"]
-        if dev > max_dev:
-            max_dev = dev
-            low = l
-    high_line_now = h1["price"] + slope * (last_idx - h1["idx"])
-    low_line_now = low["price"] + slope * (last_idx - low["idx"])
-    width = abs(high_line_now - low_line_now)
-    if not width > 0:
+    cands = []
+
+    def build(kind, pair, others):
+        for i in range(len(pair) - 1, 0, -1):
+            for j in range(i - 1, -1, -1):
+                p2, p1 = pair[i], pair[j]
+                if p2["idx"] - p1["idx"] < 8:
+                    continue
+                if not (p1["price"] > 0 and p2["price"] > 0):
+                    continue
+                y1, y2 = math.log(p1["price"]), math.log(p2["price"])
+                m = (y2 - y1) / (p2["idx"] - p1["idx"])
+                third = None
+                max_dev = -1e18
+                for o in others:
+                    if o["idx"] < p1["idx"]:
+                        continue
+                    line_y = y1 + m * (o["idx"] - p1["idx"])
+                    dev = (line_y - math.log(o["price"])) if kind == "고고저" else (math.log(o["price"]) - line_y)
+                    if dev > max_dev:
+                        max_dev = dev
+                        third = o
+                if third is None or not max_dev > 0:
+                    continue
+                d = max_dev
+                base_now = y1 + m * (last_idx - p1["idx"])
+                dr = -1 if kind == "고고저" else 1
+                lines = []
+                for k in range(CH_MIN, CH_MAX + 1):
+                    price = math.exp(base_now + dr * d * k)
+                    if not price > 0 or math.isinf(price):
+                        continue
+                    lines.append({"label": _ch_label(k, kind), "price": _r(price)})
+                if not lines:
+                    continue
+                lines.sort(key=lambda x: -x["price"])
+                touch = 0
+                for b in range(p2["idx"] + 1, last_idx + 1):
+                    y_lo, y_hi = math.log(w_lows[b]), math.log(w_highs[b])
+                    for k in range(CH_MIN, CH_MAX + 1):
+                        yk = y1 + m * (b - p1["idx"]) + dr * d * k
+                        if y_lo - LOG_BAND <= yk <= y_hi + LOG_BAND:
+                            touch += 1
+                            break
+                nearest = None
+                for l in lines:
+                    dist = (l["price"] - last_price) / last_price * 100
+                    if nearest is None or abs(dist) < abs(nearest["dist_pct"]):
+                        nearest = {"label": l["label"], "price": l["price"], "dist_pct": _r(dist)}
+                if nearest is None or abs(nearest["dist_pct"]) > 15:
+                    continue
+                cands.append({"kind": kind, "lines": lines, "nearest": nearest, "touch": touch})
+
+    if len(highs) >= 2 and lows:
+        build("고고저", highs, lows)
+    if len(lows) >= 2 and highs:
+        build("저저고", lows, highs)
+    if not cands:
         return None
-    base = min(high_line_now, low_line_now)
-    lines = []
-    for m in range(-2, 4):
-        price = base + width * m
-        if not price > 0:
-            continue
-        if m == 0:
-            label = "채널 하단(저)"
-        elif m == 1:
-            label = "채널 상단(고)"
-        elif m > 1:
-            label = f"상단+{m - 1}"
-        else:
-            label = f"하단{m}"
-        lines.append({"label": label, "price": _r(price)})
-    lines.sort(key=lambda x: -x["price"])
-    nearest = None
-    for l in lines:
-        dist = (l["price"] - last_price) / last_price * 100
-        if nearest is None or abs(dist) < abs(nearest["dist_pct"]):
-            nearest = {"label": l["label"], "price": l["price"], "dist_pct": _r(dist)}
-    return {"lines": lines, "nearest": nearest, "width": _r(width)}
+    cands.sort(key=lambda c: (-c["touch"], abs(c["nearest"]["dist_pct"])))
+    return cands[0] if cands[0]["touch"] >= 2 else None
 
 
 def analyze_tech(daily_df, weekly_df) -> dict | None:
@@ -214,7 +242,7 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
                 key_levels.append({"label": f"빗각 {ln['label']}", "price": ln["price"], "source": "diagonal"})
     if fib:
         for ln in fib["levels"]:
-            if ln["ratio"] in (0.382, 0.5, 0.618):
+            if ln["ratio"] in (0.382, 0.5, 0.618, 0.786):
                 key_levels.append({"label": f"피보 {ln['label']}", "price": ln["price"], "source": "fib"})
     target_gap = next((g for g in gaps if g["kind"] == "down" and not g["filled"] and g["top"] > price), None)
 

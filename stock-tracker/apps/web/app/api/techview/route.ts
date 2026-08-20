@@ -130,16 +130,17 @@ function buildPrompt(
 
   if (t.diagonal) {
     const d = t.diagonal;
-    L.push("## 주봉 고고저 빗각 채널 (1:1)");
+    L.push(`## 주봉 ${d.kind} 빗각 채널 (로그공간, 1:1 복붙)`);
     L.push(
-      `- 앵커: 고 ${d.anchorHigh1.ts}(${d.anchorHigh1.price}) → 고 ${d.anchorHigh2.ts}(${d.anchorHigh2.price}), 저 ${d.anchorLow.ts}(${d.anchorLow.price})`,
+      `- 앵커: ${d.anchor1.ts}(${d.anchor1.price}) → ${d.anchor2.ts}(${d.anchor2.price}) 로 기울기, ${d.anchor3.ts}(${d.anchor3.price}) 로 평행`,
     );
-    L.push(`- 기울기 ${d.slopePerWeek}/주 · 채널폭 ${d.width}`);
+    L.push(`- 채널폭 배수 ${d.widthRatio}× · 과거 이 채널 라인 터치 ${d.touchScore}회(시장이 실제로 존중한 횟수)`);
     L.push(`- 현재 라인값: ${d.lines.map((l) => `${l.label} ${l.price}`).join(" · ")}`);
     if (d.nearest)
       L.push(`- 가장 가까운 라인: ${d.nearest.label} ${d.nearest.price} (${d.nearest.distPct >= 0 ? "+" : ""}${d.nearest.distPct}%)`);
+    L.push("- (빗각 앵커 선택은 작도자마다 다름 — 위 채널은 '과거 터치 횟수'로 고른 후보다. 절대가격이 아니라 구간으로 취급할 것)");
   } else {
-    L.push("## 주봉 빗각: 산출 불가 (주봉 데이터/피벗 부족)");
+    L.push("## 주봉 빗각: 산출 불가 (유효 채널 없음/데이터 부족)");
   }
   L.push("");
 
