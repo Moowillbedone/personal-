@@ -290,9 +290,13 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
          if t.get("trigger") and t["bars_ago"] <= 3 and (t["confirmed"] or t["wick"] >= 0.2)),
         None,
     )
+    # confluence = key levels stacked within ±1.5% of the touched price ("확실한 자리")
+    confl = 0
+    if fresh:
+        confl = sum(1 for lv in key_levels if abs((lv["price"] - fresh["price"]) / fresh["price"]) <= 0.015)
     if not diagonal and not fib:
         setup = "no_structure"
-    elif fresh and fresh["confirmed"]:
+    elif fresh and fresh["confirmed"] and confl >= 2:
         setup = "touch_confirmed"
     elif fresh:
         setup = "touch_pending"
@@ -307,7 +311,8 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
 
     note = None
     if fresh:
-        note = f"{fresh['label']} 터치(꼬리 {int(fresh['wick'] * 100)}%)" + (" +확인" if fresh["confirmed"] else " ·확인대기")
+        note = (f"{fresh['label']} 터치(꼬리 {int(fresh['wick'] * 100)}%, 겹침 {confl})"
+                + (" +확인" if fresh["confirmed"] else " ·확인대기"))
     elif diagonal and diagonal["nearest"]:
         nb = diagonal["nearest"]
         note = f"빗각 {nb['label']} {nb['price']} ({'+' if nb['dist_pct'] >= 0 else ''}{nb['dist_pct']}%)"

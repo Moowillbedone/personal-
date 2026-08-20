@@ -432,6 +432,8 @@ export interface TechAnalysis {
   keyLevels: KeyLevel[];
   touches: TouchEvent[];
   setup: TechSetup;
+  /** key levels stacked within ±1.5% of the signal touch (겹친 자리 = 확신도) */
+  touchConfluence: number;
   /** distance to the nearest key level, % (signed: + = level is above) */
   nearestDistPct: number | null;
   nearestLabel: string | null;
@@ -518,12 +520,19 @@ export function analyzeTech(
       t.barsAgo <= 3 &&
       (t.confirmed || t.wickRatio >= 0.2),
   );
+  // Confluence = how many key levels stack within ±1.5% of the touched price.
+  // This is the user's own conviction rule ("확실한 자리"): in the TSLA trade the
+  // buy level had 피보 0.786 AND the unfilled gap bottom on top of each other.
+  // A lone 0.618 touch is common (51/232 in the live scan); a 2+ stack is not.
+  const confluenceAt = (p: number): number =>
+    keyLevels.filter((lv) => Math.abs((lv.price - p) / p) <= 0.015).length;
+  const touchConfluence = freshTouch ? confluenceAt(freshTouch.level.price) : 0;
   if (!diagonal && !fib) {
     setup = "no_structure";
-  } else if (freshTouch && freshTouch.confirmed) {
-    setup = "touch_confirmed";
+  } else if (freshTouch && freshTouch.confirmed && touchConfluence >= 2) {
+    setup = "touch_confirmed"; // 겹친 자리를 밟고 확인까지 = 최상위 신호
   } else if (freshTouch) {
-    setup = "touch_pending";
+    setup = "touch_pending"; // 밟았으나 확인 or 밀집 부족 → 대기
   } else if (nearestDistPct != null && Math.abs(nearestDistPct) <= 1) {
     setup = "at_level";
   } else if (nearestDistPct != null && Math.abs(nearestDistPct) <= NEAR_PCT) {
@@ -550,7 +559,7 @@ export function analyzeTech(
   }
   if (freshTouch) {
     notes.push(
-      `${freshTouch.date} ${freshTouch.level.label} 터치 (아래꼬리 ${(freshTouch.wickRatio * 100).toFixed(0)}%)${freshTouch.confirmed ? " + 확인 양봉" : " · 확인 대기"}`,
+      `${freshTouch.date} ${freshTouch.level.label} 터치 (아래꼬리 ${(freshTouch.wickRatio * 100).toFixed(0)}%, 겹친 레벨 ${touchConfluence}개)${freshTouch.confirmed ? " + 확인 양봉" : " · 확인 대기"}`,
     );
   }
 
@@ -568,6 +577,7 @@ export function analyzeTech(
     keyLevels,
     touches: touches.slice(0, 6),
     setup,
+    touchConfluence,
     nearestDistPct,
     nearestLabel,
     targetUpsidePct,
