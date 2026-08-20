@@ -186,169 +186,169 @@ export function buildFib(bars: Bar[], gaps: GapZone[], pivots: Pivot[]): FibSetu
   };
 }
 
-// ─── 고고저 빗각 (weekly diagonal channel) ──────────────────────────────────
+// ─── 고고저 / 저저고 빗각 채널 (weekly, LOG space) ─────────────────────────
 export interface DiagonalChannel {
-  /** 고고저 (두 고점이 기울기, 저점이 평행) | 저저고 (두 저점이 기울기, 고점이 평행) */
+  /** 고고저 = 매수(지지) 채널 · 저저고 = 매도(저항) 채널 */
   kind: "고고저" | "저저고";
-  /** log-space slope per weekly bar (channels are drawn on a LOG chart) */
   slopeLogPerWeek: number;
   anchor1: { ts: string; price: number };
   anchor2: { ts: string; price: number };
   anchor3: { ts: string; price: number };
-  /** channel width as a log-ratio; 1:1 copies are multiplicative in price */
+  /** 채널 폭 (가격 배수) */
   widthRatio: number;
-  /** every 1:1 channel line's value AT THE LATEST BAR, sorted desc */
-  lines: { label: string; price: number }[];
-  /** the single line closest to the current price (the one that matters now) */
+  /** 1:1 rung + 하프라인, 최신 봉에서 평가한 값 (내림차순) */
+  lines: { label: string; price: number; half: boolean }[];
   nearest: { label: string; price: number; distPct: number } | null;
-  /** how many times price historically touched any line of this channel */
+  /** 과거에 이 채널 라인을 실제로 맞은 주봉 수 (작도 검증) */
   touchScore: number;
 }
 
 const LOG_BAND = 0.012; // ±1.2% — 주봉에서 라인을 "맞았다"고 볼 폭
-// Rungs kept near price: a huge ±3 ladder trivially "touches" everything, which
-// biased selection toward absurdly wide channels (TSLA picked a 2023-anchored
-// 1.57× channel with rungs at $748~$1838). Narrow ladder + width cap + recency
-// keeps the surfaced channel one a trader could actually act on.
-const CH_MIN = -1;
-const CH_MAX = 2;
-const MAX_WIDTH_RATIO = 1.4; // 채널 폭 ≤ 40%
-const MAX_ANCHOR_AGE = 156; // 두 번째 앵커는 최근 3년 이내
-const TOUCH_WINDOW = 104; // 최근 2년 내 터치만 신뢰도로 인정
-const MAX_NEAR_PCT = 10; // 어느 rung도 ±10% 밖이면 지금 볼 채널이 아님
+// Rungs: 1:1 채널을 위아래로 이어붙이고, 그 절반(하프채널)까지. 사용자 기준
+// "1:1 비율로 이어붙이면 계속 채널이 생기고, 그 1/2를 쪼개면 하프채널".
+const K_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3];
+const MIN_PAIR_SEP = 10; // 앵커 두 개는 최소 10주 떨어져야 기울기가 의미 있음
+const TOP_PIVOTS = 14; // "역사적 의미"가 큰 피벗만 앵커 후보로
+const MAX_WIDTH_RATIO = 3.0; // 로그폭 상한 (장기 채널은 넓을 수 있음)
+const MAX_NEAR_PCT = 12; // 어떤 rung도 이보다 멀면 지금 볼 채널이 아님
 
-function channelLabel(k: number, kind: "고고저" | "저저고"): string {
-  // k=0 is the anchor-pair line (고-고 or 저-저), k=1 is the parallel through
-  // the third anchor; the rest are the 1:1 복붙 rungs.
+function rungLabel(k: number, kind: "고고저" | "저저고"): string {
   if (k === 0) return kind === "고고저" ? "빗각(고-고)" : "빗각(저-저)";
-  if (k === 1) return kind === "고고저" ? "평행(저)" : "평행(고)";
-  return k > 1 ? `채널+${k - 1}` : `채널${k}`;
+  if (k === 1) return "채널 반대선";
+  const half = !Number.isInteger(k);
+  const n = k > 0 ? k : k;
+  return `${half ? "하프" : "채널"}${n > 0 ? "+" : ""}${n}`;
 }
 
 /**
- * 고고저/저저고 빗각 채널 — WEEKLY, LOG price space.
- *
- * Research (2026-08, third-party reconstructions of 인범 빗각 — no primary source
- * exists, practitioners explicitly disagree on anchor choice) converges on:
- *   · 로그차트에서 작도한다 (every step-by-step guide opens with this)
- *   · 3 anchors: 앞의 둘은 같은 종류(고,고 또는 저,저)로 기울기를 정하고,
- *     세 번째(반대 종류)는 평행선의 위치만 정한다 = TradingView 평행채널
- *   · 1:1 채널 = 같은 폭의 평행 복붙 (로그공간 등간격 → 가격은 배수)
- *   · 하락추세면 고-고(고고저), 상승추세면 저-저(저저고)
- *
- * Because anchor CHOICE is subjective ("사람마다 해석이 다름"), we do NOT pick
- * one arbitrarily: we enumerate candidate anchor pairs and keep the channel the
- * market has actually RESPECTED most (historical touch count) — a data-driven
- * tiebreak instead of a guess.
+ * "역사적 의미가 있는" 피벗만 남긴다. 사용자 기준: 코로나/리먼 같은 대형 변곡점,
+ * 급등 직전/직후의 변곡점 = 되돌림 폭(prominence)이 큰 자리. 폭이 큰 순으로
+ * 상위 TOP_PIVOTS개만 앵커 후보로 써서, 잔챙이 스윙이 앵커가 되는 걸 막는다.
  */
-export function buildDiagonal(weekly: Bar[], lastPrice: number): DiagonalChannel | null {
-  const n = weekly.length;
-  if (n < 30) return null;
-  const pivots = findPivots(weekly, 3);
-  const highs = pivots.filter((p) => p.kind === "high");
-  const lows = pivots.filter((p) => p.kind === "low");
-  const lastIdx = n - 1;
-  const lnLast = Math.log(lastPrice);
+function significantPivots(bars: Bar[], k = 4): Pivot[] {
+  const pv = findPivots(bars, k);
+  const scored = pv.map((p) => {
+    const from = Math.max(0, p.idx - 26);
+    const to = Math.min(bars.length - 1, p.idx + 26);
+    let opp = p.kind === "high" ? Infinity : -Infinity;
+    for (let i = from; i <= to; i++) {
+      if (p.kind === "high") opp = Math.min(opp, bars[i].l);
+      else opp = Math.max(opp, bars[i].h);
+    }
+    // prominence = 반대편 극단까지의 로그 거리 (되돌림 크기)
+    const prom = Math.abs(Math.log(p.price) - Math.log(opp > 0 ? opp : p.price));
+    return { p, prom };
+  });
+  scored.sort((a, b) => b.prom - a.prom);
+  return scored
+    .slice(0, TOP_PIVOTS)
+    .map((x) => x.p)
+    .sort((a, b) => a.idx - b.idx);
+}
 
+/**
+ * 빗각 채널 (주봉·로그).
+ *   ① 같은 종류 피벗 2개(고-고 또는 저-저)로 기울기 = 빗각 본선
+ *   ② 세 번째 앵커: 본선에서 가장 많이 벗어난 "의미있는 변곡점" — 상승장에서는
+ *      본선 위의 신고점이, 하락장에서는 본선 아래의 저점이 잡힌다. (사용자 TSLA
+ *      예시의 세 번째 앵커 2020-08-31도 당시 신고점이었다.)
+ *   ③ 그 폭을 1:1로 위아래 무한히 이어붙이고, 절반 지점에 하프라인.
+ * 앵커 선택은 원래 주관적이라, 후보를 열거해 "과거에 실제로 라인을 맞은 횟수"가
+ * 가장 많은 채널을 고른다(작도 검증). 최신성 제한은 두지 않는다 — 사용자의 TSLA
+ * 앵커가 2020년 코로나 고점이었듯, 오래된 앵커일수록 오히려 의미가 크다.
+ */
+export function buildDiagonal(
+  weekly: Bar[],
+  lastPrice: number,
+  kind: "고고저" | "저저고",
+): DiagonalChannel | null {
+  const n = weekly.length;
+  if (n < 60) return null;
+  const sig = significantPivots(weekly, 4);
+  const base = sig.filter((p) => (kind === "고고저" ? p.kind === "high" : p.kind === "low"));
+  if (base.length < 2 || sig.length < 3) return null;
+  const lastIdx = n - 1;
   const candidates: DiagonalChannel[] = [];
 
-  const build = (
-    kind: "고고저" | "저저고",
-    pair: Pivot[],
-    others: Pivot[],
-  ): void => {
-    // Enumerate same-type anchor pairs (recent-biased, min 8 weeks apart).
-    for (let i = pair.length - 1; i >= 1; i--) {
-      for (let j = i - 1; j >= 0; j--) {
-        const p2 = pair[i];
-        const p1 = pair[j];
-        if (p2.idx - p1.idx < 12) continue; // ≥3개월 떨어진 앵커만 (노이즈 기울기 배제)
-        if (lastIdx - p2.idx > MAX_ANCHOR_AGE) continue; // 너무 오래된 채널은 지금 안 봄
-        if (!(p1.price > 0) || !(p2.price > 0)) continue;
-        const y1 = Math.log(p1.price);
-        const y2 = Math.log(p2.price);
-        const m = (y2 - y1) / (p2.idx - p1.idx); // log slope / week
-        // Third anchor: the opposite-type pivot furthest from the base line
-        // (that's the one the parallel actually has to reach).
-        let third: Pivot | null = null;
-        let maxDev = -Infinity;
-        for (const o of others) {
-          if (o.idx < p1.idx) continue;
-          const lineY = y1 + m * (o.idx - p1.idx);
-          const dev = kind === "고고저" ? lineY - Math.log(o.price) : Math.log(o.price) - lineY;
-          if (dev > maxDev) {
-            maxDev = dev;
-            third = o;
-          }
+  for (let i = 1; i < base.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const p1 = base[j];
+      const p2 = base[i];
+      if (p2.idx - p1.idx < MIN_PAIR_SEP) continue;
+      if (!(p1.price > 0) || !(p2.price > 0)) continue;
+      const y1 = Math.log(p1.price);
+      const y2 = Math.log(p2.price);
+      const m = (y2 - y1) / (p2.idx - p1.idx);
+
+      // ② 세 번째 앵커: 본선에서 가장 멀리 벗어난 의미있는 피벗 (고/저 무관).
+      let third: Pivot | null = null;
+      let dev = 0;
+      for (const o of sig) {
+        if (o.idx <= p1.idx) continue;
+        const lineY = y1 + m * (o.idx - p1.idx);
+        const gap = Math.log(o.price) - lineY;
+        if (Math.abs(gap) > Math.abs(dev)) {
+          dev = gap;
+          third = o;
         }
-        if (!third || !(maxDev > 0)) continue;
-
-        const d = maxDev; // channel width in log space
-        if (Math.exp(d) > MAX_WIDTH_RATIO) continue; // 지나치게 넓은 채널 배제
-        const baseYNow = y1 + m * (lastIdx - p1.idx); // k=0 line at the last bar
-        const dir = kind === "고고저" ? -1 : 1; // parallel sits below (고고저) / above (저저고)
-
-        const lines: { label: string; price: number }[] = [];
-        for (let k = CH_MIN; k <= CH_MAX; k++) {
-          const price = Math.exp(baseYNow + dir * d * k);
-          if (!isFinite(price) || price <= 0) continue;
-          lines.push({ label: channelLabel(k, kind), price: round(price) });
-        }
-        if (lines.length === 0) continue;
-        lines.sort((a, b) => b.price - a.price);
-
-        // How often has price actually respected ANY rung of this channel?
-        let touchScore = 0;
-        const touchFrom = Math.max(p2.idx + 1, lastIdx - TOUCH_WINDOW);
-        for (let b = touchFrom; b <= lastIdx; b++) {
-          const yLo = Math.log(weekly[b].l);
-          const yHi = Math.log(weekly[b].h);
-          for (let k = CH_MIN; k <= CH_MAX; k++) {
-            const yk = y1 + m * (b - p1.idx) + dir * d * k;
-            if (yLo - LOG_BAND <= yk && yHi + LOG_BAND >= yk) {
-              touchScore++;
-              break; // one touch per bar
-            }
-          }
-        }
-
-        let nearest: DiagonalChannel["nearest"] = null;
-        for (const l of lines) {
-          const distPct = ((l.price - lastPrice) / lastPrice) * 100;
-          if (!nearest || Math.abs(distPct) < Math.abs(nearest.distPct)) {
-            nearest = { label: l.label, price: l.price, distPct: round(distPct) };
-          }
-        }
-        // Ignore channels whose every rung is miles from price — not actionable.
-        if (!nearest || Math.abs(nearest.distPct) > MAX_NEAR_PCT) continue;
-
-        candidates.push({
-          kind,
-          slopeLogPerWeek: Number(m.toFixed(5)),
-          anchor1: { ts: p1.ts.slice(0, 10), price: round(p1.price) },
-          anchor2: { ts: p2.ts.slice(0, 10), price: round(p2.price) },
-          anchor3: { ts: third.ts.slice(0, 10), price: round(third.price) },
-          widthRatio: Number(Math.exp(d).toFixed(4)),
-          lines,
-          nearest,
-          touchScore,
-        });
       }
+      if (!third || dev === 0) continue;
+      const d = dev; // signed log width — 부호가 채널 방향을 정한다
+      if (Math.exp(Math.abs(d)) > MAX_WIDTH_RATIO) continue;
+
+      const baseYNow = y1 + m * (lastIdx - p1.idx);
+      const lines: { label: string; price: number; half: boolean }[] = [];
+      for (const k of K_STEPS) {
+        const price = Math.exp(baseYNow + d * k);
+        if (!isFinite(price) || price <= 0) continue;
+        lines.push({ label: rungLabel(k, kind), price: round(price), half: !Number.isInteger(k) });
+      }
+      if (lines.length === 0) continue;
+      lines.sort((a, b) => b.price - a.price);
+
+      // ③ 작도 검증: 과거 주봉이 이 채널의 rung을 실제로 몇 번 맞았나.
+      let touchScore = 0;
+      for (let b = p2.idx + 1; b <= lastIdx; b++) {
+        const yLo = Math.log(weekly[b].l);
+        const yHi = Math.log(weekly[b].h);
+        for (const k of K_STEPS) {
+          const yk = y1 + m * (b - p1.idx) + d * k;
+          if (yLo - LOG_BAND <= yk && yHi + LOG_BAND >= yk) {
+            touchScore++;
+            break;
+          }
+        }
+      }
+
+      let nearest: DiagonalChannel["nearest"] = null;
+      for (const l of lines) {
+        const distPct = ((l.price - lastPrice) / lastPrice) * 100;
+        if (!nearest || Math.abs(distPct) < Math.abs(nearest.distPct)) {
+          nearest = { label: l.label, price: l.price, distPct: round(distPct) };
+        }
+      }
+      if (!nearest || Math.abs(nearest.distPct) > MAX_NEAR_PCT) continue;
+
+      candidates.push({
+        kind,
+        slopeLogPerWeek: Number(m.toFixed(5)),
+        anchor1: { ts: p1.ts.slice(0, 10), price: round(p1.price) },
+        anchor2: { ts: p2.ts.slice(0, 10), price: round(p2.price) },
+        anchor3: { ts: third.ts.slice(0, 10), price: round(third.price) },
+        widthRatio: Number(Math.exp(Math.abs(d)).toFixed(4)),
+        lines,
+        nearest,
+        touchScore,
+      });
     }
-  };
-
-  if (highs.length >= 2 && lows.length >= 1) build("고고저", highs, lows);
-  if (lows.length >= 2 && highs.length >= 1) build("저저고", lows, highs);
+  }
   if (candidates.length === 0) return null;
-
-  // The channel the market has respected most; ties → the one closest to price.
   candidates.sort(
     (a, b) =>
       b.touchScore - a.touchScore ||
       Math.abs(a.nearest?.distPct ?? 99) - Math.abs(b.nearest?.distPct ?? 99),
   );
-  // Sanity: a channel nobody ever touched is noise.
-  return candidates[0].touchScore >= 2 ? candidates[0] : null;
+  return candidates[0].touchScore >= 3 ? candidates[0] : null;
 }
 
 // ─── touch detection ("밟아야 산다") ────────────────────────────────────────
@@ -435,6 +435,8 @@ export interface TechAnalysis {
   targetGap: GapZone | null; // 미충족 갭 = 목표 구간
   fib: FibSetup | null;
   diagonal: DiagonalChannel | null;
+  /** 저저고 채널 — 저항/목표 참고용 (매수 트리거 아님) */
+  resistChannel: DiagonalChannel | null;
   keyLevels: KeyLevel[];
   touches: TouchEvent[];
   setup: TechSetup;
@@ -462,7 +464,11 @@ export function analyzeTech(
   const gaps = findGaps(daily, 150);
   const pivots = findPivots(daily, 3);
   const fib = buildFib(daily, gaps, pivots);
-  const diagonal = buildDiagonal(weekly, price);
+  // 고고저 = 매수(지지) 채널 — 이게 진입 트리거. 저저고 = 매도(저항) 채널로
+  // 목표/저항 참고용. 리서치 확인: 고-고는 long side 매커니즘, 저-저-고는 저항
+  // 쪽 매커니즘 — 사용자가 저저고로 매수했을 때 승률이 낮았던 이유가 이것.
+  const diagonal = buildDiagonal(weekly, price, "고고저");
+  const resistChannel = buildDiagonal(weekly, price, "저저고");
 
   // Key levels the user actually trades off.
   const keyLevels: KeyLevel[] = [];
@@ -476,6 +482,19 @@ export function analyzeTech(
           source: "diagonal",
           trigger: true, // 빗각 = 가장 확실한 자리
           prime: true,
+        });
+      }
+    }
+  }
+  if (resistChannel) {
+    for (const l of resistChannel.lines) {
+      if (l.price > price && Math.abs((l.price - price) / price) <= 0.25) {
+        keyLevels.push({
+          label: `저저고 ${l.label}`,
+          price: l.price,
+          source: "diagonal",
+          trigger: false, // 저항/목표 — 매수 트리거 아님
+          prime: false,
         });
       }
     }
@@ -587,6 +606,7 @@ export function analyzeTech(
     targetGap,
     fib,
     diagonal,
+    resistChannel,
     keyLevels,
     touches: touches.slice(0, 6),
     setup,

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const [daily, weekly, snap, finnhub] = await Promise.all([
       fetchAlpacaBars(symbol, "1Day", 400, 400, "split"),
-      fetchAlpacaBars(symbol, "1Week", 1600, 400, "split"),
+      fetchAlpacaBars(symbol, "1Week", 3650, 600, "split"),
       softly(getPrimarySnapshot(symbol)),
       isFinnhubEnabled() ? softly(getFinnhubBundle(symbol)) : Promise.resolve(null),
     ]);
