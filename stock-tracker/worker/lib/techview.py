@@ -155,7 +155,7 @@ def _significant_pivots(highs, lows, k: int = 4):
     return sorted([p for _, p in scored[:TOP_PIVOTS]], key=lambda p: p["idx"])
 
 
-def _make_channel(highs, lows, last_price, kind, i1, i2, i3, space):
+def _make_channel(highs, lows, closes, last_price, kind, i1, i2, i3, space):
     n = len(highs)
     last_idx = n - 1
     pick = (lambda i: highs[i]) if kind == "고고저" else (lambda i: lows[i])
@@ -187,20 +187,33 @@ def _make_channel(highs, lows, last_price, kind, i1, i2, i3, space):
     lines.sort(key=lambda x: -x["price"])
     touch = 0
     in_range = set()
+    FWD, MOVE = 4, 0.03
+    reacted = sample = 0
     for b in range(i2 + 1, last_idx + 1):
         lo, hi = lows[b], highs[b]
-        hit = False
+        hit_v = None
         for k in K_STEPS:
             v = IY(Y(p1) + m * (b - i1) + d * k)
             if v <= 0:
                 continue
             if lo * 0.8 <= v <= hi * 1.2:
                 in_range.add(k)
-            if not hit and lo * (1 - LOG_BAND) <= v <= hi * (1 + LOG_BAND):
-                hit = True
-        if hit:
-            touch += 1
+            if hit_v is None and lo * (1 - LOG_BAND) <= v <= hi * (1 + LOG_BAND):
+                hit_v = v
+        if hit_v is None:
+            continue
+        touch += 1
+        # 반응률: 터치 후 4주 내 기대방향으로 3%+ 움직였나 (rung 밀도와 무관한 지표)
+        if b + FWD <= last_idx:
+            prev = closes[max(0, b - 2)]
+            fwd = closes[b + 1:b + 1 + FWD]
+            if fwd:
+                mv = (max(fwd) - hit_v) / hit_v if prev > hit_v else (hit_v - min(fwd)) / hit_v
+                sample += 1
+                if mv >= MOVE:
+                    reacted += 1
     norm = round(touch / max(1, len(in_range)), 1)
+    reaction = round(reacted / sample * 100, 1) if sample else 0.0
     nearest = None
     for l in lines:
         dist = (l["price"] - last_price) / last_price * 100
@@ -209,10 +222,10 @@ def _make_channel(highs, lows, last_price, kind, i1, i2, i3, space):
     if nearest is None or abs(nearest["dist_pct"]) > MAX_NEAR_PCT:
         return None
     return {"kind": kind, "space": space, "lines": lines, "nearest": nearest,
-            "touch": touch, "norm": norm}
+            "touch": touch, "norm": norm, "reaction": reaction, "sample": sample}
 
 
-def _build_diagonal(w_highs, w_lows, last_price, kind="고고저"):
+def _build_diagonal(w_highs, w_lows, w_closes, last_price, kind="고고저"):
     """주봉 빗각 채널 — linear/log 둘 다 만들고 정규화 터치점수로 고른다.
     (사용자 TSLA 채널이 linear에서만 재현되고 검증점수도 linear가 우월했다.)"""
     n = len(w_highs)
@@ -241,13 +254,14 @@ def _build_diagonal(w_highs, w_lows, last_price, kind="고고저"):
                         best_dev, best3 = gap, o["idx"]
                 if best3 < 0:
                     continue
-                ch = _make_channel(w_highs, w_lows, last_price, kind,
+                ch = _make_channel(w_highs, w_lows, w_closes, last_price, kind,
                                    base[j]["idx"], base[i]["idx"], best3, space)
                 if ch:
                     cands.append(ch)
     if not cands:
         return None
-    cands.sort(key=lambda c: (-c["norm"], abs(c["nearest"]["dist_pct"])))
+    cands.sort(key=lambda c: (-(c["reaction"] if c["sample"] >= 10 else 0),
+                              -c["norm"], abs(c["nearest"]["dist_pct"])))
     return cands[0] if cands[0]["touch"] >= 3 else None
 
 
@@ -274,7 +288,8 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
     if weekly_df is not None and not getattr(weekly_df, "empty", True):
         wh = [float(x) for x in weekly_df["High"].tolist()]
         wl = [float(x) for x in weekly_df["Low"].tolist()]
-        diagonal = _build_diagonal(wh, wl, price)
+        wc = [float(x) for x in weekly_df["Close"].tolist()]
+        diagonal = _build_diagonal(wh, wl, wc, price)
 
     # key levels (same filter as TS)
     key_levels = []

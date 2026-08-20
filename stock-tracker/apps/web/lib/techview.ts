@@ -205,8 +205,16 @@ export interface DiagonalChannel {
   nearest: { label: string; price: number; distPct: number } | null;
   /** 과거에 이 채널 라인을 실제로 맞은 주봉 수 (작도 검증) */
   touchScore: number;
-  /** 터치수 ÷ 가격범위 안에 든 rung 수 — linear/log를 공정하게 비교하는 점수 */
+  /** 터치수 ÷ 가격범위 안에 든 rung 수 — rung 밀도 보정 점수 */
   touchScoreNorm: number;
+  /**
+   * 반응률 — 라인을 터치한 뒤 4주 내 기대방향(지지=위/저항=아래)으로 3% 이상
+   * 움직인 비율. 채널 선택의 주 기준. 터치 "횟수"는 rung이 촘촘한 채널이 유리해
+   * 공정하지 않은데(선형 213회 vs 로그 96회는 밀도 차이였다), 반응률은 밀도와
+   * 무관하게 "그 라인을 시장이 실제로 존중했는가"를 측정한다.
+   */
+  reactionRate: number;
+  reactionSample: number;
 }
 
 const LOG_BAND = 0.012; // ±1.2% — 주봉에서 라인을 "맞았다"고 볼 폭
@@ -317,19 +325,38 @@ function makeChannel(
   // 작도 검증: rung을 실제로 맞은 주봉 수 + 가격범위에 든 rung 수로 정규화
   let touchScore = 0;
   const inRange = new Set<number>();
+  const FWD = 4; // 반응 관찰 기간(주)
+  const MOVE = 0.03; // 3% 이상 움직이면 "반응"
+  let reacted = 0;
+  let sample = 0;
   for (let b = i2 + 1; b <= lastIdx; b++) {
     const lo = weekly[b].l;
     const hi = weekly[b].h;
-    let hit = false;
+    let hitV: number | null = null;
     for (const k of K_STEPS) {
       const v = iy(y(p1) + m * (b - i1) + d * k);
       if (!(v > 0)) continue;
       if (lo * 0.8 <= v && v <= hi * 1.2) inRange.add(k);
-      if (!hit && lo * (1 - LOG_BAND) <= v && v <= hi * (1 + LOG_BAND)) hit = true;
+      if (hitV == null && lo * (1 - LOG_BAND) <= v && v <= hi * (1 + LOG_BAND)) hitV = v;
     }
-    if (hit) touchScore++;
+    if (hitV == null) continue;
+    touchScore++;
+    // 접근 방향으로 기대 반응을 정하고 이후 4주 실제 움직임을 본다.
+    if (b + FWD <= lastIdx) {
+      const prev = weekly[Math.max(0, b - 2)].c;
+      const fwd = weekly.slice(b + 1, b + 1 + FWD).map((x) => x.c);
+      if (fwd.length > 0) {
+        const mv =
+          prev > hitV
+            ? (Math.max(...fwd) - hitV) / hitV // 지지 기대 → 위로
+            : (hitV - Math.min(...fwd)) / hitV; // 저항 기대 → 아래로
+        sample++;
+        if (mv >= MOVE) reacted++;
+      }
+    }
   }
   const touchScoreNorm = Number((touchScore / Math.max(1, inRange.size)).toFixed(1));
+  const reactionRate = sample > 0 ? Number(((reacted / sample) * 100).toFixed(1)) : 0;
 
   let nearest: DiagonalChannel["nearest"] = null;
   for (const l of lines) {
@@ -354,6 +381,8 @@ function makeChannel(
     nearest,
     touchScore,
     touchScoreNorm,
+    reactionRate,
+    reactionSample: sample,
   };
 }
 
@@ -396,7 +425,7 @@ export function buildDiagonal(
       const ch = makeChannel(weekly, lastPrice, kind, Math.min(a, b), Math.max(a, b), c, sp, true);
       if (ch) out.push(ch);
     }
-    out.sort((x, z) => z.touchScoreNorm - x.touchScoreNorm);
+    out.sort((x, z) => z.reactionRate - x.reactionRate || z.touchScoreNorm - x.touchScoreNorm);
     return out[0] ?? null;
   }
 
@@ -430,8 +459,11 @@ export function buildDiagonal(
     }
   }
   if (candidates.length === 0) return null;
+  // 반응률 우선(표본 10 이상), 그다음 밀도보정 터치, 그다음 현재가 근접도.
+  const scoreOf = (c: DiagonalChannel) => (c.reactionSample >= 10 ? c.reactionRate : 0);
   candidates.sort(
     (a, b) =>
+      scoreOf(b) - scoreOf(a) ||
       b.touchScoreNorm - a.touchScoreNorm ||
       Math.abs(a.nearest?.distPct ?? 99) - Math.abs(b.nearest?.distPct ?? 99),
   );

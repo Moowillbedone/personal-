@@ -34,6 +34,8 @@ export interface TechDiagonal {
   nearest: { label: string; price: number; distPct: number } | null;
   touchScore: number;
   touchScoreNorm: number;
+  reactionRate: number;
+  reactionSample: number;
 }
 export interface TechTouch {
   level: { label: string; price: number; source: string };
@@ -150,7 +152,10 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
                 앵커 {d.anchor1.ts}(${d.anchor1.price}) → {d.anchor2.ts}(${d.anchor2.price}) 기울기 ·{" "}
                 {d.anchor3.ts}(${d.anchor3.price}) 평행 · 폭 {d.widthRatio}
                 {d.space === "log" ? "×" : "$"} ·{" "}
-                <span className="text-neutral-400">과거 터치 {d.touchScore}회(정규화 {d.touchScoreNorm})</span>
+                <span className="text-neutral-400">
+                  과거 터치 {d.touchScore}회 · <b>반응률 {d.reactionRate}%</b>
+                  {d.reactionSample > 0 ? ` (n=${d.reactionSample})` : ""}
+                </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {d.lines.map((l) => {
