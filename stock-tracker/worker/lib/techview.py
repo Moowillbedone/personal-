@@ -247,11 +247,13 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
     if diagonal:
         for ln in diagonal["lines"]:
             if abs((ln["price"] - price) / price) <= 0.25:
-                key_levels.append({"label": f"빗각 {ln['label']}", "price": ln["price"], "source": "diagonal"})
+                key_levels.append({"label": f"빗각 {ln['label']}", "price": ln["price"],
+                                   "source": "diagonal", "trigger": True})
     if fib:
         for ln in fib["levels"]:
             if ln["ratio"] in (0.382, 0.5, 0.618, 0.786):
-                key_levels.append({"label": f"피보 {ln['label']}", "price": ln["price"], "source": "fib"})
+                key_levels.append({"label": f"피보 {ln['label']}", "price": ln["price"],
+                                   "source": "fib", "trigger": ln["ratio"] >= 0.618})
     target_gap = next((g for g in gaps if g["kind"] == "down" and not g["filled"] and g["top"] > price), None)
 
     # touches (last 10 bars, non-gap levels only for classification)
@@ -268,21 +270,26 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
                 nxt_ok = i + 1 < n and c[i + 1] > o[i + 1] and c[i + 1] > c[i]
                 touches.append(
                     {"label": lv["label"], "price": lv["price"], "bars_ago": n - 1 - i,
-                     "wick": _r(wick, 2), "confirmed": bool(nxt_ok), "source": lv["source"]}
+                     "wick": _r(wick, 2), "confirmed": bool(nxt_ok), "source": lv["source"],
+                     "trigger": lv.get("trigger", False)}
                 )
     touches.sort(key=lambda t: t["bars_ago"])
 
     nearest_dist = None
     nearest_label = None
     for lv in key_levels:
-        if lv["source"] == "gap":
+        if not lv.get("trigger"):
             continue
         d = (lv["price"] - price) / price * 100
         if nearest_dist is None or abs(d) < abs(nearest_dist):
             nearest_dist = _r(d)
             nearest_label = lv["label"]
 
-    fresh = next((t for t in touches if t["bars_ago"] <= 3 and t["source"] != "gap"), None)
+    fresh = next(
+        (t for t in touches
+         if t.get("trigger") and t["bars_ago"] <= 3 and (t["confirmed"] or t["wick"] >= 0.2)),
+        None,
+    )
     if not diagonal and not fib:
         setup = "no_structure"
     elif fresh and fresh["confirmed"]:

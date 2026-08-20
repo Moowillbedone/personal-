@@ -356,6 +356,14 @@ export interface KeyLevel {
   label: string;
   price: number;
   source: "diagonal" | "fib" | "gap";
+  /**
+   * Can a touch of this level TRIGGER a signal? Only the levels this method
+   * actually buys at: the 빗각 lines (가장 확실한 자리) and deep retracements
+   * (0.618/0.786). Shallow 0.382/0.5 are displayed for context but do NOT
+   * trigger — live scan showed 0.382 alone accounted for 57 of 172 "touches",
+   * i.e. the shallow levels were drowning the list in noise.
+   */
+  trigger: boolean;
 }
 
 export interface TouchEvent {
@@ -454,25 +462,35 @@ export function analyzeTech(
     for (const l of diagonal.lines) {
       // Only lines within a sane distance are actionable.
       if (Math.abs((l.price - price) / price) <= 0.25) {
-        keyLevels.push({ label: `빗각 ${l.label}`, price: l.price, source: "diagonal" });
+        keyLevels.push({
+          label: `빗각 ${l.label}`,
+          price: l.price,
+          source: "diagonal",
+          trigger: true, // 빗각 = 가장 확실한 자리
+        });
       }
     }
   }
   if (fib) {
     for (const l of fib.levels) {
-      // 0.382/0.618은 사용자가 주시하는 자리, 0.786은 깊은 되돌림 마지노선
-      // (TSLA 사례에서 0.786=332.54가 빗각 라인과 겹친 자리였다).
+      // 0.618/0.786 = 깊은 되돌림(진입 트리거). 0.382/0.5 = 참고용.
+      // (TSLA 사례에서 0.786=332.54가 빗각 라인과 겹친 자리였다.)
       if (l.ratio === 0.382 || l.ratio === 0.5 || l.ratio === 0.618 || l.ratio === 0.786) {
-        keyLevels.push({ label: `피보 ${l.label}`, price: l.price, source: "fib" });
+        keyLevels.push({
+          label: `피보 ${l.label}`,
+          price: l.price,
+          source: "fib",
+          trigger: l.ratio >= 0.618,
+        });
       }
     }
   }
-  // Unfilled gap edges are both magnets and walls.
+  // Unfilled gap edges are both magnets and walls (목표 — 진입 트리거 아님).
   const targetGap =
     gaps.find((g) => g.kind === "down" && !g.filled && g.top > price) ?? null;
   if (targetGap) {
-    keyLevels.push({ label: "갭 하단(목표)", price: targetGap.bottom, source: "gap" });
-    keyLevels.push({ label: "갭 상단(목표)", price: targetGap.top, source: "gap" });
+    keyLevels.push({ label: "갭 하단(목표)", price: targetGap.bottom, source: "gap", trigger: false });
+    keyLevels.push({ label: "갭 상단(목표)", price: targetGap.top, source: "gap", trigger: false });
   }
 
   const touches = findTouches(daily, keyLevels, 10);
@@ -481,7 +499,7 @@ export function analyzeTech(
   let nearestDistPct: number | null = null;
   let nearestLabel: string | null = null;
   for (const lv of keyLevels) {
-    if (lv.source === "gap") continue;
+    if (!lv.trigger) continue; // 근접/라인위 판정도 트리거 레벨 기준
     const d = ((lv.price - price) / price) * 100;
     if (nearestDistPct == null || Math.abs(d) < Math.abs(nearestDistPct)) {
       nearestDistPct = round(d, 2);
@@ -489,9 +507,17 @@ export function analyzeTech(
     }
   }
 
-  // Classify.
+  // Classify. A touch only counts as a SIGNAL when it is on a trigger level
+  // (빗각 / 깊은 피보) AND shows evidence of rejection — either a confirming
+  // next candle or a meaningful lower wick. Without this, a 0.6% band across
+  // ~8 levels over 10 bars marked 74% of the universe as "touched".
   let setup: TechSetup;
-  const freshTouch = touches.find((t) => t.barsAgo <= 3 && t.level.source !== "gap");
+  const freshTouch = touches.find(
+    (t) =>
+      t.level.trigger &&
+      t.barsAgo <= 3 &&
+      (t.confirmed || t.wickRatio >= 0.2),
+  );
   if (!diagonal && !fib) {
     setup = "no_structure";
   } else if (freshTouch && freshTouch.confirmed) {
