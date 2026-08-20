@@ -476,17 +476,15 @@ export interface KeyLevel {
   price: number;
   source: "diagonal" | "fib" | "gap";
   /**
-   * Can a touch of this level TRIGGER a signal? Only the levels this method
-   * actually buys at: the 빗각 lines (가장 확실한 자리) and deep retracements
-   * (0.618/0.786). Shallow 0.382/0.5 are displayed for context but do NOT
-   * trigger — live scan showed 0.382 alone accounted for 57 of 172 "touches",
-   * i.e. the shallow levels were drowning the list in noise.
+   * Can a touch of this level TRIGGER a signal? 빗각(주봉 채널) 라인만 해당한다 —
+   * 이 매매법이 실제로 사는 자리이고, 백테스트에서 유일하게 양(+)의 초과수익을
+   * 낸 레벨이다. 피보/갭은 관찰·목표용으로 표시만 한다.
    */
   trigger: boolean;
   /**
    * PRIME = 단독 터치만으로도 최상위 신호가 되는 자리. 사용자 기준:
-   * 빗각 라인(가장 확실한 자리)과 피보 0.618("0.618만큼 중요한 수치는 없다").
-   * 0.786은 trigger지만 prime은 아니라 겹침(confluence)이 있을 때 승격된다.
+   * 현재는 빗각 라인만 prime = 트리거. 피보는 관찰 레벨(백테스트에서 피보 단독
+   * 터치는 음의 초과수익). 피보 값은 화면·프롬프트에 계속 노출된다.
    */
   prime: boolean;
 }
@@ -622,15 +620,16 @@ export function analyzeTech(
   }
   if (fib) {
     for (const l of fib.levels) {
-      // 0.618/0.786 = 깊은 되돌림(진입 트리거). 0.382/0.5 = 참고용.
-      // (TSLA 사례에서 0.786=332.54가 빗각 라인과 겹친 자리였다.)
+      // 피보는 **관찰 레벨** — 진입 트리거가 아니다 (사용자 결정, 2026-08-20).
+      // 백테스트: 피보 단독 터치는 초과수익 −0.23/−0.47/−0.62%(5/10/20일)로 음(-),
+      // 손절/목표 운용에서도 빗각(+1.09%/거래)의 절반(+0.56%). 빗각만 트리거로 둔다.
       if (l.ratio === 0.382 || l.ratio === 0.5 || l.ratio === 0.618 || l.ratio === 0.786) {
         keyLevels.push({
           label: `피보 ${l.label}`,
           price: l.price,
           source: "fib",
-          trigger: l.ratio >= 0.618,
-          prime: l.ratio === 0.618, // 피보의 핵심
+          trigger: false,
+          prime: false,
         });
       }
     }

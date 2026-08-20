@@ -193,7 +193,7 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
         {t.fib && (
           <div>
             <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-              📊 피보나치 되돌림
+              📊 피보나치 되돌림 (관찰 레벨 — 진입 트리거 아님)
             </div>
             <div className="text-[11px] text-neutral-500 mb-1">
               고점 ${t.fib.anchorHigh} ({t.fib.anchorHighDate}

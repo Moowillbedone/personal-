@@ -302,8 +302,7 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
         for ln in fib["levels"]:
             if ln["ratio"] in (0.382, 0.5, 0.618, 0.786):
                 key_levels.append({"label": f"피보 {ln['label']}", "price": ln["price"],
-                                   "source": "fib", "trigger": ln["ratio"] >= 0.618,
-                                   "prime": ln["ratio"] == 0.618})
+                                   "source": "fib", "trigger": False, "prime": False})
     target_gap = next((g for g in gaps if g["kind"] == "down" and not g["filled"] and g["top"] > price), None)
 
     # touches (last 10 bars, non-gap levels only for classification)
@@ -346,7 +345,8 @@ def analyze_tech(daily_df, weekly_df) -> dict | None:
         confl = sum(1 for lv in key_levels if abs((lv["price"] - fresh["price"]) / fresh["price"]) <= 0.015)
     if not diagonal and not fib:
         setup = "no_structure"
-    elif fresh and fresh["confirmed"] and (fresh.get("prime") or confl >= 2):
+    # 겹침(confluence)은 승격 조건에서 제외 — 백테스트에서 역전(겹침1 +1.45% vs 겹침4 −1.66%).
+    elif fresh and fresh["confirmed"] and fresh.get("prime"):
         setup = "touch_confirmed"
     elif fresh:
         setup = "touch_pending"
