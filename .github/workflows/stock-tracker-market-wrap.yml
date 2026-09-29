@@ -31,6 +31,8 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       FRONT_URL: ${{ secrets.FRONT_URL }}
+      STOCK_TRACKER_OWNER_USER: ${{ secrets.STOCK_TRACKER_OWNER_USER || 'owner' }}
+      STOCK_TRACKER_OWNER_PASSWORD: ${{ secrets.STOCK_TRACKER_OWNER_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -148,7 +148,7 @@ export default function Page() {
           // Explicit columns — select("*") pulled recent_news_titles jsonb +
           // realized_* that this page never renders (~1KB/row → ~150B/row,
           // a 6x egress cut on every 500-row page load).
-          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
+          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,created_at")
           .order("ts", { ascending: false })
           .limit(PAGE_SIZE),
         supabase.from("tickers").select("symbol,exchange,name,rank_in_exch"),
@@ -201,7 +201,7 @@ export default function Page() {
       const cursor = signals[signals.length - 1].ts;
       const { data, error } = await supabase
         .from("signals")
-        .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
+        .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,created_at")
         .lt("ts", cursor)
         .order("ts", { ascending: false })
         .limit(PAGE_SIZE);
@@ -270,11 +270,7 @@ export default function Page() {
   //   inactive → desc (highest first) → asc (lowest first) → inactive
   // NULL values always sink to the bottom so they don't dominate either end.
   // When no column is selected, signals stay in natural ts-desc order.
-  type SortKey =
-    | "volume_ratio"
-    | "expected_1d"
-    | "expected_3d"
-    | "expected_5d";
+  type SortKey = "volume_ratio";
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   function cycleSort(key: SortKey) {
@@ -328,6 +324,7 @@ export default function Page() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <p className="mb-5 text-sm text-amber-200/80">원시 가격·거래량 이벤트입니다. 기존 기대수익(E[1d/3d/5d])은 계산 방식과 표본 검증이 완료되지 않아 표시하지 않습니다.</p>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold">Live Signals</h1>
         <span className="text-xs text-neutral-500">
@@ -477,31 +474,6 @@ export default function Page() {
                               />
                             </th>
                             <th className="px-3 py-2 text-left">Session</th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[1d]"
-                                active={sortKey === "expected_1d"}
-                                indicator={sortIndicator("expected_1d")}
-                                onClick={() => cycleSort("expected_1d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[3d]"
-                                active={sortKey === "expected_3d"}
-                                indicator={sortIndicator("expected_3d")}
-                                onClick={() => cycleSort("expected_3d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">
-                              <SortHeader
-                                label="E[5d]"
-                                active={sortKey === "expected_5d"}
-                                indicator={sortIndicator("expected_5d")}
-                                onClick={() => cycleSort("expected_5d")}
-                              />
-                            </th>
-                            <th className="px-3 py-2 text-right">n</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -550,48 +522,6 @@ export default function Page() {
                                 </td>
                                 <td className="px-3 py-2 text-neutral-400">
                                   {s.session}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_1d != null && s.expected_1d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_1d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_1d != null
-                                    ? fmtPct(s.expected_1d)
-                                    : "—"}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_3d != null && s.expected_3d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_3d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_3d != null
-                                    ? fmtPct(s.expected_3d)
-                                    : "—"}
-                                </td>
-                                <td
-                                  className={`px-3 py-2 text-right ${
-                                    s.expected_5d != null && s.expected_5d >= 0
-                                      ? "text-emerald-400"
-                                      : s.expected_5d != null
-                                        ? "text-rose-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {s.expected_5d != null
-                                    ? fmtPct(s.expected_5d)
-                                    : "—"}
-                                </td>
-                                <td className="px-3 py-2 text-right text-neutral-500">
-                                  {s.sample_size ?? "—"}
                                 </td>
                               </tr>
                             );

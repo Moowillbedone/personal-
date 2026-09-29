@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -58,6 +58,13 @@ def run_scan(sb, symbols: list[str], spans: dict) -> tuple[int, int, int]:
         df = frames.get(sym)
         if df is None or getattr(df, "empty", True):
             continue
+        # A bar timestamp is its OPEN. Exclude an unfinished 15-minute bar
+        # and preserve this source time independently of the computation time.
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        df = df.loc[df.index <= cutoff].sort_index()
+        if df.empty:
+            continue
+        source_bar_at = df.index[-1].isoformat()
         span_a, span_b = spans.get(sym, (None, None))
         pb = classify_pullback(df, span_a, span_b)
         if not pb:
@@ -80,6 +87,7 @@ def run_scan(sb, symbols: list[str], spans: dict) -> tuple[int, int, int]:
                 "pullback_grades": pb["grades"],
                 "pullback_price": price,
                 "pullback_at": now_iso,
+                "pullback_bar_at": source_bar_at,
             }
         )
     for i in range(0, len(rows), 200):

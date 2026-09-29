@@ -15,11 +15,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { finiteNumber, firstPerSymbolSession } from "@/lib/performanceAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface Row {
+  symbol: string;
+  ts: string;
   signal_type: "gap_up" | "gap_down" | "volume_spike";
   session: "pre" | "regular" | "after";
   realized_1d: number | null;
@@ -29,6 +32,9 @@ interface Row {
 }
 
 interface Stats {
+  measured1d: number;
+  measured3d: number;
+  measured5d: number;
   count: number;
   winRate1d: number | null; // fraction of signals with realized_1d > 0
   mean1d: number | null;
@@ -49,6 +55,7 @@ function compute(rows: Row[]): Stats {
   if (rows.length === 0) {
     return {
       count: 0,
+      measured1d: 0, measured3d: 0, measured5d: 0,
       winRate1d: null,
       mean1d: null,
       median1d: null,
@@ -57,9 +64,9 @@ function compute(rows: Row[]): Stats {
       sharpe1d: null,
     };
   }
-  const r1 = rows.map((r) => r.realized_1d).filter((v): v is number => v != null);
-  const r3 = rows.map((r) => r.realized_3d).filter((v): v is number => v != null);
-  const r5 = rows.map((r) => r.realized_5d).filter((v): v is number => v != null);
+  const r1 = rows.map((r) => r.realized_1d).filter(finiteNumber);
+  const r3 = rows.map((r) => r.realized_3d).filter(finiteNumber);
+  const r5 = rows.map((r) => r.realized_5d).filter(finiteNumber);
 
   const mean = (arr: number[]): number | null =>
     arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
@@ -77,6 +84,7 @@ function compute(rows: Row[]): Stats {
 
   return {
     count: rows.length,
+    measured1d: r1.length, measured3d: r3.length, measured5d: r5.length,
     winRate1d,
     mean1d: m1,
     median1d: median([...r1].sort((a, b) => a - b)),
@@ -95,10 +103,11 @@ export async function GET(req: NextRequest) {
 
   // Pull only what we need; partial index on (signal_type, session, ts desc)
   // where realized_1d not null makes this fast even with months of data.
-  const { data, error } = await supabaseAdmin
+  const { data, error, count: matchingMeasured } = await supabaseAdmin
     .from("signals")
     .select(
-      "signal_type, session, realized_1d, realized_3d, realized_5d, recent_news_count",
+      "symbol, ts, signal_type, session, realized_1d, realized_3d, realized_5d, recent_news_count",
+      { count: "exact" },
     )
     .gte("ts", since)
     .not("realized_1d", "is", null)
@@ -109,7 +118,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const rows = (data ?? []) as Row[];
+  const rawRows = (data ?? []) as Row[];
+  const rows = firstPerSymbolSession(rawRows, r => r.symbol, r => r.ts, r => r.signal_type);
 
   // Total signal volume in the window (including ones not yet measured) so
   // the UI can show "X of Y signals measured" — surfaces backfill lag.
@@ -165,6 +175,11 @@ export async function GET(req: NextRequest) {
       asOf: new Date().toISOString(),
       totalSignalsInWindow: totalRecent ?? rows.length,
       measuredSignals: rows.length,
+      rawMeasuredSignals: rawRows.length,
+      matchingMeasuredSignals: matchingMeasured,
+      aggregationTruncated: matchingMeasured != null && matchingMeasured > rawRows.length,
+      repeatedObservationsRemoved: rawRows.length - rows.length,
+      methodology: "Descriptive gross forward price changes; first observation per symbol / NY date / signal type. Not strategy P&L. Multi-day outcomes overlap; no independence or predictive edge is established.",
       newsEnrichedSignals: enrichedCount,
       overall: compute(rows),
       byType,

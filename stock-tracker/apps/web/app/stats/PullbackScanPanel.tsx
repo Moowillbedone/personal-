@@ -15,6 +15,8 @@ import {
 } from "@/app/stats/scannerShared";
 
 interface Row {
+  asOf?: string | null;
+  stale?: boolean;
   symbol: string;
   sector: string | null;
   price: number | null; // as-of 판정 (not live)
@@ -100,7 +102,7 @@ function RowList({ rows, forming = false }: { rows: Row[]; forming?: boolean }) 
                   </div>
                 </div>
                 <span className="text-right tabular-nums text-neutral-300">{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</span>
-                <span className="text-right"><Grades grades={r.grades} /></span>
+                <span className="text-right"><Grades grades={r.grades} /><span className={`block text-[10px] ${r.stale !== false ? "text-amber-300" : "text-neutral-400"}`}>{r.asOf ? `${fmtUpdated(r.asOf)} KST${r.stale !== false ? " · 지연" : ""}` : "원천 시각 미확인"}</span></span>
               </div>
             );
           })
@@ -177,12 +179,12 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
           (<span className="text-emerald-400">초록 ≤38%</span> · <span className="text-sky-400">파랑 ~62% 정상존</span> · <span className="text-amber-400">주황 &gt;62% 깊어 주의</span>)
         </div>
         <div className="text-neutral-500">
-          <b className="text-emerald-400">🟢 지지</b> = <b className="text-neutral-300">③구조·④지지·⑤확인</b> 모두 통과(진입 신호 확정) ·
+          <b className="text-emerald-400">🟢 지지</b> = <b className="text-neutral-300">③구조·④지지·⑤확인</b> 조건을 참고(매수 확정 아님) ·
           <b className="text-amber-400"> 🟡 형성</b> = 그 중 하나 미충족(대개 <b className="text-neutral-300">⑤확인 대기</b> → 관망).
           <span className="text-neutral-600"> ①추세·②거래량 ⚠️는 게이트가 아니라 지지에도 있을 수 있음 → 초록 개수로 두 리스트를 비교하지 마세요.</span>
         </div>
         <div className="text-neutral-600">
-          종목 클릭 → Trade 탭 <b className="text-neutral-500">실시간 멀티 타임프레임</b> 정밀 분석
+          종목 클릭 → Trade 탭 <b className="text-neutral-500">멀티 타임프레임</b> 정밀 분석
         </div>
       </div>
 
@@ -197,7 +199,7 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded border border-emerald-900/50 bg-emerald-950/20 p-3">
             <h3 className="text-xs font-semibold text-emerald-300 mb-1">
-              🟢 눌림목 지지 · 진입 후보 ({data.counts.pullback})
+              눌림목 조건 · 관찰 후보 ({data.counts.pullback})
             </h3>
             <p className="text-[11px] text-neutral-500 mb-1">추세·거래량·저점·지지·확인 대체로 충족</p>
             <RowList rows={data.pullback} />
@@ -214,7 +216,7 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
 
       <p className="text-[11px] text-neutral-600 leading-relaxed">
         15분봉 기준 기계적 판정이며, 미국 세션 동안(프리장 포함) 약 15분마다 갱신됩니다(데이터 ~15분 지연).
-        <b className="text-neutral-500">가격·되돌림·5기준은 모두 &ldquo;판정 시각&rdquo; 기준의 정합 스냅샷</b>입니다(실시간 아님 — 실시간·분/시간봉은 종목 클릭 후 Trade 탭).
+        <b className="text-neutral-500">가격·되돌림·5기준은 모두 &ldquo;판정 시각&rdquo; 에 사용된 지연 봉의 스냅샷</b>입니다(지연 데이터 — 상세 봉은 종목 클릭 후 분석 화면).
         참고 지표이며 매매 판단·책임은 본인에게 있습니다.
       </p>
     </section>

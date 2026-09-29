@@ -8,15 +8,11 @@
 //   SELL wins when realized < 0
 //   HOLD wins when |realized| < 1% (price stayed flat as predicted)
 //
-// Plus a confidence-calibration table for BUY: bin verdicts by confidence
-// and check whether higher-confidence calls actually win more often. A
-// well-calibrated model has ascending win rates across bins; a model where
-// 0.85+ confidence wins 50% is overconfident and should be discounted.
-//
-// Drives the /stats "AI verdict 정확도" section.
+// Confidence bins are descriptive model-score groups, not probability calibration.
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { finiteNumber, firstPerSymbolSession } from "@/lib/performanceAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +20,8 @@ export const dynamic = "force-dynamic";
 type Verdict = "buy" | "sell" | "hold";
 
 interface Row {
+  symbol: string;
+  created_at: string;
   verdict: Verdict;
   confidence: number;
   realized_1d: number | null;
@@ -33,6 +31,10 @@ interface Row {
 }
 
 interface VerdictStats {
+  measured1d: number;
+  measured3d: number;
+  measured5d: number;
+  measured30d: number;
   count: number;
   mean1d: number | null;
   mean3d: number | null;
@@ -40,7 +42,7 @@ interface VerdictStats {
   mean30d: number | null;
   /** Directional win rate at 1d horizon — interpretation depends on verdict. */
   winRate1d: number | null;
-  /** Sharpe-ish: mean / stddev of realized_1d. Comparable across verdicts only. */
+  /** Descriptive mean/stddev only; not portfolio Sharpe or evidence of edge. */
   sharpe1d: number | null;
 }
 
@@ -66,6 +68,7 @@ function computeVerdict(rows: Row[], verdict: Verdict): VerdictStats {
   if (rows.length === 0) {
     return {
       count: 0,
+      measured1d: 0, measured3d: 0, measured5d: 0, measured30d: 0,
       mean1d: null,
       mean3d: null,
       mean5d: null,
@@ -74,10 +77,10 @@ function computeVerdict(rows: Row[], verdict: Verdict): VerdictStats {
       sharpe1d: null,
     };
   }
-  const r1 = rows.map((r) => r.realized_1d).filter((v): v is number => v != null);
-  const r3 = rows.map((r) => r.realized_3d).filter((v): v is number => v != null);
-  const r5 = rows.map((r) => r.realized_5d).filter((v): v is number => v != null);
-  const r30 = rows.map((r) => r.realized_30d).filter((v): v is number => v != null);
+  const r1 = rows.map((r) => r.realized_1d).filter(finiteNumber);
+  const r3 = rows.map((r) => r.realized_3d).filter(finiteNumber);
+  const r5 = rows.map((r) => r.realized_5d).filter(finiteNumber);
+  const r30 = rows.map((r) => r.realized_30d).filter(finiteNumber);
 
   const wins = r1.filter((v) => isWin(v, verdict)).length;
   const winRate1d = r1.length ? wins / r1.length : null;
@@ -93,6 +96,7 @@ function computeVerdict(rows: Row[], verdict: Verdict): VerdictStats {
 
   return {
     count: rows.length,
+    measured1d: r1.length, measured3d: r3.length, measured5d: r5.length, measured30d: r30.length,
     mean1d: m1,
     mean3d: mean(r3),
     mean5d: mean(r5),
@@ -109,10 +113,11 @@ export async function GET(req: NextRequest) {
   );
   const since = new Date(Date.now() - lookback * 24 * 3600 * 1000).toISOString();
 
-  const { data, error } = await supabaseAdmin
+  const { data, error, count: matchingMeasured } = await supabaseAdmin
     .from("ai_analysis")
     .select(
-      "verdict, confidence, realized_1d, realized_3d, realized_5d, realized_30d",
+      "symbol, created_at, verdict, confidence, realized_1d, realized_3d, realized_5d, realized_30d",
+      { count: "exact" },
     )
     .gte("created_at", since)
     .not("realized_1d", "is", null)
@@ -121,10 +126,12 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).filter((r): r is Row => {
+  const rawRows = (data ?? []).filter((r): r is Row => {
     const v = (r as Row).verdict;
     return v === "buy" || v === "sell" || v === "hold";
   }) as Row[];
+
+  const rows = firstPerSymbolSession(rawRows, r => r.symbol, r => r.created_at, r => r.verdict);
 
   // Total verdicts in window (including unmeasured) — surfaces backfill lag.
   const { count: totalAnalyses } = await supabaseAdmin
@@ -142,8 +149,8 @@ export async function GET(req: NextRequest) {
   };
 
   // Confidence calibration for BUY only — the highest-stakes verdict.
-  // 4 bins covering the typical confidence range. A well-calibrated AI
-  // produces strictly ascending win rates across bins.
+  // Group uncalibrated model scores. Small or correlated samples cannot
+  // establish calibration, even when the observed rates are monotonic.
   const binBounds: Array<[number, number]> = [
     [0, 0.5],
     [0.5, 0.7],
@@ -156,7 +163,7 @@ export async function GET(req: NextRequest) {
     );
     const r1 = inBin
       .map((r) => r.realized_1d)
-      .filter((v): v is number => v != null);
+      .filter(finiteNumber);
     const wins = r1.filter((v) => v > 0).length;
     return {
       confidenceMin: lo,
@@ -173,6 +180,11 @@ export async function GET(req: NextRequest) {
       asOf: new Date().toISOString(),
       totalAnalysesInWindow: totalAnalyses ?? rows.length,
       measuredAnalyses: rows.length,
+      rawMeasuredAnalyses: rawRows.length,
+      matchingMeasuredAnalyses: matchingMeasured,
+      aggregationTruncated: matchingMeasured != null && matchingMeasured > (data ?? []).length,
+      repeatedObservationsRemoved: rawRows.length - rows.length,
+      methodology: "Descriptive price direction by verdict; first observation per symbol / NY date / verdict. Confidence is an uncalibrated model score, not a probability. HOLD within 1% is only a descriptive band. Outcomes overlap; no predictive edge is established.",
       byVerdict,
       confidenceCalibrationBuy: calibrationBuy,
     },
@@ -190,7 +202,7 @@ export async function GET(req: NextRequest) {
       // uncached). stale-while-revalidate serves the old copy instantly while
       // refreshing in the background after expiry.
       headers: {
-        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=600",
+        "Cache-Control": "private, no-store",
       },
     },
   );

@@ -37,7 +37,7 @@ export default function TickerPage({ params }: PageProps) {
           .catch(() => ({ bars: [] as PriceBar[] })),
         supabase
           .from("signals")
-          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,expected_1d,expected_3d,expected_5d,sample_size,created_at")
+          .select("id,symbol,ts,signal_type,price,pct_change,volume_ratio,session,created_at")
           .eq("symbol", sym)
           .order("ts", { ascending: false })
           .limit(20),
@@ -46,22 +46,8 @@ export default function TickerPage({ params }: PageProps) {
       setTicker((tRes.data as Ticker) ?? null);
       // Daily bars from Alpaca arrive ASC by timestamp — chart wants ASC, no reverse needed.
       const barsAsc = (bRes.bars ?? []) as PriceBar[];
-      // Winsorize wicks: clip high/low to ±WICK_PCT from previous close to hide
-      // single IEX outlier prints (long off-screen candles) that don't appear
-      // on consolidated-SIP charts like TradingView. Threshold ~6% works for
-      // daily bars (intraday moves of 5-8% are common around earnings, so we
-      // leave more room than the 2% used on the previous 5-min chart).
-      const WICK_PCT = 0.06;
-      let prevClose = barsAsc[0]?.close ?? 0;
-      const cleaned: PriceBar[] = barsAsc.map((b) => {
-        const upper = prevClose * (1 + WICK_PCT);
-        const lower = prevClose * (1 - WICK_PCT);
-        const high = Math.min(b.high, Math.max(upper, b.open, b.close));
-        const low = Math.max(b.low, Math.min(lower, b.open, b.close));
-        prevClose = b.close;
-        return { ...b, high, low };
-      });
-      setBars(cleaned);
+      // Preserve provider OHLC: clipping wicks conceals actual intraday risk.
+      setBars(barsAsc);
       setRecentSignals((sRes.data as Signal[]) ?? []);
     }
     load();

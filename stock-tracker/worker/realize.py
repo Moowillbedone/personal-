@@ -4,7 +4,11 @@ For each signal in the DB whose realized_5d is NULL and is at least 7 calendar
 days old (so the 5-trading-day horizon has elapsed), pull the daily close at
 +1, +3, +5 trading days after the signal and compute the realized return as
 
-    (forward_close - signal.price) / signal.price
+    split_adjusted_forward_close / split_adjusted_signal_price - 1
+
+The stored raw signal price is rebased with its NY session's split/raw daily
+close ratio. Missing anchor sessions are not guessed. Dividends and trading
+costs are excluded. Rows with realized_5d already filled are not repaired.
 
 This is the missing measurement loop. expected_* columns (filled by backtest.py)
 are PRIORS — what historically similar signals returned on average. realized_*
@@ -25,6 +29,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from lib import alpaca, db
+from lib.returns import RETURN_CONVENTION, forward_close, split_adjusted_anchor
 
 # Forward horizons in trading days.
 HORIZONS: tuple[tuple[str, int], ...] = (
@@ -45,21 +50,9 @@ MAX_TARGETS_PER_RUN = 2000
 def _close_n_trading_days_after(
     daily_df: pd.DataFrame, signal_ts: pd.Timestamp, n_days: int
 ) -> float | None:
-    """Return the close price of the Nth trading day strictly after signal_ts.
-
-    daily_df is indexed by tz-aware UTC timestamps (one bar per trading day).
-    We pick bars with index strictly > signal_ts, then take the Nth one.
-    Pre-market signals fired at 06:00 ET on day D therefore measure their
-    1d return as the close of day D itself; regular-session signals on day D
-    measure 1d as day D+1's close. Either way, "1d" = next available
-    trading-session close.
-    """
-    if daily_df.empty:
-        return None
-    forward = daily_df[daily_df.index > signal_ts]
-    if len(forward) < n_days:
-        return None
-    return float(forward.iloc[n_days - 1]["Close"])
+    """Close of the Nth completed NY session strictly after the anchor date."""
+    result = forward_close(daily_df, signal_ts, n_days)
+    return result[0] if result else None
 
 
 def main() -> int:
@@ -84,12 +77,13 @@ def main() -> int:
     )
     targets = res.data or []
     print(f"realize: {len(targets)} signals to backfill (age > {MIN_AGE_DAYS}d, realized_5d null)")
+    print(f"realize: convention={RETURN_CONVENTION}; dividends/costs excluded; completed legacy rows unchanged")
 
     if not targets:
         print("realize: nothing to do")
         return 0
 
-    # Group by symbol so we make one daily-bar fetch per symbol.
+    # Group symbols for paired raw/split-adjusted daily-bar fetches.
     by_symbol: dict[str, list[dict]] = {}
     earliest_overall: pd.Timestamp | None = None
     for t in targets:
@@ -106,7 +100,8 @@ def main() -> int:
     )
 
     try:
-        frames = alpaca.fetch_recent_bars(symbols, interval="1d", lookback=f"{days_back}d")
+        raw_frames = alpaca.fetch_recent_bars(symbols, interval="1d", lookback=f"{days_back}d", adjustment="raw")
+        frames = alpaca.fetch_recent_bars(symbols, interval="1d", lookback=f"{days_back}d", adjustment="split")
     except Exception as e:
         print(f"realize: daily-bar fetch FAILED — {e}", file=sys.stderr)
         return 1
@@ -114,17 +109,20 @@ def main() -> int:
     updated = 0
     skipped_no_data = 0
     skipped_partial = 0
+    skipped_anchor = 0
 
     for sym, rows in by_symbol.items():
         df = frames.get(sym)
-        if df is None or df.empty:
+        raw_df = raw_frames.get(sym)
+        if df is None or df.empty or raw_df is None or raw_df.empty:
             skipped_no_data += len(rows)
             continue
 
         for r in rows:
             sig_ts = pd.Timestamp(r["ts"])
-            sig_price = float(r["price"])
-            if sig_price <= 0:
+            sig_price = split_adjusted_anchor(raw_df, df, sig_ts, r["price"])
+            if sig_price is None:
+                skipped_anchor += 1
                 continue
 
             updates: dict[str, float | None] = {}
@@ -148,7 +146,7 @@ def main() -> int:
 
     print(
         f"realize: updated={updated}  skipped_no_data={skipped_no_data}  "
-        f"skipped_partial={skipped_partial}"
+        f"skipped_partial={skipped_partial}  skipped_anchor={skipped_anchor}"
     )
     return 0
 

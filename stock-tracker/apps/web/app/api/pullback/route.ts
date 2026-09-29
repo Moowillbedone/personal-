@@ -13,7 +13,7 @@ import { fetchAlpacaBars } from "@/lib/alpaca";
 import { getFinnhubBundle, isFinnhubEnabled } from "@/lib/finnhub";
 import { generatePullback, type PullbackVerdict } from "@/lib/gemini";
 import { analyzePullback, type PullbackFacts, type Grade } from "@/lib/pullback";
-import { supabase } from "@/lib/supabase";
+import { completedDailyBars, dailyBarsQuality, snapshotQuality, timestampQuality, type DataQuality } from "@/lib/dataQuality";
 import type { Bar } from "@/lib/indicators";
 import type { Snapshot } from "@/lib/alpaca";
 
@@ -39,18 +39,20 @@ const GRADE_KO: Record<Grade, string> = { pass: "충족", warn: "주의", fail: 
 // the dashboard scanner agrees with this daily read. Intraday windows are short
 // → raw (actual traded prices).
 const TFS = [
-  { key: "1m", tf: "1Min", days: 4, limit: 1500, label: "1분봉", adj: "raw" },
-  { key: "15m", tf: "15Min", days: 15, limit: 700, label: "15분봉", adj: "raw" },
-  { key: "1h", tf: "1Hour", days: 45, limit: 700, label: "1시간봉", adj: "raw" },
-  { key: "4h", tf: "4Hour", days: 260, limit: 500, label: "4시간봉", adj: "split" },
-  { key: "1d", tf: "1Day", days: 380, limit: 400, label: "일봉", adj: "split" },
+  { key: "1m", tf: "1Min", days: 4, limit: 1500, label: "1분봉", minutes: 1, adj: "raw" },
+  { key: "15m", tf: "15Min", days: 15, limit: 700, label: "15분봉", minutes: 15, adj: "raw" },
+  { key: "1h", tf: "1Hour", days: 45, limit: 700, label: "1시간봉", minutes: 60, adj: "raw" },
+  { key: "4h", tf: "4Hour", days: 260, limit: 500, label: "4시간봉", minutes: 240, adj: "split" },
+  { key: "1d", tf: "1Day", days: 380, limit: 400, label: "일봉", minutes: 1440, adj: "split" },
 ] as const;
 
 interface TimeframeResult {
   key: string;
   label: string;
   bars: number;
-  facts: PullbackFacts | null; // null = not enough data
+  facts: PullbackFacts | null; // null = insufficient or outdated evidence
+  dataQuality: DataQuality;
+  source: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -61,45 +63,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
     }
 
-    // Fetch every timeframe's bars + snapshot + daily Ichimoku + earnings in parallel.
-    const [barsByTf, snap, ichiRow, finnhub] = await Promise.all([
+    // Fetch source bars and quotes independently; do not mix undated scanner levels.
+    const [barsByTf, snap, finnhub] = await Promise.all([
       Promise.all(
         TFS.map((t) => softly(fetchAlpacaBars(symbol, t.tf, t.days, t.limit, t.adj))),
       ),
       softly(getPrimarySnapshot(symbol)),
-      softly(
-        (async () => {
-          const { data } = await supabase
-            .from("sma200")
-            .select("spana_daily, spanb_daily")
-            .eq("symbol", symbol)
-            .maybeSingle();
-          return data as { spana_daily: number | null; spanb_daily: number | null } | null;
-        })(),
-      ),
       isFinnhubEnabled() ? softly(getFinnhubBundle(symbol)) : Promise.resolve(null),
     ]);
 
-    // Daily Ichimoku spans are horizontal price levels → valid support on any TF.
-    const ichi = { spanA: ichiRow?.spana_daily ?? null, spanB: ichiRow?.spanb_daily ?? null };
+    const now = new Date();
+    const priceQuality = snap ? snapshotQuality(snap.lastTradeTs, snap.lastPrice, snap.session, now) : null;
+    if (!snap || snap.dataQuality?.status !== "fresh" || priceQuality?.status !== "fresh" || snap.lastPrice == null) {
+      return NextResponse.json({
+        error: "현재 가격의 출처 시각·신선도를 확인할 수 없어 분석을 중단했습니다. 가격을 새로고침한 뒤 다시 시도하세요.",
+        dataQuality: priceQuality,
+      }, { status: 503 });
+    }
 
+    const delayedCutoff = now.getTime() - 16 * 60_000;
     const timeframes: TimeframeResult[] = TFS.map((t, i) => {
-      const bars = (barsByTf[i] ?? []) as Bar[];
-      const facts = bars.length >= 30 ? analyzePullback(bars, ichi) : null;
-      return { key: t.key, label: t.label, bars: bars.length, facts };
+      const rawBars = (barsByTf[i] ?? []) as Bar[];
+      // SIP is delayed; a timestamp marks the OPEN of the candle. A candle
+      // must also have ended before the delayed feed cutoff to be evidence.
+      const bars = t.key === "1d" ? completedDailyBars(rawBars, now)
+        : rawBars.filter((b) => Number.isFinite(Date.parse(b.ts)) && Date.parse(b.ts) + t.minutes * 60_000 <= delayedCutoff);
+      const quality = t.key === "1d" ? dailyBarsQuality(bars, 30, now)
+        : timestampQuality(bars.at(-1)?.ts, (16 + 2 * t.minutes + 5) * 60_000, now);
+      if (bars.length < 30) {
+        quality.status = "unavailable";
+        quality.reasons.push(`최소 30개 완료 봉 중 ${bars.length}개만 있습니다.`);
+      }
+      const facts = quality.status === "fresh" ? analyzePullback(bars) : null;
+      return { key: t.key, label: t.label, bars: bars.length, facts, dataQuality: quality,
+        source: `Alpaca SIP · ${t.key === "1d" ? "완료 일봉" : "16분 이상 지연·완료 봉"} · ${t.adj}` };
     });
 
     if (timeframes.every((t) => t.facts == null)) {
       return NextResponse.json(
-        { error: "어느 타임프레임에서도 눌림목 구조를 판별할 데이터가 부족합니다." },
-        { status: 422 },
+        { error: "유효한 최신 완료 봉이 없어 눌림목 분석을 중단했습니다.", timeframes },
+        { status: 503 },
       );
     }
 
     const nextEarnings = finnhub?.nextEarnings ?? null;
-    const dailyFacts = timeframes.find((t) => t.key === "1d")?.facts ?? null;
-    const price =
-      snap?.lastPrice ?? dailyFacts?.price ?? timeframes.find((t) => t.facts)!.facts!.price;
+    const price = snap.lastPrice;
 
     const prompt = buildPrompt(symbol, timeframes, snap, nextEarnings);
     let ai: PullbackVerdict;
@@ -122,7 +130,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       symbol,
-      session: snap?.session ?? null,
+      session: snap.session,
+      dataQuality: priceQuality,
+      priceSource: snap.priceSource,
+      priceAsOf: snap.lastTradeTs,
       price: Number(price.toFixed(2)),
       earnings: nextEarnings
         ? { date: nextEarnings.date, daysUntil: nextEarnings.daysUntil }
@@ -182,7 +193,7 @@ function buildPrompt(
   const tfBlocks: string[] = [];
   for (const t of timeframes) {
     if (!t.facts) {
-      tfBlocks.push(`### ${t.label}: 데이터 부족(${t.bars}봉) — 판정 제외`);
+      tfBlocks.push(`### ${t.label}: 판정 제외 — ${t.dataQuality.reasons.join(" ")}`);
       continue;
     }
     const f = t.facts;
@@ -194,6 +205,7 @@ function buildPrompt(
     tfBlocks.push(
       [
         `### ${t.label} — 기계적 판정: ${f.classification}`,
+        `  출처: ${t.source} · 봉 시작 시각: ${t.dataQuality.asOf} · 봉 종가: ${f.price}`,
         `  0추세[${GRADE_KO[c.trend.grade]}] 1거래량[${GRADE_KO[c.volume.grade]}] 2저점구조[${GRADE_KO[c.structure.grade]}] 3지지[${GRADE_KO[c.support.grade]}] 4확인캔들[${GRADE_KO[c.confirmation.grade]}]`,
         `  직전고점 ${f.swingHigh}(${f.swingHighAgo}봉전) · 직전저점 ${f.legLow} · 눌림저점 ${f.pullbackLow} · 되돌림깊이 ${pct(f.retraceDepth)} · 저점이탈=${f.brokeLow} · 신고가/돌파=${f.extended}`,
         `  거래량: ${c.volume.detail}`,
@@ -207,9 +219,10 @@ function buildPrompt(
     `# ${symbol} 눌림목 멀티 타임프레임 분석 — 한국어`,
     "",
     "당신은 단타~1-3일 스윙 트레이더다. 아래는 여러 타임프레임에서 기계적으로 계산된 사실이다.",
-    "각 TF의 숫자를 신뢰하고, **타임프레임 정합성**을 핵심으로 종합 판정하라.",
+    "아래 숫자는 과거 관측값이며 수익 예측력이 검증되지 않았다. 타임프레임 정합성을 설명하되 성공 확률로 표현하지 마라.",
+    "현재 가격과 완료 봉 종가는 서로 다른 시점·피드다. 특히 분·시간봉도 16분 이상 지연되므로 실시간 진입 확인으로 표현하지 마라.",
     "",
-    `## 현재: ${symbol} ${snap?.lastPrice ?? "?"} (${snap?.session ?? "?"} 세션)`,
+    `## 최근 가격: ${symbol} ${snap?.lastPrice ?? "?"} (${snap?.session ?? "?"} 세션, ${snap?.priceSource ?? "?"}, ${snap?.lastTradeTs ?? "시각 없음"})`,
     earnings
       ? `⚠️ 다음 어닝 ${earnings.date} (D-${earnings.daysUntil}) — 임박 시 눌림이 어닝 도박이 됨`
       : "어닝 임박 정보 없음",
@@ -219,12 +232,12 @@ function buildPrompt(
     "",
     "## 종합 규칙 (매우 중요)",
     "- **상위 TF가 추세를 정하고, 하위 TF가 진입 타이밍을 준다.** 단타~1-3일 스윙의 진입 타이밍은 15분/1시간봉에서, 추세 유효성은 4시간/일봉에서 확인.",
-    "- **상위 TF(4시간/일봉)가 하락/추세훼손이면, 하위 TF(1분/15분)의 반등은 데드캣일 확률이 높다 → 매수 금지.** 반대로 상위 TF 상승추세 + 하위 TF 확인캔들 = 진입 정렬.",
+    "- 상위 TF(4시간/일봉) 하락과 하위 TF 반등이 엇갈리면 forming으로 분류하고 확인을 기다린다. 이런 규칙은 검증 전 가설이며 반등 실패 확률이 높다고 단정하지 마라.",
     "- 1분봉은 노이즈가 크니 참고만. 4시간/1시간봉이 스윙의 주력 판단.",
     "- operative_tf: 이 트레이드의 기준이 되는 타임프레임을 명시 (예: '1시간봉').",
     "- classification: pullback(진입가능) / forming(확인대기, 지금 사지마) / downtrend(회피) / no_uptrend(눌림아님). TF가 엇갈리거나 확인 전이면 forming.",
     "- action: 지금 무엇을 할지 + 어느 TF의 무엇을 기다릴지 (예: '일봉 추세 양호, 1시간봉 반전양봉+거래량 확인되면 진입').",
     "- entry_low≤entry_high, stop<entry_low, entry_high<target_1≤target_2 (숫자 순서 필수, operative_tf 기준 가격).",
-    "- cautions: 솔직한 리스크 2~4개. 확신 없으면 confidence 낮추고 forming. 초보 보호가 목적.",
+    "- cautions: 실제 데이터의 지연·누락·시간축 차이를 포함한 리스크 2~4개. confidence는 서술상 확신도이며 승률이나 수익 확률이 아니다. 불명확하면 forming.",
   ].join("\n");
 }

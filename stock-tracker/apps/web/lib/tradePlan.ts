@@ -53,7 +53,7 @@ export function mechanicalPlan(
     target_1: round2(last + 1.5 * atr14),
     target_2: round2(last + 3 * atr14),
     horizon_days: 7,
-    note: "ATR 기반 기본 플랜 — 눌림 진입, 1R/2R 분할 익절, 종가 기준 손절.",
+    note: "ATR 기반 가격 시나리오입니다. 손익비는 실제 진입가와 비용으로 다시 계산하세요. 손절가 체결은 보장되지 않습니다.",
   };
   // The baseline must satisfy the same ordering invariant sanitize enforces
   // on Gemini plans (rounding ties, micro-ATR tickers where entry_high ≥
@@ -110,7 +110,7 @@ export function sanitizeTradePlan(
   const horizonRaw = Number(raw.horizon_days);
   const horizon = isFinite(horizonRaw) ? Math.min(30, Math.max(1, Math.round(horizonRaw))) : 7;
 
-  return {
+  const plan: TradePlan = {
     entry_low: round2(el),
     entry_high: round2(eh),
     stop: round2(st),
@@ -119,4 +119,7 @@ export function sanitizeTradePlan(
     horizon_days: horizon,
     note: typeof raw.note === "string" ? raw.note.slice(0, 200) : "",
   };
+  // Rounding can collapse a valid raw gap into an impossible executable plan.
+  if (!(plan.stop > 0 && plan.stop < plan.entry_low && plan.entry_low <= plan.entry_high && plan.entry_high < plan.target_1 && plan.target_1 <= plan.target_2)) return fallback;
+  return plan;
 }

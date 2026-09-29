@@ -1,5 +1,7 @@
 // Server-side Alpaca client for snapshots and news.
-// Free IEX feed — covers pre/regular/after-hours via latestTrade + dailyBar deltas.
+// Snapshot feed is explicit; historical bars use consolidated SIP with a 16-minute cutoff.
+import { scheduledMarketSession, nyClock, isTradingDate, regularCloseMinutes } from "./marketCalendar";
+import { snapshotQuality, type DataQuality } from "./dataQuality";
 
 const DATA_BASE = "https://data.alpaca.markets/v2";
 
@@ -38,9 +40,12 @@ export interface Snapshot {
   changePct: number | null;       // (lastPrice - prevClose) / prevClose
   // Provenance: which feed produced lastPrice.
   //   'iex'     = Alpaca free IEX (real-time regular, stale extended hours)
-  //   'finnhub' = Finnhub /quote (covers extended hours, primary fallback)
+  //   'finnhub' = Finnhub quote (coverage/session not guaranteed)
   //   'yahoo'   = Yahoo v8 chart (covers extended hours, secondary fallback)
-  priceSource?: "iex" | "finnhub" | "yahoo";
+  priceSource?: "iex" | "sip" | "finnhub" | "yahoo";
+  priceType?: "trade" | "bar_close";
+  dailyBarTs?: string | null;
+  dataQuality?: DataQuality;
 }
 
 interface AlpacaSnapshotRaw {
@@ -61,72 +66,43 @@ interface AlpacaSnapshotRaw {
  * After:   16:00 – 20:00 ET
  * Closed:  outside those windows + weekends
  */
-export function currentMarketSession(now: Date = new Date()): "pre" | "regular" | "after" | "closed" {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-  });
-  const parts = fmt.formatToParts(now);
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-  if (weekday === "Sat" || weekday === "Sun") return "closed";
-  const mins = hour * 60 + minute;
-  if (mins >= 4 * 60 && mins < 9 * 60 + 30) return "pre";
-  if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "regular";
-  if (mins >= 16 * 60 && mins < 20 * 60) return "after";
-  return "closed";
+export const currentMarketSession = scheduledMarketSession;
+
+function snapshotFeed(): "iex" | "sip" {
+  return process.env.ALPACA_SNAPSHOT_FEED === "sip" ? "sip" : "iex";
 }
 
-// 2026-05-19: dropped `feed=iex` from query strings — the IEX exchange
-// alone often has zero prints for major names during pre/after sessions,
-// returning empty bars. With no `feed` param Alpaca picks the broadest
-// feed allowed by the account (free paper now gets SIP-equivalent
-// consolidated tape per live probe). priceSource is now labeled "alpaca"
-// generically since we no longer pin a specific exchange.
+export function normalizeSnapshot(sym: string, raw: AlpacaSnapshotRaw): Snapshot {
+  const price = raw.latestTrade?.p;
+  // An ask is an offer to sell, not a completed trade. Never substitute it.
+  const lastPrice = price != null && Number.isFinite(price) && price > 0 ? price : null;
+  const lastTradeTs = lastPrice != null ? raw.latestTrade?.t ?? null : null;
+  const session = currentMarketSession();
+  const prevClose = raw.prevDailyBar?.c ?? null;
+  return {
+    symbol: sym, lastPrice, lastTradeTs, session, prevClose,
+    prevHigh: raw.prevDailyBar?.h ?? null, prevLow: raw.prevDailyBar?.l ?? null,
+    todayOpen: raw.dailyBar?.o ?? null, todayHigh: raw.dailyBar?.h ?? null,
+    todayLow: raw.dailyBar?.l ?? null, todayClose: raw.dailyBar?.c ?? null,
+    todayVolume: raw.dailyBar?.v ?? null, dailyBarTs: raw.dailyBar?.t ?? null,
+    changePct: lastPrice != null && prevClose != null && prevClose > 0 ? (lastPrice - prevClose) / prevClose : null,
+    priceSource: snapshotFeed(), priceType: "trade",
+    dataQuality: snapshotQuality(lastTradeTs, lastPrice, session),
+  };
+}
+
 export async function getSnapshot(symbol: string): Promise<Snapshot> {
   const sym = symbol.toUpperCase();
   const r = await fetch(
-    `${DATA_BASE}/stocks/${encodeURIComponent(sym)}/snapshot`,
-    { headers: headers(), cache: "no-store" },
+    `${DATA_BASE}/stocks/${encodeURIComponent(sym)}/snapshot?feed=${snapshotFeed()}`,
+    { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) },
   );
   if (!r.ok) {
-    throw new Error(`alpaca snapshot ${sym}: ${r.status} ${await r.text()}`);
+    throw new Error(`alpaca snapshot ${sym}: upstream status ${r.status}`);
   }
   const raw = (await r.json()) as AlpacaSnapshotRaw;
 
-  const lastPrice = raw.latestTrade?.p ?? raw.latestQuote?.ap ?? null;
-  const lastTradeTs = raw.latestTrade?.t ?? raw.latestQuote?.t ?? null;
-  const prevClose = raw.prevDailyBar?.c ?? null;
-  const todayOpen = raw.dailyBar?.o ?? null;
-  const todayHigh = raw.dailyBar?.h ?? null;
-  const todayLow = raw.dailyBar?.l ?? null;
-  const todayClose = raw.dailyBar?.c ?? null;
-  const todayVolume = raw.dailyBar?.v ?? null;
-  const changePct =
-    lastPrice != null && prevClose != null && prevClose !== 0
-      ? (lastPrice - prevClose) / prevClose
-      : null;
-
-  return {
-    symbol: sym,
-    lastPrice,
-    lastTradeTs,
-    session: currentMarketSession(),
-    prevClose,
-    prevHigh: raw.prevDailyBar?.h ?? null,
-    prevLow: raw.prevDailyBar?.l ?? null,
-    todayOpen,
-    todayHigh,
-    todayLow,
-    todayClose,
-    todayVolume,
-    changePct,
-    priceSource: "iex",
-  };
+  return normalizeSnapshot(sym, raw);
 }
 
 export interface NewsItem {
@@ -142,7 +118,7 @@ export async function getRecentNews(symbol: string, limit = 25): Promise<NewsIte
   const sym = symbol.toUpperCase();
   // Alpaca news lives at v1beta1 (public docs), not v2.
   const url = `https://data.alpaca.markets/v1beta1/news?symbols=${encodeURIComponent(sym)}&limit=${limit}&sort=desc`;
-  const r = await fetch(url, { headers: headers(), cache: "no-store" });
+  const r = await fetch(url, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!r.ok) {
     // News access varies by Alpaca plan; fail soft so analysis can continue without news.
     return [];
@@ -184,18 +160,17 @@ async function fetchBars(
   const params = new URLSearchParams({
     timeframe,
     start: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    limit: String(limit),
+    limit: String(Math.min(10000, Math.max(1, limit))),
     // Long-window daily/4h math (SMA200, swing, retrace) must be split-adjusted
     // so a split inside the window doesn't inject an ~Nx price cliff — matches
     // the worker (sma200_scan.py) so the dashboard scanner and this route agree.
     // Intraday windows are short → raw (actual traded prices) is fine.
     adjustment,
-    // NOTE: omit `end` and `feed` for free-tier compatibility.
-    // - end=<now>  → 403 "subscription does not permit querying recent SIP data"
-    // - feed=iex   → very sparse coverage (IEX exchange only)
-    // - both off   → consolidated tape, ~15-min historical cutoff. Fine for
-    //                chart rendering and analyze-route bar context.
-    // See worker/lib/alpaca.py for full rationale (diagnosed 2026-05-19).
+    // Explicit delayed consolidated feed; omission silently changes coverage
+    // according to subscription. Fetch newest records when the limit is hit.
+    feed: "sip",
+    end: new Date(now.getTime() - 16 * 60_000).toISOString(),
+    sort: "desc",
   });
   try {
     const r = await fetch(`${DATA_BASE}/stocks/${encodeURIComponent(symbol.toUpperCase())}/bars?${params}`, {
@@ -209,7 +184,10 @@ async function fetchBars(
     });
     if (!r.ok) return [];
     const data = (await r.json()) as { bars?: Array<{ t: string; o: number; h: number; l: number; c: number; v: number }> };
-    return (data.bars ?? []).map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }));
+    return (data.bars ?? [])
+      .filter((b) => Number.isFinite(Date.parse(b.t)) && [b.o, b.h, b.l, b.c].every((p) => Number.isFinite(p) && p > 0) && Number.isFinite(b.v) && b.v >= 0)
+      .map((b) => ({ ts: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }))
+      .sort((a, b) => a.ts.localeCompare(b.ts));
   } catch {
     return []; // timeout / network error — same degraded path as HTTP failure
   }
@@ -222,7 +200,7 @@ async function fetchBars(
 export async function getRecentBars(symbol: string): Promise<RecentBars> {
   const [fiveMin, daily] = await Promise.all([
     fetchBars(symbol, "5Min", 5, 600),
-    fetchBars(symbol, "1Day", 380, 380),
+    fetchBars(symbol, "1Day", 380, 380, "split"),
   ]);
   return { fiveMin, daily };
 }
@@ -249,36 +227,14 @@ export async function fetchAlpacaBars(
 export async function getSnapshots(symbols: string[]): Promise<Record<string, Snapshot>> {
   const list = Array.from(new Set(symbols.map((s) => s.toUpperCase()))).filter(Boolean);
   if (list.length === 0) return {};
-  // No feed param — see getSnapshot() comment for why.
-  const url = `${DATA_BASE}/stocks/snapshots?symbols=${encodeURIComponent(list.join(","))}`;
-  const r = await fetch(url, { headers: headers(), cache: "no-store" });
+  // Same explicit feed as the single-symbol endpoint.
+  const url = `${DATA_BASE}/stocks/snapshots?symbols=${encodeURIComponent(list.join(","))}&feed=${snapshotFeed()}`;
+  const r = await fetch(url, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!r.ok) return {};
   const raw = (await r.json()) as Record<string, AlpacaSnapshotRaw>;
   const out: Record<string, Snapshot> = {};
   for (const [sym, s] of Object.entries(raw)) {
-    const lastPrice = s.latestTrade?.p ?? s.latestQuote?.ap ?? null;
-    const lastTradeTs = s.latestTrade?.t ?? s.latestQuote?.t ?? null;
-    const prevClose = s.prevDailyBar?.c ?? null;
-    const changePct =
-      lastPrice != null && prevClose != null && prevClose !== 0
-        ? (lastPrice - prevClose) / prevClose
-        : null;
-    out[sym] = {
-      symbol: sym,
-      lastPrice,
-      lastTradeTs,
-      session: currentMarketSession(),
-      prevClose,
-      prevHigh: s.prevDailyBar?.h ?? null,
-      prevLow: s.prevDailyBar?.l ?? null,
-      todayOpen: s.dailyBar?.o ?? null,
-      todayHigh: s.dailyBar?.h ?? null,
-      todayLow: s.dailyBar?.l ?? null,
-      todayClose: s.dailyBar?.c ?? null,
-      todayVolume: s.dailyBar?.v ?? null,
-      changePct,
-      priceSource: "iex",
-    };
+    out[sym] = normalizeSnapshot(sym, s);
   }
   return out;
 }
@@ -296,23 +252,11 @@ export async function getSnapshots(symbols: string[]): Promise<Record<string, Sn
  * compared against a full-day average ("이 속도면 평균의 N배").
  */
 export function regularSessionElapsedFraction(now: Date = new Date()): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-  }).formatToParts(now);
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-  if (weekday === "Sat" || weekday === "Sun") return 1;
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-  const mins = hour * 60 + minute;
-  const start = 9 * 60 + 30;
-  const end = 16 * 60;
-  if (mins <= start) return 0;
-  if (mins >= end) return 1;
-  return (mins - start) / (end - start);
+  const { date, minutes } = nyClock(now);
+  if (!isTradingDate(date)) return 1;
+  const start = 570;
+  const end = regularCloseMinutes(date);
+  return Math.min(1, Math.max(0, (minutes - start) / (end - start)));
 }
 
 export interface DailyVolumeStat {
@@ -362,7 +306,8 @@ export async function getDailyVolumeStats(
         start,
         limit: "10000",
         adjustment: "raw",
-        // omit end + feed — free-tier consolidated tape (see fetchBars notes)
+        feed: "sip",
+        end: new Date(Date.now() - 16 * 60_000).toISOString(),
       });
       try {
         const r = await fetch(`${DATA_BASE}/stocks/bars?${params}`, {
@@ -458,7 +403,8 @@ export async function getNewsForSymbols(
 
 // ────────────────────────────────────────────────────────────────────────────
 // Options snapshot — ATM IV + put-call volume ratio.
-// Free Alpaca options data is OPRA-delayed; ok for context, not for execution.
+// Free options feed is indicative, not the consolidated OPRA tape.
+// It must not be represented as executable quotes or verified directional flow.
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface UnusualOption {

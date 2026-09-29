@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BulkTradeEntry from "@/app/stats/BulkTradeEntry";
+import RiskPlanner from "@/app/components/RiskPlanner";
+import { snapshotQuality, type DataQuality } from "@/lib/dataQuality";
+import { scheduledMarketSession } from "@/lib/marketCalendar";
+import { hasCurrentPlanEvidence } from "@/lib/analysisEvidence";
 
 interface SearchHit {
   symbol: string;
@@ -22,30 +26,23 @@ interface Snapshot {
   todayClose: number | null;
   todayVolume: number | null;
   changePct: number | null;
-  // Provenance of lastPrice:
-  //   'iex'     = Alpaca free IEX (real-time regular, stale extended hours)
-  //   'finnhub' = Finnhub /quote (primary fallback during extended hours)
-  //   'yahoo'   = Yahoo v8 chart (secondary fallback)
-  // Outside regular session, 'iex' means both Finnhub AND Yahoo failed —
-  // that's the only case where the stale badge should fire.
-  priceSource?: "iex" | "finnhub" | "yahoo";
+  priceSource?: "iex" | "sip" | "finnhub" | "yahoo";
+  priceType?: "trade" | "bar_close";
+  dataQuality?: DataQuality;
   error?: string;
 }
 
-/**
- * True when the price shown is unexpectedly stale — i.e. we're inside
- * an active extended-hours window (pre or after) but neither Finnhub
- * nor Yahoo could deliver a fresh extended-hours price, so we're falling
- * back to the prior regular close. Closed session is intentionally
- * excluded: during overnight/weekend there are no trades by definition,
- * so the regular close IS the right answer and a "stale" badge would
- * mislead.
- */
+function currentPriceQuality(s: Snapshot | null | undefined, now = new Date()): DataQuality {
+  if (!s?.dataQuality) return {
+    status: "unavailable", asOf: s?.lastTradeTs ?? null, checkedAt: now.toISOString(),
+    ageSeconds: null, reasons: ["가격 신선도를 확인할 수 없습니다. 새로고침하세요."],
+  };
+  if (s.dataQuality.status !== "fresh") return s.dataQuality;
+  return snapshotQuality(s.lastTradeTs, s.lastPrice, scheduledMarketSession(now), now);
+}
+
 function isStalePrice(s: Snapshot | undefined): boolean {
-  if (!s) return false;
-  if (s.session !== "pre" && s.session !== "after") return false;
-  // priceSource undefined on legacy responses = treat as 'iex' (stale).
-  return s.priceSource !== "yahoo" && s.priceSource !== "finnhub";
+  return currentPriceQuality(s).status !== "fresh";
 }
 
 interface WatchlistItem {
@@ -91,8 +88,8 @@ interface NewsItem {
 
 interface Sizing {
   action: "buy" | "hold" | "sell";
-  weight: number;
-  amount_krw: number;
+  weight: number | null;
+  amount_krw: number | null;
   rationale: string;
 }
 
@@ -134,6 +131,7 @@ interface Trade {
 }
 
 interface PositionDerived {
+  accountingError?: string;
   symbol: string;
   mode: "paper" | "real";
   openQty: number;
@@ -159,9 +157,9 @@ const VERDICT_STYLE: Record<AiAnalysis["verdict"], string> = {
 };
 
 const VERDICT_LABEL: Record<AiAnalysis["verdict"], string> = {
-  buy: "매수",
-  hold: "관망",
-  sell: "매도",
+  buy: "매수 의견",
+  hold: "관망 의견",
+  sell: "매도 의견",
 };
 
 function fmtPct(v: number | null) {
@@ -218,8 +216,31 @@ export default function TradePage() {
   const [snapshotsUpdatedAt, setSnapshotsUpdatedAt] = useState<Date | null>(null);
 
   // selection
-  const [selected, setSelected] = useState<string | null>(null);
-  const [selectedSnap, setSelectedSnap] = useState<Snapshot | null>(null);
+  const [selected, setSelectedState] = useState<string | null>(null);
+  const selectionRef = useRef({ symbol: null as string | null, version: 0 });
+  const setSelected = useCallback((symbol: string | null) => {
+    if (selectionRef.current.symbol === symbol) return;
+    selectionRef.current = { symbol, version: selectionRef.current.version + 1 };
+    setSelectedState(symbol);
+    setSelectedSnap(null);
+    setResult(null);
+    setCachedVerdict(null);
+    setPbResult(null);
+    setPosition(null);
+    setAnalysisError(null);
+    setPbError(null);
+    setAnalyzing(false);
+    setPbLoading(false);
+  }, []);
+  const [rawSelectedSnap, setSelectedSnap] = useState<Snapshot | null>(null);
+  const selectedSnap = rawSelectedSnap?.symbol === selected ? rawSelectedSnap : null;
+  const [priceCheckTime, setPriceCheckTime] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setPriceCheckTime(new Date()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const selectedQuality = currentPriceQuality(selectedSnap, priceCheckTime);
+  const canAnalyze = selectedQuality.status === "fresh";
   // Bumped after a bulk-trade insert to force the journal panel to reload
   // (it keys off this) and to refresh watchlist snapshots.
   const [journalRefreshKey, setJournalRefreshKey] = useState(0);
@@ -249,20 +270,24 @@ export default function TradePage() {
   // analysis
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [rawResult, setResult] = useState<AnalyzeResponse | null>(null);
+  const result = rawResult?.analysis.symbol === selected ? rawResult : null;
   // Latest cached verdict shown as a banner above the analyze button
   // BEFORE user runs a fresh analysis. Pulled from ai_analysis history
   // (no Gemini call), so the user immediately sees "AI said BUY 3h ago"
   // without spending a fresh quota point.
-  const [cachedVerdict, setCachedVerdict] = useState<AiAnalysis | null>(null);
+  const [rawCachedVerdict, setCachedVerdict] = useState<AiAnalysis | null>(null);
+  const cachedVerdict = rawCachedVerdict?.symbol === selected ? rawCachedVerdict : null;
 
   // 눌림목 분석 (pullback vs downtrend)
   const [pbLoading, setPbLoading] = useState(false);
   const [pbError, setPbError] = useState<string | null>(null);
-  const [pbResult, setPbResult] = useState<PullbackResponse | null>(null);
+  const [rawPbResult, setPbResult] = useState<PullbackResponse | null>(null);
+  const pbResult = rawPbResult?.symbol === selected ? rawPbResult : null;
 
   // position settings
-  const [position, setPosition] = useState<PositionSetting | null>(null);
+  const [rawPosition, setPosition] = useState<PositionSetting | null>(null);
+  const position = rawPosition?.symbol === selected ? rawPosition : null;
   const [posStrategy, setPosStrategy] = useState<"lump_sum" | "dca">("dca");
   const [posLumpKrw, setPosLumpKrw] = useState<string>("");
   const [posDcaPerDay, setPosDcaPerDay] = useState<string>("1000000");
@@ -309,6 +334,7 @@ export default function TradePage() {
   // Auto-load still runs once on mount and whenever the watchlist or
   // selection changes (those are user-initiated actions).
   const loadSnapshots = useCallback(async () => {
+    const selectionVersion = selectionRef.current.version;
     const symbols = new Set(watchlist.map((w) => w.symbol));
     if (selected) symbols.add(selected);
     if (symbols.size === 0) return;
@@ -317,13 +343,16 @@ export default function TradePage() {
       const list = Array.from(symbols).join(",");
       const r = await fetch(`/api/snapshot?symbols=${encodeURIComponent(list)}`);
       const data = (await r.json()) as { snapshots?: Snapshot[] };
+      if (selectionRef.current.version !== selectionVersion) return;
       const map: Record<string, Snapshot> = {};
       for (const s of data.snapshots ?? []) map[s.symbol] = s;
       setSnapshots(map);
-      if (selected && map[selected]) setSelectedSnap(map[selected]);
+      if (selected) setSelectedSnap(map[selected] ?? null);
       setSnapshotsUpdatedAt(new Date());
+    } catch {
+      if (selectionRef.current.version === selectionVersion) setSelectedSnap(null);
     } finally {
-      setSnapshotsLoading(false);
+      if (selectionRef.current.version === selectionVersion) setSnapshotsLoading(false);
     }
   }, [watchlist, selected]);
 
@@ -331,43 +360,48 @@ export default function TradePage() {
     loadSnapshots();
   }, [loadSnapshots]);
 
-  // ── load position settings + cached verdict when selection changes
+  // Ignore all responses from an earlier selection, including A -> B -> A.
   useEffect(() => {
-    if (!selected) {
-      setPosition(null);
-      setCachedVerdict(null);
-      return;
-    }
+    const selectionVersion = selectionRef.current.version;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && selectionRef.current.version === selectionVersion;
+    setPosition(null);
     setResult(null);
     setAnalysisError(null);
     setCachedVerdict(null);
     setPbResult(null);
     setPbError(null);
+    setAnalyzing(false);
+    setPbLoading(false);
+    setPosStrategy("dca");
+    setPosLumpKrw("");
+    setPosDcaPerDay("1000000");
+    setPosDcaDays("30");
+    if (!selected) return () => { cancelled = true; };
     (async () => {
-      const r = await fetch(`/api/positions?symbol=${encodeURIComponent(selected)}`);
-      const data = (await r.json()) as { setting?: PositionSetting | null };
-      setPosition(data.setting ?? null);
-      if (data.setting) {
+      try {
+        const r = await fetch(`/api/positions?symbol=${encodeURIComponent(selected)}`);
+        const data = (await r.json()) as { setting?: PositionSetting | null };
+        if (!isCurrent() || data.setting?.symbol !== selected) return;
+        setPosition(data.setting);
         setPosStrategy(data.setting.strategy);
         setPosLumpKrw(data.setting.total_budget_krw?.toString() ?? "");
         setPosDcaPerDay(data.setting.dca_per_day_krw?.toString() ?? "1000000");
         setPosDcaDays(data.setting.dca_total_days?.toString() ?? "30");
+      } catch {
+        // Default settings remain visible when the current request fails.
       }
     })();
-    // Fetch the latest cached verdict (within 24h) — pure DB lookup, no
-    // Gemini cost. Surfaces "AI already said X" so user doesn't burn quota
-    // re-analyzing what's still fresh.
     (async () => {
       try {
-        const r = await fetch(
-          `/api/analyze/latest?symbol=${encodeURIComponent(selected)}&maxAgeHours=24`,
-        );
+        const r = await fetch(`/api/analyze/latest?symbol=${encodeURIComponent(selected)}&maxAgeHours=24`);
         const d = (await r.json()) as { analysis?: AiAnalysis | null };
-        if (d.analysis) setCachedVerdict(d.analysis);
+        if (isCurrent() && d.analysis?.symbol === selected) setCachedVerdict(d.analysis);
       } catch {
-        // ignore — banner just stays hidden
+        // Ignore — the history banner stays hidden.
       }
     })();
+    return () => { cancelled = true; };
   }, [selected]);
 
   async function addToWatchlist(symbol: string) {
@@ -386,6 +420,7 @@ export default function TradePage() {
 
   async function savePosition() {
     if (!selected) return;
+    const selectionVersion = selectionRef.current.version;
     const body: Record<string, unknown> = { symbol: selected, strategy: posStrategy };
     if (posStrategy === "lump_sum") {
       body.total_budget_krw = posLumpKrw ? Number(posLumpKrw) : null;
@@ -400,11 +435,12 @@ export default function TradePage() {
     });
     const r = await fetch(`/api/positions?symbol=${encodeURIComponent(selected)}`);
     const data = (await r.json()) as { setting?: PositionSetting | null };
-    setPosition(data.setting ?? null);
+    if (selectionRef.current.version === selectionVersion && data.setting?.symbol === selected) setPosition(data.setting);
   }
 
   async function analyze() {
-    if (!selected) return;
+    if (!selected || currentPriceQuality(selectedSnap).status !== "fresh") return;
+    const selectionVersion = selectionRef.current.version;
     setAnalyzing(true);
     setAnalysisError(null);
     try {
@@ -419,7 +455,7 @@ export default function TradePage() {
       const r = await fetch("/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ symbol: selected, position: positionPayload, allowStale: true }),
+        body: JSON.stringify({ symbol: selected, position: positionPayload, allowStale: false }),
       });
       // The analyze route can return non-JSON in two cases: a Vercel function
       // timeout/crash (plain "An error occurred…" text → "Unexpected token 'A'"
@@ -427,6 +463,7 @@ export default function TradePage() {
       // and parse defensively so the user gets a readable message instead of a
       // raw JSON-parse error, and the app never throws on a slow analysis.
       const raw = await r.text();
+      if (selectionRef.current.version !== selectionVersion) return;
       let data: AnalyzeResponse | { error: string } | null = null;
       try {
         data = raw ? JSON.parse(raw) : null;
@@ -441,22 +478,24 @@ export default function TradePage() {
         );
       } else if ("error" in data) {
         setAnalysisError(data.error);
-      } else {
+      } else if (data.analysis?.symbol === selected) {
         setResult(data);
-        if (data.snapshot) setSelectedSnap(data.snapshot);
+        if (data.snapshot?.symbol === selected) setSelectedSnap(data.snapshot);
       }
     } catch (err) {
       // Network-level failure or client-side abort.
+      if (selectionRef.current.version !== selectionVersion) return;
       setAnalysisError(
         `분석 요청이 실패했습니다: ${(err as Error).message}. 네트워크를 확인하고 다시 시도해 주세요.`,
       );
     } finally {
-      setAnalyzing(false);
+      if (selectionRef.current.version === selectionVersion) setAnalyzing(false);
     }
   }
 
   async function runPullback() {
-    if (!selected) return;
+    if (!selected || currentPriceQuality(selectedSnap).status !== "fresh") return;
+    const selectionVersion = selectionRef.current.version;
     setPbLoading(true);
     setPbError(null);
     try {
@@ -466,6 +505,7 @@ export default function TradePage() {
         body: JSON.stringify({ symbol: selected }),
       });
       const raw = await r.text();
+      if (selectionRef.current.version !== selectionVersion) return;
       let data: PullbackResponse | { error: string } | null = null;
       try {
         data = raw ? JSON.parse(raw) : null;
@@ -480,13 +520,14 @@ export default function TradePage() {
         );
       } else if ("error" in data) {
         setPbError(data.error);
-      } else {
+      } else if (data.symbol === selected) {
         setPbResult(data);
       }
     } catch (err) {
+      if (selectionRef.current.version !== selectionVersion) return;
       setPbError(`요청이 실패했습니다: ${(err as Error).message}.`);
     } finally {
-      setPbLoading(false);
+      if (selectionRef.current.version === selectionVersion) setPbLoading(false);
     }
   }
 
@@ -621,9 +662,9 @@ export default function TradePage() {
                         {isStalePrice(s) && (
                           <span
                             className="px-1 py-px text-[9px] border border-amber-700 bg-amber-950/40 text-amber-300 rounded leading-none"
-                            title="익스텐디드(Yahoo) 데이터 가져오기 실패 — 표시된 가격은 직전 정규장 종가입니다."
+                            title={currentPriceQuality(s).reasons.join(" ")}
                           >
-                            ⚠ stale
+                            확인 필요
                           </span>
                         )}
                       </div>
@@ -673,9 +714,9 @@ export default function TradePage() {
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">{selected}</h1>
                 <p className="text-xs text-neutral-500 mt-1">
-                  {selectedSnap ? SESSION_LABEL[selectedSnap.session] : "—"}
+                  {selectedSnap ? SESSION_LABEL[selectedSnap.session] : "—"} · 출처 {selectedSnap?.priceSource?.toUpperCase() ?? "미확인"}
                   {selectedSnap?.lastTradeTs && (
-                    <> · 최근 체결 {new Date(selectedSnap.lastTradeTs).toLocaleString()}</>
+                    <> · {selectedSnap.priceType === "bar_close" ? "봉 종가 시각" : "체결 시각"} {new Date(selectedSnap.lastTradeTs).toLocaleString()}</>
                   )}
                 </p>
               </div>
@@ -709,6 +750,12 @@ export default function TradePage() {
               >
                 {isInWatchlist ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}
               </button>
+            </div>
+
+            <div className={`mb-4 rounded border px-3 py-2 text-xs ${canAnalyze ? "border-neutral-800 text-neutral-400" : "border-amber-800 bg-amber-950/30 text-amber-200"}`}>
+              <p>{canAnalyze ? "현재 가격 시각 확인됨" : "분석 잠금 · 가격 확인 필요"} · {selectedQuality.reasons.join(" ") || "가격·차트는 출처와 기준 시각이 다를 수 있습니다."}</p>
+              <p className="mt-1">분·시간봉은 SIP 16분 이상 지연, 일·주봉은 완료 봉 기준입니다. 실제 주문 전 증권사 가격을 확인하세요.</p>
+              <button onClick={loadSnapshots} disabled={snapshotsLoading} className="mt-2 underline disabled:opacity-50">{snapshotsLoading ? "가격 확인 중…" : "가격 새로고침"}</button>
             </div>
 
             {/* AI verdict banner — shows the most recent AI call (within 24h)
@@ -809,7 +856,7 @@ export default function TradePage() {
             <TradeJournalPanel
               key={`${selected}-${journalRefreshKey}`}
               symbol={selected}
-              currentPrice={selectedSnap?.lastPrice ?? null}
+              currentPrice={canAnalyze ? selectedSnap?.lastPrice ?? null : null}
               aiAnalysisId={result?.analysis.id ?? null}
             />
 
@@ -817,14 +864,14 @@ export default function TradePage() {
             <div className="flex items-center gap-3 mb-6 flex-wrap">
               <button
                 onClick={analyze}
-                disabled={analyzing}
+                disabled={analyzing || !canAnalyze}
                 className="px-4 py-2 bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white rounded text-sm font-semibold"
               >
                 {analyzing ? "분석 중…" : "📊 매수/매도 근거 분석"}
               </button>
               <button
                 onClick={runPullback}
-                disabled={pbLoading}
+                disabled={pbLoading || !canAnalyze}
                 title="상승추세 내 건강한 눌림인지, 추세 전환(하락)인지 5기준으로 판별"
                 className="px-4 py-2 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-50 text-white rounded text-sm font-semibold"
               >
@@ -849,7 +896,7 @@ export default function TradePage() {
             )}
             {pbResult && (
               <div className="mb-6">
-                <PullbackCard r={pbResult} />
+                <PullbackCard r={pbResult} canAnalyze={canAnalyze} nowMs={priceCheckTime.getTime()} />
               </div>
             )}
 
@@ -872,7 +919,7 @@ export default function TradePage() {
                 )}
                 {/* Prominent verdict callout — the BUY/SELL/HOLD call is now
                     the visual headline, not a side-label. */}
-                <VerdictBanner verdict={result.analysis} fresh={!result.stale} />
+                <VerdictBanner verdict={result.analysis} fresh={!result.stale && canAnalyze && hasCurrentPlanEvidence(result.analysis.context, priceCheckTime.getTime())} />
                 {result.analysis.summary && (
                   <div className="border border-neutral-800 rounded-lg p-4">
                     <div className="text-xs uppercase tracking-wider text-neutral-500 mb-2">
@@ -883,7 +930,7 @@ export default function TradePage() {
                 )}
 
                 {/* 매매 플랜 — 언제 사고 언제 팔지 (context.trade_plan, ATR 검증 통과분) */}
-                <TradePlanCard analysis={result.analysis} />
+                <TradePlanCard analysis={result.analysis} canAnalyze={canAnalyze} nowMs={priceCheckTime.getTime()} />
 
                 {/* long-term horizons (3m / 6m / 1y) */}
                 {result.analysis.horizons && (
@@ -903,7 +950,7 @@ export default function TradePage() {
                               {VERDICT_LABEL[h.verdict]}
                             </span>
                           </div>
-                          <div className="text-xs text-neutral-500 mt-1">신뢰도 {(h.confidence * 100).toFixed(0)}%</div>
+                          <div className="text-xs text-neutral-500 mt-1">AI 해석 · 예측 성과 미검증</div>
                           {h.summary && (
                             <p className="mt-2 text-xs leading-relaxed text-neutral-200">{h.summary}</p>
                           )}
@@ -940,65 +987,13 @@ export default function TradePage() {
                   </div>
                 </div>
 
-                {/* sizing */}
-                <div className="border border-sky-900/50 bg-sky-950/20 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs uppercase text-sky-400">권장 사이징</h3>
-                    <details className="group relative">
-                      <summary className="cursor-pointer list-none text-xs text-neutral-500 hover:text-sky-300 select-none">
-                        ⓘ 계산 규칙
-                      </summary>
-                      <div className="absolute right-0 top-6 z-10 w-[420px] max-w-[80vw] rounded-md border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-300 shadow-lg">
-                        <p className="text-neutral-200 mb-2">
-                          AI 신뢰도 <span className="text-sky-300">w</span> (0~1) × 포지션 설정 조합 룰. AI는 판정·신뢰도만 정하고, 금액 계산은 고정 공식.
-                        </p>
-                        <table className="w-full text-[11px] border border-neutral-800">
-                          <thead className="bg-neutral-900 text-neutral-400">
-                            <tr>
-                              <th className="px-1.5 py-1 text-left">판정</th>
-                              <th className="px-1.5 py-1 text-left">거치식 (예산 X)</th>
-                              <th className="px-1.5 py-1 text-left">DCA (일 매수액 Y)</th>
-                            </tr>
-                          </thead>
-                          <tbody className="text-neutral-300">
-                            <tr className="border-t border-neutral-800">
-                              <td className="px-1.5 py-1 text-emerald-300">매수</td>
-                              <td className="px-1.5 py-1">X × w</td>
-                              <td className="px-1.5 py-1">Y × min(1 + 2w, 3)</td>
-                            </tr>
-                            <tr className="border-t border-neutral-800">
-                              <td className="px-1.5 py-1 text-amber-300">관망</td>
-                              <td className="px-1.5 py-1">0 (보류)</td>
-                              <td className="px-1.5 py-1">Y (평소 슬라이스)</td>
-                            </tr>
-                            <tr className="border-t border-neutral-800">
-                              <td className="px-1.5 py-1 text-rose-300">매도</td>
-                              <td className="px-1.5 py-1">X × w (보유분 익절/손절)</td>
-                              <td className="px-1.5 py-1">0 (오늘 매수 X)</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                        <div className="mt-2 text-neutral-400">
-                          <div className="text-neutral-300 font-semibold mb-0.5">DCA 매수 배수 예시</div>
-                          <div>w=0.50 → 2.0× · w=0.75 → 2.5× · w=1.00 → 3.0× (cap)</div>
-                        </div>
-                        <p className="mt-2 text-neutral-500 leading-relaxed">
-                          평소 DCA로 사고 있는 양에 가중을 더해 "신호 강할 때 평소보다 많이"
-                          사도록 설계된 룰. 거치식은 반대로 매수 신호가 없으면 0원으로 진입 보류.
-                        </p>
-                      </div>
-                    </details>
-                  </div>
-                  <div className="text-sm">
-                    <div className="text-2xl font-semibold">
-                      {fmtKRW(result.sizing.amount_krw)}
-                    </div>
-                    <div className="text-xs text-neutral-400 mt-1">
-                      가중치 {(result.sizing.weight * 100).toFixed(0)}%
-                    </div>
-                    <p className="mt-2 text-neutral-300">{result.sizing.rationale}</p>
-                  </div>
-                </div>
+                <RiskPlanner
+                  key={`${result.analysis.id}-${canAnalyze && hasCurrentPlanEvidence(result.analysis.context, priceCheckTime.getTime())}`}
+                  initialSymbol={result.analysis.symbol}
+                  initialEntry={canAnalyze ? readTradePlan(result.analysis)?.entry_high : undefined}
+                  initialStop={canAnalyze ? readTradePlan(result.analysis)?.stop : undefined}
+                  initialTarget={canAnalyze ? readTradePlan(result.analysis)?.target_1 : undefined}
+                />
 
                 {/* news */}
                 {result.news.length > 0 && (
@@ -1088,7 +1083,6 @@ export default function TradePage() {
  */
 function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?: boolean }) {
   const v = verdict.verdict;
-  const conf = Math.round(verdict.confidence * 100);
   const ageMin = Math.max(0, Math.floor((Date.now() - new Date(verdict.created_at).getTime()) / 60000));
   const ageLabel =
     ageMin < 1 ? "방금" : ageMin < 60 ? `${ageMin}분 전` : `${Math.floor(ageMin / 60)}시간 전`;
@@ -1106,7 +1100,7 @@ function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <span className="text-xs uppercase tracking-wider text-neutral-400">
-            🤖 AI 단타 추천{!fresh && ` · ${ageLabel} 분석`}
+            🤖 {fresh ? "AI 분석 의견" : "과거 AI 의견 · 재확인 필요"}{!fresh && ` · ${ageLabel} 분석`}
           </span>
         </div>
         <span className="text-xs text-neutral-500">
@@ -1115,11 +1109,11 @@ function VerdictBanner({ verdict, fresh = false }: { verdict: AiAnalysis; fresh?
         </span>
       </div>
       <div className="mt-2 flex items-baseline gap-4 flex-wrap">
-        <div className={`text-4xl font-bold ${textClass}`}>
+        <div className={`text-2xl font-bold ${textClass}`}>
           {emoji} {VERDICT_LABEL[v]}
         </div>
         <div className="text-sm text-neutral-400">
-          신뢰도 <span className={`text-lg font-semibold ${textClass}`}>{conf}%</span>
+          AI 해석 · 승률과 수익성 미검증
         </div>
       </div>
       {!fresh && verdict.summary && (
@@ -1168,15 +1162,22 @@ interface TradePlanShape {
   note: string;
 }
 function readTradePlan(analysis: AiAnalysis): TradePlanShape | null {
+  if (!hasCurrentPlanEvidence(analysis.context)) return null;
   const raw = (analysis.context as { trade_plan?: unknown } | null)?.trade_plan;
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Partial<TradePlanShape>;
   const nums = [p.entry_low, p.entry_high, p.stop, p.target_1, p.target_2];
-  if (nums.some((v) => typeof v !== "number" || !isFinite(v))) return null;
+  if (nums.some((v) => typeof v !== "number" || !isFinite(v) || v <= 0)) return null;
+  if (!(p.stop! < p.entry_low! && p.entry_low! <= p.entry_high! && p.entry_high! < p.target_1! && p.target_1! <= p.target_2!)) return null;
   return p as TradePlanShape;
 }
 
-function TradePlanCard({ analysis }: { analysis: AiAnalysis }) {
+function TradePlanCard({ analysis, canAnalyze, nowMs }: { analysis: AiAnalysis; canAnalyze: boolean; nowMs: number }) {
+  if (!canAnalyze || !hasCurrentPlanEvidence(analysis.context, nowMs)) return (
+    <div className="rounded border border-amber-900/60 bg-amber-950/20 p-4 text-xs text-amber-200">
+      과거 분석 · 가격 근거가 만료되었거나 검증되지 않아 진입·손절·목표 가격을 숨겼습니다. 가격을 새로고침하고 다시 분석하세요.
+    </div>
+  );
   const plan = readTradePlan(analysis);
   if (!plan) return null;
   const v = analysis.verdict;
@@ -1186,11 +1187,11 @@ function TradePlanCard({ analysis }: { analysis: AiAnalysis }) {
       : v === "sell"
         ? "border-rose-800 bg-rose-950/30"
         : "border-neutral-800 bg-neutral-900/30";
-  const entryLabel = v === "buy" ? "진입 존" : v === "sell" ? "반등 매도 존" : "진입 대기 존";
+  const entryLabel = "매수 가정 진입 구간";
   return (
     <div className={`border rounded-lg p-4 ${frame}`}>
       <div className="text-xs uppercase tracking-wider text-neutral-500 mb-3">
-        📋 매매 플랜 — 언제 사고 언제 팔지 (기초자산 가격 기준)
+        📋 가격 시나리오 (분석 종목 기준 · 매수 가정)
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm">
         <div>
@@ -1218,7 +1219,7 @@ function TradePlanCard({ analysis }: { analysis: AiAnalysis }) {
         <p className="mt-3 text-xs text-neutral-400 leading-relaxed">💡 {plan.note}</p>
       )}
       <p className="mt-2 text-[11px] text-neutral-600">
-        2배 레버리지 ETF로 실행 시 손익률은 위 % 거리의 약 2배로 움직입니다.
+        일일 2배 ETF의 여러 날 누적 수익률은 기초자산 수익률의 2배와 다릅니다. ETF 자체 가격으로 별도 계획을 세우세요. 손절가 체결은 보장되지 않습니다.
       </p>
     </div>
   );
@@ -1259,9 +1260,11 @@ function TradeJournalPanel({
   const [error, setError] = useState<string | null>(null);
   // Leveraged-derivative recording: when "다른 종목으로 매매" is on, the
   // user enters the actually-traded ticker (e.g. TSLL) here while the
-  // panel's `symbol` (e.g. TSLA) becomes the underlying. Defaults on
-  // because the user's typical flow is small-cap real money on 2x ETFs.
-  const [useDerivative, setUseDerivative] = useState(true);
+  // panel's `symbol` (e.g. TSLA) becomes the underlying. Enabled
+  // only when the user explicitly records a different traded instrument.
+  const [ledgerPositions, setLedgerPositions] = useState<PositionDerived[]>([]);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [useDerivative, setUseDerivative] = useState(false);
   const [derivTicker, setDerivTicker] = useState("");
   const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -1271,14 +1274,21 @@ function TradeJournalPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [byTraded, byUnderlying] = await Promise.all([
+      const [byTraded, byUnderlying, ledger] = await Promise.all([
         fetch(`/api/trades?symbol=${encodeURIComponent(symbol)}&limit=50`).then(
           (r) => r.json() as Promise<{ trades?: Trade[] }>,
         ),
         fetch(
           `/api/trades?underlying_symbol=${encodeURIComponent(symbol)}&limit=50`,
         ).then((r) => r.json() as Promise<{ trades?: Trade[] }>),
+        fetch("/api/trades/positions?prices=0", { cache: "no-store" }).then(async r => {
+          const value = await r.json() as { positions?: PositionDerived[]; error?: string };
+          if (!r.ok || value.error || !value.positions) return { positions: [], error: value.error ?? "전체 거래 원장을 확인할 수 없습니다." };
+          return value;
+        }),
       ]);
+      setLedgerPositions(ledger.positions ?? []);
+      setLedgerError(ledger.error ?? null);
       // Dedupe by trade id; sort by ts desc.
       const map = new Map<string, Trade>();
       for (const t of byTraded.trades ?? []) map.set(t.id, t);
@@ -1287,6 +1297,9 @@ function TradeJournalPanel({
         a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0,
       );
       setTrades(merged);
+    } catch (error) {
+      setLedgerPositions([]);
+      setLedgerError(`거래 기록 조회 실패: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -1314,7 +1327,12 @@ function TradeJournalPanel({
       real: PositionDerived;
     }> = [];
     for (const [sym, group] of bySym) {
-      const der = derivePositions(group);
+      const position = (mode: "paper" | "real"): PositionDerived => ledgerPositions.find(item => item.symbol === sym && item.mode === mode) ?? {
+        symbol: sym, mode, openQty: 0, avgBuyPrice: null, costBasisOpen: 0, realizedPnl: 0, totalBuyQty: 0, totalSellQty: 0,
+        tradeCount: group.filter(item => item.mode === mode).length,
+        accountingError: ledgerError ?? "완전한 원장에서 포지션을 확인할 수 없어 손익 계산을 보류합니다.",
+      };
+      const der = { paper: position("paper"), real: position("real") };
       out.push({
         symbol: sym,
         // All trades for one symbol share the same underlying (or null).
@@ -1330,7 +1348,7 @@ function TradeJournalPanel({
       return a.symbol.localeCompare(b.symbol);
     });
     return out;
-  }, [trades, symbol]);
+  }, [trades, symbol, ledgerPositions, ledgerError]);
 
   async function submit() {
     const qtyN = Number(qty);
@@ -1415,6 +1433,7 @@ function TradeJournalPanel({
           underlying = panel symbol) follow with a tag indicating link.
           Paper-mode summary hidden when zero paper trades (user is on
           real money only — no need to clutter the panel). */}
+      {ledgerError && <p className="mb-3 rounded border border-amber-800 p-3 text-xs text-amber-200">{ledgerError}</p>}
       {positionsByInstrument.length === 0 ? (
         <div className="border border-neutral-800 rounded p-2.5 text-xs text-neutral-500 mb-3">
           이 종목 기록 없음
@@ -1696,6 +1715,7 @@ function PositionSummary({
   pos: PositionDerived;
   currentPrice: number | null;
 }) {
+  if (pos.accountingError) return <div className="rounded border border-amber-800 p-3 text-xs text-amber-200">{label} · {pos.accountingError}</div>;
   if (pos.tradeCount === 0) {
     return (
       <div className="border border-neutral-800 rounded p-2.5 text-neutral-500">
@@ -1721,7 +1741,7 @@ function PositionSummary({
         <span className="text-right text-neutral-200">
           {pos.avgBuyPrice != null ? `$${pos.avgBuyPrice.toFixed(2)}` : "—"}
         </span>
-        <span className="text-neutral-500">실현 손익</span>
+        <span className="text-neutral-500">실현 손익 (비용 전)</span>
         <span
           className={`text-right font-semibold ${
             pos.realizedPnl > 0
@@ -1764,48 +1784,6 @@ function PositionSummary({
       </div>
     </div>
   );
-}
-
-/** Same weighted-avg math as lib/trades.ts, but client-side for a single symbol. */
-function derivePositions(trades: Trade[]): {
-  paper: PositionDerived;
-  real: PositionDerived;
-} {
-  const empty = (mode: "paper" | "real"): PositionDerived => ({
-    symbol: trades[0]?.symbol ?? "",
-    mode,
-    openQty: 0,
-    avgBuyPrice: null,
-    costBasisOpen: 0,
-    realizedPnl: 0,
-    totalBuyQty: 0,
-    totalSellQty: 0,
-    tradeCount: 0,
-  });
-  const out = { paper: empty("paper"), real: empty("real") };
-  const acc = { paper: { buyQty: 0, buyCost: 0, sellQty: 0, sellRev: 0 }, real: { buyQty: 0, buyCost: 0, sellQty: 0, sellRev: 0 } };
-  for (const t of trades) {
-    const a = acc[t.mode];
-    out[t.mode].tradeCount += 1;
-    if (t.action === "buy") {
-      a.buyQty += t.qty;
-      a.buyCost += t.qty * t.price;
-    } else {
-      a.sellQty += t.qty;
-      a.sellRev += t.qty * t.price;
-    }
-  }
-  for (const k of ["paper", "real"] as const) {
-    const a = acc[k];
-    const avg = a.buyQty > 0 ? a.buyCost / a.buyQty : null;
-    out[k].totalBuyQty = a.buyQty;
-    out[k].totalSellQty = a.sellQty;
-    out[k].openQty = a.buyQty - a.sellQty;
-    out[k].avgBuyPrice = avg;
-    out[k].costBasisOpen = avg != null ? Math.max(0, out[k].openQty) * avg : 0;
-    out[k].realizedPnl = avg != null ? a.sellRev - avg * a.sellQty : 0;
-  }
-  return out;
 }
 
 /**
@@ -1988,8 +1966,12 @@ interface PbTimeframe {
   label: string;
   bars: number;
   facts: PbFacts | null;
+  dataQuality?: DataQuality;
+  source?: string;
 }
 interface PullbackResponse {
+  dataQuality?: DataQuality;
+  priceAsOf?: string | null;
   symbol: string;
   session: string | null;
   price: number;
@@ -2000,8 +1982,8 @@ interface PullbackResponse {
 }
 
 const PB_CLASS_META: Record<PbClass, { label: string; cls: string; buyable: boolean }> = {
-  pullback: { label: "🟢 눌림목 지지 확인 · 진입 가능", cls: "border-emerald-700 bg-emerald-950/40 text-emerald-200", buyable: true },
-  forming: { label: "🟡 눌림목 형성 중 · 확인 대기", cls: "border-amber-700 bg-amber-950/40 text-amber-200", buyable: true },
+  pullback: { label: "🟢 눌림목 조건 관측 · 추가 확인", cls: "border-emerald-700 bg-emerald-950/40 text-emerald-200", buyable: true },
+  forming: { label: "🟡 눌림목 형성 중 · 확인 대기", cls: "border-amber-700 bg-amber-950/40 text-amber-200", buyable: false },
   downtrend: { label: "🔴 하락 전환 의심 · 회피", cls: "border-rose-700 bg-rose-950/40 text-rose-200", buyable: false },
   no_uptrend: { label: "⚪ 상승추세 아님 · 눌림 아님", cls: "border-neutral-600 bg-neutral-900/60 text-neutral-300", buyable: false },
 };
@@ -2033,7 +2015,8 @@ const PB_CLASS_SHORT: Record<PbClass, string> = {
   no_uptrend: "무추세",
 };
 
-function PullbackCard({ r }: { r: PullbackResponse }) {
+function PullbackCard({ r, canAnalyze, nowMs }: { r: PullbackResponse; canAnalyze: boolean; nowMs: number }) {
+  const priceEvidenceCurrent = canAnalyze && r.dataQuality?.status === "fresh" && snapshotQuality(r.priceAsOf ?? null, r.price, scheduledMarketSession(new Date(nowMs)), new Date(nowMs)).status === "fresh";
   const meta = PB_CLASS_META[r.ai.classification] ?? PB_CLASS_META.forming;
   const avail = r.timeframes.filter((t) => t.facts);
   // Default selected TF: the AI's operative one, else prefer swing TFs.
@@ -2049,7 +2032,7 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
   // TF we prefer the AI-refined plan (r.plan); other TFs show their own mechanical
   // (ATR/structure) baseline from facts.plan.
   const isOpSel = !!sel && sel.label === r.ai.operative_tf;
-  const plan = isOpSel && r.plan ? r.plan : f?.plan ?? null;
+  const plan = priceEvidenceCurrent ? (isOpSel && r.plan ? r.plan : f?.plan ?? null) : null;
   const selMeta = f ? PB_CLASS_META[f.classification] ?? meta : meta;
 
   return (
@@ -2058,7 +2041,7 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
       <div className={`border-b p-4 ${meta.cls}`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="text-sm font-bold">{meta.label}</span>
-          <span className="text-xs opacity-80">신뢰도 {(r.ai.confidence * 100).toFixed(0)}%</span>
+          <span className="text-xs opacity-80">AI 해석 · 성과 미검증</span>
         </div>
         {r.ai.headline && <p className="text-sm mt-1 font-semibold">{r.ai.headline}</p>}
         <p className="text-xs mt-1 opacity-80">기준 타임프레임: {r.ai.operative_tf}</p>
@@ -2070,8 +2053,9 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
       <div className="p-4 space-y-4">
         {r.ai.summary && <p className="text-sm leading-relaxed text-neutral-200">{r.ai.summary}</p>}
 
+        {!priceEvidenceCurrent && <p className="text-xs text-amber-300">과거 분석 · 현재 가격 근거가 만료되어 매매 가격을 숨겼습니다. 새로고침 후 다시 분석하세요.</p>}
         {/* action callout */}
-        {r.ai.action && (
+        {priceEvidenceCurrent && r.ai.action && (
           <div className="rounded border border-sky-800 bg-sky-950/40 px-3 py-2">
             <span className="text-[11px] uppercase tracking-wider text-sky-400">지금 할 일</span>
             <p className="text-sm text-sky-100 mt-0.5">{r.ai.action}</p>
@@ -2090,7 +2074,7 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
               if (!t.facts) {
                 return (
                   <span key={t.key} className="text-xs px-2 py-1 border border-neutral-800 rounded text-neutral-600">
-                    {t.label} · 데이터부족
+                    {t.label} · 근거 미확인
                   </span>
                 );
               }
@@ -2111,6 +2095,10 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
             })}
           </div>
         </div>
+
+        {sel?.dataQuality && (
+          <p className="text-xs text-neutral-400">{sel.source} · 봉 시작 {sel.dataQuality.asOf ? new Date(sel.dataQuality.asOf).toLocaleString() : "미확인"} · 해당 완료 봉의 종가를 사용하며 현재 가격과 다릅니다.</p>
+        )}
 
         {/* selected TF: 5-criterion checklist (mechanical) */}
         {f && (
@@ -2169,14 +2157,14 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
                 <PbStat label="진입" value={`$${plan.entryLow}~${plan.entryHigh}`} />
                 <PbStat label="손절" value={`$${plan.stop}`} tone="rose" />
                 <PbStat label="목표1 / 2" value={`$${plan.target1} / $${plan.target2}`} tone="emerald" />
-                <PbStat label="손익비 R:R" value={plan.rr != null ? `${plan.rr}` : "—"} />
+                <PbStat label="비용 전 목표1 손익비" value={plan.rr != null ? `${plan.rr}` : "—"} />
               </div>
               <p className="text-[11px] text-neutral-500 mt-1.5 leading-relaxed">
-                {sel?.label} 기준{isOpSel ? "(AI 조정값)" : "(해당 TF ATR·구조 기계 산출)"} — 진입: 현재가~인근 지지 · 손절: 눌림 저점 아래(ATR 버퍼) · 목표1: 직전 고점 · 목표2: 상승폭 연장. <b className="text-neutral-400">타임프레임을 바꾸면 값이 달라집니다.</b>
+                {sel?.label} 기준{isOpSel ? "(AI 조정값·검증 전)" : "(해당 TF ATR·구조 기계 산출)"} — 진입: 현재가~인근 지지 · 손절: 눌림 저점 아래(ATR 버퍼) · 목표1: 직전 고점 · 목표2: 상승폭 연장. <b className="text-neutral-400">타임프레임을 바꾸면 값이 달라집니다.</b>
               </p>
             </div>
           ) : (
-            <p className="text-[11px] text-neutral-600 py-1">{sel?.label} 매매 플랜 산출 불가 (ATR/구조 데이터 부족)</p>
+            <p className="text-[11px] text-neutral-600 py-1">{priceEvidenceCurrent ? `${sel?.label} 매매 플랜 산출 불가 (ATR/구조 데이터 부족)` : "가격 근거 만료 · 다시 분석하세요"}</p>
           )
         )}
 
@@ -2193,7 +2181,7 @@ function PullbackCard({ r }: { r: PullbackResponse }) {
         <p className="text-[11px] text-neutral-600 leading-relaxed">
           각 타임프레임의 체크리스트는 해당 봉 데이터로 기계적으로 계산된 실측치이며(별 ★ = AI가 고른 기준 TF),
           판정·플랜은 AI가 타임프레임을 종합한 참고 의견입니다. &ldquo;형성 중&rdquo;은 확인 캔들 전까지 진입을
-          미루라는 뜻입니다. 분/시간봉은 통합 테이프 기준 약 15분 지연됩니다. 최종 매매 판단·책임은 본인에게 있습니다.
+          미루라는 뜻입니다. 분/시간봉은 통합 테이프 기준 16분 이상 지연되며 완료 봉만 사용합니다. 최종 매매 판단·책임은 본인에게 있습니다.
         </p>
       </div>
     </section>

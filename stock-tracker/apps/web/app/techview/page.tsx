@@ -143,7 +143,7 @@ function TechViewInner() {
         <p className="text-xs text-neutral-500 mt-1">
           주봉 <b className="text-neutral-400">고고저 빗각 채널</b> + 갭하락 기준{" "}
           <b className="text-neutral-400">피보나치 되돌림</b> +{" "}
-          <b className="text-neutral-400">라인 터치 확인</b>(밟아야 산다) → 갭 메움 목표까지의
+          <b className="text-neutral-400">라인 터치 확인</b>으로 관찰 후보와 가격
           시나리오를 산출합니다.
         </p>
       </div>

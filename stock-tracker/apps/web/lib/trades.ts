@@ -8,6 +8,7 @@
 // touching the API or UI.
 
 import { supabaseAdmin } from "./supabaseAdmin";
+import { accountTrades } from "./positionAccounting";
 
 export type TradeAction = "buy" | "sell";
 export type TradeMode = "paper" | "real";
@@ -151,11 +152,11 @@ export interface Position {
   mode: TradeMode;
   /** Net shares held. Sum of buys minus sells. */
   openQty: number;
-  /** Weighted-average cost across all buys (NOT reduced by sells). */
+  /** Chronological weighted-average cost of currently open shares; resets after closing. */
   avgBuyPrice: number | null;
   /** Total cost basis of currently-open shares = openQty × avgBuyPrice. */
   costBasisOpen: number;
-  /** Realized P&L = sell_revenue - (avg_buy × sold_qty). */
+  /** Realized P&L from each sale using the average cost immediately before that sale; fees excluded. */
   realizedPnl: number;
   /** Total qty bought across history (for context). */
   totalBuyQty: number;
@@ -190,24 +191,7 @@ export function computePosition(
   mode: TradeMode,
   trades: Trade[],
 ): Position {
-  let totalBuyQty = 0;
-  let totalBuyCost = 0;
-  let totalSellQty = 0;
-  let totalSellRevenue = 0;
-  for (const t of trades) {
-    if (t.action === "buy") {
-      totalBuyQty += t.qty;
-      totalBuyCost += t.qty * t.price;
-    } else {
-      totalSellQty += t.qty;
-      totalSellRevenue += t.qty * t.price;
-    }
-  }
-  const avgBuyPrice = totalBuyQty > 0 ? totalBuyCost / totalBuyQty : null;
-  const realizedPnl =
-    avgBuyPrice != null ? totalSellRevenue - avgBuyPrice * totalSellQty : 0;
-  const openQty = totalBuyQty - totalSellQty;
-  const costBasisOpen = avgBuyPrice != null ? Math.max(0, openQty) * avgBuyPrice : 0;
+  const { openQty, avgBuyPrice, costBasisOpen, realizedPnl, totalBuyQty, totalSellQty } = accountTrades(trades);
 
   // Bundle EVERY trade (noted or not), recent-first, so the stats page can
   // show the full entry/exit breakdown and delete a specific fill by id.
@@ -238,8 +222,7 @@ export function computePosition(
 
 /**
  * Group trades by (symbol, mode) and produce one Position per group.
- * Symbols with zero open qty AND zero realized P&L are dropped — they're
- * just noise (e.g. a buy that was immediately reversed at the same price).
+ * Closed and breakeven positions are retained so their journal remains reviewable.
  */
 export function aggregatePositions(trades: Trade[]): Position[] {
   const buckets = new Map<string, Trade[]>();
@@ -253,7 +236,6 @@ export function aggregatePositions(trades: Trade[]): Position[] {
   for (const [key, group] of buckets) {
     const [symbol, mode] = key.split("|") as [string, TradeMode];
     const p = computePosition(symbol, mode, group);
-    if (p.openQty === 0 && p.realizedPnl === 0) continue;
     out.push(p);
   }
   // Open positions first, then by abs(realized P&L) desc.
@@ -274,58 +256,26 @@ export interface RealizedPoint {
   cumulative: number;
 }
 
-/**
- * Chronological cumulative realized-P&L curve over the given trades.
- *
- * Realizes each sell against that symbol's weighted-average buy price taken
- * over the WHOLE set (identical basis to computePosition). Because
- *   Σ_sells (sellPrice − avgBuy) · qty  ≡  totalSellRevenue − avgBuy · totalSellQty,
- * the final cumulative value ties out exactly to the sum of per-symbol
- * realizedPnl — i.e. the curve's endpoint equals the headline 실현 손익.
- *
- * One point per sell event, with a leading 0 baseline so the curve starts
- * flat at zero. Returns [] when there are no realizing sells (nothing to plot).
- */
-export function computeRealizedTimeline(trades: Trade[]): RealizedPoint[] {
+/** Account the full ledger first; an optional reporting window only filters sale events. */
+export function computeRealizedTimeline(trades: Trade[], since?: string): RealizedPoint[] {
   if (trades.length === 0) return [];
-
-  // Global average buy price per (symbol, mode) — keyed identically to
-  // computePosition so the cumulative endpoint ties out to summary.realizedPnl
-  // even when the same symbol is traded in BOTH paper and real mode (this fn is
-  // commonly called with mode-mixed trades from /api/trades/positions).
-  const key = (t: Trade) => `${t.symbol}|${t.mode}`;
-  const buyQty = new Map<string, number>();
-  const buyCost = new Map<string, number>();
-  for (const t of trades) {
-    if (t.action === "buy") {
-      const k = key(t);
-      buyQty.set(k, (buyQty.get(k) ?? 0) + t.qty);
-      buyCost.set(k, (buyCost.get(k) ?? 0) + t.qty * t.price);
-    }
+  const buckets = new Map<string, Trade[]>();
+  for (const trade of trades) {
+    const key = `${trade.symbol}|${trade.mode}`;
+    const group = buckets.get(key) ?? [];
+    group.push(trade);
+    buckets.set(key, group);
   }
-  const avgBuy = (k: string): number | null => {
-    const q = buyQty.get(k) ?? 0;
-    return q > 0 ? (buyCost.get(k) ?? 0) / q : null;
-  };
-
-  const sorted = [...trades].sort((a, b) =>
-    a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0,
-  );
-
+  const events = [...buckets.values()].flatMap(group => accountTrades(group).realizedEvents)
+    .filter(event => !since || Date.parse(event.ts) >= Date.parse(since))
+    .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+  if (!events.length) return [];
   let cumulative = 0;
-  const points: RealizedPoint[] = [
-    // Baseline: 0 at the first trade so the curve opens flat at zero.
-    { ts: sorted[0].ts, cumulative: 0 },
-  ];
-  for (const t of sorted) {
-    if (t.action !== "sell") continue;
-    const a = avgBuy(key(t));
-    if (a == null) continue; // sold with no buy basis → contributes 0
-    cumulative += (t.price - a) * t.qty;
-    points.push({ ts: t.ts, cumulative });
-  }
-
-  return points.length > 1 ? points : [];
+  const start = since ?? [...trades].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))[0].ts;
+  return [{ ts: start, cumulative: 0 }, ...events.map(event => {
+    cumulative += event.pnl;
+    return { ts: event.ts, cumulative };
+  })];
 }
 
 export interface PnlSummary {
@@ -333,9 +283,9 @@ export interface PnlSummary {
   windowDays: number | null;
   tradeCount: number;
   realizedPnl: number;
-  /** Closed positions: bought and fully sold. */
+  /** Completed position cycles, counted separately after each full close. */
   closedPositionCount: number;
-  /** Of closed positions, fraction that finished profitable. */
+  /** Fraction of completed cycles profitable before fees; descriptive, not predictive. */
   winRate: number | null;
   // ─── live mark-to-market roll-ups (filled by the API route) ───
   /** Open positions (openQty > 0). */
@@ -355,23 +305,31 @@ export interface PnlSummary {
 /** Aggregate realized P&L across all trades in scope. */
 export function summarizePnl(
   trades: Trade[],
-  opts: { mode?: TradeMode; windowDays?: number } = {},
+  opts: { mode?: TradeMode; windowDays?: number; since?: string } = {},
 ): PnlSummary {
+  const selected = opts.mode ? trades.filter(trade => trade.mode === opts.mode) : trades;
+  const buckets = new Map<string, Trade[]>();
+  for (const trade of selected) {
+    const key = `${trade.symbol}|${trade.mode}`;
+    const group = buckets.get(key) ?? [];
+    group.push(trade);
+    buckets.set(key, group);
+  }
   let realized = 0;
   let closedCount = 0;
   let wins = 0;
-  const positions = aggregatePositions(trades);
-  for (const p of positions) {
-    realized += p.realizedPnl;
-    if (p.openQty <= 0 && p.totalSellQty > 0) {
-      closedCount += 1;
-      if (p.realizedPnl > 0) wins += 1;
-    }
+  const inWindow = (ts: string) => !opts.since || Date.parse(ts) >= Date.parse(opts.since);
+  for (const group of buckets.values()) {
+    const account = accountTrades(group);
+    realized += account.realizedEvents.filter(event => inWindow(event.ts)).reduce((sum, event) => sum + event.pnl, 0);
+    const cycles = account.closedCycles.filter(cycle => inWindow(cycle.ts));
+    closedCount += cycles.length;
+    wins += cycles.filter(cycle => cycle.pnl > 0).length;
   }
   return {
     mode: opts.mode ?? "all",
     windowDays: opts.windowDays ?? null,
-    tradeCount: trades.length,
+    tradeCount: selected.filter(trade => inWindow(trade.ts)).length,
     realizedPnl: realized,
     closedPositionCount: closedCount,
     winRate: closedCount > 0 ? wins / closedCount : null,
