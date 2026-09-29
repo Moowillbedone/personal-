@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestPriceSnapshot } from "@/lib/marketData";
-import { currentMarketSession } from "@/lib/alpaca";
+import { currentMarketSession, getSnapshots } from "@/lib/alpaca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,11 +27,11 @@ export async function GET(req: NextRequest) {
   const raw = (req.nextUrl.searchParams.get("symbols") ?? "").trim();
   if (!raw) return NextResponse.json({ snapshots: [] });
 
-  const symbols = raw
+  const symbols = Array.from(new Set(raw
     .split(",")
     .map((s) => s.trim().toUpperCase())
     .filter((s) => /^[A-Z][A-Z0-9.\-]{0,9}$/.test(s))
-    .slice(0, MAX_SYMBOLS);
+    .slice(0, MAX_SYMBOLS)));
 
   const session = currentMarketSession();
 
@@ -43,10 +43,11 @@ export async function GET(req: NextRequest) {
     }
   };
 
-  // Regular session: full parallelism, single batched IEX call deep inside.
+  // Regular session: one actual multi-symbol snapshot request.
   // Worst-case latency ~2s for 100 symbols.
   if (session === "regular") {
-    const results = await Promise.all(symbols.map(fetchOne));
+    const batch = await getSnapshots(symbols).catch(() => ({} as Awaited<ReturnType<typeof getSnapshots>>));
+    const results = symbols.map((symbol) => batch[symbol] ?? { symbol, error: "가격 데이터 조회 실패" });
     return NextResponse.json({ snapshots: results });
   }
 

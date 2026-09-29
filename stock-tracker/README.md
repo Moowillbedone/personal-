@@ -1,183 +1,46 @@
-# Stock Tracker — 2x ETF 스윙 콘솔
+# Stock Tracker · 투자 판단 워크스페이스
 
-> **2026-07 방향 전환:** 순수 데이 트레이딩 트래커 → **2배 레버리지 ETF 스윙 트레이딩 콘솔**.
-> 일봉 기준 진입 + 일~주 단위 분할 청산. 이유: 데이 트레이딩은 손절/익절 규율이 인간 영역을
-> 벗어나고, 하락장에선 스윙이 유리했음 (사용자 실전 경험).
+미국주식의 **데이터 확인 → 후보 검토 → 위험 예산 → 매매 복기**를 연결하는 개인 도구다. 전략의 수익성은 검증 전이며, 자동 주문은 실행하지 않는다.
 
-## 새 구조 (2026-07)
+## 화면
 
-| 화면 | 역할 |
+| 경로 | 용도 |
 |---|---|
-| `/` 대시보드 | ① **시장 레짐** (QQQ 추세 + VIX → 🟢스윙 적극/🟡선별/🔴현금·물타기 금지) ② **내 포지션 처방** (+10% 1차 익절 · +20% 2차 · -20% 물타기[레짐 게이트] · -30% 손절 검토, 트랜치=매수기록 수) ③ **강세 섹터 자금흐름** ④ 최근 시그널 |
-| `/trade` | 티커 → Gemini 고품질 매수/매도 분석 (유지) |
-| `/signals` | 시그널 전체 리스트 (구 홈) |
-| `/stats` | 성과 대시보드 (유지) |
-
-핵심 규칙 엔진: [`apps/web/lib/prescription.ts`](./apps/web/lib/prescription.ts) —
-분할매수 1건 = 트랜치 1개로 계산(스키마 변경 없음), **레짐 risk-off 시 물타기 자동 차단**
-(레버리지 ETF 하락추세 물타기 = 계좌 파괴 1순위), 박스권 장기보유 시 변동성 잠식(decay) 경고.
-
-텔레그램: 시그널 알림은 **나스닥 시총 상위 100 (NDX-100 프록시)** 만 발송 (`worker/poll.py` 게이트).
-AI 다이제스트/어닝 알림은 기존 유지.
-
----
-
-기존(v1) 개요: NASDAQ + NYSE 시가총액 TOP 100 종목을 5분봉으로 트래킹하다가 갭상승 / 갭하락 / 거래량 급증 시그널이 발생하면 실시간으로 화면에 푸시하는 트래커.
+| `/` | 시장 환경·데이터 상태·최대 5개 검토 후보·손실 예산 계산 |
+| `/research` | 눌림목 / 200기간선 / 일목 / 섹터를 하나씩 탐색 |
+| `/trade` | 종목별 근거·AI 해석·기술 분석·체결 기록 (소유자 전용) |
+| `/techview` | 추세선·피보나치 상세 (소유자 전용) |
+| `/stats` | 시간 순서 원장 손익과 관측 통계의 분리된 복기 (소유자 전용) |
+| `/signals` | 원시 가격·거래량 이벤트. 기존 미검증 기대수익은 숨김 |
+| `/methodology` | 데이터 범위·계산 의미·검증의 한계 |
 
 ## 아키텍처
 
-```
-GitHub Actions cron(매 5분)
-   └─ worker/poll.py   ── yfinance batch fetch (200 tickers)
-                        ── 갭 / 볼륨 시그널 감지
-                        └─ Supabase Postgres (insert)
-                                  └─ Realtime channel
-                                       └─ Next.js on Vercel (live UI)
-```
+GitHub Actions의 Python 워커가 Alpaca 봉과 외부 근거를 수집하고 Supabase에 기록한다. Next.js 15 / React 19 웹이 공개 시장 데이터와 소유자 전용 API를 읽으며 Vercel에서 서비스된다. Gemini는 수집된 근거의 해석에 사용한다. 소유자 API는 서버 service_role로 접근하며, 개인 테이블은 migration 020에서 public 읽기를 차단한다.
 
-| 컴포넌트   | 위치          | 호스팅            | 비용 |
-|------------|---------------|-------------------|------|
-| 프론트     | `apps/web`    | Vercel            | Free |
-| DB + Realtime | -          | Supabase (500MB)  | Free |
-| 워커(Python)  | `worker`   | GitHub Actions    | Free |
-| 데이터 소스   | -          | Yahoo Finance     | Free (15분 지연) |
+Alpaca IEX는 단일 거래소 시세다. historical SIP는 명시적 지연 구간을 사용한다. 원천 시각과 계산/조회 시각을 구분하며, 데이터가 불충분하면 판단과 평가액을 보류한다. 무료/비공식 공급자와 cron은 중단·지연될 수 있다.
 
-## 1회성 셋업
+## 개발
 
-### 1) Supabase 프로젝트 만들기
-
-1. https://supabase.com 가입 → New project
-2. 프로젝트 생성 후 **Settings → API** 에서 다음 3개 값 확인
-   - `Project URL` (예: `https://xxxxx.supabase.co`)
-   - `anon` public key
-   - `service_role` secret key  ← **절대 클라이언트에 노출 금지**
-3. **SQL Editor** 에서 [`supabase/migrations/001_initial.sql`](./supabase/migrations/001_initial.sql) 전체를 붙여넣고 실행
-4. **Database → Replication** 에서 `signals` 테이블이 `supabase_realtime` publication 에 들어 있는지 확인 (위 SQL 마지막 줄에서 자동 추가됨)
-
-### 2) GitHub repo Secrets 등록
-
-이 저장소(`Moowillbedone/personal-`) → **Settings → Secrets and variables → Actions → New repository secret** 로 추가:
-
-| Name                          | Value                          |
-|-------------------------------|--------------------------------|
-| `SUPABASE_URL`                | 위에서 확인한 Project URL      |
-| `SUPABASE_SERVICE_ROLE_KEY`   | 위에서 확인한 service_role key |
-
-그 다음 **Actions** 탭에서 두 워크플로를 각각 한 번씩 수동 실행:
-1. `stock-tracker / refresh-universe` — 종목 마스터 채우기 (선행 필수)
-2. `stock-tracker / poll` — 첫 데이터/시그널 수집
-
-이후로는 cron이 자동 실행.
-
-### 3) Vercel 배포 (프론트)
-
-1. https://vercel.com → Add New → Project → `Moowillbedone/personal-` import
-2. **Root Directory** 를 `stock-tracker/apps/web` 로 지정
-3. **Environment Variables**:
-   - `NEXT_PUBLIC_SUPABASE_URL` = Project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon (public) key
-4. Deploy
-
-배포가 끝나면 발급된 URL에서 바로 시그널 리스트를 볼 수 있음.
-
-## 로컬 개발
-
-### 워커
-```bash
-cd stock-tracker/worker
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env       # 값 채우기
-python refresh_universe.py
-python poll.py
-```
-
-### 프론트 (Node 필요: `brew install node`)
-```bash
+```sh
 cd stock-tracker/apps/web
-cp .env.example .env.local # 값 채우기
-npm install
-npm run dev                # http://localhost:3000
+cp .env.example .env.local
+# 환경 변수 입력 (.env.local은 Git 제외)
+npm ci
+npm run dev
 ```
 
-## 시그널 감지 룰 (Phase 1)
+UI와 빌드는 외부 자격증명 없이도 실행할 수 있다. 연결되지 않은 시장 데이터는 확인 불가로 표시된다. Node 22.18 이상(24 권장). 워커는 Python 3.12와 `worker/requirements.txt`를 사용한다. 실제 워커 실행은 DB 기록·일부 알림 전송을 수행하므로 테스트 명령과 구분한다.
 
-`worker/lib/signals.py` 에서 조정:
-
-| 파라미터         | 기본값 | 의미                                      |
-|------------------|--------|-------------------------------------------|
-| `GAP_PCT`        | 0.020  | 직전 봉 종가 대비 ±2.0% 이상 변동          |
-| `VOL_RATIO`      | 3.0    | 직전 20봉 평균 대비 3배 이상 거래량        |
-| `LOOKBACK_BARS`  | 20     | 거래량 평균 산출 윈도우                    |
-
-만족 시 `signal_type` 은:
-- `gap_up`        — 가격 임계 충족 + 상승
-- `gap_down`      — 가격 임계 충족 + 하락
-- `volume_spike`  — 거래량만 충족
-
-## 다음 단계 (Phase 2 / 3 로드맵)
-
-- [ ] **Phase 2**: 시그널 발생 시 텔레그램/디스코드 봇 알림
-- [ ] **Phase 3**: 과거 동일 패턴(±10% 매칭) 백테스트로 `expected_1d/3d/5d` 채우기
-- [ ] **Phase 3+**: 멀티팩터 필터 (RSI, MACD divergence, 섹터 흐름)
-- [ ] **장기**: Alpaca paper trading API 연동 → 자동매매 실험
-
-## 폴더 구조
-
-```
-stock-tracker/
-├── apps/web/                  # Next.js 15 (App Router)
-├── worker/                    # Python 워커
-│   ├── refresh_universe.py
-│   ├── poll.py
-│   └── lib/{db,data,signals}.py
-├── supabase/migrations/       # SQL 스키마
-├── .github/workflows/         # cron 정의
-└── README.md
+```sh
+npm test
+npm run typecheck
+npm run build
 ```
 
-## 주의
+## 검토와 운영
 
-- 본 프로젝트는 **연구/취미 목적**입니다. 실제 투자 결정에 사용 시 발생하는 모든 손실은 사용자 책임입니다.
-- yfinance 는 비공식 Yahoo Finance scraper 라 갑자기 차단/스로틀될 수 있음. 그 경우 Finnhub free tier (`finnhub-python`) 로 어댑터를 추가하면 됨.
+- [전체 구조·발견한 오류·수정·남은 검증](docs/REVIEW-2026-09.md)
+- [소유자 접근 보호·migration·운영 반영 순서](docs/RELEASE.md)
 
-## 장애 복구 & 프리티어 한도 관리
-
-### 증상: 사이트/텔레그램/트레이드 탭이 전부 죽음
-- `curl https://stock-tracker-khaki-mu.vercel.app/api/signal-stats` → `{"error":"TypeError: fetch failed"}`
-- `nslookup <project-ref>.supabase.co` → **NXDOMAIN**
-
-→ **Supabase 프로젝트가 일시정지(paused)된 상태.** 프리티어는 한도(egress 5GB/월 · DB 500MB) 초과 시
-프로젝트를 정지시키고, 정지되면 서브도메인이 DNS에서 사라져 워커·프론트의 모든 DB 호출이
-`fetch failed` 로 떨어진다. AI 분석(trade 탭)도 첫 줄에서 `ai_analysis` 캐시를 읽으므로 같이 죽는다.
-
-### 복구 순서
-1. **Supabase 대시보드 → 프로젝트 → Restore/Unpause** (콘솔에서만 가능, 코드로 불가).
-2. 복구 직후 **SQL Editor** 에서 [`supabase/migrations/010_price_snapshots_retention.sql`](./supabase/migrations/010_price_snapshots_retention.sql) 실행
-   → 쌓인 `price_snapshots` 백로그를 7일치만 남기고 삭제(용량 회복) + `ts` 인덱스 추가.
-3. Vercel/워커는 자동 복구됨(재배포 불필요).
-
-### 왜 한도를 넘었나 (2026-07 수정 완료)
-poll 워커가 **5분마다 200종목 × 5일치 봉(~10만 행)을 통째로 upsert** 했고, supabase-py 기본값이
-`return=representation` 이라 **그 10만 행을 매 사이클 응답으로 되돌려받아** 하루 수 GB egress 를 소모했다.
-
-수정:
-- `worker/lib/db.py` — 모든 write 에 `returning="minimal"` (응답 페이로드 제거).
-- `worker/poll.py` — `PERSIST_MAX_AGE_MIN`(기본 30분) 이내 봉만 저장. 시그널 감지는 여전히 전체 윈도우 사용.
-- `worker/refresh_universe.py` — 매일 `prune_price_snapshots()` 로 7일 초과분 삭제(`PRICE_SNAPSHOT_KEEP_DAYS`).
-
-효과: 사이클당 egress 가 ~수십 MB → **거의 0** 으로 떨어짐. `price_snapshots` 는 health_check 의
-freshness 프로브만 읽는 롤링 로그라(차트·분석은 Alpaca 라이브) 최근 봉만 저장해도 기능 영향 없음.
-
-### 지속 가능성 감사 (2026-07, 2차)
-실측(시그널 ~330건/일 · AI 분석 ~50건/일) 기준 잔여 부하까지 제거:
-- **백필 워커 에코백 제거** — backtest/realize/ai_realize 의 `.update()` 가 기본값으로 수정된
-  행 전체(ai_analysis 는 ~8KB)를 되돌려받던 것 → 전부 `returning="minimal"`.
-- **ai_realize slim select** — 30d 백필 대기 행이 최대 35일간 매 run 마다 context jsonb(~3KB)를
-  통째로 재다운로드하던 것 → `context->>last_price` 스칼라만 선택 (~20MB/일 → ~0.5MB/일).
-- **/signals 페이지** — `select("*")` 가 렌더링하지 않는 뉴스 jsonb 포함 ~1KB/행을 당기던 것 →
-  명시적 컬럼 (~150B/행, 방문당 6배 절감).
-- **영구 스토리지 상한(retention)** — `refresh_universe.py` 가 매일: signals 400일 초과 삭제,
-  ai_analysis context 120일 후 NULL(행의 ⅓~½), ai_analysis 400일 초과 삭제. FK 는 모두
-  on-delete-set-null 이라 trade_log 는 안전. `/stats` 최대 lookback(365일) < 400일이라 기능 무손실.
-  → **정상 상태 DB ~180MB / 월 egress ~수백 MB 로 수렴** (한도 500MB / 5GB 대비 안전).
+기존 DB의 성과 수치는 소급 정정하지 않는다. 수정된 도구가 실전 초과수익을 입증하는 것은 아니다. 수익성 판단은 고정 규칙·시간 분리 검증·비용 반영·모의 운용 기록을 확보한 뒤 한다.

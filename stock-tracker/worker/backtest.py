@@ -31,6 +31,13 @@ def main() -> int:
     print(f"collecting 60d historical signals for {len(symbols)} symbols…")
     pool = bt.collect_historical(symbols, lookback_days=60)
     print(f"  found {len(pool)} historical signals in pool")
+    if not pool:
+        print("no completed historical outcomes available")
+        return 0
+    # Targets older than the available training data cannot be estimated.
+    # Without this bound they permanently occupy the oldest-first batch.
+    earliest_known = min(h.available_at for h in pool if h.available_at is not None)
+
 
     # 2. Pull signals that need backfilling. Bounded by MAX_TARGETS_PER_RUN +
     # oldest-first ordering so one run can't egress the entire signals table
@@ -42,6 +49,7 @@ def main() -> int:
         sb.table("signals")
         .select("id,symbol,ts,signal_type,pct_change,volume_ratio,expected_1d")
         .is_("expected_1d", "null")
+        .gt("ts", earliest_known.isoformat())
         .order("ts", desc=False)
         .limit(MAX_TARGETS_PER_RUN)
         .execute()

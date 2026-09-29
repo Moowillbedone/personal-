@@ -24,6 +24,8 @@
 import { NextResponse } from "next/server";
 import { fetchAlpacaBars } from "@/lib/alpaca";
 import { getMacroSnapshot } from "@/lib/fred";
+import { completedDailyBars, dailyBarsQuality, type DataQuality } from "@/lib/dataQuality";
+import { lastCompletedTradingDate, nyClock } from "@/lib/marketCalendar";
 import type { Regime } from "@/lib/prescription";
 
 export const runtime = "nodejs";
@@ -34,6 +36,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface RegimePayload {
   asOf: string;
+  barDate: string;
+  calculatedAt: string;
+  dataQuality: DataQuality;
+  source: string;
   regime: Regime;
   benchmark: string;
   price: number;
@@ -91,16 +97,18 @@ export async function GET() {
       return NextResponse.json({ ...cache.data, cached: true });
     }
 
-    const [bars, macro] = await Promise.all([
-      fetchAlpacaBars(BENCH, "1Day", 380),
+    const [rawBars, macro] = await Promise.all([
+      fetchAlpacaBars(BENCH, "1Day", 420, 420, "split"),
       getMacroSnapshot().catch(() => null), // fail-soft: null when FRED off/down
     ]);
 
-    if (!bars || bars.length < 30) {
-      return NextResponse.json(
-        { error: `insufficient ${BENCH} bars (${bars?.length ?? 0})` },
-        { status: 502 },
-      );
+    const bars = completedDailyBars(rawBars);
+    const dataQuality = dailyBarsQuality(bars, 200);
+    if (dataQuality.status !== "fresh") {
+      return NextResponse.json({
+        error: "시장 환경 계산에 필요한 최신 일봉을 확인할 수 없습니다.",
+        regime: null, benchmark: BENCH, asOf: dataQuality.asOf, dataQuality,
+      }, { status: 503 });
     }
 
     const closes = bars.map((b) => b.c);
@@ -108,8 +116,13 @@ export async function GET() {
     const sma20 = smaLast(closes, 20);
     const sma50 = smaLast(closes, 50);
     const sma200 = smaLast(closes, 200);
-    const vix = macro?.vix?.value ?? null;
     const vixDate = macro?.vix?.date ?? null;
+    const vixFresh = vixDate != null && vixDate >= lastCompletedTradingDate();
+    const vix = vixFresh && Number.isFinite(macro?.vix?.value) ? macro!.vix!.value : null;
+    if (vix == null) {
+      dataQuality.status = "partial";
+      dataQuality.reasons.push("최신 완료 거래일의 VIX를 확인하지 못해 적극적 위험 선호 판단을 보류합니다.");
+    }
 
     const reasons: string[] = [];
     let regime: Regime;
@@ -120,11 +133,11 @@ export async function GET() {
 
     if (above200 === false) {
       regime = "risk_off";
-      reasons.push(`${BENCH}가 200일선 아래 (하락추세 확정 신호)`);
+      reasons.push(`${BENCH}가 200일선 아래 (장기 추세 기준 하회)`);
     } else if (vix != null && vix >= 28) {
       regime = "risk_off";
-      reasons.push(`VIX ${vix.toFixed(1)} ≥ 28 (패닉 변동성)`);
-    } else if (above50 === true && goldenStack === true && (vix == null || vix < 20)) {
+      reasons.push(`VIX ${vix.toFixed(1)} ≥ 28 (높은 변동성)`);
+    } else if (above50 === true && goldenStack === true && (vix != null && vix < 20)) {
       regime = "risk_on";
       reasons.push(`${BENCH} > 50일선 > 200일선 (정배열 상승추세)`);
       if (vix != null) reasons.push(`VIX ${vix.toFixed(1)} < 20 (안정)`);
@@ -133,11 +146,16 @@ export async function GET() {
       if (above50 === false) reasons.push(`${BENCH}가 50일선 아래 (단기 모멘텀 약화)`);
       if (goldenStack === false) reasons.push("50일선 < 200일선 (역배열)");
       if (vix != null && vix >= 20) reasons.push(`VIX ${vix.toFixed(1)} ≥ 20 (변동성 상승)`);
+      if (vix == null) reasons.push("VIX 최신값 미확인 — 중립으로 제한");
       if (reasons.length === 0) reasons.push("추세 신호 혼조");
     }
 
     const data: RegimePayload = {
-      asOf: new Date().toISOString(),
+      asOf: bars[bars.length - 1].ts,
+      barDate: nyClock(new Date(bars[bars.length - 1].ts)).date,
+      calculatedAt: new Date().toISOString(),
+      dataQuality,
+      source: "Alpaca SIP · 분할 조정 · 완료 일봉",
       regime,
       benchmark: BENCH,
       price,
@@ -158,8 +176,8 @@ export async function GET() {
     return NextResponse.json({ ...data, cached: false });
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message ?? "regime failed" },
-      { status: 500 },
+      { error: "시장 데이터를 불러오지 못했습니다.", regime: null, dataQuality: { status: "unavailable", asOf: null, reasons: ["가격 공급자 응답을 확인하지 못했습니다."] } },
+      { status: 503 },
     );
   }
 }

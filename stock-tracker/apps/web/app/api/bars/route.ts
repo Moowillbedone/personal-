@@ -48,11 +48,18 @@ export async function GET(req: NextRequest) {
   const days = Math.max(1, Math.min(maxDays, Number(sp.get("days") ?? "380") || 380));
 
   try {
-    const bars = await fetchAlpacaBars(symbol, tf, days, undefined, interval === "1w" ? "split" : "raw");
+    const bars = await fetchAlpacaBars(symbol, tf, days, undefined, ["1d", "1w"].includes(interval) ? "split" : "raw");
+    if (bars.length === 0) return NextResponse.json({ error: "가격 봉을 가져오지 못했습니다.", dataQuality: { status: "unavailable", reasons: ["공급자 응답에 유효한 봉이 없습니다."] } }, { status: 503 });
     return NextResponse.json({
       symbol,
       interval,
       days,
+      asOf: bars.at(-1)?.ts ?? null,
+      source: "alpaca_sip",
+      delayMinutes: 16,
+      adjustment: ["1d", "1w"].includes(interval) ? "split" : "raw",
+      returnedBars: bars.length,
+      requestedWindowMayBeTruncated: bars.length >= Math.max(days, 600),
       bars: bars.map((b) => ({
         ts: b.ts,
         open: b.o,

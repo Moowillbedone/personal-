@@ -13,6 +13,7 @@ import {
 } from "@/lib/alpaca";
 import { getPrimarySnapshot, getPrimaryRecentBars } from "@/lib/marketData";
 import { generateVerdict, ACTIVE_MODEL, type GeminiVerdict, type TradePlan } from "@/lib/gemini";
+import { completedDailyBars, dailyBarsQuality, timestampQuality, aggregateQuality } from "@/lib/dataQuality";
 import { mechanicalPlan, sanitizeTradePlan } from "@/lib/tradePlan";
 import { computeAll, type IndicatorBundle } from "@/lib/indicators";
 import { getSectorInfo, MARKET_TICKERS, type SectorInfo } from "@/lib/sectorMap";
@@ -22,6 +23,7 @@ import { getInsiderSummary, type InsiderSummary } from "@/lib/secInsider";
 import { getMacroSnapshot, isFredEnabled, type MacroSnapshot } from "@/lib/fred";
 import { getFinnhubBundle, isFinnhubEnabled, type FinnhubBundle } from "@/lib/finnhub";
 import { getOwnSignalsFor, getWatchlistSymbols, type OwnSignalSummary } from "@/lib/signalsDb";
+import { hasCurrentPlanEvidence, publishAnalysis } from "@/lib/analysisEvidence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -137,7 +139,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    let verdictRow = cached;
+    let verdictRow = hasCurrentPlanEvidence(cached?.context) ? cached : null;
     let snapshot: Snapshot | null = null;
     let newsCombined: Array<{ source: string; headline: string; url: string; createdAt: string; summary?: string }> = [];
 
@@ -181,6 +183,20 @@ export async function POST(req: NextRequest) {
       ]);
 
       snapshot = snap;
+      const completedDaily = completedDailyBars(bars?.daily ?? []);
+      const dailyQuality = dailyBarsQuality(completedDaily, 200);
+      const intradayQuality = timestampQuality(bars?.fiveMin.at(-1)?.ts, 35 * 60_000);
+      const dataQuality = aggregateQuality([snap.dataQuality!, dailyQuality]);
+      const coreUnavailable = snap.dataQuality?.status !== "fresh"
+        || dailyQuality.status !== "fresh"
+        || (snap.session === "regular" && intradayQuality.status !== "fresh");
+      if (coreUnavailable) {
+        return NextResponse.json({
+          error: "가격 또는 지표 원천 데이터가 오래되었거나 부족하여 새로운 매매 의견 생성을 보류했습니다.",
+          dataQuality: { ...dataQuality, status: "unavailable", reasons: [...dataQuality.reasons, ...intradayQuality.reasons] },
+          snapshot: snap, executionEligible: false,
+        }, { status: 503 });
+      }
       const optionsCtx = await softly(getOptionsContext(symbol, snap.lastPrice));
 
       // Optional: snapshots for the rest of the user's watchlist (excluding this symbol).
@@ -189,7 +205,7 @@ export async function POST(req: NextRequest) {
         otherWatch.length > 0 ? await softly(getSnapshots(otherWatch)) : null;
 
       // Compute technical indicators from daily bars
-      const dailyBars: Bar[] = bars?.daily ?? [];
+      const dailyBars: Bar[] = completedDaily;
       const indicators = dailyBars.length > 0 ? computeAll(dailyBars) : null;
 
       // Mechanical ATR-based trade plan: prompt baseline for Gemini AND the
@@ -230,7 +246,7 @@ export async function POST(req: NextRequest) {
         symbol,
         snap,
         indicators,
-        bars,
+        bars: bars ? { ...bars, daily: completedDaily } : null,
         alpacaNews: alpacaNews ?? [],
         macroHeadlines: macroHeadlines ?? [],
         tickerHeadlines: tickerHeadlines ?? [],
@@ -271,12 +287,15 @@ export async function POST(req: NextRequest) {
             );
             return NextResponse.json({
               cached: true,
+              executionEligible: false,
+              confidenceMeaning: "uncalibrated_model_score",
               stale: true,
               stale_reason: (genErr as Error).message ?? "gemini unavailable",
               stale_age_hours: ageHours,
-              analysis: lastRow,
+              analysis: { ...lastRow, context: { ...lastRow.context, trade_plan: null } },
               snapshot, // fresh snapshot already fetched above
-              news: newsCombined.slice(0, 20),
+              news: lastRow.context?.evidence_news ?? [],
+              current_news: newsCombined.slice(0, 20),
               sources_used: countSources(newsCombined),
               sizing: computeSizing(
                 lastRow.verdict,
@@ -294,11 +313,11 @@ export async function POST(req: NextRequest) {
       // For SELL verdicts the buy-framed mechanical baseline (눌림 진입 note,
       // pullback zone) would contradict the verdict — suppress the fallback
       // and persist no plan rather than a misleading one.
-      const tradePlan: TradePlan | null = sanitizeTradePlan(
+      const tradePlan: TradePlan | null = snap.session === "regular" ? sanitizeTradePlan(
         verdict.trade_plan,
         snap.lastPrice,
         verdict.verdict === "sell" ? null : basePlan,
-      );
+      ) : null;
 
       // 3) Persist
       const { data: inserted, error: insErr } = await supabaseAdmin
@@ -312,6 +331,15 @@ export async function POST(req: NextRequest) {
           bear_points: verdict.bear_points,
           horizons: verdict.horizons,
           context: {
+            methodology_version: "evidence-v1",
+            evidence_news: newsCombined.slice(0, 20),
+            data_quality: dataQuality,
+            price_as_of: snap.lastTradeTs,
+            daily_bar_as_of: dailyBars.at(-1)?.ts ?? null,
+            intraday_bar_as_of: bars?.fiveMin.at(-1)?.ts ?? null,
+            price_source: snap.priceSource,
+            confidence_meaning: "uncalibrated_model_score",
+            execution_eligible: false,
             last_price: snap.lastPrice,
             // "언제 사고 언제 팔지" — consumed by the telegram digest
             // (worker/ai_scan.py) and the /trade result card. Lives in
@@ -372,10 +400,14 @@ export async function POST(req: NextRequest) {
     const sizing = computeSizing(verdictRow.verdict, Number(verdictRow.confidence), body?.position);
 
     return NextResponse.json({
-      cached: !!cached,
-      analysis: verdictRow,
+      cached: !!cached && verdictRow.id === cached.id,
+      executionEligible: false,
+      confidenceMeaning: "uncalibrated_model_score",
+      dataQuality: snapshot?.dataQuality ?? null,
+      analysis: publishAnalysis(verdictRow),
       snapshot,
-      news: newsCombined.slice(0, 20),
+      news: verdictRow.context?.evidence_news ?? [],
+      current_news: newsCombined.slice(0, 20),
       sources_used: countSources(newsCombined),
       sizing,
     });
@@ -422,36 +454,12 @@ function snapLine(sym: string, s: Snapshot | undefined): string {
   return `${sym}=${num(s.lastPrice)} (${pct(s.changePct)})`;
 }
 
-// Tells Gemini where the lastPrice came from so it can weight its confidence
-// appropriately. Extended-hours prices are real but thinly traded; IEX
-// during non-regular sessions means both extended-hours sources failed
-// and the price is stale.
-function sessionDisclosure(
-  session: Snapshot["session"],
-  source: Snapshot["priceSource"],
-): string {
-  if (session === "regular") {
-    return "정규장 실시간 IEX 피드. 가격·5분봉 모두 최신.";
-  }
-  if (source === "finnhub") {
-    if (session === "pre")
-      return "프리마켓 — 가격은 Finnhub /quote 기반 (익스텐디드 hours 포함). 정규장보다 거래량 적어 슬리피지 큼, 단일 신호로 단정 금지.";
-    if (session === "after")
-      return "애프터마켓 — 가격은 Finnhub /quote 기반 (익스텐디드 hours 포함). 정규장보다 거래량 적어 슬리피지 큼, 단일 신호로 단정 금지.";
-    return "장마감 — Finnhub가 본 가장 최근 거래 가격 (익스텐디드 또는 정규장 종가). 실시간 아님.";
-  }
-  if (source === "yahoo") {
-    if (session === "pre")
-      return "프리마켓 — 가격은 Yahoo 익스텐디드 호가 기반. 거래량이 정규장보다 훨씬 적어 슬리피지 큼, 단일 신호로 단정 금지.";
-    if (session === "after")
-      return "애프터마켓 — 가격은 Yahoo 익스텐디드 호가 기반. 거래량이 정규장보다 훨씬 적어 슬리피지 큼, 단일 신호로 단정 금지.";
-    return "장마감 — Yahoo가 본 가장 최근 거래 가격(익스텐디드 또는 정규장 종가). 실시간 아님.";
-  }
-  // source === 'iex' but non-regular: BOTH Finnhub and Yahoo failed,
-  // IEX is showing the last regular session trade. Warn Gemini explicitly.
-  const label =
-    session === "pre" ? "프리장" : session === "after" ? "애프터장" : "장마감";
-  return `${label} 시간대지만 익스텐디드 데이터 소스 모두 실패 (Finnhub + Yahoo) — 표시된 가격은 직전 정규장 IEX 종가로 stale 가능성 높음. 가격 단정 금지, 추세·뉴스 위주로 판단.`;
+// Provider success never proves coverage, freshness, or an executable price.
+function sessionDisclosure(session: Snapshot["session"], source: Snapshot["priceSource"]): string {
+  const feed = source === "iex" ? "Alpaca IEX (단일 거래소, 전체 시장 거래량 아님)"
+    : source === "sip" ? "Alpaca SIP" : source === "yahoo" ? "Yahoo 봉 종가 (호가 아님)"
+    : source === "finnhub" ? "Finnhub 관측 가격 (시간외 포함 여부 미보장)" : "출처 미확인";
+  return `${feed}. 현재 시간대 ${session}. 관측 시각 기준으로 판단. 일봉/Alpaca 분봉은 SIP 16분 지연이며 주문 체결가는 별도 확인.`;
 }
 
 function buildPrompt(p: PromptInputs): string {
@@ -466,7 +474,7 @@ function buildPrompt(p: PromptInputs): string {
 
   const sections: string[] = [];
 
-  sections.push(`# ${symbol} 분석 — 한국어 단타 트레이딩 의견 요청`);
+  sections.push(`# ${symbol} 분석 — 검증 가능한 근거 중심의 투자 가설 검토`);
 
   // 1) Snapshot
   sections.push([
@@ -474,6 +482,7 @@ function buildPrompt(p: PromptInputs): string {
     `- 가격: ${num(snap.lastPrice)} (${snap.session}) · 전일종가 ${num(snap.prevClose)} · 변동률 ${pct(snap.changePct)}`,
     `- 오늘 OHLC: O=${num(snap.todayOpen)} H=${num(snap.todayHigh)} L=${num(snap.todayLow)} V=${snap.todayVolume?.toLocaleString() ?? "?"}`,
     `- 데이터 소스: ${sessionDisclosure(snap.session, snap.priceSource)}`,
+    `- 가격 관측 시각: ${snap.lastTradeTs ?? "미확인"} · 일봉 기준: ${bars?.daily.at(-1)?.ts ?? "미확인"} · 분봉 기준: ${bars?.fiveMin.at(-1)?.ts ?? "미확인"}`,
   ].join("\n"));
 
   // 2) Indicators
@@ -801,13 +810,13 @@ function buildPrompt(p: PromptInputs): string {
     "- bull_points / bear_points는 단타용 (각 2-4개)",
     "- 각 horizon의 key_points는 2-3개씩",
     "- 매크로 뉴스(트럼프·전쟁·금리)와 종목 뉴스 충돌 시 시계가 길수록 매크로 가중 ↑",
-    "- §10.5 인사이더 거래는 **smart money 직접 신호**. CEO/CFO/CFO/Director의 BUY는 강한 강세 (자기 돈으로 매수 = 가장 정직한 conviction); SELL은 mixed (분산투자·세금·10b5-1 plan일 수도). 순매수 > $1M = 3개월 horizon에 강한 강세 가중. 순매도 > $5M + 10% Owner 매도 = 약세 가중. award/option exercise는 이미 §10.5에서 제외된 상태",
-    "- §7 비정상 옵션 거래량은 **단기 (1-7일) 방향성 시그널**. 큰 notional ($1M+) 콜 매수가 OTM (+5% 이상)에 몰리면 = 강세 베팅 / 풋 OTM (-5% 이하)에 몰리면 = 약세 또는 헤지. volRatio 5×+ 는 명확한 outlier. DTE < 14일이면 catalyst (어닝·공시) 기대 신호. 단, 단일 strike 한 줄로 강한 결론 X — 콜·풋 양쪽 패턴 합쳐 판단",
+    "- 인사이더·애널리스트 행동은 맥락 자료이며 초과수익의 증거로 단정하지 말 것. 공시 지연·보상·사전 계획 가능성과 출처 시각을 함께 명시.",
+    "- 옵션 거래량만으로 매수/매도 주도·강세/약세 방향을 알 수 없음. indicative 피드는 OPRA가 아니며 notional은 실제 자금 유입이 아닌 추정값. 방향성 추천 근거로 쓰지 말 것.",
     "- §8.5 Float + 공매도는 squeeze setup 평가용. Float < 50M주 + Short% > 20% + Days-to-Cover > 5일 = 강한 squeeze 후보 (어닝/뉴스 catalyst 시 폭발적). Float > 1B + Short% < 5% = squeeze 위험 거의 없음 (대형주 보통 케이스). 약세 가설일 때도 short% 매우 높으면 short squeeze risk로 신중함 명시",
     "- §8 등급 변경은 **단기 모멘텀 catalyst** (특히 5일 horizon). 메이저 IB (Goldman/Morgan Stanley/JPM/BofA) 의 🔼 업그레이드 = 즉시 단기 강세 가중. 🔽 다운그레이드는 약세 가중. 정적 consensus (SB/B/H/S/SS 카운트)보다 **변화**가 더 강한 신호. 30일 내 net 업그레이드 ≥ 3건이면 \"애널리스트 모멘텀\" 명시",
     "- 본인 시그널 트래커는 단타에 인용. 특히 §11의 '실제 측정 결과' (realized)는 **truth signal**, 'analogue prior' (expected)보다 가중 ↑. 둘이 크게 차이 나면 (e.g. expected +1% but realized -0.5%) → 시그널 약함을 명시할 것",
     "- §11 시그널 행 끝의 📰×N = 시그널 발동 ±30분 내 뉴스 N건 / 📭 = 뉴스 없음 (catalyst 없는 갭은 노이즈일 확률 높음). 📭 시그널 비중 높으면 시그널 자체 신뢰도 ↓로 평가",
-    "- confidence: 0.5 미만은 hold, 0.7 이상은 다중 근거가 일치할 때만",
+    "- confidence는 검증된 상승 확률이나 승률이 아닌 모델 내부 점수. 투자금액과 연결하지 말 것. 데이터 부족은 hold. 예상 수익이나 확실한 상승을 표현하지 말 것.",
     "",
     "### trade_plan — 언제 사고 언제 팔지 (필수)",
     "**롱 스윙 포지션 기준의 실행 가능한 가격 플랜**을 trade_plan에 채울 것:",
@@ -827,62 +836,12 @@ function buildPrompt(p: PromptInputs): string {
   return sections.join("\n\n");
 }
 
-// ─── sizing logic (unchanged from previous) ────────────────────────────────
-
-function computeSizing(
-  verdict: string,
-  confidence: number,
-  pos: PositionInput | undefined,
-): {
-  action: "buy" | "hold" | "sell";
-  weight: number;
-  amount_krw: number;
-  rationale: string;
-} {
-  const w = Math.round(confidence * 100) / 100;
-  let amount = 0;
-  let rationale = "";
-
-  if (!pos || (!pos.total_budget_krw && !pos.dca_per_day_krw)) {
-    return {
-      action: verdict as "buy" | "hold" | "sell",
-      weight: 0,
-      amount_krw: 0,
-      rationale: "포지션 설정이 없어 권장 금액을 계산할 수 없음.",
-    };
-  }
-
-  if (verdict === "buy") {
-    if (pos.strategy === "lump_sum" && pos.total_budget_krw) {
-      amount = Math.round(pos.total_budget_krw * w);
-      rationale = `거치식 예산 ${pos.total_budget_krw.toLocaleString()}원의 ${(w * 100).toFixed(0)}% (신뢰도 ${(confidence * 100).toFixed(0)}%) 즉시 매수 권장.`;
-    } else if (pos.strategy === "dca" && pos.dca_per_day_krw) {
-      const mult = Math.min(1 + w * 2, 3);
-      amount = Math.round(pos.dca_per_day_krw * mult);
-      rationale = `DCA 일 ${pos.dca_per_day_krw.toLocaleString()}원 × ${mult.toFixed(2)}배 (강세 가중) 매수 권장.`;
-    }
-  } else if (verdict === "hold") {
-    if (pos.strategy === "dca" && pos.dca_per_day_krw) {
-      amount = pos.dca_per_day_krw;
-      rationale = `관망 구간 — DCA 평소 슬라이스 ${pos.dca_per_day_krw.toLocaleString()}원만 유지.`;
-    } else {
-      amount = 0;
-      rationale = "관망 — 거치식은 신호가 약해 진입 보류.";
-    }
-  } else if (verdict === "sell") {
-    if (pos.strategy === "lump_sum" && pos.total_budget_krw) {
-      amount = Math.round(pos.total_budget_krw * w);
-      rationale = `매도 신호 — 보유 포지션 중 ${(w * 100).toFixed(0)}% 익절/손절 권장.`;
-    } else if (pos.strategy === "dca" && pos.dca_per_day_krw) {
-      amount = 0;
-      rationale = `매도 신호 — 오늘 DCA 매수 0원, 기존 보유분 점진 매도 검토.`;
-    }
-  }
-
+// Model confidence is not a calibrated probability and cannot size a trade.
+// Position sizing requires an explicit entry, stop, account risk and cash limit.
+function computeSizing(_verdict: string, _confidence: number, _pos: PositionInput | undefined) {
   return {
-    action: verdict as "buy" | "hold" | "sell",
-    weight: w,
-    amount_krw: amount,
-    rationale,
+    action: "hold" as const, weight: 0, amount_krw: 0,
+    status: "requires_risk_plan",
+    rationale: "AI 점수는 수익 확률이 아닙니다. 진입가·손절가·계좌 허용 손실을 정한 뒤 위험 예산으로 수량을 계산하세요.",
   };
 }

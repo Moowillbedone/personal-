@@ -10,6 +10,7 @@
 
 import { NextResponse } from "next/server";
 import { currentMarketSession } from "@/lib/alpaca";
+import { timestampQuality, scannerQuality, aggregateQuality, type DataQuality } from "@/lib/dataQuality";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -24,11 +25,16 @@ interface Rec {
   pullback_retrace: number | null;
   pullback_grades: string | null;
   pullback_price: number | null; // price the verdict was computed on (15m close)
+  pullback_bar_at?: string | null;
   pullback_at: string | null; // when the 15m classification was computed
 }
 
 interface Row {
   symbol: string;
+  asOf: string | null;
+  computedAt: string | null;
+  stale: boolean;
+  dataQuality: DataQuality;
   sector: string | null;
   price: number | null; // as-of pullback_at (NOT live)
   retrace: number | null; // percent
@@ -44,6 +50,7 @@ const NOT_READY = (session: string) =>
   NextResponse.json({
     session,
     ready: false,
+    dataQuality: { status: "unavailable", asOf: null, reasons: ["스캐너 원천 데이터가 없습니다."] },
     updatedAt: null,
     counts: { pullback: 0, forming: 0, downtrend: 0, no_uptrend: 0 },
     pullback: [],
@@ -56,8 +63,16 @@ export async function GET() {
   let { data, error } = await supabase
     .from("sma200")
     .select(
-      "symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_price, pullback_at"
+      "symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_price, pullback_at, pullback_bar_at"
     );
+
+  // Migration 019 may not be applied yet. Legacy rows stay explicitly
+  // unverified; computation time is never substituted for source bar time.
+  if (error?.code === "42703" && error.message.toLowerCase().includes("pullback_bar_at")) {
+    ({ data, error } = await supabase.from("sma200").select(
+      "symbol, sector, pullback_class, pullback_retrace, pullback_grades, pullback_price, pullback_at"
+    ));
+  }
 
   // migration 017 (pullback_price) may not be applied yet → retry without it so
   // the verdicts still show (price renders "—") instead of the whole scanner
@@ -99,7 +114,14 @@ export async function GET() {
     if (r.pullback_class && r.pullback_class in counts) counts[r.pullback_class]++;
   }
 
+  const quality = (r: Rec): DataQuality => r.pullback_bar_at
+    ? timestampQuality(r.pullback_bar_at, session === "closed" ? 4 * 86_400_000 : 45 * 60_000)
+    : { ...scannerQuality(r.pullback_at, true, session), asOf: null };
   const toRow = (r: Rec): Row => ({
+    asOf: r.pullback_bar_at ?? null,
+    computedAt: r.pullback_at,
+    dataQuality: quality(r),
+    stale: quality(r).status !== "fresh",
     symbol: r.symbol,
     sector: r.sector,
     price: r.pullback_price ?? null,
@@ -126,6 +148,8 @@ export async function GET() {
   return NextResponse.json({
     session,
     ready: true,
+    dataQuality: aggregateQuality(records.map(quality)),
+    source: "Alpaca · 15분봉 · 원천 시각이 있는 행만 최신성 판정",
     updatedAt,
     universe: records.length,
     counts,

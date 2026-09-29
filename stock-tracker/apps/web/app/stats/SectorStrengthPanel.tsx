@@ -56,9 +56,9 @@ interface SectorStrengthResponse {
 type SortKey = "strength" | "dollar";
 
 const SESSION_LABEL: Record<SectorStrengthResponse["session"], string> = {
-  pre: "프리마켓 · 실시간",
-  regular: "장중 · 실시간",
-  after: "애프터마켓 · 실시간",
+  pre: "프리마켓 · 지연 가능",
+  regular: "정규장 · 지연 가능",
+  after: "애프터마켓 · 지연 가능",
   closed: "장마감 · 최근 세션 기준",
 };
 
@@ -400,7 +400,7 @@ export default function SectorStrengthPanel() {
     <section className="border border-amber-900/50 bg-amber-950/[0.07] rounded-lg p-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
         <h2 className="text-sm font-semibold text-amber-200">
-          🔥 강세 섹터 · 실시간 자금 흐름
+          섹터 · 가격 변화 비교
           {refreshing && <span className="ml-2 text-[10px] text-neutral-600">갱신 중…</span>}
         </h2>
         {data && (
@@ -472,8 +472,8 @@ export default function SectorStrengthPanel() {
           )}
 
           <p className="mt-3 text-[11px] leading-relaxed text-neutral-600 border-t border-neutral-800/80 pt-2">
-            ⚠️ 가격은 Alpaca 무료 IEX(실시간), <b className="text-neutral-500">거래량은 통합 거래소 일봉</b>(장중 약 15분 지연) 기준. <b className="text-neutral-500">강세</b> = 구성 종목 당일 등락률 평균(상승
-            종목 수로 신뢰도 확인), <b className="text-neutral-500">거래대금</b> = 당일 거래량 × 현재가,{" "}
+            ⚠️ 가격은 Alpaca IEX 일부 거래소 시세, <b className="text-neutral-500">거래량은 통합 거래소 일봉</b>(장중 약 15분 지연) 기준. <b className="text-neutral-500">강세</b> = 구성 종목 당일 등락률 평균(상승
+            종목 수로 상승 범위 확인), <b className="text-neutral-500">거래대금</b> = 당일 거래량 × 현재가,{" "}
             <b className="text-neutral-500">상대 거래량(N×)</b> = {data.relVolProjected ? "당일 거래량을 장중 진행률로 환산한 추정치를 " : ""}
             20일 평균 대비{data.relVolProjected ? " 비교" : ""} (프리마켓은 비교 불가로 제외).{" "}
             <b className="text-neutral-500">매수/매도세</b> = 당일 종가가 고·저 범위의 어디에 마감했는지(Money Flow) 기반 <b className="text-neutral-500">장중 수급</b> 추정 — 고가권 마감이면 매수세, 저가권이면 매도세.

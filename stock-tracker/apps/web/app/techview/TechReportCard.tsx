@@ -116,7 +116,7 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
           <span className="text-sm font-bold">
             {r.symbol} · {r.setupLabel}
           </span>
-          <span className="text-xs opacity-80">신뢰도 {(r.ai.confidence * 100).toFixed(0)}%</span>
+          <span className="text-xs opacity-80">AI 해석 · 성과 미검증</span>
         </div>
         {r.ai.headline && <p className="text-sm mt-1 font-semibold">{r.ai.headline}</p>}
         <p className="text-xs mt-1 opacity-80">
@@ -135,7 +135,7 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
 
         {r.ai.scenario && (
           <div className="rounded border border-sky-800 bg-sky-950/40 px-3 py-2">
-            <span className="text-[11px] uppercase tracking-wider text-sky-400">지금 할 일</span>
+            <span className="text-[11px] uppercase tracking-wider text-sky-400">검토할 시나리오</span>
             <p className="text-sm text-sky-100 mt-0.5">{r.ai.scenario}</p>
           </div>
         )}
@@ -153,8 +153,8 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
                 {d.anchor3.ts}(${d.anchor3.price}) 평행 · 폭 {d.widthRatio}
                 {d.space === "log" ? "×" : "$"} ·{" "}
                 <span className="text-neutral-400">
-                  과거 터치 {d.touchScore}회 · <b>반응률 {d.reactionRate}%</b>
-                  {d.reactionSample > 0 ? ` (n=${d.reactionSample})` : ""}
+                  과거 터치 {d.touchScore}회 · <b>같은 데이터 내 반응 {d.reactionRate}%</b>
+                  {d.reactionSample > 0 ? ` (n=${d.reactionSample})` : ""} · 미래 승률 아님
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -285,13 +285,13 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
         {r.plan && (
           <div className="rounded border border-neutral-700 bg-neutral-900/50 p-3">
             <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1.5">
-              매매 플랜 (터치 매매 기준)
+              가격 시나리오 (상승 매수 가정 · 체결 전 검토)
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
               <Stat label="진입(밟을 자리)" value={`$${r.plan.entryLow}~${r.plan.entryHigh}`} />
               <Stat label="손절" value={`$${r.plan.stop}`} tone="rose" />
               <Stat label="목표1 / 2" value={`$${r.plan.target1} / $${r.plan.target2}`} tone="emerald" />
-              <Stat label="손익비 R:R" value={r.plan.rr != null ? `${r.plan.rr}` : "—"} />
+              <Stat label="비용 전 목표1 손익비" value={r.plan.rr != null ? `${r.plan.rr}` : "—"} />
             </div>
           </div>
         )}
@@ -310,7 +310,7 @@ export default function TechReportCard({ r }: { r: TechResponse }) {
         <p className="text-[11px] text-neutral-600 leading-relaxed">
           갭·피보나치·터치는 일봉(액면분할 조정)에서, 빗각 채널은 주봉 피벗에서 기계적으로 산출됩니다.
           빗각은 작도 기준(앵커 선택)에 따라 달라질 수 있어 절대적 가격이 아니라 <b>구간</b>으로 보세요.
-          참고 지표이며 매매 판단·책임은 본인에게 있습니다.
+          AI 자기평가와 과거 차트 반응은 검증된 승률이 아닙니다. 실제 거래 비용·실적 발표·손실 예산을 별도로 확인하세요. 손절가 체결은 보장되지 않습니다.
         </p>
       </div>
     </section>

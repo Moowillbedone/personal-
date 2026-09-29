@@ -156,7 +156,7 @@ export default function Sma200Panel({ refreshKey = 0 }: { refreshKey?: number })
         {(
           [
             { k: "daily", label: "일봉 200일선" },
-            { k: "weekly", label: "주봉 200일선" },
+            { k: "weekly", label: "주봉 200주선" },
           ] as { k: Tab; label: string }[]
         ).map((t) => (
           <button
@@ -203,10 +203,10 @@ export default function Sma200Panel({ refreshKey = 0 }: { refreshKey?: number })
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded border border-emerald-900/50 bg-emerald-950/20 p-3">
             <h3 className="text-xs font-semibold text-emerald-300 mb-1">
-              🟢 선 위 터치 · 매수 후보 ({side.above.length})
+              🟢 선 위 근접 · 관찰 후보 ({side.above.length})
             </h3>
             <p className="text-[11px] text-neutral-500 mb-1">
-              200일선 위에서 지지받는 자리
+              200기간선 위 근접 — 지지 여부는 별도 확인
             </p>
             <RowList rows={side.above} tone="buy" />
           </div>
@@ -215,7 +215,7 @@ export default function Sma200Panel({ refreshKey = 0 }: { refreshKey?: number })
               🟡 선 아래 터치 · 장기 주의 ({side.below.length})
             </h3>
             <p className="text-[11px] text-neutral-500 mb-1">
-              추세선 아래로 눌린 자리 — 반등매수 가능하나 조심
+              추세선 아래로 눌린 자리 — 반등 여부 미확인
             </p>
             <RowList rows={side.below} tone="warn" />
           </div>

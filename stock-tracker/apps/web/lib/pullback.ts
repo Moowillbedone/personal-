@@ -406,16 +406,14 @@ export function analyzePullback(bars: Bar[], ichi?: IchimokuLevels): PullbackFac
     const stop = Math.min(legLow, pullbackLow) - 0.5 * atr14;
     const target1 = swingHigh; // retest the leg high
     const target2 = swingHigh + legRange * 0.5; // measured-move extension
-    const risk = entryHigh - stop;
-    const rr = risk > 0 ? (target1 - entryHigh) / risk : null;
-    if (stop < entryLow && entryLow <= entryHigh && entryHigh < target1) {
+    if (round(stop) > 0 && round(stop) < round(entryLow) && round(entryLow) <= round(entryHigh) && round(entryHigh) < round(target1) && round(target1) <= round(target2)) {
       plan = {
         entryLow: round(entryLow),
         entryHigh: round(entryHigh),
         stop: round(stop),
         target1: round(target1),
         target2: round(target2),
-        rr: rr != null ? round(rr, 2) : null,
+        rr: round((round(target1) - round(entryHigh)) / (round(entryHigh) - round(stop)), 2),
       };
     }
   }

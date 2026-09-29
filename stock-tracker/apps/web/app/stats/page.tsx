@@ -15,6 +15,7 @@ interface Stats {
 }
 
 interface StatsResponse {
+  aggregationTruncated?: boolean;
   lookbackDays: number;
   asOf: string;
   totalSignalsInWindow: number;
@@ -75,6 +76,7 @@ interface RealizedPoint {
 }
 
 interface PositionsResponse {
+  pricingComplete?: boolean;
   asOf: string;
   positions: Position[];
   summary: PnlSummary;
@@ -82,6 +84,10 @@ interface PositionsResponse {
 }
 
 interface AiVerdictStats {
+  measured1d?: number;
+  measured3d?: number;
+  measured5d?: number;
+  measured30d?: number;
   count: number;
   mean1d: number | null;
   mean3d: number | null;
@@ -100,6 +106,7 @@ interface CalibrationBin {
 }
 
 interface AiStatsResponse {
+  aggregationTruncated?: boolean;
   lookbackDays: number;
   asOf: string;
   totalAnalysesInWindow: number;
@@ -131,6 +138,7 @@ interface RecTrade {
 }
 
 interface RecPerfResponse {
+  aggregationTruncated?: boolean;
   lookbackDays: number;
   asOf: string;
   trades: RecTrade[];
@@ -140,6 +148,8 @@ interface RecPerfResponse {
     distinctRecs: number;
     alignmentRate: number | null;
     measuredCount: number;
+    measuredCount3d?: number;
+    measuredCount5d?: number;
     hitRate1d: number | null;
     meanAligned1d: number | null;
     meanAligned3d: number | null;
@@ -148,6 +158,7 @@ interface RecPerfResponse {
     avgSlippagePct: number | null;
     slippageMeasuredCount: number;
     derivativeTradeCount: number;
+    excludedTradeCount?: number;
   };
 }
 
@@ -230,10 +241,6 @@ interface Insight {
   detail: string;
 }
 
-function meanOf(a: number[]): number | null {
-  return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-}
-
 function buildInsights(
   rec: RecPerfResponse | null,
   trades: PositionsResponse | null,
@@ -261,38 +268,18 @@ function buildInsights(
     }
   }
 
-  // 2) Following AI vs going against it — which actually paid (1d)?
-  if (rec) {
-    const measured = rec.trades.filter((t) => t.aligned1d != null && t.aligned !== null);
-    const aligned = measured.filter((t) => t.aligned === true).map((t) => t.aligned1d!);
-    const contra = measured.filter((t) => t.aligned === false).map((t) => t.aligned1d!);
-    const ma = meanOf(aligned);
-    const mc = meanOf(contra);
-    if (ma != null && mc != null && aligned.length >= 3 && contra.length >= 3) {
-      if (mc > ma) {
-        out.push({
-          tone: "warn",
-          title: "AI 역행이 추종보다 단기 우위",
-          detail: `1d 기준 추종 ${fmtPct(ma)}(n=${aligned.length}) vs 역행 ${fmtPct(mc)}(n=${contra.length}). 추천을 무조건 따르기보다 본인 판단을 섞어도 될 신호 — 다만 표본이 작아 단정은 금물.`,
-        });
-      } else {
-        out.push({
-          tone: "good",
-          title: "AI 추종이 역행보다 유리",
-          detail: `1d 기준 추종 ${fmtPct(ma)}(n=${aligned.length}) vs 역행 ${fmtPct(mc)}(n=${contra.length}). 추천 방향을 따르는 전략이 통하고 있습니다.`,
-        });
-      }
-    }
+  if (r && r.measuredCount < 30) {
+    out.push({ tone: "info", title: "추천 연계 관측 표본 부족", detail: `비교 가능한 관측 ${r.measuredCount}건. 이 값으로 AI를 따라야 하는지, 다음 거래에서 이길 확률이 얼마인지 판단할 수 없습니다.` });
   }
 
   // 3) Short-term hit-rate caveat — guard against the misleading single number.
   if (r?.hitRate1d != null && s) {
-    const totalPnl = s.totalPnl ?? s.realizedPnl;
+    const totalPnl = s.realizedPnl;
     if (r.hitRate1d < 0.45 && totalPnl != null && totalPnl > 0) {
       out.push({
         tone: "info",
         title: "단기 적중률 ≠ 실제 손익",
-        detail: `1d 적중률은 ${(r.hitRate1d * 100).toFixed(0)}%로 낮지만 실제 총손익은 ${fmtPnl(totalPnl)} 흑자입니다. 1d는 추천 시점 기준 단기 지표일 뿐, 길게 보유하는 본인 스타일과 다르니 이 숫자에 과민 반응하지 마세요.`,
+        detail: `유리한 1d 가격변화 비율은 ${(r.hitRate1d * 100).toFixed(0)}%이고 기간 실현 손익은 ${fmtPnl(totalPnl)}입니다. 서로 측정 대상과 보유 기간이 달라 직접 비교할 수 없습니다.`,
       });
     }
   }
@@ -301,8 +288,8 @@ function buildInsights(
   if (r?.avgEntryLagHours != null && r.avgEntryLagHours > 3) {
     out.push({
       tone: "warn",
-      title: "진입 지연 — 추격 매매 주의",
-      detail: `추천 후 평균 ${r.avgEntryLagHours.toFixed(1)}시간 뒤 진입. 시간이 길수록 추천 시점의 엣지가 희석됩니다. 빠르게 들어가거나, 이미 크게 움직인 종목은 거르세요.`,
+      title: "분석 후 경과 시간 확인",
+      detail: `분석 후 평균 ${r.avgEntryLagHours.toFixed(1)}시간 뒤 거래했습니다. 시간 차이만으로 추격 여부나 더 빠른 진입의 유리함은 알 수 없습니다. 체결가와 거래 당시 조건을 함께 확인하세요.`,
     });
   }
 
@@ -313,14 +300,14 @@ function buildInsights(
     out.push({
       tone: "warn",
       title: "레버리지·파생 ETF 집중",
-      detail: `추천 매매 ${r.recTradeCount}건 중 ${r.derivativeTradeCount}건(${(frac * 100).toFixed(0)}%)이 레버리지/파생 ETF. underlying 분석을 ETF로 실행하니 손익이 그대로 증폭됩니다 — 위 손실 종목의 낙폭이 큰 것도 같은 이유. 변동성·소멸(decay) 리스크를 감안해 비중을 관리하세요.`,
+      detail: `추천 매매 ${r.recTradeCount}건 중 ${r.derivativeTradeCount}건(${(frac * 100).toFixed(0)}%)이 레버리지/파생 ETF. 원종목의 방향과 ETF 손익은 일치하지 않을 수 있어 추천 연계 지표에서 제외했습니다. 실제 ETF 체결 손익으로 따로 평가하세요.`,
     });
   }
 
   // 5) Confidence calibration — is high-confidence BUY actually better?
   if (ai && ai.confidenceCalibrationBuy.length >= 2) {
     const bins = ai.confidenceCalibrationBuy.filter(
-      (b) => b.count >= 3 && b.winRate1d != null,
+      (b) => b.count >= 30 && b.winRate1d != null,
     );
     if (bins.length >= 2) {
       const hi = bins[bins.length - 1];
@@ -328,27 +315,10 @@ function buildInsights(
       if (hi.winRate1d! < lo.winRate1d!) {
         out.push({
           tone: "warn",
-          title: "AI 신뢰도 과신 신호",
-          detail: `고신뢰 BUY(${(hi.confidenceMin * 100).toFixed(0)}%+) 승률 ${(hi.winRate1d! * 100).toFixed(0)}%가 저신뢰(${(lo.confidenceMin * 100).toFixed(0)}%~) ${(lo.winRate1d! * 100).toFixed(0)}%보다 낮습니다. 신뢰도가 높다고 더 크게 베팅하지 마세요.`,
+          title: "AI 점수와 관측 방향성 확인",
+          detail: `고신뢰 BUY(${(hi.confidenceMin * 100).toFixed(0)}%+) 승률 ${(hi.winRate1d! * 100).toFixed(0)}%가 저신뢰(${(lo.confidenceMin * 100).toFixed(0)}%~) ${(lo.winRate1d! * 100).toFixed(0)}%보다 낮습니다. 모델 점수는 검증된 성공 확률이 아니며 표본의 상관관계도 남아 있습니다.`,
         });
       }
-    }
-  }
-
-  // 6) Closed-trade win rate — reinforce or warn.
-  if (s?.winRate != null && s.closedPositionCount >= 4) {
-    if (s.winRate >= 0.6) {
-      out.push({
-        tone: "good",
-        title: "청산 승률 양호",
-        detail: `청산 ${s.closedPositionCount}건 중 ${(s.winRate * 100).toFixed(0)}%를 수익으로 마감. 익절/손절 규칙이 작동하고 있습니다.`,
-      });
-    } else if (s.winRate < 0.4) {
-      out.push({
-        tone: "warn",
-        title: "청산 승률 낮음",
-        detail: `청산 ${s.closedPositionCount}건 중 ${(s.winRate * 100).toFixed(0)}%만 수익. 손절이 늦거나 익절이 이른지 점검하세요.`,
-      });
     }
   }
 
@@ -377,9 +347,9 @@ export default function StatsPage() {
     setError(null);
     Promise.all([
       fetch(`/api/signal-stats?lookback=${lookback}`).then((r) => r.json()),
-      fetch(`/api/trades/positions?lookback=${lookback}`).then((r) => r.json()),
+      fetch(`/api/trades/positions?lookback=${lookback}&mode=real`).then((r) => r.json()),
       fetch(`/api/ai-stats?lookback=${lookback}`).then((r) => r.json()),
-      fetch(`/api/rec-performance?lookback=${lookback}`).then((r) => r.json()),
+      fetch(`/api/rec-performance?lookback=${lookback}&mode=real`).then((r) => r.json()),
     ])
       .then(
         ([sigD, tradeD, aiD, recD]: [
@@ -390,9 +360,9 @@ export default function StatsPage() {
         ]) => {
           if ("error" in sigD) setError(sigD.error);
           else setData(sigD);
-          if (!("error" in tradeD)) setTrades(tradeD);
-          if (!("error" in aiD)) setAi(aiD);
-          if (!("error" in recD)) setRec(recD);
+          if ("error" in tradeD) { setTrades(null); setError(`실전 거래 집계: ${tradeD.error}`); } else setTrades(tradeD);
+          if ("error" in aiD) { setAi(null); setError(`AI 관측 집계: ${aiD.error}`); } else setAi(aiD);
+          if ("error" in recD) { setRec(null); setError(`추천 연계 집계: ${recD.error}`); } else setRec(recD);
         },
       )
       .catch((e) => setError((e as Error).message))
@@ -406,10 +376,10 @@ export default function StatsPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">📊 트레이딩 대시보드</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">매매 기록 · 성과 복기</h1>
         <p className="text-xs text-neutral-500 mt-1">
-          텔레그램 AI 추천을 따른 <span className="text-neutral-300">실전 성과</span>, 보유 포지션 실시간 평가손익,
-          AI 정확도, 시그널 통계를 한 곳에서.
+          실전 거래의 <span className="text-neutral-300">기간 실현 손익</span>과 현재 보유 평가손익을 확인합니다.
+          추천 연계 지표는 별도의 가격변화 관측이며 계좌 수익률이 아닙니다. 수수료·세금·환율은 미반영입니다.
         </p>
       </header>
 
@@ -443,7 +413,13 @@ export default function StatsPage() {
         </div>
       )}
 
-      {data && !loading && (
+      {(data?.aggregationTruncated || ai?.aggregationTruncated || rec?.aggregationTruncated) && (
+        <p className="text-sm text-amber-300">조회 한도로 일부 관측만 집계되었습니다. 표시 수치를 전체 기간 성과로 해석하지 마세요.</p>
+      )}
+      {trades?.pricingComplete === false && <p className="text-sm text-amber-300">일부 보유 종목의 시세가 없어 총 평가손익을 표시하지 않습니다.</p>}
+      <p className="text-xs text-neutral-500">AI·시그널은 종목·뉴욕 날짜·유형별 첫 관측만 사용합니다. 여러 날의 관측 구간과 시장 요인은 여전히 겹칩니다. 과거 값만으로 전략 우위나 미래 승률을 확인할 수 없습니다. 기존 관측에는 계산 버전이 기록되지 않아 재검증이 필요합니다.</p>
+
+      {(data || trades || ai || rec) && !loading && (
         <>
           {/* Hero KPI band — at-a-glance health, always visible across tabs */}
           <HeroBand trades={trades} rec={rec} />
@@ -457,7 +433,7 @@ export default function StatsPage() {
             {(
               [
                 ["dash", "📊 내 성과"],
-                ["ai", "🤖 AI 정확도"],
+                ["ai", "AI 관측 결과"],
                 ["signals", "📡 시그널 통계"],
               ] as Array<[TabKey, string]>
             ).map(([key, label]) => (
@@ -486,7 +462,7 @@ export default function StatsPage() {
                 <section className="border border-sky-900/60 bg-sky-950/10 rounded-lg p-4">
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
                     <h2 className="text-sm font-semibold text-sky-200">
-                      🎯 AI 추천 실전 성과 ({lookback}일)
+                      🎯 추천 연계 체결 후 가격변화 ({lookback}일)
                     </h2>
                     <span className="text-[11px] text-neutral-500">
                       추천 따라 매매 {rec.summary.recTradeCount.toLocaleString()}건
@@ -494,9 +470,9 @@ export default function StatsPage() {
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 mb-3">
-                    텔레그램 추천을 받고 <span className="text-neutral-300">실제로 매매한 것</span>의 단기 결과.
-                    수익률은 추천 시점 기준 1d/3d/5d이며 <span className="text-neutral-300">내 매매 방향으로 부호 조정</span>
-                    (매수=오르면 +, 매도=내리면 +). 장기 보유의 실제 손익은 아래 「내 매매 성과」 참고.
+                    분석과 같은 종목·뉴욕 날짜에 기록한 체결가를 기준으로 이후 1·3·5 거래일 종가를 비교합니다.
+                    매수는 이후 상승, 매도는 이후 하락이면 양수입니다. 매도의 양수는 피한 가격하락이며 실현 이익이 아닙니다.
+                    동일 추천·방향의 분할 체결은 한 관측으로 묶습니다. 실제 실현 손익은 아래 거래 기록에서 확인하세요.
                   </p>
                   <RecPerformancePanel data={rec} />
                 </section>
@@ -535,7 +511,7 @@ export default function StatsPage() {
           )}
 
           {/* ── Tab: 시그널 통계 (raw, 참고용 고급) ─────────────────────── */}
-          {tab === "signals" && (
+          {tab === "signals" && data && (
             <div className="space-y-6">
               <p className="text-xs text-neutral-500">
                 측정됨 {data.measuredSignals.toLocaleString()} / 전체 {data.totalSignalsInWindow.toLocaleString()}건.
@@ -598,14 +574,13 @@ export default function StatsPage() {
                   ))
                 )}
                 <p className="mt-2 text-xs text-neutral-600">
-                  뉴스 동반 승률이 뉴스 없음 대비 +10%p 이상 차이 나면 NOTIFY_REQUIRE_NEWS=1 로
-                  필터 활성화 권장 (워커 환경변수).
+                  뉴스 유무에 따른 차이는 관측값입니다. 종목 구성·시장 상황·반복 표본의 차이를 통제하지 않아 뉴스의 효과나 필터의 수익성을 입증하지 않습니다.
                 </p>
               </section>
 
               <p className="text-xs text-neutral-600">
-                <strong>승률</strong>: realized_1d &gt; 0 비율. <strong>Sharpe</strong>: mean / stddev (annualized X, 시그널간 상대 비교용).
-                샘플 수가 적으면(n &lt; 20) 통계적 유의성 낮음.
+                <strong>승률</strong>: realized_1d &gt; 0 비율. <strong>평균/표준편차</strong>: 관측값의 분포 요약이며 포트폴리오 Sharpe 비율이 아닙니다.
+                비용·체결 가능성·벤치마크를 반영한 기간 외 검증이 필요합니다.
               </p>
             </div>
           )}
@@ -629,7 +604,7 @@ function OverallCard({ stats }: { stats: Stats }) {
         value={fmtPct(stats.mean1d)}
         className={pctClass(stats.mean1d)}
       />
-      <Tile label="Sharpe (1일)" value={fmtNum(stats.sharpe1d)} />
+      <Tile label="평균/표준편차" value={fmtNum(stats.sharpe1d)} />
       <Tile label="중앙값 1일" value={fmtPct(stats.median1d)} className={pctClass(stats.median1d)} />
       <Tile label="평균 3일" value={fmtPct(stats.mean3d)} className={pctClass(stats.mean3d)} />
       <Tile label="평균 5일" value={fmtPct(stats.mean5d)} className={pctClass(stats.mean5d)} />
@@ -665,16 +640,15 @@ function TradePnlPanel({
     );
   }
 
-  const totalPnl = summary.totalPnl ?? summary.realizedPnl;
-  const hasLive = summary.totalUnrealizedPnl != null;
+  const totalPnl = summary.realizedPnl;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         <KpiTile
-          label="총 손익"
+          label="기간 실현 손익"
           value={fmtPnl(totalPnl)}
-          sub={hasLive ? "실현 + 미실현" : "실현만 (시세 없음)"}
+          sub="선택 기간에 확정한 매매 손익"
           valueClass={pnlClass(totalPnl)}
         />
         <KpiTile
@@ -882,11 +856,11 @@ function HeroBand({
 }) {
   const s = trades?.summary;
   const r = rec?.summary;
-  const totalPnl = s ? s.totalPnl ?? s.realizedPnl : null;
+  const totalPnl = s?.realizedPnl ?? null;
 
   const cells: Array<{ label: string; value: string; cls?: string; sub?: string }> = [
     {
-      label: "총 손익 (실현+미실현)",
+      label: "기간 실현 손익",
       value: fmtPnl(totalPnl),
       cls: pnlClass(totalPnl),
       sub: s?.totalMarketValue != null ? `평가액 ${fmtMoney(s.totalMarketValue)}` : undefined,
@@ -904,7 +878,7 @@ function HeroBand({
       sub: s ? `청산 승률 ${s.winRate != null ? (s.winRate * 100).toFixed(0) + "%" : "—"}` : undefined,
     },
     {
-      label: "AI 추천 적중률 (1d)",
+      label: "유리한 후속 가격변화 (1d)",
       value: r?.hitRate1d != null ? `${(r.hitRate1d * 100).toFixed(0)}%` : "—",
       cls: winRateClass(r?.hitRate1d ?? null),
       sub: r ? `측정 ${r.measuredCount}건` : undefined,
@@ -915,10 +889,10 @@ function HeroBand({
       sub: r ? `추천 ${r.distinctRecs}개 실행` : undefined,
     },
     {
-      label: "추천 평균수익 (1d)",
+      label: "평균 후속 가격변화 (1d)",
       value: fmtPct(r?.meanAligned1d ?? null),
       cls: pctClass(r?.meanAligned1d ?? null),
-      sub: "내 매매 방향 기준",
+      sub: "계좌 수익률과 다름",
     },
   ];
 
@@ -948,7 +922,7 @@ function VerdictBadge({ verdict, confidence }: { verdict: "buy" | "sell" | "hold
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] ${map.cls}`}>
       {map.label}
-      <span className="text-neutral-500">{(confidence * 100).toFixed(0)}%</span>
+      <span className="text-neutral-500" title="검증된 확률이 아닌 모델 점수">점수 {(confidence * 100).toFixed(0)}</span>
     </span>
   );
 }
@@ -960,13 +934,14 @@ function RecPerformancePanel({ data }: { data: RecPerfResponse }) {
     return (
       <p className="text-sm text-neutral-500">
         아직 추천 기반 매매 기록이 없습니다. /trade 페이지에서 매매를 기록하면
-        24시간 내 AI 추천에 자동 연결되어 여기 성과가 쌓입니다.
+        이전 24시간 내 AI 분석과 연결 가능한 기록을 여기서 비교합니다.
       </p>
     );
   }
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-neutral-500">비교 조건 불일치로 제외한 거래 {summary.excludedTradeCount ?? 0}건. 평균과 비율은 투자한 금액으로 가중한 계좌 성과가 아닙니다.</p>
       {/* KPI strip */}
       <div
         className={`grid grid-cols-2 sm:grid-cols-3 gap-2.5 ${
@@ -984,15 +959,15 @@ function RecPerformancePanel({ data }: { data: RecPerfResponse }) {
           sub="AI 방향대로 매매"
         />
         <KpiTile
-          label="적중률 (1d)"
+          label="유리한 가격변화 (1d)"
           value={summary.hitRate1d != null ? `${(summary.hitRate1d * 100).toFixed(0)}%` : "—"}
-          sub={`내 매매가 맞은 비율 (n=${summary.measuredCount})`}
+          sub={`비교 가능한 관측 n=${summary.measuredCount}`}
           valueClass={winRateClass(summary.hitRate1d)}
         />
         <KpiTile
-          label="평균 수익률 (1d)"
+          label="평균 후속 가격변화 (1d)"
           value={fmtPct(summary.meanAligned1d)}
-          sub={`3d ${fmtPct(summary.meanAligned3d)} · 5d ${fmtPct(summary.meanAligned5d)}`}
+          sub={`3d ${fmtPct(summary.meanAligned3d)} (n=${summary.measuredCount3d ?? 0}) · 5d ${fmtPct(summary.meanAligned5d)} (n=${summary.measuredCount5d ?? 0})`}
           valueClass={pctClass(summary.meanAligned1d)}
         />
         <KpiTile
@@ -1026,7 +1001,7 @@ function RecPerformancePanel({ data }: { data: RecPerfResponse }) {
             ⚠️ 추천 매매 {summary.recTradeCount}건 중 {summary.derivativeTradeCount}건이
             레버리지·파생 ETF 매매입니다 (예: AAPU←AAPL). 추천가는 underlying 가격,
             체결가는 ETF 가격이라 단위가 달라 <span className="text-amber-200">진입 슬리피지는 측정 불가</span>.
-            추격 정도는 위 「평균 진입 지연」으로 가늠하세요. 또한 ETF 레버리지로 손익이 underlying보다 증폭됩니다.
+            원종목으로 파생·인버스 ETF의 손익을 대체할 수 없어 방향 일치율과 후속 가격변화에서도 제외합니다.
           </p>
         )}
 
@@ -1105,8 +1080,8 @@ function RecPerformancePanel({ data }: { data: RecPerfResponse }) {
 
       <p className="text-xs text-neutral-600">
         <strong>방향</strong>: 내 매매가 AI verdict 방향과 같으면 일치, 반대면 역행 (관망은 —).
-        <strong className="ml-2">1d/3d/5d</strong>: 추천 시점부터의 수익률을 내 매매 방향 기준으로 본 값
-        (+면 내 판단이 맞은 것). 추천 후 7일 지나야 5d까지 채워짐.
+        <strong className="ml-2">1d/3d/5d</strong>: 체결가 대비 이후 거래일 종가의 방향별 가격변화입니다.
+        포지션 청산·거래비용을 반영한 손익이 아닙니다. 다른 종목·날짜 거래와 가격 누락은 제외합니다.
       </p>
     </div>
   );
@@ -1181,21 +1156,21 @@ function AiAccuracyPanel({ data }: { data: AiStatsResponse }) {
                 <span className={`text-right font-semibold ${winRateClass(s.winRate1d)}`}>
                   {s.winRate1d != null ? `${(s.winRate1d * 100).toFixed(1)}%` : "—"}
                 </span>
-                <span className="text-neutral-500">평균 1d</span>
+                <span className="text-neutral-500">평균 1d (n={s.measured1d ?? s.count})</span>
                 <span className={`text-right ${pctClass(s.mean1d)}`}>{fmtPct(s.mean1d)}</span>
-                <span className="text-neutral-500">평균 3d</span>
+                <span className="text-neutral-500">평균 3d (n={s.measured3d ?? s.count})</span>
                 <span className={`text-right ${pctClass(s.mean3d)}`}>{fmtPct(s.mean3d)}</span>
-                <span className="text-neutral-500">평균 5d</span>
+                <span className="text-neutral-500">평균 5d (n={s.measured5d ?? s.count})</span>
                 <span className={`text-right ${pctClass(s.mean5d)}`}>{fmtPct(s.mean5d)}</span>
                 {s.mean30d != null && (
                   <>
-                    <span className="text-neutral-500">평균 30d</span>
+                    <span className="text-neutral-500">평균 30d (n={s.measured30d ?? s.count})</span>
                     <span className={`text-right ${pctClass(s.mean30d)}`}>
                       {fmtPct(s.mean30d)}
                     </span>
                   </>
                 )}
-                <span className="text-neutral-500">Sharpe (1d)</span>
+                <span className="text-neutral-500">평균/표준편차</span>
                 <span className="text-right text-neutral-300">{fmtNum(s.sharpe1d)}</span>
               </div>
             </div>
@@ -1206,11 +1181,11 @@ function AiAccuracyPanel({ data }: { data: AiStatsResponse }) {
       {/* Confidence calibration for BUY */}
       <div>
         <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          BUY 신뢰도 캘리브레이션
+          BUY 모델 점수별 관측
         </h3>
         <p className="text-xs text-neutral-500 mb-2">
-          잘 캘리브레이션된 AI는 신뢰도 구간이 높을수록 승률이 일관되게 ↑.
-          높은 신뢰도 구간에서 승률이 낮으면 → AI가 과신 (verdict 신뢰도를 그대로 받지 말 것).
+          모델이 제시한 점수별 과거 가격상승 비율입니다. 점수는 성공 확률로 보정되지 않았습니다.
+          단순한 상승 비율이나 구간별 순서만으로 확률 보정·전략 우위를 판정할 수 없습니다.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -1471,7 +1446,7 @@ function StatsTable({
             <th className="text-right py-1.5 px-2">중앙값 1일</th>
             <th className="text-right py-1.5 px-2">평균 3일</th>
             <th className="text-right py-1.5 px-2">평균 5일</th>
-            <th className="text-right py-1.5 pl-2">Sharpe (1일)</th>
+            <th className="text-right py-1.5 pl-2">평균/표준편차</th>
           </tr>
         </thead>
         <tbody>

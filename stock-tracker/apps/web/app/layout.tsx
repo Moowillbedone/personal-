@@ -4,9 +4,9 @@ import "./globals.css";
 import RegisterSW from "./register-sw";
 
 export const metadata: Metadata = {
-  title: "Stock Tracker — 스윙 콘솔",
+  title: "Stock Tracker — 투자 판단 워크스페이스",
   description:
-    "2x leveraged-ETF swing console: market regime, sector money flow, tranche prescriptions, NDX-100 signals",
+    "미국주식 데이터 확인, 종목 검토, 손실 한도 계산과 매매 복기를 위한 개인 투자 워크스페이스",
   applicationName: "스윙콘솔",
   // Installable-app metadata (iOS Safari standalone + home-screen icon).
   appleWebApp: {
@@ -32,31 +32,36 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ko">
-      <body className="font-mono">
+      <body>
         <RegisterSW />
-        <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
-              ⚡ Stock Tracker
+        <header className="app-header">
+          <div className="app-header-inner">
+            <Link href="/" className="app-brand">
+              <span className="brand-icon" aria-hidden="true">
+                ▥
+              </span>{" "}
+              Stock Tracker
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-neutral-400">
-              <Link href="/" className="hover:text-neutral-100">대시보드</Link>
-              <Link href="/trade" className="hover:text-neutral-100">Trade</Link>
-              <Link href="/techview" className="hover:text-neutral-100">Tech View</Link>
-              <Link href="/signals" className="hover:text-neutral-100">Signals</Link>
-              {/* Stats 탭 숨김 (2026-07): 강세섹터는 대시보드로 이관, 일괄기록은
-                  Trade 탭으로 이관. /stats 라우트·집계는 그대로 살아있어 URL로 접근
-                  가능하고 데이터도 계속 기록됨(읽기 전용이라 중복 집계 없음). */}
+            <nav className="app-nav" aria-label="주 메뉴">
+              <Link href="/">판단 데스크</Link>
+              <Link href="/research">종목 탐색</Link>
+              <Link href="/trade">상세 분석</Link>
+              <Link href="/stats">매매 복기</Link>
+              <Link href="/methodology">데이터 기준</Link>
             </nav>
+            <span className="app-context">
+              US EQUITIES <span>·</span> RESEARCH
+            </span>
           </div>
-          <span className="text-xs text-neutral-500">
-            2x ETF 스윙 · NDX-100 시그널 · data ~15min delayed
-          </span>
         </header>
-        <main className="px-6 py-6">{children}</main>
+        <main className="app-main">{children}</main>
       </body>
     </html>
   );

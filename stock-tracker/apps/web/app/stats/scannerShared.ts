@@ -5,9 +5,9 @@
 export type MarketSession = "pre" | "regular" | "after" | "closed";
 
 export const SESSION_LABEL: Record<MarketSession, string> = {
-  pre: "프리마켓 · 실시간",
-  regular: "장중 · 실시간",
-  after: "애프터마켓 · 실시간",
+  pre: "프리마켓 · 시세 시각 확인",
+  regular: "정규장 · 시세 시각 확인",
+  after: "애프터마켓 · 시세 시각 확인",
   closed: "장마감 · 최근 세션 기준",
 };
 

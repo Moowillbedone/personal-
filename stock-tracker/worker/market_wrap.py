@@ -5,8 +5,8 @@ never touch LLM quota):
   1. 레짐 & 시장:   /api/regime — QQQ vs SMAs, VIX, 오늘 등락
   2. 내 포지션:     /api/trades/positions — open real positions, 손익률,
                     간이 처방 라벨 (대시보드 규칙의 요약판, 레짐 게이트 포함)
-  3. 오늘 추천 성과: 지난 24h의 buy/sell 추천(conf≥0.55)이 추천 시점 가격
-                    대비 지금 어디 있나 — 적중률 포함 (책임 추적 루프)
+  3. AI 의견 이후 가격: 지난 24h의 buy/sell 의견(conf≥0.55)이 생성 시점 가격
+                    대비 지금 어디 있나 — 관찰 기간이 다른 잠정 가격 변화
   4. 강세 섹터 마감: /api/sector-strength 상위 3
   5. 내일 어닝:      포지션∪관심종목 중 오늘/내일 발표 예정 (Finnhub)
 
@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 load_dotenv()  # before lib imports — see poll.py for why
 
 from lib import db  # noqa: E402
+from lib.owner_api import OwnerAPIConfigError, owner_request_options  # noqa: E402
 # Reuse the digest's battle-tested telegram plumbing (markdown-safe escaping,
 # 4096-char packing, send with error logging).
 from ai_scan import _md_safe, pack_messages, send_telegram, FRONT_URL  # noqa: E402
@@ -41,7 +42,7 @@ from ai_scan import _md_safe, pack_messages, send_telegram, FRONT_URL  # noqa: E
 # 간이 처방 임계값 — apps/web/lib/prescription.ts DEFAULT_RX의 요약판.
 # (전체 트랜치/사이클 로직은 대시보드가 담당; 여기선 아침에 훑을 라벨만.)
 TP1, TP2 = 0.10, 0.20
-WATCH, AVG_DOWN, HARD_STOP = -0.10, -0.20, -0.30
+WATCH, DRAWDOWN_REVIEW, HARD_STOP = -0.10, -0.20, -0.30
 
 PICK_CONF_MIN = float(os.getenv("WRAP_PICK_CONF_MIN", "0.55"))
 PICK_LOOKBACK_H = int(os.getenv("WRAP_PICK_LOOKBACK_H", "24"))
@@ -49,7 +50,10 @@ PICK_LOOKBACK_H = int(os.getenv("WRAP_PICK_LOOKBACK_H", "24"))
 
 def _get_json(path: str, timeout: int = 60) -> dict | None:
     try:
-        r = requests.get(f"{FRONT_URL}{path}", timeout=timeout)
+        url = f"{FRONT_URL}{path}"
+        private = path.split("?", 1)[0] in {"/api/trades/positions", "/api/positions/override"}
+        options = owner_request_options(FRONT_URL, url) if private else {}
+        r = requests.get(url, timeout=timeout, **options)
         if r.status_code != 200:
             print(f"  GET {path} -> {r.status_code}", file=sys.stderr)
             return None
@@ -82,13 +86,11 @@ def _rx_label(pct: float | None, regime: str | None) -> str:
         return "🟢 1차 익절 구간"
     if pct <= HARD_STOP:
         return "🚨 손절 검토"
-    if pct <= AVG_DOWN:
-        if regime == "risk_on" or regime == "neutral":
-            return "🟠 물타기 구간 (대시보드 확인)"
-        return "⛔ 물타기 금지 (레짐)"
+    if pct <= DRAWDOWN_REVIEW:
+        return "🟠 큰 낙폭 — 투자 근거·손실 한도 재검토"
     if pct <= WATCH:
-        return "👀 물타기 준비 구간"
-    return "보유"
+        return "👀 낙폭 주의 — 사전 손절 기준 확인"
+    return "손절 기준·보유 근거 확인"
 
 
 def section_positions(regime_key: str | None) -> tuple[list[str], set[str]]:
@@ -169,8 +171,6 @@ def section_picks(sb) -> list[str]:
             price_now[s["symbol"]] = float(s["lastPrice"])
 
     lines: list[str] = []
-    hits = 0
-    measured = 0
     for sym, r in sorted(latest.items()):
         try:
             base = float(r.get("last_price") or 0)
@@ -182,15 +182,10 @@ def section_picks(sb) -> list[str]:
         arrow = "🟢매수" if verdict == "buy" else "🔴매도"
         if base > 0 and cur is not None:
             move = cur / base - 1
-            hit = move > 0 if verdict == "buy" else move < 0
-            measured += 1
-            hits += 1 if hit else 0
-            mark = "✅" if hit else "❌"
-            lines.append(f"• {arrow} *{sym}* ({conf}%) → {_fmt_pct(move)} {mark}")
+            lines.append(f"• {arrow} *{sym}* (AI점수 {conf}/100, 미검증) → 가격 {_fmt_pct(move)}")
         else:
-            lines.append(f"• {arrow} *{sym}* ({conf}%) → 측정 불가")
-    if measured:
-        lines.append(f"적중 {hits}/{measured}")
+            lines.append(f"• {arrow} *{sym}* (AI점수 {conf}/100, 미검증) → 측정 불가")
+    lines.append("관찰 기간이 다른 잠정 가격 변화입니다. 체결·비용을 반영한 실현 수익이나 적중률이 아닙니다.")
     return lines
 
 
@@ -235,6 +230,11 @@ def section_earnings(symbols: set[str]) -> list[str]:
 
 
 def main() -> int:
+    try:
+        owner_request_options(FRONT_URL, f"{FRONT_URL}/api/trades/positions")
+    except OwnerAPIConfigError as e:
+        print(f"market_wrap: {e}", file=sys.stderr)
+        return 1
     sb = db.client()
 
     regime = _get_json("/api/regime", timeout=45) or {}
@@ -254,7 +254,7 @@ def main() -> int:
     pos_lines, held = section_positions(regime_key)
     blocks.append("💼 *내 포지션*\n" + "\n".join(pos_lines))
 
-    blocks.append("📊 *오늘 추천 성과 (24h)*\n" + "\n".join(section_picks(sb)))
+    blocks.append("📊 *최근 AI 의견 이후 가격 변화 (24h)*\n" + "\n".join(section_picks(sb)))
 
     blocks.append("🔥 *오늘 강세 섹터*\n" + "\n".join(section_sectors()))
 

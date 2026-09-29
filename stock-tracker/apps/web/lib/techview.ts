@@ -738,7 +738,7 @@ export function analyzeTech(
 }
 
 export const SETUP_META: Record<TechSetup, { label: string; rank: number; buyable: boolean }> = {
-  touch_confirmed: { label: "🎯 라인 터치 + 확인 — 진입 신호", rank: 0, buyable: true },
+  touch_confirmed: { label: "🎯 라인 터치 + 확인 — 검토 후보", rank: 0, buyable: false },
   touch_pending: { label: "🟡 터치함 · 확인 캔들 대기", rank: 1, buyable: false },
   at_level: { label: "🔵 라인 위 (밟는 중)", rank: 2, buyable: false },
   approaching: { label: "👀 라인 근접 — 관찰", rank: 3, buyable: false },

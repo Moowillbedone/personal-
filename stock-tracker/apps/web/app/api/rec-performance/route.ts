@@ -1,30 +1,9 @@
-// GET /api/rec-performance?lookback=30[&mode=real|paper]
-//
-// The core question this whole tracker exists to answer: "when I act on a
-// Telegram AI recommendation, do I actually make money?"
-//
-// Every trade the user logs is auto-linked to the AI verdict that prompted
-// it (trade_log.ai_analysis_id, set within a 24h window — see /api/trades).
-// 89% of real trades carry this link. This endpoint joins the two and
-// measures, per acted-upon recommendation:
-//
-//   - 방향 일치 (alignment): did my action match the AI's verdict?
-//       buy-on-BUY / sell-on-SELL = aligned; the inverse = contrarian.
-//   - 결과 (outcome): the verdict's measured forward return, re-signed to
-//       MY action's point of view —
-//         I bought → +return is good (price rose after I bought)
-//         I sold   → +return is bad  (price rose after I sold)
-//       so `aligned1d > 0` always means "my action was right at 1d".
-//   - 진입 지연 (entry lag): hours between the verdict and my trade — a
-//       proxy for chasing (the longer the lag, the more the edge decays).
-//
-// realized_Nd is measured from the verdict's created_at, not my exact trade
-// time. The user typically trades ~25min after the verdict, so it's a close
-// proxy; the per-trade entry-lag column keeps that honest. Precise entry
-// slippage is a later (P2) refinement.
-
+// Recommendation-linked fill markouts, not realized account P&L.
+// Only direct same-instrument fills on the verdict's NY date are comparable.
+// Derivative / inverse ETF returns require their own prices and are excluded.
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { fillMarkout, finiteNumber, newYorkDate } from "@/lib/performanceAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +38,9 @@ interface JoinedRow {
 
 interface RecTrade {
   tradeId: string;
+  recommendationId: string;
+  measurementEligible: boolean;
+  exclusionReason: string | null;
   ts: string;
   symbol: string;
   action: Action;
@@ -74,7 +56,7 @@ interface RecTrade {
   verdictAt: string;
   /** true = acted with the verdict, false = against it, null = HOLD verdict. */
   aligned: boolean | null;
-  /** Verdict's forward return, re-signed to my action (see header). */
+  /** Gross fill-to-horizon directional price change; not realized account P&L. */
   aligned1d: number | null;
   aligned3d: number | null;
   aligned5d: number | null;
@@ -94,12 +76,6 @@ interface RecTrade {
 
 function mean(arr: number[]): number | null {
   return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-}
-
-/** Re-sign a verdict's forward return to the user's action POV. */
-function alignedReturn(action: Action, realized: number | null): number | null {
-  if (realized == null) return null;
-  return action === "buy" ? realized : -realized;
 }
 
 /** Did the action follow the verdict direction? null for HOLD (no direction). */
@@ -140,6 +116,7 @@ export async function GET(req: NextRequest) {
     .select(
       "id, symbol, action, qty, price, mode, ts, notes, ai_analysis_id, underlying_symbol, " +
         "ai_analysis(symbol, verdict, confidence, created_at, realized_1d, realized_3d, realized_5d, context)",
+      { count: "exact" },
     )
     .not("ai_analysis_id", "is", null)
     .gte("ts", since)
@@ -147,7 +124,7 @@ export async function GET(req: NextRequest) {
     .limit(2000);
   if (mode) q = q.eq("mode", mode);
 
-  const { data, error } = await q;
+  const { data, error, count: matchingTrades } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (data ?? []) as unknown as JoinedRow[];
@@ -162,12 +139,19 @@ export async function GET(req: NextRequest) {
     // symbol. Derivative trades (underlying_symbol set, e.g. TSLL on a TSLA
     // verdict) compare apples to oranges — leave slippage null.
     const sameInstrument = !r.underlying_symbol && a.symbol === r.symbol;
-    const verdictPrice = a.context?.last_price ?? null;
+    const rawPrice = a.context?.last_price;
+    const verdictPrice = rawPrice != null && Number.isFinite(Number(rawPrice)) && Number(rawPrice) > 0 ? Number(rawPrice) : null;
+    const validTiming = Number.isFinite(entryLagHours) && entryLagHours >= 0 && newYorkDate(r.ts) === newYorkDate(a.created_at);
+    const measurementEligible = sameInstrument && validTiming && verdictPrice != null && Number(r.price) > 0 && Number.isFinite(Number(r.price));
+    const exclusionReason = !sameInstrument ? "different_instrument" : !validTiming ? "incomparable_entry_time" : !measurementEligible ? "missing_price" : null;
     const slippagePct = sameInstrument
       ? adverseSlippage(r.action, verdictPrice, Number(r.price))
       : null;
     trades.push({
       tradeId: r.id,
+      recommendationId: r.ai_analysis_id,
+      measurementEligible,
+      exclusionReason,
       ts: r.ts,
       symbol: r.symbol,
       action: r.action,
@@ -179,10 +163,10 @@ export async function GET(req: NextRequest) {
       verdict: a.verdict,
       confidence: Number(a.confidence),
       verdictAt: a.created_at,
-      aligned: isAligned(a.verdict, r.action),
-      aligned1d: alignedReturn(r.action, a.realized_1d),
-      aligned3d: alignedReturn(r.action, a.realized_3d),
-      aligned5d: alignedReturn(r.action, a.realized_5d),
+      aligned: measurementEligible ? isAligned(a.verdict, r.action) : null,
+      aligned1d: measurementEligible ? fillMarkout(r.action, a.realized_1d, verdictPrice, Number(r.price)) : null,
+      aligned3d: measurementEligible ? fillMarkout(r.action, a.realized_3d, verdictPrice, Number(r.price)) : null,
+      aligned5d: measurementEligible ? fillMarkout(r.action, a.realized_5d, verdictPrice, Number(r.price)) : null,
       entryLagHours: isFinite(entryLagHours) ? entryLagHours : null,
       verdictPrice: verdictPrice != null ? Number(verdictPrice) : null,
       slippagePct,
@@ -191,24 +175,37 @@ export async function GET(req: NextRequest) {
 
   // ─── aggregate summary ─────────────────────────────────────────────────
   const realCount = trades.filter((t) => t.mode === "real").length;
-  const distinctRecs = new Set(rows.map((r) => r.ai_analysis_id)).size;
+  const distinctRecs = new Set(trades.map((r) => r.recommendationId)).size;
+  // One equally weighted diagnostic per recommendation/action/mode. Multiple
+  // fills of one call must not make that call look like independent evidence.
+  const groups = new Map<string, RecTrade[]>();
+  for (const trade of trades) {
+    const key = `${trade.recommendationId}|${trade.action}|${trade.mode}`;
+    groups.set(key, [...(groups.get(key) ?? []), trade]);
+  }
+  const observations = [...groups.values()].map(fills => ({
+    aligned: fills.find(t => t.aligned != null)?.aligned ?? null,
+    aligned1d: mean(fills.map(t => t.aligned1d).filter(finiteNumber)),
+    aligned3d: mean(fills.map(t => t.aligned3d).filter(finiteNumber)),
+    aligned5d: mean(fills.map(t => t.aligned5d).filter(finiteNumber)),
+  }));
 
   // Alignment only defined for directional verdicts (buy/sell).
-  const directional = trades.filter((t) => t.aligned !== null);
+  const directional = observations.filter((t) => t.aligned !== null);
   const alignedCount = directional.filter((t) => t.aligned === true).length;
   const alignmentRate = directional.length
     ? alignedCount / directional.length
     : null;
 
-  const measured1d = trades
+  const measured1d = observations
     .map((t) => t.aligned1d)
-    .filter((v): v is number => v != null);
-  const measured3d = trades
+    .filter(finiteNumber);
+  const measured3d = observations
     .map((t) => t.aligned3d)
-    .filter((v): v is number => v != null);
-  const measured5d = trades
+    .filter(finiteNumber);
+  const measured5d = observations
     .map((t) => t.aligned5d)
-    .filter((v): v is number => v != null);
+    .filter(finiteNumber);
 
   const hits1d = measured1d.filter((v) => v > 0).length;
   const lags = trades
@@ -216,19 +213,25 @@ export async function GET(req: NextRequest) {
     .filter((v): v is number => v != null && v >= 0);
   const slippages = trades
     .map((t) => t.slippagePct)
-    .filter((v): v is number => v != null);
+    .filter(finiteNumber);
   const derivativeTradeCount = trades.filter((t) => t.underlying != null).length;
 
   return NextResponse.json({
     lookbackDays: lookback,
     asOf: new Date().toISOString(),
     trades,
+    aggregationTruncated: matchingTrades != null && matchingTrades > rows.length,
+    matchingTrades,
+    methodology: "Gross fill-to-reference-horizon markout, not realized P&L. SELL is avoided movement, not short profit. Same symbol and NY entry date only. Excludes derivative/inverse instruments, fees, spread, FX and tax. One observation per recommendation/action/mode; observations may still correlate.",
     summary: {
       recTradeCount: trades.length,
       realCount,
       distinctRecs,
       alignmentRate,
       measuredCount: measured1d.length,
+      measuredCount3d: measured3d.length,
+      measuredCount5d: measured5d.length,
+      excludedTradeCount: trades.filter(t => !t.measurementEligible).length,
       hitRate1d: measured1d.length ? hits1d / measured1d.length : null,
       meanAligned1d: mean(measured1d),
       meanAligned3d: mean(measured3d),

@@ -1,16 +1,8 @@
-"""Backtest: fill expected_1d/3d/5d on signals using historical analogues.
+"""Descriptive historical analogues, not a deployable strategy backtest.
 
-Approach:
-  1. For each active ticker, fetch the last 60 days of 5-min bars (yfinance batch).
-  2. Run the live signal detector over EVERY bar (not just the latest), producing
-     a pool of historical signal candidates.
-  3. For each historical candidate, compute its REALIZED forward return at
-     +78 / +234 / +390 bars (≈ 1, 3, 5 trading days; 78 5-min bars per session).
-  4. For each NEW signal in the DB whose expected_1d is NULL, find historical
-     analogues (same type, ±50% pct_change, ±50% vol_ratio) and store the mean
-     realized 1d/3d/5d as expected_*.
-
-We deliberately do NOT include same-symbol-same-day matches (lookahead bias).
+Use identical N-session close horizons to the realized-return worker. Every
+selected analogue must have all five-session outcomes available BEFORE the
+target signal. Same-symbol observation windows may not overlap.
 """
 from __future__ import annotations
 
@@ -20,11 +12,9 @@ from typing import Iterable
 import pandas as pd
 
 from . import alpaca, signals as sig
+from .returns import RETURN_CONVENTION, forward_close, utc_timestamp
 
-# Trading day = 6.5h regular session = 78 5-min bars.
-BARS_1D = 78
-BARS_3D = 78 * 3
-BARS_5D = 78 * 5
+import math
 
 ANALOGUE_PCT_TOL = 0.50   # ±50% relative magnitude tolerance
 ANALOGUE_VOL_TOL = 0.50
@@ -40,6 +30,7 @@ class HistoricalSignal:
     realized_1d: float | None
     realized_3d: float | None
     realized_5d: float | None
+    available_at: pd.Timestamp | None = None
 
 
 def _detect_at_bar(symbol: str, df: pd.DataFrame, idx: int) -> sig.Signal | None:
@@ -50,28 +41,21 @@ def _detect_at_bar(symbol: str, df: pd.DataFrame, idx: int) -> sig.Signal | None
     return sig.detect_for_symbol(symbol, window)
 
 
-def _realized_return(close_series: pd.Series, idx: int, fwd_bars: int) -> float | None:
-    target_idx = idx + fwd_bars
-    if target_idx >= len(close_series):
-        return None
-    base = float(close_series.iloc[idx])
-    fwd = float(close_series.iloc[target_idx])
-    if base <= 0:
-        return None
-    return (fwd - base) / base
-
-
 def collect_historical(
     symbols: list[str], lookback_days: int = 60, batch_size: int = 50
 ) -> list[HistoricalSignal]:
     """Run the detector across all bars in the lookback window for every symbol."""
     out: list[HistoricalSignal] = []
+    print(f"  historical return convention: {RETURN_CONVENTION}; dividends/costs excluded")
     total_batches = (len(symbols) + batch_size - 1) // batch_size
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i : i + batch_size]
         b_no = i // batch_size + 1
         try:
-            frames = alpaca.fetch_recent_bars(batch, interval="5m", lookback=f"{lookback_days}d")
+            # Both the detected entry and forward close must use the same share
+            # basis. Adjusting daily bars alone creates false returns at splits.
+            frames = alpaca.fetch_recent_bars(batch, interval="5m", lookback=f"{lookback_days}d", adjustment="split")
+            daily_frames = alpaca.fetch_recent_bars(batch, interval="1d", lookback=f"{lookback_days}d", adjustment="split")
         except Exception as e:
             print(f"  batch {b_no}/{total_batches} fetch FAILED: {e}")
             continue
@@ -80,12 +64,22 @@ def collect_historical(
             continue
         b_signals = 0
         for sym, df in frames.items():
-            if df is None or len(df) < sig.LOOKBACK_BARS + BARS_1D:
+            if df is None or len(df) < sig.LOOKBACK_BARS + 1:
                 continue
-            closes = df["Close"]
+            daily = daily_frames.get(sym)
+            if daily is None or daily.empty:
+                continue
             for idx in range(sig.LOOKBACK_BARS, len(df)):
                 s = _detect_at_bar(sym, df, idx)
                 if s is None:
+                    continue
+                if not math.isfinite(s.price) or s.price <= 0:
+                    continue
+                outcomes = [forward_close(daily, s.ts, n) for n in (1, 3, 5)]
+                if any(value is None for value in outcomes):
+                    continue
+                returns = [(value[0] - s.price) / s.price for value in outcomes]
+                if not all(math.isfinite(value) for value in returns):
                     continue
                 out.append(
                     HistoricalSignal(
@@ -94,9 +88,10 @@ def collect_historical(
                         signal_type=s.signal_type,
                         pct_change=s.pct_change,
                         volume_ratio=s.volume_ratio,
-                        realized_1d=_realized_return(closes, idx, BARS_1D),
-                        realized_3d=_realized_return(closes, idx, BARS_3D),
-                        realized_5d=_realized_return(closes, idx, BARS_5D),
+                        realized_1d=returns[0],
+                        realized_3d=returns[1],
+                        realized_5d=returns[2],
+                        available_at=outcomes[2][1],
                     )
                 )
                 b_signals += 1
@@ -112,7 +107,14 @@ def find_analogues(
     target_ts: pd.Timestamp | None = None,
     target_symbol: str | None = None,
 ) -> list[HistoricalSignal]:
-    """Filter the pool by type + magnitude similarity (and exclude same-day-same-symbol)."""
+    """Select known outcomes, then remove overlapping same-symbol windows.
+
+    Missing target or maturity timestamps fail closed. A date-only same-symbol
+    exclusion cannot prevent leakage from other symbols or future sessions.
+    """
+    if target_ts is None:
+        return []
+    cutoff = utc_timestamp(target_ts)
     pct_lo = target_pct * (1 - ANALOGUE_PCT_TOL) if target_pct >= 0 else target_pct * (1 + ANALOGUE_PCT_TOL)
     pct_hi = target_pct * (1 + ANALOGUE_PCT_TOL) if target_pct >= 0 else target_pct * (1 - ANALOGUE_PCT_TOL)
     if pct_lo > pct_hi:
@@ -121,23 +123,30 @@ def find_analogues(
     vol_hi = target_vol * (1 + ANALOGUE_VOL_TOL)
 
     out: list[HistoricalSignal] = []
-    for h in pool:
+    last_end: dict[str, pd.Timestamp] = {}
+    for h in sorted(pool, key=lambda item: utc_timestamp(item.ts)):
+        if h.available_at is None or utc_timestamp(h.available_at) >= cutoff:
+            continue
+        if utc_timestamp(h.ts) >= cutoff:
+            continue
+        if h.symbol in last_end and utc_timestamp(h.ts) <= last_end[h.symbol]:
+            continue
         if h.signal_type != target_type:
             continue
         if not (pct_lo <= h.pct_change <= pct_hi):
             continue
         if not (vol_lo <= h.volume_ratio <= vol_hi):
             continue
-        # Exclude same symbol on same day (avoid forward-looking bias from the very signal we're estimating).
-        if target_symbol == h.symbol and target_ts is not None:
-            if abs((h.ts.tz_localize(None) if h.ts.tzinfo else h.ts) -
-                   (target_ts.tz_localize(None) if target_ts.tzinfo else target_ts)) < pd.Timedelta(days=1):
-                continue
+        last_end[h.symbol] = utc_timestamp(h.available_at)
         out.append(h)
     return out
 
 
 def aggregate_expected(analogues: list[HistoricalSignal]) -> tuple[float | None, float | None, float | None, int]:
+    analogues = [a for a in analogues if all(
+        value is not None and math.isfinite(value)
+        for value in (a.realized_1d, a.realized_3d, a.realized_5d)
+    )]
     if not analogues:
         return None, None, None, 0
 

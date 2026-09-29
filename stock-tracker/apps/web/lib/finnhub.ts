@@ -78,16 +78,11 @@ export function isFinnhubEnabled(): boolean {
   return !!process.env.FINNHUB_API_KEY;
 }
 
-// ─── /stock/quote (latest price, extended-hours aware) ─────────────────────
-//
-// Yahoo's v8 chart endpoint blocks Vercel data-center IPs aggressively
-// during pre/after sessions, leaving the watchlist with stale-marked IEX
-// closes. Finnhub's /quote returns a real-time `c` field that includes
-// extended-hours trades for most US listings on the free tier — same
-// usability without the rate-limit dance.
+// Quote coverage depends on the subscription and listing. Freshness is
+// evaluated using t, never inferred from a successful HTTP response.
 
 export interface FinnhubQuote {
-  /** Current price (includes pre/post-market for supported US listings). */
+  /** Provider-reported price; session coverage is not guaranteed. */
   c: number;
   /** Today's high. */
   h: number;
@@ -120,7 +115,7 @@ export async function getFinnhubQuote(
   if (hit && Date.now() - hit.ts < QUOTE_CACHE_TTL_MS) return hit.data;
 
   const data = await get<FinnhubQuote>(`/quote?symbol=${key}`);
-  if (!data || typeof data.c !== "number" || data.c <= 0) return null;
+  if (!data || !Number.isFinite(data.c) || data.c <= 0 || !Number.isFinite(data.t) || data.t <= 0) return null;
   quoteCache.set(key, { data, ts: Date.now() });
   return data;
 }

@@ -13,10 +13,10 @@ Two-stage funnel over the NASDAQ-100 (+watchlist):
      skew, insider, news, technicals, sector ctx — 17 sections) → verdict +
      confidence + trade_plan (진입존/목표1·2/손절/기간, ATR-검증됨).
 
-Digest gates (only conviction survives; the rest collapses to one line):
-  🎯 강한 매수  buy  & conf ≥ CONF_STRONG (0.70)
-  🟢 매수 후보  buy  & conf ≥ CONF_BUY    (0.55)
-  🔴 매도/정리  sell & conf ≥ CONF_SELL   (0.55)
+Digest gates (unvalidated AI scores, not probability of profit):
+  🎯 우선 조사  buy  & conf ≥ CONF_STRONG (0.70)
+  🟢 매수 관점 조사  buy  & conf ≥ CONF_BUY    (0.55)
+  🔴 매도 관점 검토  sell & conf ≥ CONF_SELL   (0.55)
   🟡 관망       everything else — symbols only, one line
 Market regime (𝑓 /api/regime) heads the digest; in risk_off both buy
 thresholds are raised +0.10 (하락추세에선 더 확실한 것만).
@@ -48,6 +48,7 @@ Schedule (cron-job.org → workflow_dispatch, weekdays only):
 from __future__ import annotations
 
 import os
+import math
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -55,7 +56,10 @@ from datetime import datetime, timedelta, timezone
 import requests
 from dotenv import load_dotenv
 
+load_dotenv()  # Resolve local credentials and FRONT_URL before module constants.
+
 from lib import alpaca, db
+from lib.owner_api import OwnerAPIConfigError, owner_request_options
 
 # Hard safety cap on scan size. Real per-scan size is controlled by
 # SCAN_BUDGET below — this just protects against runaway list growth.
@@ -371,6 +375,8 @@ FAIL_REASON_VERCEL_504 = "vercel_504"
 FAIL_REASON_TIMEOUT = "timeout"
 FAIL_REASON_NETWORK = "network"
 FAIL_REASON_UNKNOWN = "unknown"
+FAIL_REASON_AUTH = "owner_auth"
+FAIL_REASON_EVIDENCE = "stale_evidence"
 
 
 def _classify_failure(status: int | None, body: str) -> str:
@@ -382,6 +388,8 @@ def _classify_failure(status: int | None, body: str) -> str:
     original status code visible inside the message.
     """
     bod = (body or "").lower()
+    if status in {401, 403} or "stock_tracker_owner_password" in bod:
+        return FAIL_REASON_AUTH
     if status == 504:
         return FAIL_REASON_VERCEL_504
     # All chain models were skipped on cooldown — gemini.ts emits an explicit
@@ -438,11 +446,42 @@ QUOTA_BREATHER_SEC = int(os.getenv("AI_SCAN_QUOTA_BREATHER", "90"))
 MAX_QUOTA_BREATHERS = int(os.getenv("AI_SCAN_MAX_QUOTA_BREATHERS", "8"))
 
 
+def _has_current_evidence(payload: dict, now: datetime | None = None) -> bool:
+    """Never publish a cached or degraded HTTP success as a fresh verdict."""
+    analysis = payload.get("analysis")
+    context = analysis.get("context") if isinstance(analysis, dict) else None
+    quality = payload.get("dataQuality")
+    if payload.get("stale") or not isinstance(context, dict) or not isinstance(quality, dict):
+        return False
+    evidence_quality = context.get("data_quality")
+    price = context.get("last_price")
+    if (quality.get("status") != "fresh"
+        or context.get("methodology_version") != "evidence-v1"
+        or context.get("session") not in {"regular", "pre", "after"}
+        or not isinstance(evidence_quality, dict)
+        or evidence_quality.get("status") != "fresh"
+        or not isinstance(price, (int, float)) or isinstance(price, bool)
+        or not math.isfinite(price) or price <= 0):
+        return False
+    try:
+        observed = datetime.fromisoformat(context["price_as_of"].replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            return False
+        age = ((now or datetime.now(timezone.utc)) - observed).total_seconds()
+        max_age = 120 if context["session"] == "regular" else 300
+        return -60 <= age <= max_age
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+
+
 def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int | None, str]:
     """Single POST attempt. Returns (analysis | None, fail_reason | None,
     http_status, body_snippet). Used by call_analyze for both initial + retry."""
     try:
-        r = requests.post(url, json={"symbol": symbol}, timeout=ANALYZE_TIMEOUT_SEC)
+        options = owner_request_options(FRONT_URL, url)
+        r = requests.post(url, json={"symbol": symbol, "allowStale": False}, timeout=ANALYZE_TIMEOUT_SEC, **options)
+    except OwnerAPIConfigError as e:
+        return None, FAIL_REASON_AUTH, None, str(e)
     except requests.Timeout:
         return None, FAIL_REASON_TIMEOUT, None, ""
     except requests.RequestException as e:
@@ -452,7 +491,10 @@ def _http_post_once(url: str, symbol: str) -> tuple[dict | None, str | None, int
 
     if r.status_code == 200:
         try:
-            return r.json().get("analysis"), None, 200, ""
+            payload = r.json()
+            if not isinstance(payload, dict) or not _has_current_evidence(payload):
+                return None, FAIL_REASON_EVIDENCE, 200, "Current market evidence was not verified."
+            return payload["analysis"], None, 200, ""
         except Exception as e:
             return None, FAIL_REASON_UNKNOWN, 200, f"bad JSON: {e}"
 
@@ -555,13 +597,19 @@ def _plan_of(analysis: dict) -> dict | None:
     """Extract the validated trade_plan from an analysis row (context jsonb).
     None for legacy rows or plans that failed server-side validation."""
     ctx = analysis.get("context") or {}
+    if not isinstance(ctx, dict) or ctx.get("session") != "regular" or not _has_current_evidence({
+        "analysis": analysis, "dataQuality": ctx.get("data_quality"),
+    }):
+        return None
     tp = ctx.get("trade_plan")
     if not isinstance(tp, dict):
         return None
     for k in ("entry_low", "entry_high", "stop", "target_1", "target_2"):
         v = tp.get(k)
-        if not isinstance(v, (int, float)):
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v <= 0:
             return None
+    if not (tp["stop"] < tp["entry_low"] <= tp["entry_high"] < tp["target_1"] <= tp["target_2"]):
+        return None
     return tp
 
 
@@ -594,17 +642,23 @@ def _format_pick(v: dict, full: bool) -> str:
     sym = v.get("symbol", "?")
     conf = int(round(float(v.get("confidence") or 0) * 100))
     tag_str = " · ".join(_md_safe(t) for t in (v.get("tags") or [])[:2])
-    lines = [f"• *{sym}*  신뢰 {conf}%" + (f" · {tag_str}" if tag_str else "")]
+    lines = [f"• *{sym}*  AI점수 {conf}/100 (미검증)" + (f" · {tag_str}" if tag_str else "")]
     if full:
         summary = _trim_summary(v.get("summary") or "")
         if summary:
             lines.append(f"  _{summary}_")
-    tp = v.get("plan")
+    ctx = v.get("context") or {}
+    if ctx.get("price_as_of"):
+        lines.append(f"  가격 근거: {_md_safe(str(ctx['price_as_of']))}")
+    # A long scan may outlive the evidence accepted at request time.
+    tp = _plan_of({"context": ctx})
     if tp:
         lines.append(f"  {_plan_line(tp, (v.get('verdict') or 'buy').lower())}")
         note = _md_safe(str(tp.get("note") or "").strip())
         if full and note:
             lines.append(f"  💡 {note[:140]}")
+    elif ctx.get("trade_plan"):
+        lines.append("  가격 시나리오 만료 — 화면에서 최신 근거 재확인")
     return "\n".join(lines)
 
 
@@ -618,6 +672,8 @@ def _reason_label(reason: str) -> str:
         FAIL_REASON_VERCEL_504: "Vercel 60s 타임아웃 (분석 처리 지연)",
         FAIL_REASON_TIMEOUT: "워커 HTTP 타임아웃 (네트워크)",
         FAIL_REASON_NETWORK: "네트워크 연결 오류",
+        FAIL_REASON_AUTH: "소유자 인증 설정 확인 필요",
+        FAIL_REASON_EVIDENCE: "최신 시세 근거 미확인 — 발행 보류",
         FAIL_REASON_UNKNOWN: "알 수 없는 오류",
     }.get(reason, reason)
 
@@ -650,7 +706,7 @@ def _build_blocks(
     missing_list = missing_list or []
 
     # Regime-adjusted gates: in a confirmed downtrend only the very best
-    # longs are worth the user's attention (같은 철학: 대시보드 물타기 게이트).
+    # longs advance for further research. These gates are not calibrated probabilities.
     regime_key = (regime or {}).get("regime")
     bump = 0.10 if regime_key == "risk_off" else 0.0
     strong_gate = CONF_STRONG + bump
@@ -676,7 +732,8 @@ def _build_blocks(
 
     now_kst = datetime.now(timezone(timedelta(hours=9)))
     header_lines = [
-        f"🤖 *AI 매수/매도 추천* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
+        f"🤖 *AI 조사 후보* ({now_kst.strftime('%Y-%m-%d %H:%M KST')})",
+        "AI점수는 모델의 미검증 평가이며, 수익 확률이나 검증된 성과가 아닙니다.",
     ]
     if regime:
         vix = regime.get("vix")
@@ -708,26 +765,26 @@ def _build_blocks(
 
     if not strong and not buys:
         blocks.append(
-            "🚫 *오늘 확실한 매수 후보 없음* — 신규 진입 대신 현금/기존 플랜 유지. "
+            "🚫 *AI 점수 기준을 통과한 매수 조사 후보 없음*. "
             "기준 미달 종목은 관망 목록 참고."
         )
     if strong:
-        blocks.append(f"🎯 *강한 매수 ({len(strong)})* — 신뢰 {int(strong_gate*100)}%+")
+        blocks.append(f"🎯 *우선 조사 후보 ({len(strong)})* — AI점수 {int(strong_gate*100)}/100 이상 (미검증)")
         for v in strong[:DIGEST_MAX_PER_BUCKET]:
             blocks.append(_format_pick(v, full=True))
     if buys:
-        blocks.append(f"🟢 *매수 후보 ({len(buys)})*")
+        blocks.append(f"🟢 *매수 관점 조사 후보 ({len(buys)})*")
         for v in buys[:DIGEST_MAX_PER_BUCKET]:
             blocks.append(_format_pick(v, full=False))
     if sells:
-        blocks.append(f"🔴 *매도/정리 ({len(sells)})* — 보유 중이면 플랜 확인")
+        blocks.append(f"🔴 *매도 관점 검토 ({len(sells)})* — 보유 중이면 손절 기준과 원장 확인")
         for v in sells[:DIGEST_MAX_PER_BUCKET]:
             blocks.append(_format_pick(v, full=False))
 
     if watch:
         # 관망: symbols+conf only, wrapped — 수십 개를 나열하지 않는 게 목적.
         entries = [
-            f"{v.get('symbol', '?')}({int(round(float(v.get('confidence') or 0) * 100))}%)"
+            f"{v.get('symbol', '?')}(AI점수 {int(round(float(v.get('confidence') or 0) * 100))}/100)"
             for v in watch[:DIGEST_MAX_PER_BUCKET]
         ]
         watch_lines = [f"🟡 *관망 ({len(watch)})*"]
@@ -745,7 +802,7 @@ def _build_blocks(
         blocks.append("\n".join(watch_lines))
 
     blocks.append(
-        f"가격은 기초자산 USD 기준 — 2배 ETF 실행 시 손익 ≈ 2배."
+        f"가격은 기초자산 USD 기준. 레버리지 ETF에는 해당 가격·수익률을 그대로 적용할 수 없습니다."
         f"\n[전체 분석 →]({FRONT_URL}/trade)"
     )
     return blocks
@@ -819,6 +876,11 @@ def send_telegram(text: str) -> bool:
 
 def main() -> int:
     load_dotenv()
+    try:
+        owner_request_options(FRONT_URL, f"{FRONT_URL}/api/analyze")
+    except OwnerAPIConfigError as e:
+        print(f"ai_scan: {e}", file=sys.stderr)
+        return 1
     sb = db.client()
 
     targets, tags, counts = collect_conviction_targets(sb)
@@ -898,6 +960,7 @@ def main() -> int:
                 "confidence": analysis.get("confidence") or 0,
                 "summary": analysis.get("summary") or "",
                 "plan": _plan_of(analysis),
+                "context": analysis.get("context") or {},
                 "tags": tags.get(sym, []),
             }
         )

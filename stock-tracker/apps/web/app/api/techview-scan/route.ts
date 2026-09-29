@@ -7,6 +7,8 @@
 // price shown is the one the levels were computed against (consistent snapshot).
 
 import { NextResponse } from "next/server";
+import { scannerQuality, aggregateQuality } from "@/lib/dataQuality";
+import { currentMarketSession } from "@/lib/alpaca";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -35,6 +37,7 @@ const RANK: Record<string, number> = {
 
 const NOT_READY = NextResponse.json({
   ready: false,
+  dataQuality: { status: "unavailable", asOf: null, reasons: ["스캐너 원천 데이터가 없습니다."] },
   updatedAt: null,
   counts: {},
   rows: [],
@@ -92,6 +95,10 @@ export async function GET() {
     )
     .map((r) => ({
       symbol: r.symbol,
+      asOf: null,
+      computedAt: r.tech_at,
+      stale: true,
+      dataQuality: { ...scannerQuality(r.tech_at, false, currentMarketSession()), asOf: null },
       sector: r.sector,
       price: r.tech_price,
       setup: r.tech_setup,
@@ -108,6 +115,7 @@ export async function GET() {
 
   return NextResponse.json({
     ready: true,
+    dataQuality: aggregateQuality(records.map((r) => ({ ...scannerQuality(r.tech_at, false, currentMarketSession()), asOf: null }))),
     updatedAt,
     universe: records.length,
     counts,

@@ -259,7 +259,7 @@ export default function IchimokuPanel({ refreshKey = 0 }: { refreshKey?: number 
       <p className="text-[11px] text-neutral-600 leading-relaxed">
         선행스팬B = 최근 52기간 (고+저)/2 를 <b>26기간 앞으로 투영</b>한 값 — 오늘
         가격이 실제로 닿는 구름 하단/상단. 스팬A보다 주기가 길어 매물대로서
-        신뢰도가 높습니다(표준 9/26/52/26). 매일 장 마감 후 일봉·주봉 각각 계산
+        예측력이 검증된 것은 아닙니다(표준 9/26/52/26). 매일 장 마감 후 일봉·주봉 각각 계산
         (액면분할 조정). 참고 지표이며 매매 판단의 책임은 본인에게 있습니다.
       </p>
     </section>

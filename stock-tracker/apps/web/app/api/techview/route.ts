@@ -6,7 +6,9 @@
 // adjusted bar basis as the other long-window engines so levels line up.
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAlpacaBars } from "@/lib/alpaca";
+import { fetchAlpacaBars, type Snapshot } from "@/lib/alpaca";
+import { completedDailyBars, dailyBarsQuality, snapshotQuality, timestampQuality } from "@/lib/dataQuality";
+import { isTradingDate, lastCompletedTradingDate, nyClock } from "@/lib/marketCalendar";
 import { getPrimarySnapshot } from "@/lib/marketData";
 import { getFinnhubBundle, isFinnhubEnabled } from "@/lib/finnhub";
 import { generateTechView, type TechVerdict } from "@/lib/gemini";
@@ -36,18 +38,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
     }
 
-    const [daily, weekly, snap, finnhub] = await Promise.all([
+    const [rawDaily, rawWeekly, snap, finnhub] = await Promise.all([
       fetchAlpacaBars(symbol, "1Day", 400, 400, "split"),
       fetchAlpacaBars(symbol, "1Week", 3650, 600, "split"),
       softly(getPrimarySnapshot(symbol)),
       isFinnhubEnabled() ? softly(getFinnhubBundle(symbol)) : Promise.resolve(null),
     ]);
 
-    if (!daily || daily.length < 40) {
-      return NextResponse.json(
-        { error: "일봉 데이터가 부족해 기술분석을 할 수 없습니다 (최소 40봉)." },
-        { status: 422 },
-      );
+    const now = new Date();
+    const priceQuality = snap ? snapshotQuality(snap.lastTradeTs, snap.lastPrice, snap.session, now) : null;
+    if (!snap || snap.dataQuality?.status !== "fresh" || priceQuality?.status !== "fresh" || snap.lastPrice == null) {
+      return NextResponse.json({
+        error: "현재 가격의 출처 시각·신선도를 확인할 수 없어 기술분석을 중단했습니다. 가격을 새로고침한 뒤 다시 시도하세요.",
+        dataQuality: priceQuality,
+      }, { status: 503 });
+    }
+    const daily = completedDailyBars(rawDaily ?? [], now);
+    const dailyQuality = dailyBarsQuality(daily, 40, now);
+    const completedDate = lastCompletedTradingDate(now);
+    const weekly = (rawWeekly ?? []).filter((bar) => {
+      if (!Number.isFinite(Date.parse(bar.ts))) return false;
+      return weekEnd(nyClock(new Date(bar.ts)).date) <= completedDate;
+    });
+    const weeklyQuality = timestampQuality(weekly.at(-1)?.ts, Infinity, now);
+    let expectedWeek = completedDate;
+    if (weekEnd(expectedWeek) > completedDate) {
+      const previous = new Date(`${completedDate}T12:00:00Z`);
+      previous.setUTCDate(previous.getUTCDate() - 7);
+      expectedWeek = previous.toISOString().slice(0, 10);
+    }
+    if (weeklyQuality.status === "fresh" && weekEnd(nyClock(new Date(weekly.at(-1)!.ts)).date) < weekEnd(expectedWeek)) {
+      weeklyQuality.status = "stale";
+      weeklyQuality.reasons.push("최근 완료 주의 주봉이 없습니다.");
+    }
+    if (weekly.length < 20) {
+      weeklyQuality.status = "unavailable";
+      weeklyQuality.reasons.push("주봉 채널 검토에 필요한 완료 주봉이 부족합니다(최소 20개).");
+    }
+    if (dailyQuality.status !== "fresh" || weeklyQuality.status !== "fresh") {
+      return NextResponse.json({
+        error: "최신 완료 일봉·주봉이 부족해 기술분석을 중단했습니다.",
+        dailyQuality, weeklyQuality,
+      }, { status: 503 });
     }
 
     const anchorDates =
@@ -62,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const nextEarnings = finnhub?.nextEarnings ?? null;
-    const prompt = buildPrompt(tech, snap?.session ?? null, nextEarnings);
+    const prompt = buildPrompt(tech, snap, nextEarnings);
 
     let ai: TechVerdict;
     try {
@@ -74,7 +106,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       symbol,
       session: snap?.session ?? null,
-      livePrice: snap?.lastPrice ?? null,
+      livePrice: snap.lastPrice,
+      dataQuality: priceQuality,
+      priceSource: snap.priceSource,
+      priceAsOf: snap.lastTradeTs,
+      evidence: { source: "Alpaca SIP · split · 완료 봉", daily: dailyQuality, weekly: weeklyQuality },
       earnings: nextEarnings
         ? { date: nextEarnings.date, daysUntil: nextEarnings.daysUntil }
         : null,
@@ -89,6 +125,15 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+/** Last scheduled trading date of the bar's ISO week, including Friday holidays. */
+function weekEnd(date: string): string {
+  const end = new Date(`${date}T12:00:00Z`);
+  const weekday = end.getUTCDay() || 7;
+  end.setUTCDate(end.getUTCDate() + 5 - weekday);
+  while (!isTradingDate(end.toISOString().slice(0, 10))) end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
 }
 
 function coherentPlan(ai: TechVerdict) {
@@ -115,28 +160,30 @@ function coherentPlan(ai: TechVerdict) {
 
 function buildPrompt(
   t: TechAnalysis,
-  session: string | null,
+  snapshot: Snapshot,
   earnings: { date: string; daysUntil: number } | null,
 ): string {
   const L: string[] = [];
   L.push(`# ${t.symbol} 기술적 분석 (갭 + 피보나치 + 주봉 고고저 빗각) — 한국어`);
   L.push("");
   L.push(
-    "당신은 아래 '매물대 터치 매매법'을 쓰는 트레이더다. 기계적으로 계산된 사실만 신뢰하고, 그 위에 시나리오를 세워라.",
+    "아래 계산값은 과거 관측값이다. 매물대 터치 규칙은 수익 예측력이 검증되지 않은 가설로 취급하고 조건부 시나리오를 설명하라.",
   );
   L.push("");
   L.push("## 이 매매법의 원칙 (반드시 이 틀로 판단)");
-  L.push("1. 주봉 고고저 빗각(평행 채널) 라인이 가장 확실한 매물대다.");
+  L.push("1. 주봉 고고저 빗각(평행 채널)은 앵커 선택에 따라 달라지는 관찰 레벨이다. 확실한 지지·수익 근거로 단정하지 마라.");
   L.push("2. 갭하락 장대음봉 고점 → 이후 최저점으로 피보나치를 긋는다. **피보는 관찰 레벨**(0.618 중심) — 어디까지 눌렸는지 가늠용이고, 진입 트리거는 아니다.");
   L.push("3. **'밟아야 산다'** — **빗각 라인**을 실제로 터치(꼬리 포함)해야 진입 검토. 근접만으로는 사지 않고, 피보 터치만으로도 사지 않는다.");
   L.push("4. 터치 후 다음 캔들의 반응(양봉)이 확인이다. 확인 없으면 대기.");
   L.push("5. 목표는 **미충족 갭 구간** — 갭을 메우는 자리에서 정리(분할 매도).");
-  L.push("6. 매크로/뉴스가 나쁘면 더 확실한 자리(빗각)를 밟을 때까지 기다린다.");
+  L.push("6. 제공되지 않은 매크로·뉴스를 추정하지 마라. 정보가 부족하면 관망 조건과 부족한 근거를 설명하라.");
   L.push("7. **핵심 매수 패턴 = '위에서 아래로 밟기'** — 라인이 저항이었다가 상향 돌파된 뒤, 눌림으로 그 라인을 다시 밟을 때 매수한다. 돌파는 이미 일어났으므로 추격은 금지, 되돌림 터치를 기다린다.");
   L.push("8. 목표는 위쪽 rung 순서로 — **하프라인 먼저, 그다음 채널 상단**. 각 rung에서 기계적 분할 매도.");
   L.push("9. 고고저 채널 = 매수(지지) 도구, 저저고 채널 = 매도(저항) 도구. 저저고 라인은 목표/저항으로만 쓰고 매수 근거로 쓰지 않는다.");
   L.push("");
-  L.push(`## 현재: ${t.price} (${session ?? "?"} 세션, 기준일 ${t.asOf})`);
+  L.push(`## 완료 일봉 기준 가격: ${t.price} (기준일 ${t.asOf}, Alpaca SIP·분할조정)`);
+  L.push(`## 별도 최근 가격: ${snapshot.lastPrice} (${snapshot.session} 세션, ${snapshot.priceSource ?? "?"}, ${snapshot.lastTradeTs ?? "?"})`);
+  L.push("일봉·주봉 구조는 완료 봉 기준이다. 최근 가격과 시점·피드가 다르므로 실시간 진입 확인으로 서술하지 마라.");
   if (earnings) L.push(`- ⚠️ 다음 어닝 ${earnings.date} (D-${earnings.daysUntil})`);
   L.push(`- 기계적 셋업 판정: ${t.setup} (${SETUP_META[t.setup].label})`);
   L.push("");
@@ -147,7 +194,7 @@ function buildPrompt(
     L.push(
       `- 앵커: ${d.anchor1.ts}(${d.anchor1.price}) → ${d.anchor2.ts}(${d.anchor2.price}) 로 기울기, ${d.anchor3.ts}(${d.anchor3.price}) 로 평행`,
     );
-    L.push(`- 채널폭 배수 ${d.widthRatio}× · 과거 이 채널 라인 터치 ${d.touchScore}회(시장이 실제로 존중한 횟수)`);
+    L.push(`- 채널폭 배수 ${d.widthRatio}× · 과거 이 채널 라인 터치 ${d.touchScore}회(사후 관측 횟수이며 향후 지지 확률 아님)`);
     L.push(`- 현재 라인값: ${d.lines.map((l) => `${l.label} ${l.price}`).join(" · ")}`);
     if (d.nearest)
       L.push(`- 가장 가까운 라인: ${d.nearest.label} ${d.nearest.price} (${d.nearest.distPct >= 0 ? "+" : ""}${d.nearest.distPct}%)`);
@@ -213,7 +260,7 @@ function buildPrompt(
   L.push("- stop: 라인 이탈 시 손절 (라인 아래 또는 직전 저점 아래).");
   L.push("- target_1 / target_2: 1차는 가까운 저항/갭 하단, 2차는 갭 상단(갭 메움 완성).");
   L.push("- 숫자 순서 필수: stop < entry_low ≤ entry_high < target_1 ≤ target_2");
-  L.push("- confidence 0~1. 터치 미발생/구조 불명확이면 낮게.");
+  L.push("- confidence 0~1은 서술상 확신도이며 승률·수익 확률이 아니다. 터치 미발생/구조 불명확이면 낮게.");
   L.push("- cautions: 솔직한 리스크 2~4개 (어닝 임박, 갭 재확대, 빗각은 작도 방식에 따라 달라질 수 있음 등).");
   return L.join("\n");
 }

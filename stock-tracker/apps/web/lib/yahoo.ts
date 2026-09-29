@@ -121,7 +121,7 @@ export async function getYahooChart(
 
     const meta = result.meta ?? {};
     const ts = result.timestamp ?? [];
-    const q = result.indicators.quote?.[0];
+    const q = result.indicators?.quote?.[0];
     if (!q) {
       return {
         symbol: symbol.toUpperCase(),
@@ -145,7 +145,7 @@ export async function getYahooChart(
       const cP = q.close[i];
       const vP = q.volume[i];
       // Yahoo emits null bars for non-trading minutes within range — skip them.
-      if (oP == null || hP == null || lP == null || cP == null) continue;
+      if (oP == null || hP == null || lP == null || cP == null || ![oP, hP, lP, cP].every((p) => Number.isFinite(p) && p > 0) || !Number.isFinite(ts[i])) continue;
       const iso = new Date(ts[i] * 1000).toISOString();
       bars.push({ ts: iso, o: oP, h: hP, l: lP, c: cP, v: vP ?? 0 });
       lastValidClose = cP;
@@ -155,7 +155,7 @@ export async function getYahooChart(
     return {
       symbol: symbol.toUpperCase(),
       lastPrice: lastValidClose ?? meta.regularMarketPrice ?? null,
-      lastTradeTs: lastValidTs,
+      lastTradeTs: lastValidTs ?? (meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : null),
       prevClose: meta.previousClose ?? meta.chartPreviousClose ?? null,
       bars,
     };

@@ -1,32 +1,13 @@
-// Prescription engine for the 2x-leveraged-ETF swing console (2026-07 pivot).
-//
-// Pure functions — no I/O. Takes a derived Position (from /api/trades/positions,
-// which already computes unrealizedPct) plus the market regime, and returns a
-// mechanical 처방 (prescription): what to do NOW with this position.
-//
-// Design principles (from the user's own trading rules):
-//   - 분할매수/분할매도 is mandatory. Each BUY fill in trade_log = one tranche.
-//     No schema change needed: tranche count is derived from fill history.
-//   - +10~20% unrealized → 1차 분할익절 (sell ~⅓); +20%+ → 2차 익절.
-//   - -10~-20% → 물타기 준비 구간 (watch); -20%~ → 물타기 (average down),
-//     BUT ONLY IF (a) tranches remain (< MAX_TRANCHES buys so far) and
-//     (b) the market regime is NOT risk_off. Averaging down a 2x ETF in a
-//     confirmed downtrend is the single fastest way to blow up a small
-//     account — the regime gate exists precisely to block that.
-//   - -30%+ or tranches exhausted while falling → 손절/축소 검토 (danger).
-//   - Time stop: leveraged ETFs bleed to volatility decay in chop. If the
-//     position is old and going nowhere in a non-risk_on regime, flag it.
-//
-// All thresholds are exported so a future per-symbol settings UI can
-// override them; today they are sensible defaults for 2x products.
+// Rule-based review reminders, not an expected-return model or an order instruction.
+// No price loss or market regime alone authorizes adding capital.
 
 export type Regime = "risk_on" | "neutral" | "risk_off";
 
 export interface RxThresholds {
   tp1: number;        // 1차 분할익절 시작 (fraction, +0.10 = +10%)
   tp2: number;        // 2차 익절 / 추세 익절 라인
-  watch: number;      // 물타기 준비 구간 시작 (negative)
-  avgDown: number;    // 물타기 실행 라인 (negative)
+  watch: number;      // 손실 검토 알림 (negative)
+  avgDown: number;    // 추가 자본 투입 보류 알림 (legacy field name)
   hardStop: number;   // 손절 검토 강권 라인 (negative)
   maxTranches: number; // 최대 분할매수 횟수 (이후 물타기 금지)
   timeStopDays: number; // 이 일수 이상 & ±5% 박스면 decay 경고
@@ -46,9 +27,9 @@ export type RxLevel =
   | "tp2"        // 2차+ 익절 구간
   | "tp1"        // 1차 분할익절 구간
   | "hold"       // 보유 (특이사항 없음)
-  | "watch"      // 물타기 준비 (관찰)
-  | "avg_down"   // 물타기 실행 구간
-  | "avg_blocked"// 물타기 구간이지만 레짐/트랜치 사유로 차단
+  | "watch"      // 손실 검토
+  | "avg_down"   // legacy compatibility; never emitted
+  | "avg_blocked"// 추가 매수 근거와 전체 손실 예산 필요
   | "stop"       // 손절/축소 검토
   | "time_decay"; // 레버리지 decay 시간 손절 경고
 
@@ -65,9 +46,10 @@ export interface RxInput {
   buyFillCount: number;         // number of BUY fills = tranches used
   openQty: number;
   firstBuyTs?: string | null;   // ISO of the earliest open-cycle buy (for time stop)
-  // null = regime lookup FAILED. The 물타기 gate fails CLOSED on null:
-  // unknown regime must never green-light averaging down a 2x ETF.
+  // null = market regime unavailable; no regime authorizes extra capital alone.
   regime: Regime | null;
+  /** Only show daily-reset holding-period warnings for an identified leveraged product. */
+  isLeveraged?: boolean;
 }
 
 function daysBetween(iso: string, now: Date): number {
@@ -79,150 +61,27 @@ export function prescribe(
   rx: RxThresholds = DEFAULT_RX,
   now: Date = new Date(),
 ): Prescription {
-  const { unrealizedPct: pct, buyFillCount, regime } = input;
-
-  if (pct == null) {
-    return {
-      level: "hold",
-      severity: "info",
-      badge: "가격 대기",
-      action: "현재가 조회 실패 — 처방 보류",
-      detail: "시세를 불러오지 못해 손익률을 계산할 수 없습니다. 새로고침 후 다시 확인하세요.",
-    };
+  const pct = input.unrealizedPct;
+  if (pct == null || !Number.isFinite(pct)) {
+    return { level: "hold", severity: "info", badge: "가격 대기", action: "현재가 확인 전 판단 보류", detail: "시세와 거래 내역을 확인한 뒤 손익 및 손실 예산을 다시 계산하세요." };
   }
-
   const pctLabel = `${pct >= 0 ? "+" : ""}${(pct * 100).toFixed(1)}%`;
-  const tranchesLeft = Math.max(0, rx.maxTranches - buyFillCount);
-
-  // ── Profit side ──────────────────────────────────────────────────────────
-  if (pct >= rx.tp2) {
-    return {
-      level: "tp2",
-      severity: "good",
-      badge: "2차 익절",
-      action: `평가 ${pctLabel} — 추가 ⅓ 분할익절 + 잔여분 트레일링`,
-      detail:
-        `+${(rx.tp2 * 100).toFixed(0)}% 라인 돌파. 1차에 이어 추가로 ⅓을 익절하고, ` +
-        `잔여분은 고점 대비 -7~10% 트레일링 스탑으로 추세를 따라가세요. ` +
-        `2배 레버리지는 되돌림도 2배 — 이익을 지키는 게 우선입니다.`,
-    };
-  }
-  if (pct >= rx.tp1) {
-    return {
-      level: "tp1",
-      severity: "good",
-      badge: "1차 익절",
-      action: `평가 ${pctLabel} — 보유분의 ⅓ 분할익절 권장`,
-      detail:
-        `+${(rx.tp1 * 100).toFixed(0)}~${(rx.tp2 * 100).toFixed(0)}% 구간. 첫 ⅓을 익절해 ` +
-        `원금 일부를 회수하면 이후 물타기/홀드 판단이 심리적으로 쉬워집니다. ` +
-        `잔여분 목표는 +${(rx.tp2 * 100).toFixed(0)}%.`,
-    };
-  }
-
-  // ── Loss side ────────────────────────────────────────────────────────────
   if (pct <= rx.hardStop) {
-    return {
-      level: "stop",
-      severity: "danger",
-      badge: "손절 검토",
-      action: `평가 ${pctLabel} — 포지션 축소/손절을 우선 검토`,
-      detail:
-        `${(rx.hardStop * 100).toFixed(0)}% 이하는 물타기로 복구할 구간이 아닙니다 ` +
-        `(2배 ETF -30%는 기초지수 -15%+ 추세 전환 신호). ` +
-        `절반 이상 축소 후, 레짐이 risk-on으로 돌아오면 재진입하는 편이 기대값이 높습니다.`,
-    };
+    return { level: "stop", severity: "danger", badge: "위험 재검토", action: `평가 ${pctLabel} — 손실 예산과 청산 계획 확인`, detail: "큰 손실은 추가 매수의 근거가 아닙니다. 최초 매수 이유가 무효가 되었는지와 계좌 전체 손실을 확인하세요. 이 알림의 고정 비율은 종목별 손절 계획을 대체하지 않습니다." };
   }
   if (pct <= rx.avgDown) {
-    if (regime == null) {
-      return {
-        level: "avg_blocked",
-        severity: "danger",
-        badge: "레짐 미확인",
-        action: `평가 ${pctLabel} — 레짐 조회 실패: 물타기 보류 (fail-closed)`,
-        detail:
-          `물타기 구간(${(rx.avgDown * 100).toFixed(0)}% 이하)이지만 시장 레짐을 확인할 수 ` +
-          `없습니다. 레짐 불명 상태에서 2배 ETF 트랜치 투입은 금지 — 새로고침으로 레짐 조회가 ` +
-          `복구된 뒤 재판단하세요.`,
-      };
-    }
-    if (regime === "risk_off") {
-      return {
-        level: "avg_blocked",
-        severity: "danger",
-        badge: "물타기 금지",
-        action: `평가 ${pctLabel} — 레짐 risk-off: 물타기 차단, 축소 검토`,
-        detail:
-          `물타기 구간(${(rx.avgDown * 100).toFixed(0)}% 이하)이지만 시장 레짐이 하락추세입니다. ` +
-          `확인된 하락추세에서 2배 ETF 물타기는 손실을 가속시킵니다. ` +
-          `레짐이 중립 이상으로 회복될 때까지 신규 트랜치 투입 금지.`,
-      };
-    }
-    if (tranchesLeft <= 0) {
-      return {
-        level: "avg_blocked",
-        severity: "danger",
-        badge: "트랜치 소진",
-        action: `평가 ${pctLabel} — 분할매수 ${rx.maxTranches}회 소진, 추가 매수 금지`,
-        detail:
-          `계획된 ${rx.maxTranches}회 트랜치를 모두 사용했습니다. 여기서 더 사면 ` +
-          `계획 밖 물타기 = 리스크 관리 붕괴. 홀드하되 ${(rx.hardStop * 100).toFixed(0)}% ` +
-          `도달 시 손절 규칙을 기계적으로 실행하세요.`,
-      };
-    }
-    return {
-      level: "avg_down",
-      severity: "warn",
-      badge: "물타기 구간",
-      action: `평가 ${pctLabel} — ${buyFillCount + 1}차 트랜치 투입 가능 (${tranchesLeft}회 남음)`,
-      detail:
-        `${(rx.avgDown * 100).toFixed(0)}% 이하 + 레짐 ${regime === "risk_on" ? "상승" : "중립"} → ` +
-        `계획된 물타기 실행 구간입니다. 다음 트랜치를 투입하면 평단이 내려가 ` +
-        `반등 시 익절 라인 도달이 빨라집니다. 단, 투입 후에도 하락 지속 시 ` +
-        `${(rx.hardStop * 100).toFixed(0)}% 손절 규칙은 그대로 유지.`,
-    };
+    return { level: "avg_blocked", severity: "danger", badge: "추가 매수 보류", action: `평가 ${pctLabel} — 가격 하락만으로 물타기하지 않기`, detail: "시장 추세와 남은 분할 횟수만으로 추가 매수의 수익성을 판단할 수 없습니다. 새로운 진입 근거, 기존 보유분을 합한 최대 손실, 현금 여력과 계획 손절가가 확인되기 전에는 추가 투입을 보류하세요." };
   }
   if (pct <= rx.watch) {
-    return {
-      level: "watch",
-      severity: "info",
-      badge: "물타기 준비",
-      action: `평가 ${pctLabel} — 관찰 구간, ${(rx.avgDown * 100).toFixed(0)}% 도달 시 물타기 검토`,
-      detail:
-        `${(rx.watch * 100).toFixed(0)}~${(rx.avgDown * 100).toFixed(0)}% 구간. 아직 물타기 라인 전입니다. ` +
-        `미리 사면 트랜치를 낭비합니다 — 계획 라인까지 기다리세요. ` +
-        `남은 트랜치: ${tranchesLeft}회.`,
-    };
+    return { level: "watch", severity: "warn", badge: "손실 점검", action: `평가 ${pctLabel} — 원래의 무효화 조건 확인`, detail: "손실 확대를 기다렸다가 자동으로 추가 매수하는 규칙은 사용하지 않습니다. 현재 계좌 손실 예산과 진입 전에 정한 손절 조건을 대조하세요." };
   }
-
-  // ── Neutral zone: check time decay ──────────────────────────────────────
-  if (
-    input.firstBuyTs &&
-    regime !== "risk_on" &&
-    Math.abs(pct) < 0.05 &&
-    daysBetween(input.firstBuyTs, now) >= rx.timeStopDays
-  ) {
-    return {
-      level: "time_decay",
-      severity: "warn",
-      badge: "decay 주의",
-      action: `${rx.timeStopDays}일+ 보유 & ±5% 박스 — 청산 후 재진입 검토`,
-      detail:
-        `추세 없는 구간에서 2배 ETF는 변동성 잠식(volatility decay)으로 기초지수보다 ` +
-        `나쁘게 수렴합니다. 레짐이 risk-on이 아니면 박스권 장기보유의 기대값은 음수 — ` +
-        `일단 나왔다가 방향이 나오면 다시 타는 것이 유리합니다.`,
-    };
+  if (pct >= rx.tp1) {
+    return { level: pct >= rx.tp2 ? "tp2" : "tp1", severity: "good", badge: "이익 관리 점검", action: `평가 ${pctLabel} — 미리 정한 익절 계획 확인`, detail: "고정 수익률에 도달했다는 사실만으로 최적 매도 비중을 알 수 없습니다. 실제 진입가 기준 손익비, 비용, 목표가와 잔여 위험을 확인하고 사전에 정한 분할 청산 계획과 비교하세요." };
   }
-
-  return {
-    level: "hold",
-    severity: "info",
-    badge: "보유",
-    action: `평가 ${pctLabel} — 계획 구간 내, 홀드`,
-    detail:
-      `익절 라인(+${(rx.tp1 * 100).toFixed(0)}%)과 물타기 준비 라인(${(rx.watch * 100).toFixed(0)}%) ` +
-      `사이입니다. 다음 트랜치 ${tranchesLeft}회 보유 중. 라인 도달 전까지는 아무것도 하지 않는 것이 계획입니다.`,
-  };
+  if (input.isLeveraged && input.firstBuyTs && daysBetween(input.firstBuyTs, now) >= rx.timeStopDays) {
+    return { level: "time_decay", severity: "warn", badge: "보유기간 점검", action: `${rx.timeStopDays}일 이상 보유 — 상품의 일일 재설정 구조 확인`, detail: "일일 목표 배율 상품의 여러 날 누적 수익률은 기초자산 수익률의 단순 배수와 다를 수 있습니다. 경로·변동성·비용에 따라 달라지며, 특정 시장 구간의 기대수익을 이 규칙으로 단정할 수 없습니다." };
+  }
+  return { level: "hold", severity: "info", badge: "계획 점검", action: `평가 ${pctLabel} — 진입 근거와 손실 예산 확인`, detail: "현재 손익률만으로 보유의 유불리를 판정하지 않습니다. 가격 기준시각, 다음 실적 발표, 계획 손절가와 포지션 규모를 확인하세요." };
 }
 
 // ── Regime-level mode advice (dashboard header) ───────────────────────────
@@ -239,21 +98,21 @@ export function regimeAdvice(regime: Regime): ModeAdvice {
         emoji: "🟢",
         label: "상승 추세 (risk-on)",
         advice:
-          "스윙 적극 구간 — 분할매수 트랜치 투입과 눌림목 진입에 유리. 데이 트레이딩도 롱 방향 우위.",
+          "추세 지표가 상승 조건에 해당합니다. 수익 우위를 보장하지 않으며 진입 전 개별 근거·비용·손실 예산을 확인하세요.",
       };
     case "risk_off":
       return {
         emoji: "🔴",
         label: "하락 추세 (risk-off)",
         advice:
-          "현금 우위 구간 — 신규 진입·물타기 금지. 기존 포지션은 축소 우선. 거래는 돈이 도는 테마섹터 데이 단타로 한정.",
+          "추세 지표가 하락 조건에 해당합니다. 기존 보유 위험과 현금 여력을 먼저 확인하고 손실 만회를 위한 추가 거래를 경계하세요.",
       };
     default:
       return {
         emoji: "🟡",
         label: "중립 · 박스권",
         advice:
-          "선별 구간 — 신규 진입은 자금이 도는 섹터로 한정하고 트랜치 크기 축소. 레버리지 장기보유는 decay 불리.",
+          "추세 지표의 방향이 뚜렷하지 않습니다. 거래할 근거가 부족하면 관찰을 유지하고 일일 재설정 상품의 보유기간 위험을 확인하세요.",
       };
   }
 }
