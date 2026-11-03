@@ -229,11 +229,21 @@
     const direct = list.filter(c => c.type === '직영' && !prepOf(c)).length;
     return { direct, fr: list.length - prep - direct, prep };
   }
+  // 사용료 기본 단가. POL-01은 미정이고 화면 예시가 20,000원이에요.
+  const BASE_FEE = 20000;
+  // 발행했지만 아직 입금되지 않은 청구서. 초안은 센터에 보내기 전이라 미납으로 세지 않는다.
+  const unpaidInv = s => (s.invoices || []).filter(i => i.status !== '입금 완료' && i.status !== '초안');
   function feeBilled(s, month) {
     const inv = (s.invoices || []).filter(i => i.month === month);
     const total = inv.reduce((a, i) => a + i.lines.filter(l => /사용료/.test(l.t)).reduce((b, l) => b + l.a, 0), 0);
-    const unpaid = inv.filter(i => i.status !== '입금 완료').length;
-    return { total, unpaid };
+    const h16 = (s.hq16 && s.hq16.inv) || {};
+    const accts = inv.reduce((a, i) => {
+      if (h16[i.id] && h16[i.id].accts != null) return a + Number(h16[i.id].accts);
+      const l = i.lines.find(x => /사용료/.test(x.t)); const m = l && /(\d+)명/.exec(l.t);
+      return a + (m ? Number(m[1]) : 0);
+    }, 0);
+    const unpaid = unpaidInv(s).filter(i => i.month === month).length;
+    return { total, accts, base: accts * BASE_FEE, unpaid };
   }
   function terrCheck(s, lead, exclude) {
     const full = lead.full || lead.region || '';
@@ -280,13 +290,28 @@
     if (m === '2027-03') return s.centers.filter(c => c.type === '직영' && c.opened !== '-' && c.opened <= '2027-03-31');
     return s.centers;
   }
+  // 알림톡 잔액 부족은 HQ-18과 같은 기준으로 본다. 기준 금액을 정했으면 그 값, 아직이면 이번 달 사용액보다 적을 때 (예시)
+  function alimLowOf(s, id) {
+    const bal = (s.alim.balances || {})[id];
+    if (bal == null) return false;
+    const H = s.hq18;
+    if (H && H.th != null) return bal < H.th;
+    if (H && H.usage && H.usage[id] != null) return bal < H.usage[id];
+    return bal < s.hq01.alimLow;
+  }
+  function alimRule(s) {
+    const H = s.hq18;
+    if (H && H.th != null) return '알림톡 잔액이 ' + h.money(H.th) + '보다 적으면 부족으로 보여요 (HQ-18 기준).';
+    if (H && H.usage) return '알림톡 잔액 부족 기준 금액은 아직 없어서 HQ-18처럼 이번 달 사용액보다 적으면 부족으로 보여요 (예시).';
+    return '알림톡 잔액 부족 기준은 ' + h.money(s.hq01.alimLow) + ' (예시)이에요.';
+  }
   function hq01Rows(s, m, cs) {
     return cs.map(c => {
       const sp = m === '2027-09' ? (s.hq01.sept[c.id] || null) : null;
       const bal = c.type === '직영' ? null : (s.alim.balances || {})[c.id];
       return {
         c, n: sp ? sp.n : null, o: sp ? sp.o : null, rr: sp ? sp.rr : '-', at: sp ? sp.at : '-', mi: sp ? sp.mi : '-',
-        bal, low: bal != null && bal < s.hq01.alimLow,
+        bal, low: alimLowOf(s, c.id),
       };
     });
   }
@@ -295,7 +320,7 @@
     if (m === '2027-09') {
       out.push({ k: 'refund', warn: true, t: '환불 기한 D-2 · 대구수성센터 1건', go: '지원 모드 CT-10' });
       out.push({ k: 'edu', warn: true, t: '교육청 변경신고 대기 · 2곳', go: 'HQ-04' });
-      const low = s.centers.filter(c => c.type !== '직영' && (s.alim.balances || {})[c.id] != null && s.alim.balances[c.id] < s.hq01.alimLow);
+      const low = s.centers.filter(c => c.type !== '직영' && alimLowOf(s, c.id));
       out.push({ k: 'alim', warn: low.length > 0, t: '알림톡 잔액 부족 · ' + (low.length ? low.map(c => c.name.replace('센터', '')).join(', ') : '0곳'), go: 'HQ-18' });
       const exp = s.centers.filter(c => c.contractEnd && c.contractEnd !== '-').map(c => days(c.contractEnd, ref));
       const n90 = exp.filter(d => d >= 0 && d <= 90).length, n180 = exp.filter(d => d >= 0 && d <= 180).length;
@@ -392,7 +417,7 @@
         cards += kpi({ l: '직영 수납 (사용료는 내부 대체)', v: h.money(paid), s: '미수 ' + miss + '건, 대치1센터 기록 (예시)', go: 'pay', pin: 9, tone: miss ? 'warn' : '' });
       } else {
         const fb = feeBilled(s, '2027-09');
-        cards += kpi({ l: '사용료 청구', v: h.money(fb.total), s: '미납 ' + fb.unpaid + '건 · HQ-16 청구 합계', go: 'fee', tone: fb.unpaid ? 'warn' : '' });
+        cards += kpi({ l: '사용료 청구', v: h.money(fb.base), s: fb.accts + '명 × ' + h.num(BASE_FEE) + '원 (예시), 미납 ' + fb.unpaid + '건', go: 'fee', tone: fb.unpaid ? 'warn' : '' });
       }
       cards += kpi({ l: '미확정 정책', v: pol.n + ' / ' + pol.total, s: 'P1a에 쓰는 정책 · HQ-07', go: 'policy', tone: 'bad' });
 
@@ -404,7 +429,7 @@
       // 확인 필요
       const checks = hq01Checks(s, m, ref);
       const chk = h.card({
-        title: '확인 필요', pin: 3, right: polChips(['POL-25', 'POL-12', 'POL-34', 'POL-07']),
+        title: '확인할 일', pin: 3, right: polChips(['POL-25', 'POL-12', 'POL-34', 'POL-07']),
         body: '<div class="hqa-chk">' + checks.map(c => '<div class="hqa-click" role="button" data-act="HQ01.check" data-arg="' + esc(c.k) + '">' + ic(c.warn ? 'w' : '', c.warn ? '!' : '·') + '<span>' + esc(c.t) + '</span><span class="hqa-go">' + esc(c.go) + '</span></div>').join('') + '</div>',
       });
       const open = s.decisions.filter(d => d.status !== '결정');
@@ -415,12 +440,14 @@
       });
       html += '<div class="stack">' + chk + dec + '</div>';
       // 재원생 추이, 지표 정의
+      const fbD = p1a ? null : feeBilled(s, '2027-09');
       const defs = h.card({
-        title: '지표 정의', sub: '카드와 표가 같은 계산을 써요', pin: 8,
+        title: '지표 정의', sub: '카드 숫자를 세는 방법', pin: 8,
         body: '<table class="hqa-kvt hqa-mini">' +
-          '<tr><th>재원생</th><td>그 달 수강권과 학습 계정이 모두 활성인 원생 수 ' + polSt('확정') + '<span class="hqa-sm">원문 정의</span></td></tr>' +
-          '<tr><th>신규 / 퇴원</th><td>' + (p1a ? '월 마감 때 같은 계산으로 세요' : '아래 표 합계 ' + sumN + ' / ' + sumO + '<span class="hqa-sm">원문 카드 54명은 표 합계 56명과 달랐어요</span>') + '</td></tr>' +
-          '<tr><th>사용료 청구</th><td>' + (p1a ? '직영은 내부 대체라 청구서가 없어요' : 'HQ-16 청구서의 사용료 합계' + '<span class="hqa-sm">원문 2,080,000원은 부산해운대 개별 단가 18,000원이 빠진 값으로 보여요</span>') + '</td></tr>' +
+          '<tr><th>재원생</th><td>그 달 수강권과 학습 계정이 모두 활성인 원생 수 ' + polSt('확정') + '</td></tr>' +
+          '<tr><th>신규 / 퇴원</th><td>' + (p1a ? '월 마감 때 같은 계산으로 세요' : '아래 센터별 표의 합계 ' + sumN + ' / ' + sumO) + '</td></tr>' +
+          '<tr><th>사용료 청구</th><td>' + (p1a ? '직영은 내부 대체라 청구서가 없어요' : '과금 계정 수 × 기본 단가' +
+            (fbD.total !== fbD.base ? '<span class="hqa-sm">HQ-16 청구서 사용료 합계는 센터 개별 단가를 넣어 ' + h.money(fbD.total) + '이에요</span> ' + h.chip('두 값이 달라요', 'warn') : '')) + '</td></tr>' +
           '<tr><th>재등록률, 출석률</th><td>계산식 미정 ' + h.chip('미정', 'st-미정') + '</td></tr></table>',
       });
       html += '<div class="stack">' + hq01Trend(s, m, stu) + defs + '</div>';
@@ -444,7 +471,7 @@
           ],
           rows,
           rowAttr: r => ' class="click" data-act="HQ01.row" data-arg="' + r.c.id + '"',
-        }) + (p1a ? '<div class="hqa-note" style="margin-top:8px">3월은 마감 전이라 신규, 퇴원, 재등록률, 출석률을 4월 1일 0시 마감 뒤 채워요. 가맹 센터는 정보공개서 등록 뒤에 생겨요.</div>' : '<div class="hqa-note" style="margin-top:8px">알림톡 잔액 부족 기준은 ' + h.money(s.hq01.alimLow) + ' (예시)이에요. 줄을 누르면 센터 상세(HQ-05)로 가요.</div>'),
+        }) + (p1a ? '<div class="hqa-note" style="margin-top:8px">3월은 마감 전이라 신규, 퇴원, 재등록률, 출석률을 4월 1일 0시 마감 뒤 채워요. 가맹 센터는 정보공개서 등록 뒤에 생겨요.</div>' : '<div class="hqa-note" style="margin-top:8px">' + esc(alimRule(s)) + ' 줄을 누르면 센터 상세(HQ-05)로 가요.</div>'),
       }) + '</div>';
       return html;
     },
@@ -453,17 +480,17 @@
       summary: '본사 직원이 로그인하면 처음 보는 화면이에요. 센터 수와 학생 수, 돈, 기한이 걸린 일, 가맹 개시 준비 상태를 한눈에 보고 오늘 무엇부터 챙길지 정해요.',
       who: '본사 역할 다섯 가지(슈퍼관리자, 운영, 정산, 콘텐츠, SV)가 모두 보고 써요.',
       items: [
-        { n: 1, t: '핵심 지표', d: '운영 센터, 재원생, 이번 달 신규와 퇴원, 사용료 청구, 미확정 정책 수를 카드로 보여 줘요. 재원생은 그 달 수강권과 학습 계정이 둘 다 켜진 학생만 세요. 미확정 정책 수는 크게 띄워서 빨리 정하도록 재촉해요(HQ-07). 카드를 누르면 해당 목록으로 가요. 화면 숫자는 모두 예시예요.', pol: ['POL-02'], ref: 'p.19 ①' },
+        { n: 1, t: '핵심 지표', d: '운영 센터, 재원생, 이번 달 신규와 퇴원, 사용료 청구, 미확정 정책 수를 카드로 보여 줘요. 재원생은 그 달 수강권과 학습 계정이 둘 다 켜진 학생만 세요. 미확정 정책 수는 크게 띄워서 빨리 정하도록 재촉해요(HQ-07의 미확정 카드와 같은 31개). 카드를 누르면 해당 목록으로 가요. 화면 숫자는 모두 예시예요. 원문 예시는 운영 센터 6곳(준비 1)인데, 프로토타입은 가맹 계약을 진행하는 인천송도센터(계획)를 더해 7곳(준비 2)이에요. 미납은 센터에 보낸 뒤 아직 입금되지 않은 청구서 수라서 초안은 세지 않아요(HQ-04와 같은 기준).', pol: ['POL-02'], ref: 'p.19 ①' },
         { n: 2, t: '정보공개서·가맹 개시', d: '정보공개서 등록 상태와 근거(직영 1년 운영 또는 예외), 정기 변경등록 기한(2028-04-30, 예시)을 보여 줘요. 예외 인정 여부는 법무 검토 결과를 직접 골라 넣어요. 등록 전에는 직영 운영 일수를 D+n/365로 세고 가맹 계약, 가맹금, 사용료 메뉴(P1b)를 잠가요.', pol: ['POL-06'], ref: 'p.19 ②' },
-        { n: 3, t: '확인 필요', d: '기한이 걸린 일을 한곳에 모아요. 환불 5일 기한(법정), 교육청 변경신고 대기, 알림톡 잔액 부족, 계약 만료 180일 전과 90일 전(법정), 운영 개시 승인 대기가 올라와요. 누르면 그 센터 화면(지원 모드)이나 본사 화면으로 가요.', pol: ['POL-25', 'POL-12', 'POL-34', 'POL-07'], ref: 'p.19 ③' },
+        { n: 3, t: '확인할 일', d: '기한이 걸린 일을 한곳에 모아요. 환불 5일 기한(법정), 교육청 변경신고 대기, 알림톡 잔액 부족, 계약 만료 180일 전과 90일 전(법정), 운영 개시 승인 대기가 올라와요. 누르면 그 센터 화면(지원 모드)이나 본사 화면으로 가요.', pol: ['POL-25', 'POL-12', 'POL-34', 'POL-07'], ref: 'p.19 ③' },
         { n: 4, t: '센터별 현황', d: '직영과 가맹을 같은 지표로 나란히 비교해요. 원생 개인정보 없이 합계 숫자만 보여 줘요. 줄을 누르면 센터 상세(HQ-05)로 가요.', pol: ['POL-42'], ref: 'p.19 ④' },
         { n: 5, t: '기간과 다운로드', d: '월 단위로 골라 봐요. 2027년 3월을 고르면 직영만 있는 시범 단계 모습이 나와요. 엑셀은 다운로드 사유를 남겨야 받을 수 있어요(CM-03 규칙).', ref: 'p.19 ⑤' },
         { n: 6, t: '가맹 개시 두 가지 경우', kind: 'review', imp: 'IMP-20', d: '법무 결과가 예외 인정이면 A안으로 2027년 2분기에 가맹을 열어요. 불인정이면 B안으로 대치1센터 1년이 지난 2028-01-04 뒤에 정보공개서를 등록하고 2028년 1분기에 열어요. 결과를 바꾸면 이 화면과 HQ-03 잠금이 함께 바뀌어서 두 경우를 미리 볼 수 있어요. B안이면 P1b 개발을 미루고 직영에 힘을 써요.' },
         { n: 7, t: '먼저 정할 10가지 마감 관리', kind: 'review', imp: 'IMP-01', d: '부록 A의 먼저 정할 10가지를 결정자, 마감일과 함께 보여 줘요. 아직 못 정한 건이 몇 개인지 세고, 누르면 결정 관리표가 있는 정책 현황(HQ-07)으로 가요.' },
-        { n: 8, t: '지표 정의를 한곳에', kind: 'review', imp: 'IMP-21', d: '카드 숫자를 아래 표와 HQ-16 청구서에서 같은 계산으로 가져와요. 원문 예시는 신규 54명인데 표 합계는 56명이었어요. 사용료 2,080,000원은 부산해운대 개별 단가가 빠진 값으로 보이고, HQ-16 사용료 합계는 1,998,000원이에요. 이 화면은 56명과 1,998,000원으로 맞춰요.' },
-        { n: 9, t: '직영 시범 단계 카드', kind: 'review', imp: 'IMP-21', cond: true, reveal: 'HQ01.month', revealArg: '2027-03', d: '직영만 있는 2027년 3월에는 사용료 카드 대신 직영 수납액과 미수를 앞에 둬요. 직영은 사용료가 내부 대체라 청구서가 없어요. 확인 필요 칸에도 직영 미수와 현금영수증 확인이 올라오고, 신규와 퇴원은 월 마감 뒤에 채워요.' },
+        { n: 8, t: '지표 정의를 한곳에', kind: 'review', imp: 'IMP-21', d: '카드 숫자를 어떻게 세는지 한곳에 적고, 다른 화면과 값이 다르면 나란히 보여 줘요. 사용료 청구 카드는 원문 예시대로 과금 계정 104명에 기본 단가 20,000원(예시)을 곱한 2,080,000원이에요. HQ-08 영향 미리보기의 출발 값도 같아요. 그런데 HQ-16 청구서의 사용료 합계는 부산해운대 개별 단가 18,000원을 넣어 1,998,000원이고, 알림톡과 교재까지 더한 청구 예정액은 2,200,400원이에요. 원문 예시끼리 달라서 원문 값을 두고 차이를 표시했어요. 검토는 대시보드와 HQ-16이 같은 계산 함수를 쓰도록 권해요. 신규는 원문 카드 54명이 표 합계 56명과 달라서, 표에서 셀 수 있는 56명을 썼어요.' },
+        { n: 9, t: '직영 시범 단계 카드', kind: 'review', imp: 'IMP-21', cond: true, reveal: 'HQ01.month', revealArg: '2027-03', d: '직영만 있는 2027년 3월에는 사용료 카드 대신 직영 수납액과 미수를 앞에 둬요. 직영은 사용료가 내부 대체라 청구서가 없어요. 확인할 일 칸에도 직영 미수와 현금영수증 확인이 올라오고, 신규와 퇴원은 월 마감 뒤에 채워요.' },
       ],
-      open: ['신규, 퇴원, 재등록률, 출석률을 어떻게 계산할지', '직영 운영 일수를 어느 센터의 어느 날짜부터 셀지 (화면은 대치1센터 2027-01-04)', '알림톡 잔액이 얼마 아래면 부족으로 볼지 (화면은 1만 원, 예시)', '콘텐츠팀과 SV에게도 돈 관련 카드를 보여 줄지', '사용료를 무엇으로 셀지 (POL-02)'],
+      open: ['신규, 퇴원, 재등록률, 출석률을 어떻게 계산할지', '직영 운영 일수를 어느 센터의 어느 날짜부터 셀지 (화면은 대치1센터 2027-01-04)', '알림톡 잔액이 얼마 아래면 부족으로 볼지 (HQ-18과 같은 기준을 써요. 정하기 전에는 이번 달 사용액과 비교해요)', '콘텐츠팀과 SV에게도 돈 관련 카드를 보여 줄지', '사용료를 무엇으로 셀지 (POL-02)'],
       rules: ['환불금은 사유가 생긴 날부터 5일 안에 돌려줘요 (법정).', '계약 만료 180일 전과 90일 전에 갱신 안내를 해요 (법정).', '정보공개서를 등록하기 전에는 가맹 계약과 가맹금 수령을 할 수 없어요 (법정).'],
     },
   });
@@ -989,7 +1016,7 @@
   }
   function hq04Filter(s, ui) {
     const q = String(ui.qa || '').trim().replace(/-/g, '');
-    const unpaid = (s.invoices || []).filter(i => i.status !== '입금 완료').map(i => i.center);
+    const unpaid = unpaidInv(s).map(i => i.center);
     return s.centers.filter(c =>
       (!ui.type || ui.type === '전체' || c.type === ui.type) &&
       (!ui.status || ui.status === '전체' || c.status === ui.status) &&
@@ -1043,7 +1070,7 @@
         sel({ label: '상태', value: ui.status || '전체', options: ['전체', '계획', '승인 대기', '운영', '휴원', '계약 종료'], act: 'HQ04.status' }) +
         sel({ label: '지역', value: ui.region || '전체', options: ['전체'].concat(regions), act: 'HQ04.region' }) +
         sel({ label: '담당 SV', value: ui.sv || '전체', options: ['전체', '최민호', '정유나'], act: 'HQ04.sv' }) +
-        '<input class="inp" style="width:200px" data-field="q" value="' + esc(ui.q || '') + '" placeholder="센터명·원장명·사업자번호" aria-label="검색어">' +
+        '<input class="inp" style="width:200px" data-field="q" value="' + esc(ui.q || '') + '" placeholder="센터명, 원장명, 사업자번호" aria-label="검색어">' +
         h.btn('검색', { primary: true, act: 'HQ04.search' }) + ' ' + h.polChip('POL-44') + '</div>' +
         '<span class="hqa-ph" style="display:inline-block"' + h.p(7) + '>' + h.btn('상태 규칙', { sm: true, act: 'HQ04.rules' }) + '</span></div>';
       if (ui.rules) html += hq04Rules();
@@ -1052,7 +1079,7 @@
       // 카드
       const tc = countTypes(s.centers), stu = s.centers.reduce((a, c) => a + (c.students || 0), 0);
       const exp = s.centers.filter(c => c.contractEnd !== '-' && days(c.contractEnd, s.today) <= 180);
-      const unpaid = (s.invoices || []).filter(i => i.status !== '입금 완료');
+      const unpaid = unpaidInv(s);
       const unpaidAmt = unpaid.reduce((a, i) => a + i.lines.reduce((b, l) => b + l.a, 0) - (i.paid || 0), 0);
       const kpi = o => '<div class="kpi' + (o.go == null ? '' : ' hqa-click') + (ui.only === o.go && o.go ? ' ok' : '') + '"' + (o.go == null ? '' : ' role="button" data-act="' + (o.go ? 'HQ04.only' : 'HQ04.clear') + '" data-arg="' + o.go + '"') + '><div class="l">' + esc(o.l) + '</div><div class="v">' + o.v + '</div><div class="s">' + o.s + '</div></div>';
       html += '<div class="grid g4">' +
@@ -1100,10 +1127,10 @@
       summary: '직영, 가맹, 테스트베드 센터를 한 표에 모아 봐요. 센터를 빨리 찾고 정원과 사용료, 계약 만료를 한 번에 확인해요.',
       who: '본사 슈퍼관리자와 운영팀은 보고 고칠 수 있어요. 정산팀과 SV는 보기만 해요. 콘텐츠팀에게는 메뉴가 보이지 않아요.',
       items: [
-        { n: 1, t: '검색과 필터', d: '유형(직영, 가맹, 테스트베드), 상태(계획, 승인 대기, 운영, 휴원, 계약 종료), 지역, 담당 SV로 걸러요. 센터명이나 원장명, 사업자번호로도 찾아요. 위쪽 카드를 누르면 같은 조건으로 표가 걸러져요.', pol: ['POL-44'], ref: 'p.22 ①' },
+        { n: 1, t: '검색과 필터', d: '유형(직영, 가맹, 테스트베드), 상태(계획, 승인 대기, 운영, 휴원, 계약 종료), 지역, 담당 SV로 걸러요. 센터명이나 원장명, 사업자번호로도 찾아요. 위쪽 카드를 누르면 같은 조건으로 표가 걸러져요. 카드 숫자는 대시보드(HQ-01)와 같은 데이터에서 세요. 원문 예시는 전체 센터 6곳인데 프로토타입은 인천송도센터(계획)를 더해 7곳이에요. 미납 청구는 센터에 보낸 뒤 아직 입금되지 않은 청구서만 세서 1건이에요. 원문 예시 금액 310,000원은 HQ-16 청구서와 맞는 값이 없어서, HQ-16의 부산해운대 청구 예정액 834,400원을 보여 줘요.', pol: ['POL-44'], ref: 'p.22 ①' },
         { n: 2, t: '정원 표시', d: '시설 종류와 수용 인원으로 계산한 한 타임 최대 인원이에요. 교습소는 9명(법정)을 넘을 수 없어요. 본사 기준 15명(안)보다 작은 값이 나오면 그 값이 실제 정원이에요. 숫자에 마우스를 올리면 계산 근거가 보여요.', pol: ['POL-15', 'POL-16'], ref: 'p.22 ②' },
         { n: 3, t: '사용료 단가와 결제 연동', d: '센터 개별 값이 있으면 그 값, 없으면 그룹 값, 그것도 없으면 본사 기본값을 보여 줘요. 직영은 청구서 없이 통계만 내서 내부 대체로 적어요. 결제는 직영이 결제선생, 가맹이 수기 기록(안)이에요.', pol: ['POL-01', 'POL-36'], ref: 'p.22 ③' },
-        { n: 4, t: '상세로 이동', d: '줄을 누르면 센터 상세(HQ-05)로 가요. 계약 만료 180일 전(노란색)과 90일 전(빨간색)에는 만료일을 칠해서 눈에 띄게 해요. 180일과 90일은 법정 기간이에요.', pol: ['POL-07'], ref: 'p.22 ④' },
+        { n: 4, t: '상세로 이동', d: '줄을 누르면 센터 상세(HQ-05)로 가요. 계약 만료 180일 전(노란색)과 90일 전(빨간색)에는 만료일을 칠해서 눈에 띄게 해요. 180일과 90일은 법정 기간이에요. 만료일은 원문 예시대로 대구수성 2030-06-13, 부산해운대 2030-05-31이고, 센터 상세(HQ-05)와 갱신(HQ-26)도 같은 날짜를 써요. 기본 예시 데이터는 2032-09-30이었는데 원문에 맞췄어요.', pol: ['POL-07'], ref: 'p.22 ④' },
         { n: 5, t: '센터 등록 화면', kind: 'review', imp: 'IMP-12', cond: true, reveal: 'HQ04.newForm', d: '원문에는 등록 버튼만 있고 입력 화면이 없었어요. 직영 센터만 여기서 만들고 첫 상태는 계획이에요. 가맹 센터는 HQ-03에서 계약을 맺어야 생겨요. 같은 이름이나 가맹 센터와 같은 사업자번호가 있으면 저장을 막아요.' },
         { n: 6, t: '다음 값과 개별 값 끝나는 날', kind: 'review', imp: 'IMP-25', d: '예약된 변경(11/1부터 25,000원, 예시)과 개별 값이 끝나는 날을 단가 아래에 작게 보여 줘요. 이미 계약한 센터에는 동의 확인 전 표시를 붙여요. 새 기본값은 계약 조항과 센터 동의를 확인한 곳에만 붙여요.', pol: ['POL-01'] },
         { n: 7, t: '센터 상태 전환 규칙', kind: 'review', imp: 'IMP-12', d: '센터 상태가 언제, 어느 화면에서 바뀌는지 표로 보여 줘요. 목록과 상세에서는 상태를 바로 바꾸지 못하고 정해진 화면(HQ-03, HQ-06, HQ-26)에서만 바뀌어요.' },

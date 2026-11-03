@@ -361,7 +361,7 @@
     {
      "name": "PA01.pay",
      "arg": "없음 | 학생 id | {student:'s3', method:'카드'|'계좌이체', bill:{...}}",
-     "does": "결제선생 결제를 마친다. s.payments에 결제선생 링크 기록을 더하고, 학생 paid를 수납 완료로, account를 활성으로 바꾼다. s.ui['CT-07'].student, 반이 없으면 s.ui['CT-11'].assign을 넘긴다. 상담 단계 학생(s4처럼 product가 없는 학생)은 결제하지 않고 안내만 띄운다"
+     "does": "결제선생 결제를 마친다. s.payments에 결제선생 링크 기록을 더하고, 학생 paid를 수납 완료로, account를 활성으로 바꾼다. s.ui['CT-07'].student, 반이 없으면 s.ui['CT-11'].assign을 넘긴다. 상담 단계 학생(s4처럼 product가 없는 학생)은 결제하지 않고 안내만 띄운다. CT-07에서 결제 대기로 둔 원생이면 PA01.payLink와 같은 처리(CT07.paid)로 넘긴다"
     },
     {
      "name": "PA01.method",
@@ -394,7 +394,7 @@
      "does": "CT07.sendLink로 결제 대기가 된 원생의 결제선생 링크를 보호자가 휴대폰에서 결제한다. CT07.paid를 불러 수납을 기록하고(학습 계정 열림, s.ui['CT-11'].assign), PA-01을 그 원생의 결제 완료 화면(영수증, 수강료 안내 메시지)으로 맞춘다. 결제 대기가 아니면 안내만 띄운다"
     }
    ],
-   "reads": "s.ui['PA-01'].student (없으면 s5), s.ui['PA-01'].bill, s.ui['CT-05'] {name, grade, phone, level, consent} ('reg'일 때), s.alim.log (status '발송 완료'인 그 학생 메시지), s.pa01.seed 대화 예시",
+   "reads": "s.ui['PA-01'].student (없으면 s5), s.ui['PA-01'].bill, s.ui['CT-05'] {name, grade, phone, level, consent} ('reg'일 때), s.alim.log (status '발송 완료'인 그 학생 메시지), s.pa01.seed 대화 예시, s.ct07.flow[학생] (결제 대기나 수납 완료면 그 줄과 금액, 교습 기간), s.ui['CT-07'] {student, start, mmethod} (교습 기간 시작일)",
    "writes": "s.payments, s.students[].paid/account/consent, s.ui['CT-07'], s.ui['CT-11'], s.ui['CT-05'].consent, s.pa01.extra(결제 완료 메시지)",
    "demo_hint": "학부모 시점 장면을 관리자 장면 사이에 끼운다. 월 재등록 장: PA-01 tab chat (student 's5') pins [2], 다음 step tab pay에서 PA01.pay 후 pins [4], 이어서 CT-07로 가면 수납이 기록되어 있다. 신규 원생 장: CT-05 다음에 PA-01 tab consent, PA01.consent {student:'s4'} pins [5,6], 결과지는 tab result, PA01.openResult '7710' (s4 임채희) pins [7,9]"
   }

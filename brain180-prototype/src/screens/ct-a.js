@@ -91,7 +91,7 @@
       orderDue: { day: 3, time: '18:00', ship: '금' },
       done: {},
     };
-    s.ct03 = s.ct03 || { runs: {}, edu: '확인 전', minGrade: 1, pad: '센터 패드 #2' };
+    s.ct03 = s.ct03 || { runs: {}, fees: {}, minGrade: 1, pad: '센터 패드 #2' };
     s.ct04 = s.ct04 || { totals: { daechi1: { '휴원': 4, '대기': 2 } }, rereg: {}, pending: {}, history: [] };
     // 공지는 CT-17(공지·자료실) 데이터를 쓴다. CT-17이 없는 빌드에서만 같은 id로 넣는다.
     if (Array.isArray(s.notices) && !B.screens['CT-17']) {
@@ -452,8 +452,8 @@
         title: '테스트비', pin: 4, cls: 'cta-fee',
         body: formRows([
           ['금액', polOr('POL-27', c, '<b>30,000원</b>' + h.chip('(안)', 'st-안') + '<span class="muted small">프로모션, 정가 50,000원 (안)</span>') + h.polChip('POL-27')],
-          ['수납', h.btn('수납하기', { lock: true, disabled: true, act: 'CT03.pay', title: '교육청 확인 전에는 잠겨 있어요' }) + '<div style="width:100%"' + h.p(8) + '>' + h.alert('교육청 확인 전이라 테스트비를 받지 않아요. 답이 올 때까지 입학 테스트는 무료로 해요.', 'review', { title: '검토 반영' }) + '</div>'],
-          ['등록 시', polOr('POL-28', c, '<b>20,000원</b>' + h.chip('(안)', 'st-안') + '<span class="muted small">교습비에서 차감, 30일 유효 (예시)</span>') + h.polChip('POL-28')],
+          ['수납', feeRow(ctx, r)],
+          ['등록 시', polOr('POL-28', c, '<b>20,000원</b>' + h.chip('(안)', 'st-안') + '<span class="muted small">테스트비를 냈으면 교습비에서 차감, 30일 유효 (예시)</span>') + h.polChip('POL-28')],
           ['재검사', polOr('POL-29', c, '<b>' + retest + ' 이후</b><span class="muted small">6개월 (예시)</span>') + h.polChip('POL-29')],
         ]),
       }));
@@ -483,17 +483,44 @@
         { n: 1, t: '학생 확인', d: '생년월일로 학년을 확인해서 대상 학년 밖이면 시작을 막아요. 검사 버전은 본사가 배포한 것만 써요(간단판 v1, 미확정).', pol: ['POL-31', 'POL-26'], ref: 'p.47 ①' },
         { n: 2, t: '진행과 결과', d: '두뇌 유형 검사(약 15분)와 읽기 테스트(10~20분)를 차례로 봐요. 모두 35분 안팎이고, 그동안 진행 패드는 검사 모드로 잠겨요. 끝나면 두뇌 유형, 읽기 레벨과 점수, 걸린 시간이 나와요.', ref: 'p.47 ②' },
         { n: 3, t: '결과지 전달', d: '결과지는 바로 출력하고, 필요하면 우편, 이메일, 알림톡 링크로 보내요. 우편 주소는 30일(안) 뒤 저절로 지워요. 전달을 마치면 레벨을 원생 등록으로 넘겨요.', pol: ['POL-30'], ref: 'p.47 ③' },
-        { n: 4, t: '테스트비', d: '정가 50,000원과 프로모션 30,000원, 등록하면 교습비에서 빼 주는 20,000원은 모두 (안)이고 정책에서 와요. 본사가 정책 값을 바꾸면 이 칸도 바뀌어요. 다시 검사할 수 있는 날(6개월 뒤, 예시)도 함께 알려 줘요.', pol: ['POL-27', 'POL-28', 'POL-29'], ref: 'p.47 ④' },
+        { n: 4, t: '테스트비', d: '정가 50,000원과 프로모션 30,000원, 테스트비를 낸 아이가 등록하면 교습비에서 빼 주는 20,000원은 모두 (안)이고 정책에서 와요. 본사가 정책 값을 바꾸면 이 칸도 바뀌어요. 다시 검사할 수 있는 날(6개월 뒤, 예시)도 함께 알려 줘요.', pol: ['POL-27', 'POL-28', 'POL-29'], ref: 'p.47 ④' },
         { n: 5, t: '결과지 원칙', d: '두뇌 유형은 지수 없이 유형만, 읽기는 레벨만 보여 줘요. 설명은 상담에서 해요. 유아 대상 시험 제한 때문에 최저 학년보다 어린 아이는 검사하지 않아요.', pol: ['POL-31'], ref: 'p.47 ⑤' },
         { n: 6, t: '검사 전 보호자 동의', kind: 'review', imp: 'IMP-07', d: '아직 원생이 아닌 아이의 생년월일과 검사 결과를 저장하는 단계예요. 수집 항목, 목적, 보관 기간을 알리고 동의를 받아야 검사를 시작할 수 있어요. 등록하지 않으면 정해진 기간(화면은 30일, 예시) 뒤 지워요.' },
         { n: 7, t: '학년 판정 기준', kind: 'review', imp: 'IMP-19', d: '학년은 3월 1일 학년도 기준으로 생년월일에서 계산해요. 그래서 3월 전 예비 초1은 검사를 시작할 수 없어요. 보호자가 알려 준 학년과 다르면 사유를 적고 원장이 확인해야 넘어가요.', pol: ['POL-31'] },
-        { n: 8, t: '교육청 확인 전 테스트비 잠금', kind: 'review', imp: 'IMP-08', d: '테스트비를 받아도 되는지 교육청 확인이 끝나기 전에는 수납 버튼을 잠가요. 그동안 입학 테스트는 무료로 해요.', pol: ['POL-27'] },
+        { n: 8, t: '교육청 확인 전 테스트비 잠금', kind: 'review', imp: 'IMP-08', d: '테스트비를 받아도 되는지 교육청 확인이 끝나기 전에는 수납 버튼을 잠그고 입학 테스트를 무료로 해요. 본사가 HQ-14에 등록하지 않아도 된다는 회신을 기록하면 잠금이 풀려요. 받은 테스트비는 이 예약에 남아서, 등록할 때 수강 등록·수납(CT-07)에서 차감돼요.', pol: ['POL-27', 'POL-28'] },
         { n: 9, t: '레벨 배정 기준', kind: 'review', imp: 'IMP-19', d: '등록할 레벨은 읽기 점수 구간으로 먼저 정해요. 학생 학년이 그 레벨의 대상 학년 밖이면 원장이 확인해야 결과를 확정해요. 레벨 표의 학년과 점수 구간은 아직 예시예요(HQ-13).', pol: ['POL-31'] },
       ],
       open: ['대상 학년 범위 (POL-31, 회의마다 초4부터, 2~4학년, 5·6학년으로 바뀌었어요)', '상담과 테스트 단계 정보를 보호자 동의로 받을지, 검사 계약 이행으로 볼지 (법무 확인)', '검사 버전을 180문항 원본으로 할지 간단판으로 할지 (POL-26)', '테스트비 금액과 받는 주체 (POL-27)', '재검사 주기 (POL-29, 화면의 6개월은 예시)', '검사 중 패드가 꺼지거나 아이가 그만두면 이어서 볼지 처음부터 볼지', '보호자가 링크로 여는 결과지 화면을 누가 만들지'],
       rules: ['유아 대상 시험 제한(2026년 개정 학원법)에 따라 최저 학년 미만은 검사하지 않아요.', '결과지에는 유형 지수를 싣지 않아요 (10/14 결정).'],
     },
   });
+
+  // HQ-14가 저장한 교육청 확인 기록. 기록이 없으면 확인 전으로 보고 테스트비 수납을 잠가요.
+  const eduOf = s => (s.hq14 && s.hq14.edu) || { status: '확인 전', date: '', ref: '' };
+  function hq14v(s, c, key) {
+    const v = (s.hq14 && s.hq14.vals) || {};
+    const keys = [c ? 'c:' + c.id : '', c ? c.type : '', 'base'].filter(Boolean);
+    for (const k of keys) if (v[k] && Object.prototype.hasOwnProperty.call(v[k], key)) return v[k][key];
+    return undefined;
+  }
+  // 받을 테스트비. 프로모션 기간 안이면 프로모션가, 아니면 정가 (모두 HQ-14 값, 없으면 원문 예시 30,000원)
+  function testFee(s, c, today) {
+    const fee = hq14v(s, c, 'p27_fee'), promo = hq14v(s, c, 'p27_promo'), end = hq14v(s, c, 'p27_end');
+    if (typeof promo === 'number' && promo > 0 && (!end || today <= end)) return promo;
+    return typeof fee === 'number' && fee > 0 ? fee : 30000;
+  }
+  const feeOf = (s, r) => ((s.ct03 && s.ct03.fees) || {})[r.id] || null;
+  function feeRow(ctx, r) {
+    const s = ctx.s, edu = eduOf(s), open = edu.status === '등록 불필요', paid = feeOf(s, r);
+    if (paid) return h.chip('수납 완료', 'ok') + '<span class="small">' + esc(h.money(paid.amount) + ', ' + paid.at.slice(5) + ' ' + paid.by + ', ' + paid.method) + '</span>' +
+      '<div style="width:100%"' + h.p(8) + '>' + h.alert('받은 테스트비는 이 예약에 남아요. 30일 안에 등록하면 수강 등록·수납(CT-07)에서 교습비 차감으로 이어져요.', 'review', { title: '검토 반영' }) + '</div>';
+    const msg = open ? '교육청에서 등록하지 않아도 된다는 답을 받았어요' + (edu.date ? ' (' + edu.date + (edu.ref ? ', ' + edu.ref : '') + ')' : '') + '. 테스트비를 받을 수 있고, 받은 기록은 등록할 때 교습비 차감으로 이어져요.'
+      : edu.status === '등록 필요' ? '교육청 등록 대상이라는 답을 받았어요. 센터별 등록액을 받기 전까지 테스트비를 받지 않고, 입학 테스트는 무료로 해요.'
+        : '교육청 확인 전이라 테스트비를 받지 않아요. 답이 올 때까지 입학 테스트는 무료로 해요.';
+    const block = !open ? '교육청 확인 전에는 잠겨 있어요' : !ctx.canEdit ? '보기 전용이에요' : '';
+    return h.btn(open ? h.money(testFee(s, B.center(r.center) || ctx.center, ctx.today)) + ' 수납하기' : '수납하기', { lock: !open, disabled: !!block, act: 'CT03.pay', arg: r.id, title: block || null }) +
+      '<div style="width:100%"' + h.p(8) + '>' + h.alert(msg, 'review', { title: '검토 반영' }) + '</div>';
+  }
 
   function clearTestFields(ui) { ['t_birth', 't_grade', 't_reason', 't_consent', 't_addr', 't_email', 't_level', 't_err'].forEach(k => { delete ui[k]; }); }
   B.action('CT03.pick', (ctx, id) => { const ui = U(ctx, 'CT-03'); if (ui.res !== id) clearTestFields(ui); ui.res = id; });
@@ -598,7 +625,22 @@
     Object.assign(U(ctx, 'CT-05'), { from: r.id, name: r.student, grade: rn.gradeSaid || r.grade, phone: r.guardianPhone, birth: rn.birth || undefined, level: rn.level, testDate: rn.result.date, testType: rn.result.type });
     B.go('CT-05'); return false;
   });
-  B.action('CT03.pay', () => { B.toast('교육청 확인 전에는 테스트비를 받지 않아요.'); return false; });
+  // 테스트비 수납. HQ-14에 등록 불필요 회신이 기록돼야 받을 수 있어요. 받은 기록은 예약 id로 남아 CT-07 차감에 쓰여요.
+  B.action('CT03.pay', (ctx, arg) => {
+    const s = ctx.s, edu = eduOf(s);
+    if (edu.status !== '등록 불필요') { B.toast(edu.status === '등록 필요' ? '교육청 등록 대상이라 센터별 등록액을 받기 전에는 테스트비를 받지 않아요.' : '교육청 확인 전에는 테스트비를 받지 않아요.'); return false; }
+    const lvl = B.perm('CT-03', ctx.persona); if (lvl !== '●' && lvl !== '◐') { B.toast('보기 전용이라 수납할 수 없어요.'); return false; }
+    const o = arg && typeof arg === 'object' ? arg : {};
+    const id = o.res || (typeof arg === 'string' ? arg : null);
+    const r = id ? s.reservations.find(x => x.id === id) : testRes(ctx).sel;
+    if (!r) return false;
+    s.ct03.fees = s.ct03.fees || {};
+    if (s.ct03.fees[r.id]) { B.toast('이미 받은 테스트비예요.'); return false; }
+    const amount = testFee(s, B.center(r.center) || ctx.center, ctx.today);
+    s.ct03.fees[r.id] = { amount, at: ctx.today, by: ctx.persona.name, method: o.method || '카드 단말기', student: r.student };
+    U(ctx, 'CT-03').res = r.id;
+    B.toast('테스트비 ' + h.money(amount) + '을 받았어요. 30일 안에 등록하면 교습비에서 차감돼요.');
+  });
   B.action('CT03.reset', ctx => { const { sel: r } = testRes(ctx); if (r) delete ctx.s.ct03.runs[r.id]; clearTestFields(U(ctx, 'CT-03')); });
 
   /* =====================================================================

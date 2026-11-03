@@ -119,12 +119,12 @@
     },
     {
      "name": "CT03.pay",
-     "arg": "없음",
-     "does": "잠긴 테스트비 수납 버튼. 교육청 확인 전이라 받지 않는다는 안내만 띄운다"
+     "arg": "없음 (고른 예약) | 예약 id | {res:'r1', method:'카드 단말기'}",
+     "does": "테스트비 수납. s.hq14.edu.status가 '등록 불필요'일 때만 받는다. 그 전(확인 전, 등록 필요)에는 안내만 띄우고 입학 테스트는 무료다. 받으면 s.ct03.fees[예약id] = {amount, at, by, method, student}를 남기고, CT-07이 이 기록이 있을 때만 테스트비를 차감한다. 금액은 HQ-14 프로모션가(기간 안) 또는 정가"
     }
    ],
-   "reads": "s.ui['CT-03'].res (예약 id)로 시작한다. 없으면 s.ui['CT-02'].sel이 테스트 예약일 때 그것, 아니면 첫 '예약' 상태 테스트(r1). 진행 상태는 s.ct03.runs[예약id]",
-   "demo_hint": "신규 원생 장에서 CT-02 다음 장면. 실장이 r1 윤시온을 태블릿으로 진행: CT03.check {t_birth:'2017-04-12', t_consent:true}, CT03.next 세 번, CT03.print, CT03.toRegister로 CT-05에 레벨 L2를 넘긴다. 오류 장면은 t_birth '2021-05-02'(미취학 차단)나 동의 미체크. 원장 확인 장면은 실장으로 {t_birth:'2018-04-12', t_reason:'조기 입학', t_consent:true}를 부른 뒤 원장으로 바꿔 CT03.check. 테스트비 수납은 교육청 확인 전이라 잠겨 있다(핀 8). 핀 9는 4단계 등록할 레벨 칸"
+   "reads": "s.ui['CT-03'].res (예약 id)로 시작한다. 없으면 s.ui['CT-02'].sel이 테스트 예약일 때 그것, 아니면 첫 '예약' 상태 테스트(r1). 진행 상태는 s.ct03.runs[예약id]. 교육청 확인 상태는 s.hq14.edu.status (없으면 확인 전으로 본다)",
+   "demo_hint": "신규 원생 장에서 CT-02 다음 장면. 실장이 r1 윤시온을 태블릿으로 진행: CT03.check {t_birth:'2017-04-12', t_consent:true}, CT03.next 세 번, CT03.print, CT03.toRegister로 CT-05에 레벨 L2를 넘긴다. 오류 장면은 t_birth '2021-05-02'(미취학 차단)나 동의 미체크. 원장 확인 장면은 실장으로 {t_birth:'2018-04-12', t_reason:'조기 입학', t_consent:true}를 부른 뒤 원장으로 바꿔 CT03.check. 테스트비 수납은 교육청 확인 전이라 잠겨 있다(핀 8). HQ14.eduSave {status:'등록 불필요', date:'2027-03-05', ref:'공문 번호'}를 먼저 부르면 잠금이 풀리고 CT03.pay로 받을 수 있다. 핀 9는 4단계 등록할 레벨 칸"
   },
   {
    "id": "CT-04",

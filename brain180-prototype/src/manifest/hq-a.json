@@ -3,14 +3,14 @@
     "actions": [
       {"name": "HQ01.month", "arg": "'2027-03' | '2027-09' (기본 '2027-09')", "does": "기간을 바꾼다. 2027-03은 직영만 있는 P1a 모습(정보공개서 등록 전 D+63/365, P1b 메뉴 잠김, 직영 수납 카드 9번 핀), 2027-09는 원문 예시 모습"},
       {"name": "HQ01.legal", "arg": "'법무 검토 가정' | '예외 인정 (의견서 받음)' | '예외 불인정'", "does": "정보공개서 등록 근거의 법무 검토 결과를 넣는다. 예외 불인정이면 B안(2028-01-04 뒤 등록, 2028년 1분기 가맹 개시)이 되고 HQ-03 화면 전체가 잠긴다. 9월 화면에서는 B안 미리 보기 안내 띠가 나온다"},
-      {"name": "HQ01.kpi", "arg": "'centers' | 'students' | 'newout' | 'fee' | 'pay' | 'policy'", "does": "지표 카드를 눌러 목록으로 간다 (센터 카드 HQ-04, 사용료와 직영 수납 HQ-16, 미확정 정책 HQ-07)"},
-      {"name": "HQ01.check", "arg": "'refund' | 'edu' | 'alim' | 'expire' | 'open:incheon' (9월) / 'miss' | 'receipt' | 'notice' | 'inquiry' (3월)", "does": "확인 필요 항목을 연다. refund와 miss는 s.ui['CM-02'] = {center, target, next, reason, from}를 넘기고 CM-02(지원 모드 사유 입력)로 간다. alim은 HQ-18, expire는 HQ-04(만료 필터), open:센터id는 s.ui['HQ-06'].center를 넘기고 HQ-06"},
+      {"name": "HQ01.kpi", "arg": "'centers' | 'students' | 'newout' | 'fee' | 'pay' | 'policy'", "does": "지표 카드를 눌러 목록으로 간다 (센터 카드 HQ-04, 사용료와 직영 수납 HQ-16, 미확정 정책 HQ-07). 사용료 카드는 원문대로 과금 계정 104명 × 기본 단가 20,000원 = 2,080,000원이고, HQ-16 사용료 합계 1,998,000원과 다른 점은 8번 지표 정의 카드에 나온다. 미납은 초안을 뺀 미입금 청구서 수(처음 1건)"},
+      {"name": "HQ01.check", "arg": "'refund' | 'edu' | 'alim' | 'expire' | 'open:incheon' (9월) / 'miss' | 'receipt' | 'notice' | 'inquiry' (3월)", "does": "확인할 일 항목을 연다. refund와 miss는 s.ui['CM-02'] = {center, target, next, reason, from}를 넘기고 CM-02(지원 모드 사유 입력)로 간다. alim은 HQ-18, expire는 HQ-04(만료 필터), open:센터id는 s.ui['HQ-06'].center를 넘기고 HQ-06"},
       {"name": "HQ01.row", "arg": "센터 id (daechi1, busan 등)", "does": "센터별 현황 줄을 눌러 s.ui['HQ-05'].center를 넘기고 HQ-05로 간다"},
       {"name": "HQ01.decision", "arg": "없음", "does": "먼저 정할 10가지 카드에서 HQ-07 결정 관리표로 간다"},
       {"name": "HQ01.excel", "arg": "없음", "does": "엑셀 다운로드 사유 입력 칸을 열고 닫는다"},
       {"name": "HQ01.excelSave", "arg": "{xlWhy:'정기 보고', xlMemo:'월간 회의'} (xlWhy 없으면 오류 문구)", "does": "사유를 검사하고 s.audit 맨 앞에 엑셀 다운로드 기록을 남긴다"}
     ],
-    "reads": "ctx.ui.month. s.hq01.disc.legal은 HQ-03 잠금과 같이 쓴다. 가맹 계약 진행 줄은 s.hq03.cases 상태를 센다",
+    "reads": "ctx.ui.month. s.hq01.disc.legal은 HQ-03 잠금과 같이 쓴다. 가맹 계약 진행 줄은 s.hq03.cases 상태를 센다. 사용료 카드의 과금 계정 수는 s.hq16.inv[청구서 id].accts(없으면 청구서 줄의 N명)를 더한다",
     "demo_hint": "P1a 장 첫 화면은 HQ01.month '2027-03'으로 직영 시범 모습(D+63/365, 잠긴 P1b 메뉴, 9번 직영 수납)을 보여 준다. P1b 장 시작은 기본 9월 화면에서 2번 정보공개서 카드와 6번 시나리오를 짚고, HQ01.legal '예외 불인정'으로 B안과 HQ-03 잠김을 보여 준 뒤 '법무 검토 가정'으로 되돌린다" },
   { "id": "HQ-02", "tabs": [], "pins": [1,2,3,4,5,6], "review_pins": [5,6],
     "actions": [
@@ -56,7 +56,7 @@
       {"name": "HQ04.region", "arg": "'전체' | '서울' | '경기' | '대구' | '부산' | '인천'", "does": "지역 필터를 바꾼다"},
       {"name": "HQ04.sv", "arg": "'전체' | '최민호' | '정유나'", "does": "담당 SV 필터를 바꾼다"},
       {"name": "HQ04.search", "arg": "검색어 (센터명, 원장명, 사업자번호. 예: '오세린')", "does": "검색어로 거른다"},
-      {"name": "HQ04.only", "arg": "'exp' | 'unpaid' | ''", "does": "카드를 눌러 같은 조건(계약 만료 180일 이내, 미납 청구)으로 표를 거른다. 같은 값을 다시 부르면 풀린다"},
+      {"name": "HQ04.only", "arg": "'exp' | 'unpaid' | ''", "does": "카드를 눌러 같은 조건(계약 만료 180일 이내, 미납 청구)으로 표를 거른다. 미납은 초안을 뺀 미입금 청구서가 있는 센터(처음에는 부산해운대 834,400원 1건). 같은 값을 다시 부르면 풀린다"},
       {"name": "HQ04.clear", "arg": "없음", "does": "카드 조건, 검색어, 필터를 모두 지운다 (전체 센터 카드를 누를 때도 이 동작)"},
       {"name": "HQ04.open", "arg": "센터 id", "does": "s.ui['HQ-05'].center를 넘기고 HQ-05로 간다"},
       {"name": "HQ04.rules", "arg": "없음", "does": "센터 상태 전환 규칙 표(7번 핀, 검토 반영)를 열고 닫는다"},
@@ -66,6 +66,6 @@
       {"name": "HQ04.excel", "arg": "없음", "does": "엑셀 다운로드 사유 입력 칸을 열고 닫는다"},
       {"name": "HQ04.excelSave", "arg": "{xlWhy:'운영 점검'} (xlWhy 없으면 오류 문구)", "does": "사유를 검사하고 s.audit 맨 앞에 엑셀 다운로드 기록을 남긴다"}
     ],
-    "reads": "s.ui['HQ-04'].only ('exp'면 계약 만료 180일 이내만). HQ-01의 확인 필요 계약 만료 항목이 이 값을 넘긴다",
+    "reads": "s.ui['HQ-04'].only ('exp'면 계약 만료 180일 이내만). HQ-01의 확인할 일 카드의 계약 만료 항목이 이 값을 넘긴다",
     "demo_hint": "P1a 장 본사 센터 관리 장면. 2번 부산해운대 정원 9(교습소), 6번 대구수성 11/1부터 25,000원과 동의 확인 전 표시, 부산 개별 값 끝나는 날을 짚는다. HQ04.newForm 뒤 HQ04.save로 직영 센터 등록을, HQ04.rules로 상태 전환 규칙을 보여 준다. 줄 클릭(HQ04.open 'daechi1')으로 HQ-05에 잇는다" }
 ] }

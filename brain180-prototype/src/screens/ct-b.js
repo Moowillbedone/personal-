@@ -148,7 +148,7 @@
         s1: [
           { m: '2027-03', pid: 'pr1', fee: 260000, disc: '', paid: 260000, date: '03-02', acct: '활성', method: '결제선생 링크', book: 15000 },
           { m: '2027-02', pid: 'pr1', fee: 260000, disc: '', paid: 260000, date: '01-27', acct: '활성', method: '카드', book: 15000 },
-          { m: '2027-01', pid: 'pr1', fee: 260000, disc: '테스트비 차감 20,000', paid: 240000, date: '01-04', acct: '활성', method: '카드', book: 15000 },
+          { m: '2027-01', pid: 'pr1', fee: 260000, disc: '', paid: 260000, date: '01-04', acct: '활성', method: '카드', book: 15000 },
         ],
       },
       log: {
@@ -190,7 +190,8 @@
       months.forEach((m, i) => {
         const last = i === months.length - 1, pay = m === '2027-03' ? s.payments.find(p => p.student === st.id) : null;
         const unpaid = st.paid === '미수' && last;
-        rows.unshift({ m, pid: st.product, fee, disc: i === 0 ? '테스트비 차감 20,000' : '', paid: unpaid ? null : fee - (i === 0 ? TESTFEE : 0),
+        // 교육청 확인 전에는 입학 테스트가 무료라 첫 달에도 테스트비 차감이 없어요 (HQ-14, IMP-08)
+        rows.unshift({ m, pid: st.product, fee, disc: '', paid: unpaid ? null : fee,
           date: unpaid ? '' : i === 0 ? md(st.since) : pay ? pay.date : md(prevYm(m) + '-25'), acct: last && st.account !== '활성' ? (st.account === '-' ? '없음' : st.account) : '활성',
           method: pay ? pay.method : '카드', book: BOOK });
       });
@@ -222,12 +223,17 @@
     s.ct06.log[st.id] = out; return out;
   }
   const addLog = (ctx, st, what) => { logs(ctx.s, st).unshift({ at: TODAY, what, by: ctx.role + ' ' + ctx.persona.name }); };
+  // 입학 테스트와 그 테스트비를 실제로 낸 기록. 테스트비는 CT-03에서 예약 id로 남기고, 교육청 확인 전에는 받지 않아서 기록이 없어요.
+  const eduOf = s => (s.hq14 && s.hq14.edu) || { status: '확인 전', date: '', ref: '' };
   function testInfo(s, st) {
     ensure(s);
-    const info = s.ct05.info[st.id];
-    let date = info && info.test;
-    if (!date) { const r = s.reservations.find(x => x.center === st.center && x.student === st.name && /테스트/.test(x.kind) && x.status === '완료'); if (r) date = '2027-' + r.at.slice(0, 5); }
-    return date ? { date, valid: addDays(date, 30) >= TODAY } : null;
+    const info = s.ct05.info[st.id] || {};
+    const from = info.from && !/^readmit:/.test(info.from) ? info.from : null;
+    const r = from ? s.reservations.find(x => x.id === from) : s.reservations.find(x => x.center === st.center && x.student === st.name && /테스트/.test(x.kind) && x.status === '완료');
+    const date = info.test || (r ? '2027-' + r.at.slice(0, 5) : null);
+    if (!date) return null;
+    const paid = r && s.ct03 && s.ct03.fees ? s.ct03.fees[r.id] || null : null;
+    return { date, valid: addDays(date, 30) >= TODAY, res: r ? r.id : null, paid };
   }
 
   // 반 이동 기록을 거꾸로 따라가서 그날 다니던 반을 찾아요
@@ -1038,7 +1044,8 @@
     const rate = ui.disc === '형제 10%' ? 0.1 : ui.disc === '장기 5%' ? 0.05 : 0;
     const disc = floor10(base * rate);
     const ti = testInfo(s, st);
-    const test = ti && ti.valid && ui.test !== false ? TESTFEE : 0;
+    // 테스트비를 실제로 낸 기록이 있을 때만 빼요. 낸 금액보다 많이 빼지 않아요.
+    const test = ti && ti.valid && ti.paid && ui.test !== false ? Math.min(TESTFEE, ti.paid.amount) : 0;
     const book = ui.book !== false ? BOOK : 0;
     const total = Math.max(0, base - disc - test + book);
     return { row, fee, base, label, partial, frac, formula, method, ym: bym, start: pStart, period: pStart + ' ~ ' + md(bym + '-' + pad(dim(bym))), rate, disc, discLabel: rate ? ui.disc.replace(' ', ' 할인 ') : '', ti, test, book, total, cls: c };
@@ -1076,7 +1083,7 @@
     const snap = polUsed(ctx, cl).map(x => ({ code: x.code, what: x.what, status: x.status, ver: x.ver }));
     const lines = [[cl.label, cl.base]].concat(cl.disc ? [[cl.discLabel, -cl.disc]] : [], cl.test ? [['테스트비 차감', -cl.test]] : [], cl.book ? [['교재비', cl.book]] : []);
     Object.assign(f, { lines, via: '', stage: '수납 완료', payId: id, at: TODAY, base: cl.start, method, approval: approval || '-', total: cl.total, fee: cl.total - cl.book, book: cl.book, period: cl.period, pid: cl.row.pid, cls: ui.cls, snap, cash: ui.cashNo || '' });
-    const discTxt = [cl.discLabel ? cl.discLabel + ' (' + ui.reason + ')' : '', cl.test ? '테스트비 차감 20,000' : ''].filter(Boolean).join(', ');
+    const discTxt = [cl.discLabel ? cl.discLabel + ' (' + ui.reason + ')' : '', cl.test ? '테스트비 차감 ' + num(cl.test) : ''].filter(Boolean).join(', ');
     const rows = s.ct06.hist[st.id].filter(r => r.m !== cl.ym);
     rows.unshift({ m: cl.ym, pid: cl.row.pid, fee: cl.fee, disc: discTxt, paid: cl.total - cl.book, date: md(TODAY), acct: '활성', method, book: cl.book });
     s.ct06.hist[st.id] = rows;
@@ -1086,6 +1093,21 @@
     addLog(ctx, st, '수납 ' + num(cl.total) + '원 (' + method + '), 학습 계정 열림');
     s.ui['CT-11'] = Object.assign(s.ui['CT-11'] || {}, { assign: st.id, cls: ui.cls });
     B.toast('수납을 기록했어요. 영수증을 보내고 학습 계정을 열었어요.');
+  }
+
+  // 영수증의 교습 기간은 끝날에도 연도를 붙여 써요 (2027-03-15 ~ 2027-03-31)
+  const fullPeriod = p => { const m = /^(\d{4})-(\d{2}-\d{2}) ~ (\d{2}-\d{2})$/.exec(p || ''); return m ? m[1] + '-' + m[2] + ' ~ ' + m[1] + '-' + m[3] : p; };
+  // 테스트비 차감 줄. 낸 기록이 있으면 차감을 고르고, 없으면 0원과 이유를 보여 줘요.
+  function testRow(s, ui, cl, dis) {
+    const ti = cl.ti;
+    if (!ti) return '<span class="muted small">연결된 입학 테스트가 없어요</span>';
+    if (ti.paid) {
+      const amt = Math.min(TESTFEE, ti.paid.amount);
+      return chk('test', ui.test !== false && ti.valid, '-' + num(amt), dis || !ti.valid) + h.chip('(안)', 'st-안') +
+        '<span class="muted small">' + esc(md(ti.date) + ' 테스트비 ' + num(ti.paid.amount) + '원 수납, 30일 유효' + (ti.valid ? '' : ', 기간 지남')) + '</span>';
+    }
+    const why = eduOf(s).status === '등록 불필요' ? md(ti.date) + ' 테스트에는 테스트비를 낸 기록이 없어서 빼지 않아요.' : md(ti.date) + ' 테스트는 교육청 확인 전이라 무료였어요. 낸 테스트비가 없어서 빼지 않아요.';
+    return '<b>0원</b><span class="muted small">' + esc(why) + '</span>';
   }
 
   function c07render(ctx) {
@@ -1139,7 +1161,7 @@
       title: '할인·차감', pin: 3, right: h.polChip('POL-13') + h.polChip('POL-28') + h.polChip('POL-14'),
       body: form([
         fr('할인', h.opts(dOpts, ui.disc || '없음', { act: 'CT07.disc' }) + (cl.rate ? inp({ f: 'reason', v: ui.reason, ph: '할인 사유', dis: lock || ro, err: e.reason, label: '할인 사유' }) : ''), { err: e.reason }),
-        fr('테스트비 차감', cl.ti ? chk('test', ui.test !== false && cl.ti.valid, '-20,000', lock || ro || !cl.ti.valid) + h.chip('(안)', 'st-안') + '<span class="muted small">' + esc(md(cl.ti.date)) + ' 테스트, 30일 유효' + (cl.ti.valid ? '' : ', 기간 지남') + '</span>' : '<span class="muted small">연결된 입학 테스트가 없어요</span>'),
+        fr('테스트비 차감', testRow(s, ui, cl, lock || ro), { pin: 9, rv: true }),
         fr('기타경비', chk('book', ui.book !== false, '교재비 15,000', lock || ro) + h.chip('예시', 'st-예시')),
       ]),
     });
@@ -1149,7 +1171,7 @@
     const sumCard = h.card({
       title: '금액 계산', sub: done ? '수납 완료' : '예시 값으로 계산',
       body: '<div class="ctb-sum">' + (done ? (f.lines || []).map(x => line(x[0], (x[1] < 0 ? '-' : '') + num(Math.abs(x[1])))).join('') + line('수납한 금액', num(f.total), 'tot')
-        : line(cl.label, num(cl.base)) + (cl.disc ? line(cl.discLabel, '-' + num(cl.disc)) : '') + (cl.test ? line('테스트비 차감', '-' + num(cl.test)) : '') + (cl.book ? line('교재비', num(cl.book)) : '') +
+        : line(cl.label, num(cl.base)) + (cl.disc ? line(cl.discLabel, '-' + num(cl.disc)) : '') + (cl.test ? line('테스트비 차감', '-' + num(cl.test)) : cl.ti && !cl.ti.paid ? line('테스트비 차감 (낸 테스트비가 없어요)', '0') : '') + (cl.book ? line('교재비', num(cl.book)) : '') +
         line('결제 금액 (예시)', num(cl.total), 'tot')) + '</div><div class="muted small" style="margin-top:4px">끝전은 10원 미만을 버려요 (예시)</div>' +
         '<div class="ctb-sub review"' + h.p(6) + '>' + (done
           ? (f.via ? '<b>' + esc(f.via) + '로 들어온 수납이에요</b><span>계산 근거는 그 거래에 함께 저장돼 있어요. 기준일 ' + esc(f.at) + '</span>' : '<b>저장한 계산 근거</b><span>' + f.snap.map(x => esc(x.code + ' ' + x.what + ' (' + (x.status === '안' ? '안' : x.status) + ', ' + x.ver + ')')).join(', ') + '. 기준일 ' + esc(f.base || f.at) + ' (수강 시작일), 수납일 ' + esc(f.at) + '</span>')
@@ -1175,7 +1197,7 @@
     const rcCard = h.card({
       title: '영수증·계정', pin: 5, right: h.polChip('POL-23'),
       body: done
-        ? '<div class="ctb-rcpt">' + h.kv([['학습자', st.name], ['과목', '브레인180 ' + prodName(s, f.pid)], ['교습 기간', f.period], ['교습비', money(f.fee)], ['기타경비', f.book ? '교재비 ' + money(f.book) : '없음'], ['합계', '<b>' + money(f.total) + '</b>', true], ['수단', f.method + (f.approval !== '-' ? ' ' + f.approval : '')], ['현금영수증', f.cash ? h.maskPhone(f.cash) + ' 발급' : '해당 없음']]) + '</div>' +
+        ? '<div class="ctb-rcpt">' + h.kv([['학습자', st.name], ['과목', '브레인180 ' + prodName(s, f.pid)], ['교습 기간', fullPeriod(f.period)], ['교습비', money(f.fee)], ['기타경비', f.book ? '교재비 ' + money(f.book) : '없음'], ['합계', '<b>' + money(f.total) + '</b>', true], ['수단', f.method + (f.approval !== '-' ? ' ' + f.approval : '')], ['현금영수증', f.cash ? h.maskPhone(f.cash) + ' 발급' : '해당 없음']]) + '</div>' +
           '<div class="row" style="margin-top:8px">' + h.chip('학습 계정 열림 · ' + f.at, 'ok') + '<span class="muted small">수납 확인 즉시 여는 안을 따랐어요</span></div>' +
           '<div class="row" style="margin-top:10px">' + h.btn('반 배정으로 이어서 하기', { primary: true, act: 'CT07.toAssign' }) + h.btn('원생 상세 보기', { act: 'CT07.toDetail' }) + h.btn('영수증 다시 보내기', { act: 'CT07.resendReceipt' }) + '</div>'
         : '<div class="small">영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요.</div>' +
@@ -1206,14 +1228,15 @@
       items: [
         { n: 1, t: '상품', d: '센터가 파는 상품만 나와요. 직영은 본사가 정한 값을, 가맹은 센터가 정한 교습비를 써요. 교육청 등록액을 넘거나 변경신고 중인 상품은 잠겨서 고를 수 없어요.', pol: ['POL-10', 'POL-11', 'POL-12'], ref: 'p.52 ①' },
         { n: 2, t: '시작·월중 처리', d: '월 단위로 매달 1일에 시작하는 것이 (안)이에요. 달 중간에 시작하면 일할, 다음 달부터, 회차 기준 가운데 정책에서 정한 방식으로 계산해요. 반은 정원이 남은 곳만 고를 수 있어요.', pol: ['POL-18', 'POL-19', 'POL-16'], ref: 'p.52 ②' },
-        { n: 3, t: '할인·차감', d: '할인은 센터가 정하고 사유를 꼭 남겨요. 입학 테스트비 20,000원(안)은 테스트 후 30일 안에 등록하면 빼 주고, 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
+        { n: 3, t: '할인·차감', d: '할인은 센터가 정하고 사유를 꼭 남겨요. 입학 테스트비를 낸 아이가 테스트 후 30일 안에 등록하면 20,000원(안)을 빼 주고, 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
         { n: 4, t: '결제', d: '직영은 결제선생 링크로 결제하면 자동으로 기록돼요. 가맹은 센터 단말기로 결제한 뒤 승인번호를 적어요. 수납 수단은 센터가 켜 둔 것만 나와요.', pol: ['POL-36', 'POL-37'], ref: 'p.52 ④' },
         { n: 5, t: '영수증·계정 오픈', d: '영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요. 학습 계정은 계정 오픈 정책에 따라 열려요. 지금 화면은 수납을 확인하면 바로 여는 (안)을 따라요.', pol: ['POL-23'], ref: 'p.52 ⑤' },
         { n: 6, t: '(안) 값 경고와 계산 근거 저장', kind: 'review', imp: 'IMP-10', d: '아직 정하지 않은 값으로 실제 돈을 받을 수 있었어요. 금액에 (안), 예시, 미정 값이 들어가면 목록으로 보여 주고, 슈퍼관리자의 임시 적용 승인 기록을 확인해야 수납돼요. 수납할 때 쓴 정책 값과 버전, 기준일(수강 시작일)을 거래와 함께 저장해요.' },
         { n: 7, t: '월중 계산 이름과 식 맞추기', kind: 'review', imp: 'IMP-09', pol: ['POL-19'], d: '원문은 일할이라고 적고 실제로는 회차로 나눴어요(5/9회, 예시). 방식을 고르면 쓰는 식과 숫자가 그대로 보이게 했어요. 회차는 고른 반의 수업 요일로 세고 공휴일은 빼요.' },
         { n: 8, t: '결제 대기 상태', kind: 'review', imp: 'IMP-12', cond: true, reveal: 'CT07.sendLink', revealArg: { ack: true }, d: '결제선생 링크를 보낸 뒤 아직 내지 않은 상태가 없었어요. 결제 대기로 두고 링크 유효 시간과 자리를 잡아 두는 시간(모두 예시)을 보여 줘요. 다시 보내기와 취소도 여기서 해요.' },
+        { n: 9, t: '테스트비를 낸 경우에만 빼요', kind: 'review', imp: 'IMP-08', pol: ['POL-27', 'POL-28'], d: '교육청 확인 전에는 입학 테스트가 무료라 받은 테스트비가 없어요. 그런데도 20,000원을 빼면 교습비를 덜 받게 돼요. 입학 테스트(CT-03)에서 테스트비를 받은 기록이 있을 때만 빼고, 없으면 0원과 그 이유를 보여 줘요. 그래서 원문 예시 125,000원이 지금은 145,000원(예시)으로 나와요.' },
       ],
-      open: ['월중 등록 계산 방식 (POL-19)', '학습 계정을 여는 때 (POL-23)', '테스트비 차감 금액과 유효 기간 (POL-28)', '기타경비 항목과 금액 (POL-14)', '할인 종류와 상한 (POL-13)', '직영 교습비 확정가 (POL-11)', '결제선생 연동 범위 (POL-36, 답변 기다리는 중)', '끝전을 버리는 단위'],
+      open: ['월중 등록 계산 방식 (POL-19)', '학습 계정을 여는 때 (POL-23)', '테스트비 차감 금액과 유효 기간 (POL-28)', '기타경비 항목과 금액 (POL-14)', '할인 종류와 상한 (POL-13)', '직영 교습비 확정가 (POL-11)', '결제선생 연동 범위 (POL-36, 답변 기다리는 중)', '테스트비를 받아도 되는지 교육청 회신 (HQ-14 확인 기록)', '끝전을 버리는 단위'],
       rules: ['교육청에 등록한 교습비보다 많이 받을 수 없어요 (학원법, 법정).', '영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요.'],
     },
   });
@@ -1242,7 +1265,8 @@
     const cl = c07calc(ctx, st), e = ctx.ui.e = c07check(ctx, st, cl, 'link');
     if (Object.keys(e).length) { B.toast('빨간 글씨를 확인해 주세요.'); return; }
     const f = flow(ctx.s, st.id);
-    Object.assign(f, { stage: '결제 대기', linkAt: '2027-03-08 11:58', sent: 1, total: cl.total });
+    const lines = [[cl.label, cl.base]].concat(cl.disc ? [[cl.discLabel, -cl.disc]] : [], cl.test ? [['테스트비 차감', -cl.test]] : [], cl.book ? [['교재비', cl.book]] : []);
+    Object.assign(f, { stage: '결제 대기', linkAt: '2027-03-08 11:58', sent: 1, total: cl.total, lines, period: cl.period, base: cl.start, pid: cl.row.pid });
     B.toast('보호자 ' + h.maskPhone(st.phone) + '로 결제선생 링크를 보냈어요.');
   });
   A7('CT07.resend', ctx => { const st = c07prep(ctx); if (!st) return; const f = flow(ctx.s, st.id); if (f.stage !== '결제 대기') return; f.sent = (f.sent || 1) + 1; B.toast('결제 링크를 다시 보냈어요. 유효 시간이 처음부터 다시 시작돼요 (예시).'); });

@@ -139,7 +139,7 @@
     s.hq26 = {
       renewals: [
         { id: 'rn1', center: 'daegu', end: '2030-06-13', req: '2029-12-20', status: '검토 중', decision: null },
-        { id: 'rn2', center: 'busan', end: (s.centers.find(c => c.id === 'busan') || {}).contractEnd || '2032-09-30', req: '', status: '요구 전', decision: null },
+        { id: 'rn2', center: 'busan', end: (s.centers.find(c => c.id === 'busan') || {}).contractEnd || '2030-05-31', req: '', status: '요구 전', decision: null },
       ],
       term: null,
       close: null,
@@ -780,7 +780,7 @@
     ui.a_err_login = !login ? '아이디를 넣어 주세요.' : !/^[a-z][a-z0-9._-]{2,}$/.test(login) ? '영문 소문자로 시작하는 3자 이상으로 넣어 주세요.' : s.hq22.accounts.some(a => a.login === login) ? '이미 쓰는 아이디예요.' : null;
     if (ui.a_err_name || ui.a_err_login) return;
     const role = ui.a_role || '운영';
-    s.hq22.accounts.push({ id: 'a' + (s.hq22.accounts.length + 1) + '-' + login, name, login, role, tf: false, status: '초대됨' });
+    s.hq22.accounts.push({ id: 'a' + (s.hq22.accounts.length + 1) + '-' + login, name, login, role, tf: false, status: '초대 중' });
     audit(ctx, '계정 생성', name + ' (' + role + ')', '신규 입사');
     ui.aform = false; ui.a_name = ''; ui.a_login = '';
     say(name + ' 계정을 만들었어요. 첫 로그인 때 2단계 인증을 등록해야 열려요.');
@@ -1067,7 +1067,7 @@
     keys.forEach(k => {
       const r = v.res[k], si = k === 'staff' ? staffInfo(s, v.center) : null;
       let extra = '';
-      if (k === 'staff') extra = '<div' + P(6) + ' class="small" style="margin-top:3px;padding-left:14px;color:var(--review)">교직원 계정(CT-20) 조회일 지금 ' + si.done + '/' + si.n + '명 입력, 결과 파일은 받지 않아요' + (open ? ' ' + h.btn('조회일로 판정', { sm: true, ghost: true, act: 'HQ24.staffAuto', arg: v.id }) : '') + '</div>';
+      if (k === 'staff') extra = '<div' + P(6) + ' class="small" style="margin:7px 0 7px;padding-left:14px;color:var(--review)">교직원 계정(CT-20) 조회일 지금 ' + si.done + '/' + si.n + '명 입력, 결과 파일은 받지 않아요' + (open ? ' ' + h.btn('조회일로 판정', { sm: true, ghost: true, act: 'HQ24.staffAuto', arg: v.id }) : '') + '</div>';
       if (r === '보완' && v.memo[k]) extra += '<div class="small muted" style="margin-top:2px">' + esc(v.memo[k]) + '</div>';
       if (open && r === '보완') extra += '<div style="margin-top:4px">' + h.field({ value: ui['m_' + k] != null ? ui['m_' + k] : (v.memo[k] || ''), field: 'm_' + k, ph: '보완할 내용을 적어요 (필수)', err: (ui.v_err_memo || []).includes(k) ? '보완 이유를 적어 주세요.' : null }) + '</div>';
       const inner = open ? h.opts(['적합', '보완', '해당 없음'], r || '', { act: 'HQ24.judge' }).replace(/data-arg="([^"]*)"/g, (m, x) => 'data-arg="' + esc(v.id + '|' + k + '|' + x) + '"')
@@ -1280,7 +1280,9 @@
       const musts = C.filter(x => x.must), missing = [];
       musts.forEach(x => peopleOf(s, x).forEach(p => { if (!x.done[p.id]) missing.push({ c: x, p }); }));
       const planned = s.centers.filter(x => x.status === '계획');
-      let remind = rtitle('미이수 알림과 오픈 전 교육') + '<div class="small" style="margin-top:3px">필수 과정 미이수 ' + missing.length + '명' + (missing.length ? ' (' + esc(missing.map(m => m.p.name).join(', ')) + ')' : '') + '</div>' +
+      // 한 사람이 필수 과정 여러 개를 못 들었으면 한 번만 센다 (알림은 과정마다 나가요)
+      const missWho = missing.map(m => m.p).filter((p, i, a) => a.findIndex(q => q.id === p.id) === i);
+      let remind = rtitle('미이수 알림과 오픈 전 교육') + '<div class="small" style="margin-top:3px">필수 과정 미이수 ' + missWho.length + '명, ' + missing.length + '건' + (missWho.length ? ' (' + esc(missWho.map(p => p.name).join(', ')) + ')' : '') + '</div>' +
         planned.map(x => '<div class="small" style="margin-top:3px">' + esc(x.name) + ' 원장 ' + esc(x.director) + '은 센터 운영 기본을 아직 듣지 않았어요. 운영을 시작하기 전에 마치도록 알려요.</div>').join('') +
         '<div class="row between" style="margin-top:6px">' + (s.hq25.reminded ? small('마지막 알림 ' + s.hq25.reminded) : '<span></span>') + h.btn('미이수자에게 알림', { sm: true, act: 'HQ25.remind', disabled: !ctx.canEdit || !missing.length }) + '</div>';
       return '<div class="grid g-side" style="align-items:start">' + h.card({ title: '과정·이수', sub: '과정을 누르면 대상자 명단이 열려요', pin: 1, body: left }) +

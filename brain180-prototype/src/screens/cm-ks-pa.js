@@ -630,7 +630,7 @@
       const isUn = r => un && un.id === r.id;
       const table = h.table({
         cols: [
-          { label: '이름', render: r => isUn(r) ? '<b>' + esc(r.name) + '</b> ' + h.chip('해제됨', 'warn') : esc(h.mask(r.name)) },
+          { label: '이름', render: r => isUn(r) ? '<b>' + esc(r.name) + '</b> ' + h.chip('해제 중', 'warn') : esc(h.mask(r.name)) },
           { label: '학년', k: 'grade' },
           { label: '보호자 연락처', render: r => '<span class="mono small">' + esc(isUn(r) ? r.phone : h.maskPhone(r.phone)) + '</span>' },
           { label: '생년월일', render: r => '<span class="mono small">' + esc(isUn(r) ? r.birth : bMask(r.birth)) + '</span>' },
@@ -1002,13 +1002,35 @@
     }
     return s.students.find(x => x.id === ui.student) || s.students.find(x => x.id === 's5') || s.students[0];
   }
+  const c07flow = (s, st) => (s.ct07 && s.ct07.flow && st ? s.ct07.flow[st.id] : null) || null;
   function billFor(s, ui, st) {
     if (ui.bill && (!ui.bill.student || ui.bill.student === st.id)) return ui.bill;
+    // CT-07에서 결제 링크를 보냈거나 수납을 마친 원생은 그때 계산한 줄과 금액을 그대로 보여 줘요
+    const f = c07flow(s, st);
+    if (f && (f.stage === '결제 대기' || f.stage === '수납 완료') && f.lines && f.lines.length) {
+      const fp = s.products.find(p => p.id === (f.pid || st.product)) || {};
+      const fm = ((/(\d+)월/.exec(String(f.lines[0][0])) || [])[1] || String(Number(s.today.slice(5, 7)))) + '월';
+      return { student: st.id, month: fm, lines: f.lines.map(l => ({ t: l[0], a: l[1] })), total: f.total, product: fp.name || '' };
+    }
     const pr = s.products.find(p => p.id === (st.product || 'pr1')) || s.products[0];
     const c = B.center(st.center) || {};
     const fee = c.type === '직영' ? pr.direct : ((pr.centerPrice || {})[c.id] || pr.recommend);
     const lines = [{ t: '3월 교습비 (' + pr.name + ')', a: fee }, { t: s.extraFees[0].name, a: s.extraFees[0].amount }];
     return { student: st.id, month: '3월', lines, total: lines.reduce((x, l) => x + l.a, 0), product: pr.name };
+  }
+  // 교습 기간은 CT-07에서 정한 수강 시작일을 따라가요. CT-07 거래가 있으면 그 기간을, 수강 시작일만 있으면 그날부터 그달 말일까지,
+  // 둘 다 없으면 청구한 달 1일부터 말일까지 보여 줘요.
+  const okDay = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+  function paPeriod(s, st, bill) {
+    const f = c07flow(s, st), c7 = s.ui['CT-07'] || {};
+    let from = f && f.stage !== '작성 중' && f.period ? String(f.period).split(' ~ ')[0] : '';
+    if (!okDay(from) && c7.student === st.id && okDay(c7.start)) {
+      from = c7.start;
+      if (c7.mmethod === '다음 달부터' && from.slice(8) !== '01') { const y = +from.slice(0, 4), m = +from.slice(5, 7); from = (m === 12 ? (y + 1) + '-01' : y + '-' + pad2(m + 1)) + '-01'; }
+    }
+    if (!okDay(from)) { const m = /(\d+)월/.exec((bill && bill.month) || ''); from = s.today.slice(0, 4) + '-' + (m ? pad2(m[1]) : s.today.slice(5, 7)) + '-01'; }
+    const y = +from.slice(0, 4), m = +from.slice(5, 7);
+    return from + ' ~ ' + from.slice(0, 8) + pad2(new Date(Date.UTC(y, m, 0)).getUTCDate());
   }
   const full = at => (at.length <= 11 ? '2027-' + at : at);
   function paMsgs(s, ui, st) {
@@ -1087,13 +1109,15 @@
     const paid = ui.receipt && ui.paidFor === st.id;
     const already = !paid && st.paid === '수납 완료';
     const method = ui.method || '카드';
-    const notReady = st.pseudo || st.status === '상담' || !st.product;
+    // CT-07에서 결제 링크를 보낸 원생은 상품이 아직 비어 있어도 결제할 수 있어요
+    const pend = c07flow(s, st), linked = !!(pend && pend.stage === '결제 대기');
+    const notReady = !linked && (st.pseudo || st.status === '상담' || !st.product);
     let html = '<section class="cmk-psec" data-pin="3"><div class="small muted">' + (notReady ? '등록하면 받게 될 결제 요청 (미리 보기)' : esc(bill.month) + ' 수강료 결제 요청') + '</div>' +
       '<div><b>브레인180 ' + esc(c.name) + '</b><div class="small muted">받는 곳 ' + (direct ? 'MSC Brain (본사 직영)' : esc(c.name) + ' 사업자') + '</div></div>' +
       '<div class="cmk-amt">' + h.money(bill.total) + '</div><div class="cmk-lines">' +
       bill.lines.map(l => '<div><span>' + esc(l.t) + '</span><span>' + h.money(l.a) + '</span></div>').join('') +
       '<div class="tot"><span>결제 금액</span><span>' + h.money(bill.total) + '</span></div></div>' +
-      h.kv([['학생', st.name + ' (' + st.grade + ')'], ['교습 기간', '2027-03-01 ~ 2027-03-31']]) +
+      h.kv([['학생', st.name + ' (' + st.grade + ')'], ['교습 기간', paPeriod(s, st, bill)]]) +
       '<div class="cmk-note cmk-pp" data-pin="10">학부모 화면에는 (안) 같은 표시를 붙이지 않고 숫자만 보여 줘요.</div></section>';
     if (notReady) {
       html += '<section class="cmk-psec" data-pin="4"><h3>아직 결제할 수 없어요</h3><p>원생 등록(CT-05)과 수강 등록(CT-07)을 마치면 센터가 결제 링크를 보내요.</p></section>';
@@ -1101,7 +1125,7 @@
       const r = ui.receipt || {};
       const p = s.payments.slice().reverse().find(x => x.student === st.id) || {};
       html += '<section class="cmk-psec" data-pin="4"><div class="row between"><h3>결제 완료</h3>' + h.chip('수납 완료', 'ok') + '</div>' +
-        h.kv([['승인번호', r.approval || p.approval || '-'], ['결제 수단', r.method || p.method || '-'], ['학습자', st.name], ['과목', '브레인180 (' + (bill.product || '교습') + ')'], ['교습 기간', '2027-03-01 ~ 2027-03-31'], ['금액', h.money(r.total || p.amount || bill.total)]]) +
+        h.kv([['승인번호', r.approval || p.approval || '-'], ['결제 수단', r.method || p.method || '-'], ['학습자', st.name], ['과목', '브레인180 (' + (bill.product || '교습') + ')'], ['교습 기간', paPeriod(s, st, bill)], ['금액', h.money(r.total || p.amount || bill.total)]]) +
         '<p>' + (paid && r.opened ? '학습 계정이 열렸어요. 오늘부터 학습 앱에 로그인할 수 있어요.' : '학습 계정은 계속 쓸 수 있어요.') + ' 센터 수납 기록(CT-07)에 자동으로 남았어요.</p>' +
         '<div class="row">' + h.btn('센터 화면에서 보기 (CT-07)', { sm: true, go: 'CT-07' }) + '</div></section>';
     } else {
@@ -1176,6 +1200,9 @@
     if (arg && typeof arg === 'object') { if (arg.student) ui.student = arg.student; if (arg.method) ui.method = arg.method; if (arg.bill) ui.bill = arg.bill; }
     else if (typeof arg === 'string' && s.students.some(x => x.id === arg)) ui.student = arg;
     const st = paStudent({ s, ui });
+    // CT-07에서 결제 대기로 둔 원생이면 그 거래를 그대로 결제해요
+    const pend = st && !st.pseudo ? c07flow(s, st) : null;
+    if (pend && pend.stage === '결제 대기' && B.actions['PA01.payLink']) return B.actions['PA01.payLink'](ctx, { student: st.id, method: ui.method });
     if (!st || st.pseudo || st.status === '상담' || !st.product) { say('원생 등록과 수강 등록을 마친 뒤 결제 링크가 와요.'); return; }
     if (st.paid === '수납 완료') { say('이미 결제했어요.'); return; }
     const bill = billFor(s, ui, st);

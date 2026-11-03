@@ -210,7 +210,15 @@
       { id: 'st20', center: 'dongtan', name: '한소윤', role: '원장', check: '2027-02-20', twoFactor: true, phone: '010-5102-1801', status: '활성', notified: '-' },
       { id: 'st21', center: 'dongtan', name: '강민지', role: '교사', check: '2027-02-22', twoFactor: false, phone: '010-5102-1802', status: '잠김 (운영 개시 전)', notified: '2027-02-23' },
       { id: 'st22', center: 'dongtan', name: '오하린', role: '보조교사', check: '', twoFactor: false, phone: '010-5102-1803', status: '잠김 (경력 조회 전)', notified: '-' },
+      // 인천송도센터: 2027-10-04 계약(HQ-03) 뒤 오픈을 준비하는 가맹 센터. 원장과 실장은 경력 조회를 마쳤다 (예시)
+      { id: 'st23', center: 'incheon', name: '윤가람', role: '원장', check: '2027-10-05', twoFactor: true, phone: '010-6203-1801', status: '잠김 (운영 개시 전)', notified: '2027-10-06' },
+      { id: 'st24', center: 'incheon', name: '조은솔', role: '실장·데스크', check: '2027-10-06', twoFactor: false, phone: '010-6203-1802', status: '잠김 (운영 개시 전)', notified: '-' },
     ].forEach(x => { if (!s.staff.some(y => y.id === x.id)) s.staff.push(x); });
+    // 교직원 계정(CT-20)이 같은 사람을 같은 구분으로 보이게 한다. 이미 있는 값은 건드리지 않는다
+    if (s.ct20 && s.ct20.meta) {
+      if (!s.ct20.meta.st23) s.ct20.meta.st23 = { legal: '교습자', docs: true, edu: '이수', agency: '관할 경찰서', clear: true };
+      if (!s.ct20.meta.st24) s.ct20.meta.st24 = { legal: '직원', docs: false, edu: '이수', agency: '관할 경찰서', clear: true };
+    }
 
     s.hq05 = s.hq05 || {
       info: {
@@ -219,8 +227,8 @@
         dongtan: { owner: 'MSC Brain (본사 직영)', addr: '경기 화성시 ○○로 00, 2층', area: '', subject: '독서·논술 (예시)', eduNo: '제○○호', methods: { 카드: true, 계좌: true, 현금: true, 지역화폐: false }, alim: '브레인180 동탄 (심사 중)', kiosks: 2 },
       },
       contract: {
-        daegu: { ver: '표준 v1', given: '2027-05-06', signed: '2027-05-24', status: '유효', snap: { fee: '5,000,000원 (납부)', term: '5년', radius: '1,000m', royalty: '20,000원 (예시)' }, amends: [] },
-        busan: { ver: '표준 v1', given: '2027-04-28', signed: '2027-05-17', status: '유효', snap: { fee: '면제 (테스트베드, 안)', term: '5년', radius: '1,000m', royalty: '18,000원 (개별 특가)' }, amends: [{ date: '2027-05-20', item: '사용료 단가', from: '20,000원 (예시)', to: '18,000원', doc: '부속합의서 #3' }] },
+        daegu: { ver: '표준 v1', given: '2027-05-06', signed: '2027-05-24', start: '2027-06-14', status: '유효', snap: { fee: '5,000,000원 (납부)', term: '3년', radius: '1,000m', royalty: '20,000원 (예시)' }, amends: [] },
+        busan: { ver: '표준 v1', given: '2027-04-28', signed: '2027-05-17', start: '2027-06-01', status: '유효', snap: { fee: '면제 (테스트베드, 안)', term: '3년', radius: '1,000m', royalty: '18,000원 (개별 특가)' }, amends: [{ date: '2027-05-20', item: '사용료 단가', from: '20,000원 (예시)', to: '18,000원', doc: '부속합의서 #3' }] },
       },
       fees: {
         daegu: [{ name: '가맹비', amount: '5,000,000원', how: '납부 2027-05-24', escrow: '예치, 개업 뒤 해제', paid: true }, { name: '교육비', amount: '', how: '-', escrow: '-' }, { name: '보증금', amount: '', how: '-', escrow: '-' }],
@@ -232,6 +240,10 @@
       },
       checked: {},
     };
+
+    // 가맹 계약 만료일은 원문 예시를 따른다. 대구수성 2030-06-13 (p.22, p.24, p.44), 부산해운대 2030-05-31 (p.22).
+    // 기본 데이터는 2032-09-30이라 센터 목록(HQ-04)과 갱신(HQ-26)이 서로 다른 날짜를 보였다.
+    [['daegu', '2030-06-13'], ['busan', '2030-05-31']].forEach(([id, end]) => { const c = s.centers.find(x => x.id === id); if (c && c.contractEnd === '2032-09-30') c.contractEnd = end; });
 
     s.hq06 = s.hq06 || {
       cases: {
@@ -466,7 +478,7 @@
       cBody = form([
         { l: '계약서', v: esc(K.ver) + ' · 서명본' + h.btn('보기', { sm: true, act: 'HQ05.viewFile' }) },
         { l: '제공일 · 체결일', v: esc(K.given) + ' · ' + esc(K.signed) },
-        { l: '계약 기간', v: esc(c.opened) + ' ~ ' + esc(c.contractEnd) + varChip() },
+        { l: '계약 기간', v: esc(K.start || c.opened) + ' ~ ' + esc(c.contractEnd) + varChip() },
         { l: '만료 알림', v: '180일 전 · 90일 전<span class="hqb-note">갱신 요구 기간' + (a180 ? ', 첫 알림 ' + a180 + (left > 0 ? ' (' + left + '일 남음)' : '') : '') + '</span>' },
         { l: '상태', v: h.chip(K.status, K.status === '유효' ? 'ok' : 'warn') },
       ]) + rvBox('계약한 날 고정한 값', 'IMP-25',
@@ -741,6 +753,13 @@
     const fees = s.products.map(p => ({ p: p.id, edu: (p.edu || {})[c.id] != null ? p.edu[c.id] : null, price: c.type === '직영' ? p.direct : ((p.centerPrice || {})[c.id] != null ? p.centerPrice[c.id] : p.recommend) }));
     return (C[c.id] = { docs: d, fees, request: null, approvedAt: done ? c.opened : '', approvedBy: done ? '정본부' : '', sel: 'fee' });
   }
+  // 화면 속 날짜. 직영은 오늘(2027-03-08), 가맹과 테스트베드는 계약 게이트 날짜와 교직원 조회일 가운데 늦은 날 (P1b 예시)
+  function day6(ctx, c) {
+    if (c.type === '직영') return ctx.today;
+    const s = ctx.s, ds = [ctx.today, (s.hq03 && s.hq03.today) || ''];
+    staffOf(s, c).forEach(p => { ds.push(p.check || ''); ds.push(p.notified || ''); });
+    return ds.filter(okDate).sort().pop() || ctx.today;
+  }
   const staff6 = (s, c) => { const st = staffOf(s, c); return { list: st, n: st.filter(x => x.check).length, all: st.length, done: st.length > 0 && st.every(x => x.check) }; };
   function feeCheck(s, K) {
     return K.fees.map(f => { const p = s.products.find(x => x.id === f.p) || { name: f.p }; const res = f.edu == null ? 'lock' : f.price > f.edu ? 'over' : 'ok'; return Object.assign({ name: p.name, res }, f); });
@@ -840,7 +859,7 @@
       items: [
         { n: 1, t: '필수 서류', d: '법정 서류와 본사 요구 서류를 나눠 받아요. 센터는 CT-17 자료실에서 올려요. 보험처럼 만료일이 있는 서류는 만료 30일 전(예시)에 다시 요청해요. 줄을 누르면 아래에서 바로 검토해요.', ref: 'p.25 ①' },
         { n: 2, t: '교습비 등록 대조', d: '교육청에 등록한 상품별 금액과 센터 교습 상품(CT-18)을 하나씩 맞춰 봐요. 아직 등록하지 않은 상품은 판매가 잠기고, 등록 금액보다 비싼 상품이 있으면 승인하지 못해요.', pol: ['POL-12'], ref: 'p.25 ②' },
-        { n: 3, t: '종사자 경력 조회', d: '원장, 강사, 보조요원 모두 성범죄와 아동학대 경력 조회일이 있어야 해요(CT-20). 한 명이라도 빠지면 승인 버튼이 켜지지 않아요.', ref: 'p.25 ③' },
+        { n: 3, t: '종사자 경력 조회', d: '원장, 강사, 보조요원 모두 성범죄와 아동학대 경력 조회일이 있어야 해요(CT-20). 한 명이라도 빠지면 승인 버튼이 켜지지 않아요. 인천송도센터(가맹) 예시는 원장 윤가람과 실장 조은솔이 2027년 10월에 조회를 마친 상태라, 서류만 갖추면 승인까지 이어져요. 동탄센터는 보조교사 한 명이 아직 조회 전이에요.', ref: 'p.25 ③' },
         { n: 4, t: '승인의 효과', d: '필수 항목이 모두 승인돼야 운영 개시 승인 버튼이 켜져요. 승인하면 센터가 운영 상태가 되고 원생 등록과 수납 메뉴가 열려요. 가맹 센터는 다음 달 1일부터 사용료를 내요. 부족하면 보완 요청으로 센터에 돌려보내요.', pol: ['POL-02', 'POL-04'], ref: 'p.25 ④' },
         { n: 5, t: '직영도 같은 절차', d: '회의 결정대로 직영 시범 센터도 이 절차를 거쳐요. 인테리어와 간판 같은 오픈 준비 체크리스트는 확대 단계(P2)에서 붙여요.', ref: 'p.25 ⑤' },
         { n: 6, kind: 'review', imp: 'IMP-16', t: '조회일만 남기고 원본은 안 받아요', d: '범죄경력 조회 결과 원본은 민감정보일 수 있어서 본사가 받지 않아요(법무 확인이 남아 있어요). 조회일, 조회 기관, 확인한 사람만 남기고, 조회 전인 사람은 수업에 배치되지 않아요.' },
@@ -863,8 +882,8 @@
     const d = K.docs[id] = K.docs[id] || {}; K.sel = id;
     if (!d.file) { ui.e_doc = '센터가 아직 올리지 않았어요.'; return; }
     if (id === 'fee') { const bad = feeCheck(s, K).filter(f => f.res === 'over'); if (bad.length) { ui.e_doc = '등록 금액보다 비싼 상품이 있어요. ' + bad.map(f => f.name).join(', ') + '. CT-18에서 판매가를 고치거나 교육청 변경신고를 먼저 해요.'; return; } }
-    if (id === 'ins') { const exp = ui.ins_exp != null ? ui.ins_exp : d.exp; if (!okDate(exp)) { ui.e_doc = '보험 만료일을 넣어 주세요.'; return; } if (exp <= ctx.today) { ui.e_doc = '이미 끝난 보험이에요. 새 증권을 받아 주세요.'; return; } d.exp = exp; }
-    d.st = '승인'; d.by = ctx.persona.name; d.at = ctx.today; ui.e_doc = null;
+    if (id === 'ins') { const exp = ui.ins_exp != null ? ui.ins_exp : d.exp; if (!okDate(exp)) { ui.e_doc = '보험 만료일을 넣어 주세요.'; return; } if (exp <= day6(ctx, c)) { ui.e_doc = '이미 끝난 보험이에요. 새 증권을 받아 주세요.'; return; } d.exp = exp; }
+    d.st = '승인'; d.by = ctx.persona.name; d.at = day6(ctx, c); ui.e_doc = null;
     const nx = DOCS6.find(x => x.kind === '필수' && applies6(x, c) && x.id !== 'staff' && (K.docs[x.id] || {}).st !== '승인');
     if (nx) K.sel = nx.id;
     say(eul((DOCS6.find(x => x.id === id) || {}).name) + ' 승인했어요.' + (id === 'ins' ? ' 만료 30일 전에 다시 요청할게요.' : ''));
@@ -881,12 +900,13 @@
   });
   act('HQ06.sim', (ctx, id) => {
     const c = c6(ctx), K = case6(ctx.s, c), x = DOCS6.find(d => d.id === id); if (!x) return;
-    K.docs[id] = Object.assign(K.docs[id] || {}, { st: '검토 중', file: x.name.split(' ')[0] + '.pdf', at: ctx.today }); K.sel = id; ctx.ui.e_doc = null;
+    K.docs[id] = Object.assign(K.docs[id] || {}, { st: '검토 중', file: x.name.split(' ')[0] + '.pdf', at: day6(ctx, c) }); K.sel = id; ctx.ui.e_doc = null;
   });
   act('HQ06.sysDone', (ctx, id) => { const c = c6(ctx), K = case6(ctx.s, c); K.docs[id] = Object.assign(K.docs[id] || {}, { st: '완료' }); K.sel = id; });
   act('HQ06.staffSim', ctx => {
     const s = ctx.s, c = c6(ctx), K = case6(s, c);
-    staffOf(s, c).forEach(p => { if (!p.check) { p.check = ctx.today; if (/경력 조회 전/.test(p.status)) p.status = '활성'; } });
+    const day = day6(ctx, c);
+    staffOf(s, c).forEach(p => { if (!p.check) { p.check = day; if (/경력 조회 전/.test(p.status)) p.status = '활성'; } });
     K.sel = 'staff';
     say('모든 교직원의 경력 조회일이 들어왔어요.');
   });
@@ -898,7 +918,7 @@
     if (!ctx.canEdit || c.status === '운영') return;
     const reason = String(ui.req_reason || '').trim();
     if (!reason) { ui.reqOpen = true; ui.e_req = '무엇을 보완할지 적어 주세요.'; return; }
-    K.request = { date: ctx.today, reason, by: ctx.persona.name };
+    K.request = { date: day6(ctx, c), reason, by: ctx.persona.name };
     ui.reqOpen = false; ui.req_reason = ''; ui.e_req = null;
     audit(ctx, '운영 개시 보완 요청', c.name, reason);
     say('센터에 보완 요청을 보냈어요. CT-17 자료실과 알림에 떠요.');
@@ -912,8 +932,9 @@
     const g = gate6(s, c, K);
     if (g.miss.length) { ui.e_open = true; return; }
     ui.e_open = null;
-    c.status = '운영'; c.opened = ctx.today;
-    K.approvedAt = ctx.today; K.approvedBy = ctx.persona.name; K.alimOff = g.warn.length > 0; K.request = null;
+    const day = day6(ctx, c);
+    c.status = '운영'; c.opened = day;
+    K.approvedAt = day; K.approvedBy = ctx.persona.name; K.alimOff = g.warn.length > 0; K.request = null;
     staffOf(s, c).forEach(p => { if (/운영 개시 전/.test(p.status)) p.status = '활성'; });
     audit(ctx, '운영 개시 승인', c.name, '필수 서류와 시스템 확인');
     say(eul(c.name) + ' 운영으로 바꿨어요. 원생 등록과 수납 메뉴가 열렸어요.' + (c.type !== '직영' ? ' 다음 달 1일부터 사용료 과금 대상이에요.' : ''));
@@ -1026,6 +1047,8 @@
     render(ctx) {
       const s = ctx.s, ui = ctx.ui, rows = polRows(s);
       const nOpen = rows.filter(r => unconf(r.status)).length, nLegal = rows.filter(r => r.status === '법정').length;
+      // 대시보드(HQ-01)와 같은 기준. P1a에 쓰는 정책 가운데 아직 확정하지 않은 수
+      const nOpenA = rows.filter(r => unconf(r.status) && /P1a/.test(r.p.when)).length;
       const resv = rows.filter(r => r.resv).sort((a, b) => resvKey(a.resv).localeCompare(resvKey(b.resv)));
       const nMoney = rows.filter(r => r.money && unconf(r.status)).length, nTemp = rows.filter(r => r.money && unconf(r.status) && r.temp).length;
       const cats = (B.POLICIES || []).map(p => p.cat).filter((v, i, a) => a.indexOf(v) === i);
@@ -1033,7 +1056,7 @@
       const k = (o) => '<div class="kpi' + (o.tone ? ' ' + o.tone : '') + (kv === o.key ? ' on' : '') + '" role="button" data-act="HQ07.kpi" data-arg="' + o.key + '"' + P(o.pin) + '><div class="l">' + esc(o.l) + '</div><div class="v">' + o.v + '</div><div class="s">' + esc(o.s) + '</div></div>';
       const kpis = '<div class="hqb-k5">' +
         k({ key: 'all', l: '전체 정책', v: rows.length, s: '분류 ' + cats.length, pin: 1 }) +
-        k({ key: 'open', l: '미확정 (안)', v: nOpen, s: '결정 필요', tone: 'warn' }) +
+        k({ key: 'open', l: '미확정 (안)', v: nOpenA, s: 'P1a에 쓰는 정책, 전체 ' + nOpen + '개', tone: 'warn' }) +
         k({ key: 'legal', l: '법정', v: nLegal, s: '수정 불가' }) +
         k({ key: 'resv', l: '예약 변경', v: resv.length, s: resv.length ? '다음 ' + resv[0].resv.date : '없음' }) +
         k({ key: 'money', l: '돈 계산에 쓰는 미확정', v: nMoney, s: '임시 적용 승인 ' + nTemp + '개', tone: 'rv', pin: 8 }) + '</div>';
@@ -1050,16 +1073,15 @@
         '<button type="button" class="' + (view === 'list' ? 'on' : '') + '" data-act="HQ07.view" data-arg="list">정책 목록 <span class="n">' + filt7(rows, ui).length + '</span></button>' +
         '<button type="button" class="' + (view === 'log' ? 'on' : '') + '" data-act="HQ07.view" data-arg="log"' + P(5) + '>변경 이력 <span class="n">' + hist.length + '</span></button>' +
         '<button type="button" class="' + (view === 'dec' ? 'on' : '') + '" data-act="HQ07.view" data-arg="dec"' + P(7) + '>결정 관리표 <span class="n">미결 ' + openDec + '</span></button></div>';
-      const note = '<div class="hqb-note" style="margin-top:6px">숫자는 아래 정책 목록 44개에서 바로 세요. 그래서 원문 그림의 미확정 31, 법정 5와 달라요.</div>';
       const body = view === 'log' ? log7(ctx) : view === 'dec' ? dec7(ctx) : list7(ctx, filt7(rows, ui));
-      return kpis + note + filters + tabs + body;
+      return kpis + '<div style="height:10px"></div>' + filters + tabs + body;
     },
     mount(root) { mountLive(root); },
     prd: {
       summary: '정책 44개가 지금 정해졌는지, 언제 바뀔 예정인지, 누가 왜 바꿨는지를 한 화면에서 봐요. 아직 안 정한 정책을 빨리 결정하도록 재촉하는 화면이에요.',
       who: '슈퍼관리자는 보고 고쳐요. 운영팀과 정산팀은 일부만 고치고, SV는 보기만 해요. 콘텐츠팀에게는 메뉴가 안 보여요.',
       items: [
-        { n: 1, t: '요약', d: '전체, 미확정, 법정, 예약 변경 수를 보여 줘요. 미확정 수는 대시보드(HQ-01)에도 나와요. 카드를 누르면 아래 목록이 그 조건으로 걸러져요. 숫자는 정책 목록에서 바로 세서 원문 그림(31, 5)과 달라요.', ref: 'p.26 ①' },
+        { n: 1, t: '요약', d: '전체, 미확정, 법정, 예약 변경 수를 보여 줘요. 미확정 카드는 원문 예시처럼 P1a에 쓰는 정책 가운데 아직 확정하지 않은 31개를 세서 대시보드(HQ-01)와 같은 숫자예요. P1b 정책까지 더하면 40개라서 카드 아래에 함께 적었어요. 법정은 원문 그림에 5개로 나오지만 7장 정책 목록에서 법정인 것은 POL-12, 17, 25, 41 네 개라서 목록대로 4를 보여 줘요. 카드를 누르면 아래 목록이 그 조건으로 걸러져요.', ref: 'p.26 ①' },
         { n: 2, t: '정책 목록', d: '7장 정책 목록과 같은 데이터를 한 곳에서만 관리해요. 줄을 누르면 그 정책의 편집 화면(HQ-08~15)으로 가요. 적용 범위에는 그룹 값과 개별 센터 값이 몇 개인지 보여요.', pol: ['POL-44'], ref: 'p.26 ②' },
         { n: 3, t: '상태', d: '미확정(안)은 회의 안이나 예시 값이라 모든 화면에 (안)이 붙어요. 확정은 결재가 끝난 값이고, 법정은 법령 값이라 고칠 수 없어요.', ref: 'p.26 ③' },
         { n: 4, t: '예약 변경', d: '적용 시작일이 앞으로인 변경을 보여 줘요. 그날 0시에 바뀌어요.', ref: 'p.26 ④' },
@@ -1080,6 +1102,7 @@
   act('HQ07.kpi', (ctx, v) => {
     const ui = ctx.ui; ui.kq = v; ui.pg = 1; ui.view = 'list'; ui.resv = false; ui.money = false; ui.e_temp = null;
     if (v === 'all') { ui.st = '전체'; ui.cat = '전체'; ui.dep = '전체'; ui.when = '전체'; ui.q = ''; ui.qq = ''; }
+    if (v !== 'all') ui.when = v === 'open' ? 'P1a' : '전체';
     if (v === 'open') ui.st = '미확정';
     if (v === 'legal') ui.st = '법정';
     if (v === 'resv') { ui.st = '전체'; ui.resv = true; }
@@ -1262,7 +1285,7 @@
       const optRow = o => radio(o.list, v(o.k), { act: 'HQ08.opt', prefix: o.k + '|', dis: ro8 }) + nextNote8(s, o.k);
       const ninp = (k, lab) => inp('o_' + k, v(k), { size: 'xs', type: 'number', dis: ro8, label: lab }) + nextNote8(s, k);
       const pol234 = h.card({
-        title: 'POL-02·03·04 과금 기준·월중 처리·청구', pin: 5, right: stChip('안') + h.polChip('POL-02') + h.polChip('POL-03') + h.polChip('POL-04'),
+        title: '과금 기준, 월중 처리, 청구', pin: 5, right: stChip('안') + h.polChip('POL-02') + h.polChip('POL-03') + h.polChip('POL-04'),
         body: form([
           { l: '과금 기준', v: optRow(OPT8[0]) },
           { l: '월중 등록', v: optRow(OPT8[1]) },

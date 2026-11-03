@@ -122,7 +122,7 @@
         {
           "name": "HQ21.reopen",
           "arg": "문의 id",
-          "does": "완료된 문의를 다시 열어 처리 중으로 돌린다 (편집 권한 필요)"
+          "does": "완료된 문의를 다시 열어 처리 중으로 돌린다 (편집 권한이 있어야 한다)"
         },
         {
           "name": "HQ21.toInvoice",
@@ -145,7 +145,7 @@
           "does": "모두 답한 뒤 동의한 센터에 집행 내역 통보일을 기록한다"
         }
       ],
-      "reads": "s.notices, s.inquiries (CT-17과 같은 배열), s.ct17.files와 dl (있으면 다운로드 수에 더함), s.invoices",
+      "reads": "s.notices, s.inquiries (CT-17과 같은 배열), s.ct17.files와 dl (있으면 다운로드 수에 더한다), s.invoices",
       "writes": "s.notices에 새 공지(받는 센터는 to 배열), s.inquiries의 owner, status, answer, s.ct17.files 버전, s.ct17.bodies",
       "demo_hint": "P1a 운영 장에서 본사 운영팀(hq:ops)이 필독 공지를 올리고(HQ21.post), 대치1 원장이 CT-17에서 확인(CT17.read)한 뒤 다시 HQ-21에서 확인 수가 바뀌는 장면. 1:1 문의는 CT-17 CT17.ask로 만든 문의를 HQ21.select, HQ21.assign, HQ21.answer로 이어 가면 좋다. 정산팀(hq:fin)이 #1042에 답하는 장면은 배정자 권한(검토 반영 5)을 보여 준다. 탭 d는 P2 장에서 쓴다"
     },
@@ -236,7 +236,7 @@
         {
           "name": "HQ22.saveAcct",
           "arg": "{name:'박하늘', login:'park.hn', role:'운영'|'정산'|'콘텐츠'|'SV'|'슈퍼관리자'}",
-          "does": "계정을 만든다 (상태 초대됨, 2단계 첫 로그인 때 등록). 아이디가 겹치거나 형식이 틀리면 오류. 감사 로그에 계정 생성"
+          "does": "계정을 만든다 (상태 초대 중, 2단계는 첫 로그인 때 등록). 아이디가 겹치거나 형식이 틀리면 오류. 감사 로그에 계정 생성"
         },
         {
           "name": "HQ22.lockAsk",
@@ -564,7 +564,7 @@
         },
         {
           "name": "HQ26.receive",
-          "arg": "{id:'rn2', date:'2032-05-01'}",
+          "arg": "{id:'rn2', date:'2030-01-15'} (부산해운대 만료 2030-05-31, 요구 기간 2029-12-02~2030-03-02)",
           "does": "갱신 요구를 접수한다. 만료 180~90일 전 기간 밖이면 오류"
         },
         {

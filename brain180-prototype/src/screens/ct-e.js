@@ -76,6 +76,27 @@
   });
   const prodsOf = s => s.products.slice().sort((a, b) => a.perWeek - b.perWeek);
   const shortName = p => p.name.split(' · ')[0];
+  // 직영 센터는 본사 교습 상품(HQ-10)에 저장된 확정가와 교육청 등록액을 그대로 읽고 써요. 원문 52쪽 대치1 표와 같은 값이에요.
+  const hqKey = p => 't_' + p.perWeek + '_' + p.minutes;
+  const hqDirect = (s, c) => !!(c && c.type === '직영' && s.hq10);
+  function hq10Price(s, c, p) {
+    if (!hqDirect(s, c)) return null;
+    const v = s.hq10.vals || {}, k = hqKey(p);
+    for (const x of ['c:' + c.id, c.type, 'base']) if (v[x] && typeof v[x][k] === 'number') return v[x][k];
+    return null;
+  }
+  function hq10Reg(s, c, p, make) {
+    if (!hqDirect(s, c)) return null;
+    const all = s.hq10.edu = s.hq10.edu || {}, m = all[c.id] = all[c.id] || {}, k = hqKey(p);
+    if (!m[k] && make) m[k] = { amt: null, st: '미등록' };
+    return m[k] || null;
+  }
+  function hq10Edu(s, c, p) {
+    const r = hq10Reg(s, c, p);
+    if (!r) return null;
+    if (r.next) return { amount: r.amt, status: r.amt != null ? '변경신고 중' : '확인 대기', pending: r.next, proof: r.proof || '변경신고서 접수증.pdf' };
+    return r.amt != null ? { amount: r.amt, status: r.st && r.st !== '변경신고 중' ? r.st : '등록' } : { amount: null, status: '미등록' };
+  }
   function ct18Data(s, c) {
     const all = s.ct18.centers;
     if (!all[c.id]) {
@@ -87,14 +108,15 @@
         midMonth: '일할', weeks45: '회차 차감', history: [],
       };
       s.products.forEach(p => {
-        d.prices[p.id] = direct ? p.direct : ((p.centerPrice || {})[c.id] || p.recommend);
+        const hp0 = hq10Price(s, c, p);
+        d.prices[p.id] = direct ? (hp0 != null ? hp0 : p.direct) : ((p.centerPrice || {})[c.id] || p.recommend);
         const a = (p.edu || {})[c.id];
         d.edu[p.id] = a ? { amount: a, status: '등록' } : { amount: null, status: '미등록' };
       });
     }
     return all[c.id];
   }
-  const recOf = (s, c, p) => c.type === '직영' ? p.direct : (s.ct18.groupRec[p.id] || p.recommend);
+  const recOf = (s, c, p) => { if (c.type !== '직영') return s.ct18.groupRec[p.id] || p.recommend; const v = hq10Price(s, c, p); return v != null ? v : p.direct; };
   function saleOf(price, e) {
     if (!e || e.amount == null || e.status === '미등록') return { ok: false, why: e && e.status === '확인 대기' ? '확인 대기' : '교육청 등록 전' };
     if (e.status === '변경신고 중' || e.status === '확인 대기') return { ok: false, why: e.status };
@@ -109,9 +131,9 @@
   function ct18Rows(ctx) {
     const s = ctx.s, c = ctx.center, d = ct18Data(s, c), ui = ctx.ui;
     return prodsOf(s).map(p => {
-      const draft = ui['p_' + p.id];
-      const price = draft != null && draft !== '' ? num(draft) : d.prices[p.id];
-      const rec = recOf(s, c, p), e = d.edu[p.id] || { amount: null, status: '미등록' };
+      const draft = ui['p_' + p.id], hq = hq10Price(s, c, p);
+      const price = hq != null ? hq : draft != null && draft !== '' ? num(draft) : d.prices[p.id];
+      const rec = recOf(s, c, p), e = hq10Edu(s, c, p) || d.edu[p.id] || { amount: null, status: '미등록' };
       return { p, id: p.id, rec, price, diff: pctOf(price, rec), e, sale: saleOf(price, e) };
     });
   }
@@ -209,6 +231,14 @@
   function historyCard(ctx, d) {
     const hist = d.history.slice().reverse();
     const name = id => { const p = ctx.s.products.find(x => x.id === id); return p ? p.name : id; };
+    // 직영은 본사 교습 상품(HQ-10) 변경 기록을 그대로 보여 줘요
+    const cn = ctx.center.name, mine = it => it.indexOf(cn) === 0 || /\((본사 기본값|직영 그룹)\)$/.test(it) || it.indexOf('(' + cn + ' 개별)') >= 0;
+    const hq = hqDirect(ctx.s, ctx.center) ? (ctx.s.hq10.log || []).map(x => Object.assign({}, x, { items: (x.items || []).filter(mine) })).filter(x => x.items.length) : [];
+    if (hq.length) return h.card({
+      title: '교습비 변경 이력', sub: '본사 확정가가 바뀌면 남아요',
+      body: '<div class="tl">' + hq.slice(0, 5).map(x => '<div><b>' + esc(x.at) + '</b> ' + esc(x.items.join(', ')) + ', ' + esc(x.by) + (x.when && x.when !== '즉시' ? ' <span class="small muted">' + esc(String(x.when).slice(0, 10)) + ' 적용</span>' : '') + '</div>').join('') + '</div>' +
+        '<div class="small muted" style="margin-top:6px">바뀐 교습비는 게시표를 다시 출력해서 붙여요.</div>',
+    });
     return h.card({
       title: '교습비 변경 이력', sub: '본사 확정가가 바뀌면 남아요',
       body: hist.length ? '<div class="tl">' + hist.map(x => '<div><b>' + esc(x.date) + '</b> ' + esc(name(x.id)) + ' ' + won(x.from) + '에서 ' + J(won(x.to), '으로') + ', ' + esc(x.by) + '</div>').join('') + '</div>'
@@ -342,13 +372,23 @@
     ui.e_err_amount = !amt ? '새 등록액을 숫자로 넣어 주세요.' : null;
     ui.e_err_file = !ui.e_file ? '교육청 등록증이나 변경신고 수리 문서를 붙여 주세요.' : null;
     if (ui.e_err_amount || ui.e_err_file) return;
-    const e = d.edu[pid] = d.edu[pid] || { amount: null, status: '미등록' };
-    e.pending = amt; e.proof = ui.e_file; e.status = e.amount != null ? '변경신고 중' : '확인 대기';
+    const prod = ctx.s.products.find(p => p.id === pid), reg = prod && hq10Reg(ctx.s, ctx.center, prod, true);
+    if (reg) { reg.next = amt; reg.proof = ui.e_file; reg.st = reg.amt != null ? '변경신고 중' : '확인 대기'; }
+    else {
+      const e = d.edu[pid] = d.edu[pid] || { amount: null, status: '미등록' };
+      e.pending = amt; e.proof = ui.e_file; e.status = e.amount != null ? '변경신고 중' : '확인 대기';
+    }
     ui.e_amount = ''; ui.e_file = '';
     say('신고를 올렸어요. 본사가 확인할 때까지 이 상품은 판매가 잠겨요.');
   });
   B.action('CT18.eduConfirm', (ctx, id) => {
     const d = ct18Data(ctx.s, ctx.center);
+    const prod = ctx.s.products.find(p => p.id === id), reg = prod && hq10Reg(ctx.s, ctx.center, prod);
+    if (reg && reg.next) {
+      const from = reg.amt; reg.amt = reg.next; reg.st = '등록'; reg.doc = reg.proof || '변경신고서 접수증.pdf'; delete reg.next;
+      if (Array.isArray(ctx.s.hq10.log)) ctx.s.hq10.log.unshift({ at: ctx.s.today, by: '본사 운영팀', when: '즉시', reason: '변경신고 수리 ' + reg.doc, n: 1, items: [ctx.center.name + ' ' + prod.name + ' 등록액 ' + (from != null ? won(from) + '에서 ' : '') + won(reg.amt)] });
+      say('본사가 수리 문서를 확인했어요. 등록액이 ' + J(won(reg.amt), '으로') + ' 바뀌었어요.'); return;
+    }
     const e = d.edu[id];
     if (e && e.pending) { e.amount = e.pending; e.status = '등록'; delete e.pending; say('본사가 수리 문서를 확인했어요. 등록액이 ' + J(won(e.amount), '으로') + ' 바뀌었어요.'); return; }
     const x = d.extras.find(y => y.id === id);
@@ -383,7 +423,7 @@
     const sale = rows.filter(r => r.sale.ok);
     B.modal({
       title: '교습비 게시표 (' + ctx.center.name + ')', ok: '출력', cancel: '닫기',
-      body: T([{ label: '교습 과정', render: r => esc(r.p.name) }, { label: '월 교습비', num: true, render: r => won(d.prices[r.id]) }, { label: '교육청 등록액', num: true, render: r => won(r.e.amount) }], sale, { empty: '팔 수 있는 상품이 없어요.' }) +
+      body: T([{ label: '교습 과정', render: r => esc(r.p.name) }, { label: '월 교습비', num: true, render: r => won(r.price) }, { label: '교육청 등록액', num: true, render: r => won(r.e.amount) }], sale, { empty: '팔 수 있는 상품이 없어요.' }) +
         T([{ label: '기타경비', k: 'name' }, { label: '금액', num: true, render: x => won(x.amount) }], d.extras.filter(x => extraSale(x).ok), { empty: '받는 기타경비가 없어요.' }) +
         '<div class="small muted">판매가 잠긴 상품은 게시표에 나오지 않아요. 월중 등록은 ' + esc(ctx.center.type === '직영' ? '본사 값' : (d.midMonth + ', 4·5주 달은 ' + d.weeks45)) + '으로 적혀요.</div>',
       onOk: () => { say('게시표를 출력했어요. 센터 안 잘 보이는 곳에 붙여 주세요.'); },
@@ -392,7 +432,7 @@
   });
   B.action('CT18.ad', ctx => {
     const rows = ct18Rows(ctx).filter(r => r.sale.ok), d = ct18Data(ctx.s, ctx.center);
-    const text = '브레인180 ' + ctx.center.name + ' 교습비 ' + rows.map(r => r.p.name + ' 월 ' + won(d.prices[r.id])).join(', ') + ' (교재비 별도). 교육청 등록 교습비 이하로 받아요.';
+    const text = '브레인180 ' + ctx.center.name + ' 교습비 ' + rows.map(r => r.p.name + ' 월 ' + won(r.price)).join(', ') + ' (교재비 별도). 교육청 등록 교습비 이하로 받아요.';
     B.modal({ title: '광고 표시 문구', ok: '복사', cancel: '닫기', body: '<textarea class="inp" readonly style="min-height:90px">' + esc(text) + '</textarea><div class="small muted">학원 광고에는 교습비를 함께 적어야 해요. 판매가 잠긴 상품은 빠져요.</div>', onOk: () => { say('광고 문구를 복사했어요.'); } });
     return false;
   });
@@ -851,8 +891,23 @@
       reasons: { daechi1: [['학원 일정 겹침', 5], ['이사', 2], ['비용', 1], ['학습 효과', 0], ['기타 (메모)', 0]] },
     };
   });
+  // 아직 저장하지 않은 이번 달 줄에는 시연 중 바뀐 원생(새 등록, 휴원 복귀, 퇴원)을 더해요. 원생 목록(CT-04)과 같은 셈이에요.
+  function liveDelta(s, cid) {
+    const init = (B.initialStore && B.initialStore.students) || s.students;
+    const act = x => x.center === cid && (x.status === '재원' || x.status === '퇴원 예정');
+    const gone = x => x.center === cid && x.status === '퇴원';
+    const ids = {}; init.forEach(x => { ids[x.id] = 1; });
+    return {
+      active: s.students.filter(act).length - init.filter(act).length,
+      add: s.students.filter(x => act(x) && !ids[x.id]).length,
+      out: Math.max(0, s.students.filter(gone).length - init.filter(gone).length),
+    };
+  }
   function monthsOf(s, c) {
-    if (s.ct21.months[c.id]) return s.ct21.months[c.id];
+    if (s.ct21.months[c.id]) {
+      const d = liveDelta(s, c.id);
+      return s.ct21.months[c.id].map(x => x.saved ? x : Object.assign({}, x, { active: x.active + d.active, add: x.add + d.add, out: x.out + d.out }));
+    }
     if (!c.opened || c.opened === '-' || c.opened > s.today) return [];
     return [{ m: Number(s.today.slice(5, 7)) + '월', active: c.students, add: c.students, out: 0, saved: '' }];
   }

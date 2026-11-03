@@ -1210,17 +1210,18 @@
       ]) + '<div class="hqc-preview"><div class="small">결과지 미리보기</div><b>두뇌 유형 ○○형 · 읽기 레벨 L2</b><div>(상담은 사람이 진행)</div><div class="small" style="margin-top:6px">' +
         esc(ways.length ? ways.join(', ') + '로 전달해요.' : '전달 방식을 골라 주세요.') + (ways.indexOf('우편') >= 0 ? ' 우편 주소는 ' + esc(fmtIn(days)) + '일 뒤 자동으로 지워요.' : '') + '</div></div>',
     });
-    const c5 = '<div data-pin="5">' + h.alert('테스트비와 상담비를 교습비 외에 받을 수 있는지, 등록 대상인지 교육청에 확인한 뒤 확정해요. 교습비 외 비용 징수는 점검 대상이에요.', 'bad', { title: '교육청 확인 필요' }) + '</div>';
+    const c5 = '<div data-pin="5">' + h.alert('테스트비와 상담비를 교습비 외에 받을 수 있는지, 등록 대상인지 교육청에 확인한 뒤 확정해요. 교습비 외 비용 징수는 점검 대상이에요.', 'bad', { title: '교육청에 확인해야 해요' }) + '</div>';
     const edu = st(ctx, sid).edu, es = ui.e_status || edu.status;
+    // 저장 값('등록 필요', '등록 불필요')은 CT-02, CT-03이 함께 읽어서 그대로 두고 보이는 이름만 바꿔요
     const lockTxt = edu.status === '확인 전' ? '확인 전이라 CT-02 상담비와 CT-03 테스트비 수납을 잠가요. 그동안 입학 테스트는 무료예요.' : edu.status === '등록 필요' ? '교육청 등록 대상이에요. 센터별 등록액을 받기 전까지 수납은 계속 잠겨요.' : '등록이 필요 없다는 답을 받았어요. 센터 수납 잠금을 풀 수 있고, 공문은 근거로 남아요.';
     const c6 = card({
       pin: 6, title: '교육청 확인 기록', chip: B.impChip('IMP-08'),
       body: kvt([
-        ['확인 상태', h.opts(['확인 전', '등록 필요', '등록 불필요'].map(x => ({ v: x, l: x, dis: R })), es, { act: 'HQ14.edu' })],
+        ['확인 상태', h.opts(['확인 전', '등록 필요', '등록 불필요'].map(x => ({ v: x, l: eduLabel(x), dis: R })), es, { act: 'HQ14.edu' })],
         ['확인일', '<input class="inp hqc-in" type="date" data-field="e_date" value="' + esc(ui.e_date != null ? ui.e_date : edu.date) + '" style="width:140px"' + (R ? ' disabled' : '') + ' aria-label="확인일">'],
         ['근거', '<input class="inp hqc-in" data-field="e_ref" value="' + esc(ui.e_ref != null ? ui.e_ref : edu.ref) + '" placeholder="공문 번호, 회신일" style="width:220px"' + (R ? ' disabled' : '') + ' aria-label="근거">' + ' ' + h.btn('기록', { sm: true, act: 'HQ14.eduSave', disabled: R })],
       ]) + (ui.e_err ? '<div class="hqc-err" style="margin-top:4px">' + esc(ui.e_err) + '</div>' : '') +
-        '<div class="hqc-res alert ' + (edu.status === '등록 불필요' ? 'ok' : 'warn') + '">' + h.chip(edu.status, edu.status === '등록 불필요' ? 'ok' : 'warn') + ' ' + esc(lockTxt) + (edu.date ? ' <span class="small muted">' + esc(edu.date + ' ' + edu.ref) + '</span>' : '') + '</div>',
+        '<div class="hqc-res alert ' + (edu.status === '등록 불필요' ? 'ok' : 'warn') + '">' + h.chip(eduLabel(edu.status), edu.status === '등록 불필요' ? 'ok' : 'warn') + ' ' + esc(lockTxt) + (edu.date ? ' <span class="small muted">' + esc(edu.date + ' ' + edu.ref) + '</span>' : '') + '</div>',
     });
     const c8 = card({
       pin: 8, title: '등록하지 않은 아이 기록', chip: B.impChip('IMP-07'),
@@ -1275,12 +1276,13 @@
   };
   common('HQ-14');
   act('HQ-14', 'edu', (ctx, v) => { if (['확인 전', '등록 필요', '등록 불필요'].indexOf(v) >= 0) ctx.ui.e_status = v; });
+  function eduLabel(v) { return v === '등록 필요' ? '등록 대상' : v === '등록 불필요' ? '등록 대상 아님' : v; }
   act('HQ-14', 'eduSave', (ctx, arg) => {
     const ui = ctx.ui, edu = st(ctx, 'HQ-14').edu;
     if (arg && typeof arg === 'object') { if (arg.status) ui.e_status = arg.status; if (arg.date != null) ui.e_date = arg.date; if (arg.ref != null) ui.e_ref = arg.ref; }
     const status = ui.e_status || edu.status, date = (ui.e_date != null ? ui.e_date : edu.date || '').trim(), ref = (ui.e_ref != null ? ui.e_ref : edu.ref || '').trim();
     if (status === edu.status && date === edu.date && ref === edu.ref) { ui.e_err = null; B.toast('바뀐 내용이 없어요. 확인 상태를 고르고 확인일과 공문 번호를 넣어 주세요.'); return; }
-    ui.e_err = status === '확인 전' ? '확인 전 상태는 기록할 게 없어요. 교육청 답을 받은 뒤 등록 필요나 등록 불필요를 골라 주세요.'
+    ui.e_err = status === '확인 전' ? '확인 전 상태는 기록할 게 없어요. 교육청 답을 받은 뒤 등록 대상이나 등록 대상 아님을 골라 주세요.'
       : !/^\d{4}-\d\d-\d\d$/.test(date) || !ref ? '확인 결과를 남기려면 확인일과 공문 번호를 함께 넣어 주세요.'
         : date > ctx.today ? '확인일은 오늘(' + ctx.today + ')이나 그 전 날짜여야 해요.' : null;
     if (ui.e_err) return;
@@ -1288,8 +1290,8 @@
     Object.assign(edu, { status, date, ref });
     ui.e_status = null; ui.e_date = null; ui.e_ref = null;
     const p = ctx.s.pol['POL-27'] = ctx.s.pol['POL-27'] || {};
-    p.history = p.history || []; p.history.push({ date: ctx.today, from: '교육청 ' + prev, to: '교육청 ' + status, by: ctx.persona.name, reason: ref, n: opCenters().length });
-    ctx.s.audit.unshift({ at: '03-08 11:30', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '교육청 확인 기록', target: 'POL-27 테스트비·상담비', reason: status + ', ' + ref });
+    p.history = p.history || []; p.history.push({ date: ctx.today, from: '교육청 ' + eduLabel(prev), to: '교육청 ' + eduLabel(status), by: ctx.persona.name, reason: ref, n: opCenters().length });
+    ctx.s.audit.unshift({ at: '03-08 11:30', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '교육청 확인 기록', target: 'POL-27 테스트비·상담비', reason: eduLabel(status) + ', ' + ref });
     B.toast(status === '등록 불필요' ? '기록했어요. 이 기록이 있어야 센터가 테스트비와 상담비를 받을 수 있어요.' : '기록했어요. 센터별 등록액을 받기 전까지 수납은 잠겨 있어요.');
   });
 
@@ -1306,7 +1308,7 @@
         { n: 3, t: '등록 차감과 재검사', d: '등록하면 테스트비 일부인 2만 원(안)을 교습비에서 빼 줘요. 테스트 뒤 30일(예시) 안에 등록해야 해요. 차감액이 실제 낸 테스트비보다 크면 저장되지 않아요. 재검사 허용 주기는 미정이고, 화면에는 6개월(예시)이 들어 있어요.', pol: ['POL-28', 'POL-29'], ref: 'p.33 ③' },
         { n: 4, t: '결과지', d: '두뇌 유형은 지수 없이 유형만, 읽기는 레벨만 보여 주고 상담은 사람이 해요(10/14 결정). 현장 출력이 기본이고 우편, 이메일, 알림톡 링크를 더 켤 수 있어요. 우편 주소는 30일(안) 뒤 자동으로 지우고, 센터는 이 기간을 줄이기만 해요.', pol: ['POL-30'], ref: 'p.33 ④' },
         { n: 5, t: '교육청 확인 안내', d: '테스트비와 상담비를 교습비 외에 받아도 되는지, 등록 대상인지 교육청에 확인한 뒤 확정해요. 교습비 외 비용 징수는 점검 대상이에요.', pol: ['POL-27'], ref: 'p.33 ⑤' },
-        { n: 6, t: '교육청 확인 기록', kind: 'review', imp: 'IMP-08', pol: ['POL-27'], d: '확인 상태를 확인 전, 등록 필요, 등록 불필요 중에서 고르고 확인일과 공문 번호를 남겨요. 확인 전이면 CT-02 상담비와 CT-03 테스트비 수납을 잠그고 입학 테스트는 무료로 해요. 등록 필요로 나오면 교습비처럼 센터별 등록액을 받은 뒤에 열어요.' },
+        { n: 6, t: '교육청 확인 기록', kind: 'review', imp: 'IMP-08', pol: ['POL-27'], d: '확인 상태를 확인 전, 등록 대상, 등록 대상 아님 중에서 고르고 확인일과 공문 번호를 남겨요. 확인 전이면 CT-02 상담비와 CT-03 테스트비 수납을 잠그고 입학 테스트는 무료로 해요. 등록 필요로 나오면 교습비처럼 센터별 등록액을 받은 뒤에 열어요.' },
         { n: 7, t: '본사 과금 근거', kind: 'review', imp: 'IMP-25', pol: ['POL-27'], d: '검사 1건당 본사가 돈을 받는 쪽을 고르면 금액과 함께 계약 조항이나 동의서 근거를 넣어야 저장돼요. 가맹 센터에 새로 돈을 받는 일이라 HQ-08 사용료처럼 근거가 있어야 해요. 가맹 센터가 없는 P1a에는 실제로 걸리지 않아요.' },
         { n: 8, t: '등록하지 않은 아이 기록', kind: 'review', imp: 'IMP-07', pol: ['POL-30', 'POL-40'], d: '상담과 테스트만 하고 등록하지 않은 아이 기록을 30일(예시) 뒤 자동으로 지우고 HQ-22 파기 대장에 남겨요. CT-02 예약 때 보호자에게 알리는 보관 기간과 같은 값을 써요.' },
       ],

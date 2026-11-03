@@ -21,10 +21,24 @@
   const shareDay = (d1, d2) => dayList(d1).some(x => dayList(d2).includes(x));
   const okTime = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
   const okDate = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
-  // 반의 요일로 그달 수업 날짜를 세요. 공휴일은 빼고, from이 있으면 그날부터 세요.
-  function sessions(days, ym, from) {
-    const out = [], ds = dayList(days), n = dim(ym);
-    for (let i = 1; i <= n; i++) { const d = ym + '-' + pad(i); if ((from && d < from) || HOLI[d]) continue; if (ds.includes(dow(d))) out.push(d); }
+  // 쉬는 날 모음. 본사 공휴일과 지정 휴원일(HQ-11)에 센터 휴원일(CT-19)을 더해요. 날짜마다 이름을 붙여요.
+  function holMap(s, cid) {
+    const m = Object.assign({}, HOLI);
+    const add = x => {
+      if (!x || !okDate(x.from)) return;
+      const end = okDate(x.to) && x.to > x.from ? x.to : x.from;
+      for (let d = x.from, i = 0; d <= end && i < 62; d = addDays(d, 1), i++) if (!m[d]) m[d] = x.name || '휴원';
+    };
+    s = s || B.store;
+    ((s.hq11 || {}).hol || []).forEach(add);
+    const c19 = s.ct19 && s.ct19.centers && s.ct19.centers[cid];
+    if (c19 && Array.isArray(c19.holidays)) c19.holidays.forEach(add);
+    return m;
+  }
+  // 반의 요일로 그달 수업 날짜를 세요. 쉬는 날은 빼고, from이 있으면 그날부터 세요.
+  function sessions(days, ym, from, hol) {
+    const out = [], ds = dayList(days), n = dim(ym), H = hol || HOLI;
+    for (let i = 1; i <= n; i++) { const d = ym + '-' + pad(i); if ((from && d < from) || H[d]) continue; if (ds.includes(dow(d))) out.push(d); }
     return out;
   }
   const isDirect = c => !c || c.type === '직영';
@@ -148,10 +162,16 @@
     s.students.filter(st => st.center === cid && C8_ELIG.includes(st.status) && !R[st.id]).forEach(st => {
       R[st.id] = st.status === '재원' ? { st: '발송 전', disc: 0 } : { st: '제외', why: /휴원/.test(st.status) ? '휴원' : '퇴원 예정', disc: 0 };
     });
+    // 원생 상세(CT-06)에서 상태가 바뀌면 아직 보내지 않은 줄을 맞춰요. 휴원 복귀는 다시 대상, 휴원이나 퇴원 처리는 빼요. 직원이 직접 넣거나 뺀 줄(manual)은 그대로 둬요.
+    s.students.filter(st => st.center === cid && R[st.id]).forEach(st => {
+      const r = R[st.id];
+      if (r.st === '제외' && !r.manual && ['휴원', '퇴원 예정'].includes(r.why) && st.status === '재원') Object.assign(r, { st: '발송 전', why: '', back: true });
+      else if (r.st === '발송 전' && !r.manual && /휴원|퇴원/.test(st.status)) Object.assign(r, { st: '제외', why: /휴원/.test(st.status) ? '휴원' : '퇴원 예정' });
+    });
     return Object.keys(R).map(id => {
       const st = s.students.find(x => x.id === id); if (!st) return null;
       const k = s.classes.find(x => x.id === st.cls);
-      return { id, st, r: R[id], k, amt: price(s, ctx.center, st.product || 'pr1'), ses: k ? sessions(k.days, s.ct08.month).length : null };
+      return { id, st, r: R[id], k, amt: price(s, ctx.center, st.product || 'pr1'), ses: k ? sessions(k.days, s.ct08.month, null, holMap(s, ctx.centerId)).length : null };
     }).filter(Boolean);
   }
   function c8kpi(ctx, rows) {
@@ -184,7 +204,7 @@
       const rows = c8rows(ctx), k = c8kpi(ctx, rows);
       const ym = s.ct08.month, m = Number(ym.slice(5));
       const asOf = s.ct08.asOf, end = ym.slice(0, 4) + '-03-31', dd = dayDiff(asOf, end);
-      const ses = d => sessions(d, ym).length;
+      const hm = holMap(s, ctx.centerId), ses = d => sessions(d, ym, null, hm).length;
       let html = '<div class="ctc-line"><h2>' + m + '월 재등록</h2>' +
         '<span class="ctc-pill" data-pin="1">청구 기간 3/20 ~ 3/31 ' + stChip(polSt('POL-24')) + varChip() + ' <b>마감까지 D-' + dd + '</b></span>' +
         '<span class="ctc-pill" data-pin="5">' + m + '월 4주 달 · 회차 ' + ses('월·수') + '</span>' +
@@ -339,7 +359,7 @@
   });
   function c8exclude(ctx, id, why) {
     const x = c8rows(ctx).find(r => r.id === id); if (!x) return;
-    x.r.prev = x.r.st; x.r.st = '제외'; x.r.why = why || '기타';
+    x.r.prev = x.r.st; x.r.st = '제외'; x.r.why = why || '기타'; x.r.manual = true;
     if (why === '휴원' || why === '퇴원 예정') {
       ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: id, want: why === '휴원' ? '휴원' : '퇴원' });
       // 상태 변경으로 바로 이어요 (IMP-12). 원생 상세 화면이 있으면 그 화면으로 가요.
@@ -362,7 +382,7 @@
   B.action('CT08.include', (ctx, id) => {
     if (!ctx.canEdit) return;
     const x = c8rows(ctx).find(r => r.id === id); if (!x) return;
-    x.r.st = x.r.prev && x.r.prev !== '발송 전' && x.r.prev !== '제외' ? x.r.prev : '발송 전'; x.r.why = ''; x.r.prev = '';
+    x.r.st = x.r.prev && x.r.prev !== '발송 전' && x.r.prev !== '제외' ? x.r.prev : '발송 전'; x.r.why = ''; x.r.prev = ''; x.r.manual = true;
     B.toast(h.mask(x.st.name) + ' 학생을 4월 명단에 넣었어요. ' + (x.r.st === '발송 전' ? '청구 일괄 발송 때 함께 보내요.' : ''));
   });
 
@@ -394,11 +414,24 @@
   const who = ctx => (ctx.role === '실장·데스크' ? '실장' : ctx.role) + ' ' + ctx.persona.name;
   const tick = s => { s.ct09.clock = fromMin(toMin(s.ct09.clock) + 4); return s.ct09.clock; };
   const mtype = m => /결제선생/.test(m) ? '결제선생' : /지역화폐/.test(m) ? '지역화폐' : /현금/.test(m) ? '현금' : /이체|계좌/.test(m) ? '계좌이체' : '카드';
+  // 수강 등록(CT-07)과 보호자 결제(PA-01)에서 온 수납에는 시각이 없어서 결제 완료 기록의 시각을 찾아 써요.
+  function c9time(s, p) {
+    if (p.time) return p.time;
+    const x = ((s.pa01 || {}).extra || []).filter(e => e.kind === 'pay' && e.student === p.student && String(e.at || '').indexOf(p.date) >= 0).pop();
+    const m = x && /(\d\d:\d\d)\s*$/.exec(x.at);
+    return m ? m[1] : '';
+  }
+  // 결제선생 결제는 결제되면 저절로 기록돼요. 직원이 넣은 건은 다른 줄처럼 역할을 붙여요.
+  function c9by(s, p) {
+    if (/결제선생/.test(p.method || '')) return '결제선생 자동';
+    const st = (s.staff || []).find(x => x.name === p.by && x.center === p.center);
+    return st ? (st.role === '실장·데스크' ? '실장' : st.role) + ' ' + st.name : (p.by || '-');
+  }
   function c9all(ctx) {
     const s = ctx.s, cid = ctx.centerId;
     const ext = (s.payments || []).filter(p => p.center === cid).map(p => ({
-      id: p.id, center: p.center, date: p.date, time: p.time || '', student: p.student, kind: /테스트/.test(p.item) ? '테스트비' : /상담/.test(p.item) ? '상담비' : '교습비',
-      item: p.item, amount: p.amount, method: p.method, approval: p.approval || '-', by: p.by, ext: true, src: p,
+      id: p.id, center: p.center, date: p.date, time: c9time(s, p), student: p.student, kind: /테스트/.test(p.item) ? '테스트비' : /상담/.test(p.item) ? '상담비' : '교습비',
+      item: p.item, amount: p.amount, method: p.method, approval: p.approval || '-', by: c9by(s, p), ext: true, src: p,
       cash: s.ct09.cashNo[p.id] || (p.receipt === '발급' && /현금|이체/.test(p.method) ? '발급' : ''),
     }));
     return s.ct09.rows.filter(r => r.center === cid).map(r => Object.assign({}, r, { cash: s.ct09.cashNo[r.id] || r.cash })).concat(ext);
@@ -723,20 +756,39 @@
     return ui.key ? C[ui.key] : null;
   }
   function c10clear(ui) { ['f_reason', 'f_occur', 'f_acct', 'f_memo', 'f_method', 'err'].forEach(k => delete ui[k]); }
-  // 학원법 반환 기준 (교습기간 1개월 이내). 지난 회차는 반 시간표로 세요.
-  function c10calc(cs, occur, today) {
+  // 본사 환불 규정(HQ-12)에 저장된 값을 그대로 읽어요. 직영은 법정 기준, 가맹은 센터 상향 값이 법정보다 유리할 때만 써요.
+  const C10_FR = { '반환 없음': [0, 1], '1/3': [1, 3], '1/2': [1, 2], '2/3': [2, 3], '3/4': [3, 4], '전액': [1, 1] };
+  const C10_LEGAL = { a: '2/3', b: '1/2', c: '반환 없음', d: 5 };
+  const C10_SEG = { a: '1/3 경과 전', b: '1/2 경과 전', c: '1/2 경과 후' };
+  const c10fv = v => { const f = C10_FR[v] || C10_FR['반환 없음']; return f[0] / f[1]; };
+  function c10rule(s, cid) {
+    s = s || B.store;
+    const hq = s.hq12 || {}, base = (hq.vals && hq.vals.base) || {}, c = (s.centers || []).find(x => x.id === cid);
+    const unit = [1, 10, 100].includes(Number(base.round)) ? Number(base.round) : 10;
+    const r = { a: C10_LEGAL.a, b: C10_LEGAL.b, c: C10_LEGAL.c, d: C10_LEGAL.d, unit, up: [], direct: isDirect(c) };
+    if (c && !r.direct) {
+      ['a', 'b', 'c'].forEach(k => { const v = base['up_' + cid + '_' + k]; if (C10_FR[v] && c10fv(v) > c10fv(r[k])) { r[k] = v; r.up.push(k); } });
+      const d = Number(base['up_' + cid + '_d']); if (d > 0 && d < r.d) { r.d = d; r.up.push('d'); }
+    }
+    const vers = (hq.ver || []).filter(x => !x.date || x.date <= (s.today || '9999'));
+    const ver = vers[vers.length - 1] || (hq.ver || [])[0];
+    r.ver = ver ? ver.v + ' (' + ver.date + ')' : '';
+    return r;
+  }
+  // 학원법 반환 기준 (교습기간 1개월 이내). 지난 회차는 반 시간표로 세요. 구간 나누기와 끝전 올림은 HQ-12 계산 미리보기와 같은 식이에요.
+  function c10calc(cs, occur, today, s) {
+    const rule = c10rule(s, cs.center), hm = holMap(s, cs.center);
     const ym = okDate(occur) ? occur.slice(0, 7) : '2027-03';
-    const all = sessions(cs.days, ym, cs.since || null), past = all.filter(d => d < occur);
+    const all = sessions(cs.days, ym, cs.since || null, hm), past = all.filter(d => d < occur);
     const n = all.length, k = past.length, r = n ? k / n : 0;
-    let frac = 0, fracTxt = '없음', label = '1/2 경과 후라 반환 없음';
-    if (k === 0) { frac = 1; fracTxt = '전액'; label = '교습 시작 전이라 전액 반환'; }
-    else if (r < 1 / 3) { frac = 2 / 3; fracTxt = '2/3'; label = '1/3 경과 전이라 2/3 반환'; }
-    else if (r < 1 / 2) { frac = 1 / 2; fracTxt = '1/2'; label = '1/2 경과 전이라 1/2 반환'; }
-    const amount = Math.ceil(cs.base * frac / 10) * 10;
-    const due = okDate(occur) ? addDays(occur, 5) : '';
+    const seg = k === 0 ? '' : r < 1 / 3 ? 'a' : r < 1 / 2 ? 'b' : 'c';
+    const fracTxt = seg ? rule[seg] : '전액', f = C10_FR[fracTxt] || C10_FR['반환 없음'], frac = f[0] / f[1], up = !!seg && rule.up.includes(seg);
+    const label = !seg ? '교습 시작 전이라 전액 반환' : C10_SEG[seg] + '이라 ' + (frac ? fracTxt + ' 반환' : '반환 없음') + (up ? ' (센터 상향 기준)' : '');
+    const amount = Math.ceil(cs.base * f[0] / f[1] / rule.unit - 1e-9) * rule.unit;
+    const due = okDate(occur) ? addDays(occur, rule.d) : '';
     const five = dayList(cs.days).some(w => { let c = 0; for (let i = 1; i <= dim(ym); i++) if (dow(ym + '-' + pad(i)) === w) c++; return c === 5; });
-    const hol = Object.keys(HOLI).filter(d => d.slice(0, 7) === ym && dayList(cs.days).includes(dow(d)));
-    return { ym, n, k, r, past, frac, fracTxt, label, amount, due, dd: due ? dayDiff(today, due) : null, five, hol, same: all.includes(occur) };
+    const hol = Object.keys(hm).filter(d => d.slice(0, 7) === ym && dayList(cs.days).includes(dow(d))).sort().map(d => ({ d, name: hm[d] }));
+    return { ym, n, k, r, past, frac, fracTxt, label, amount, due, dd: due ? dayDiff(today, due) : null, five, hol, same: all.includes(occur), rule, seg, up };
   }
   const C10_STEPS = ['계산', '요청', '승인', '실행 완료'];
   const c10stepIdx = st => ({ '계산 중': 0, '계산 완료': 0, '반려': 0, '승인 대기': 1, '승인': 2, '실행 완료': 3 })[st] || 0;
@@ -757,12 +809,12 @@
     render(ctx) {
       const s = ctx.s, ui = ctx.ui, cs = c10case(ctx);
       if (!cs) return h.alert('학부모 환불과 본사 사용료 반환은 따로 처리해요. 사용료는 POL-03을 따라요.', 'info') + '<div style="margin-top:12px">' + h.empty('이 센터에는 기다리는 환불이 없어요. 원생 상세(CT-06)에서 퇴원을 처리하면 여기로 넘어와요.') + '</div>';
-      const v = c10vals(ctx, cs), cal = c10calc(cs, v.occur, s.today), done = cs.status === '실행 완료';
+      const v = c10vals(ctx, cs), cal = c10calc(cs, v.occur, s.today, s), done = cs.status === '실행 완료';
       const e = ui.err || {}, ro = !ctx.canEdit || done;
       let html = h.alert('학부모 환불과 본사 사용료 반환은 따로 처리해요. 사용료는 POL-03을 따라요.', 'info');
       html += '<div class="ctc-line" style="margin-top:12px"><h2>환불 처리 · ' + esc(h.mask(cs.name)) + ' (' + esc(cs.grade) + ')</h2>' +
         '<span class="ctc-pill' + (cal.dd != null && cal.dd <= 2 ? ' bad' : '') + '" data-pin="4">' + (cal.due ? (done ? '반환 완료 ' + esc(cs.doneAt || '') : (cal.dd < 0 ? '반환 기한 지남 ' : '반환 기한 D-' + cal.dd + ' · ') + mdS(cal.due) + '까지') : '사유 발생일을 넣어 주세요') + '</span>' +
-        '<span class="muted small">사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + ' + 5일 (법정)' + (cal.dd != null && cal.dd <= 2 && !done ? ', 대시보드 경고 중' : '') + '</span>' + h.chip(cs.status, C10_TONE[cs.status] || 'info') + '</div>';
+        '<span class="muted small">사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + ' + ' + cal.rule.d + '일 ' + (cal.rule.up.includes('d') ? '(센터 상향, 법정은 5일)' : '(법정)') + (cal.dd != null && cal.dd <= 2 && !done ? ', 대시보드 경고 중' : '') + '</span>' + h.chip(cs.status, C10_TONE[cs.status] || 'info') + '</div>';
       html += '<div class="grid g2">';
       // 왼쪽: 반환 사유, 계산, 센터 기준
       html += '<div class="stack">';
@@ -776,7 +828,7 @@
         title: '계산', pin: 2,
         body: '<div class="ctc-form">' +
           '<label>수납</label><span>' + esc(cs.item) + ' ' + num(cs.base) + ' (' + esc(cs.cls) + ' · 교습기간 1개월)</span>' +
-          '<label>총 교습시간</label><span>' + cal.n + '회 × 90분 = ' + (cal.n * 90) + '분 ' + h.polChip('POL-20') + ' <span class="muted small">' + [cal.five ? '5주 달' : '4주 달'].concat(cal.hol.map(d => mdS(d) + ' 공휴 제외')).concat(cs.since ? [mdS(cs.since) + ' 등록부터'] : []).join(', ') + '</span></span>' +
+          '<label>총 교습시간</label><span>' + cal.n + '회 × 90분 = ' + (cal.n * 90) + '분 ' + h.polChip('POL-20') + ' <span class="muted small">' + [cal.five ? '5주 달' : '4주 달'].concat(cal.hol.map(x => mdS(x.d) + (/휴원/.test(x.name) ? ' 휴원' : ' 공휴') + ' 제외')).concat(cs.since ? [mdS(cs.since) + ' 등록부터'] : []).join(', ') + '</span></span>' +
           '<label>경과</label><span>' + (cal.k ? cal.past.map(mdS).join(', ') + ' = ' : '') + cal.k + '회 ' + (cal.k * 90) + '분 (' + (cal.r * 100).toFixed(1) + '%)' + (cal.same ? ' <span class="muted small">사유 발생일 당일 수업은 넣지 않았어요</span>' : '') + '</span>' +
           '<label>구간</label><span>' + esc(cal.label) + '</span>' +
           '<label>교재비</label><span>' + h.chip('미정', 'st-미정') + varChip() + ' <span class="small muted">처리 방식 정책 대기</span></span></div>' +
@@ -786,17 +838,25 @@
       });
       html += h.card({
         title: '센터 기준', pin: 3,
-        body: '<div>법정 기준 ' + h.chip('적용', 'ok') + ' · 센터 상향 기준 없음</div><div class="small muted" style="margin-top:6px">가맹 센터는 학부모에게 더 유리하게만 바꿀 수 있어요 (HQ-12). ' + h.polChip('POL-25') + '</div>',
+        body: (() => {
+          const R = cal.rule;
+          if (R.direct) return '<div>법정 기준 ' + h.chip('적용', 'ok') + ' <span class="small muted">직영 센터는 법정 기준을 그대로 써요</span></div><div class="small muted" style="margin-top:6px">가맹 센터는 학부모에게 더 유리하게만 바꿀 수 있어요 (HQ-12). ' + h.polChip('POL-25') + '</div>';
+          if (!R.up.length) return '<div>법정 기준 ' + h.chip('적용', 'ok') + ' <span class="small muted">센터 상향 기준 없음</span></div><div class="small muted" style="margin-top:6px">가맹 센터는 학부모에게 더 유리하게만 바꿀 수 있어요 (HQ-12). ' + h.polChip('POL-25') + '</div>';
+          return '<div>센터 상향 기준 ' + h.chip('적용', 'ok') + ' <span class="small muted">본사 환불 규정(HQ-12)에 저장된 값이에요</span></div>' +
+            '<div class="ctc-sum" style="margin-top:6px">' + ['a', 'b', 'c'].map(k => '<span>' + C10_SEG[k] + '</span><span>' + esc(R[k]) + (R.up.includes(k) ? ' ' + h.chip('상향', 'info') : '') + '</span>').join('') +
+            '<span>반환 기한</span><span>' + R.d + '일' + (R.up.includes('d') ? ' ' + h.chip('상향', 'info') : '') + '</span></div>' +
+            '<div class="small muted" style="margin-top:6px">법정 기준보다 불리하게는 바꿀 수 없어요. ' + h.polChip('POL-25') + '</div>';
+        })(),
       });
       html += '</div>';
       // 오른쪽: 반환액, 실행, 대기 목록
       html += '<div class="stack">';
       html += h.card({
         body: '<div class="ctc-sum"><span>' + esc(cs.item) + '</span><span>' + num(cs.base) + '</span><span>반환 비율</span><span>' + esc(cal.fracTxt) + '</span><span>교재비</span><span>-</span>' +
-          '<span class="tot">반환액</span><span class="tot ctc-big">' + num(cal.amount) + '</span></div><div class="small muted" style="margin-top:4px">끝전 처리 학부모에게 유리하게 10원 단위 올림 (예시)</div>' +
+          '<span class="tot">반환액</span><span class="tot ctc-big">' + num(cal.amount) + '</span></div><div class="small muted" style="margin-top:4px">' + (cal.rule.unit === 1 ? '끝전 처리 1원 단위 그대로 (HQ-12)' : '끝전 처리 학부모에게 유리하게 ' + cal.rule.unit + '원 단위 올림 (예시, HQ-12)') + '</div>' +
           '<div class="ctc-box review" data-pin="9" style="margin-top:10px"><b>계산에 쓴 값</b>' +
           [['POL-25', '환불 규정, 학원법 반환 기준'], ['POL-20', '총 교습시간, 달력 회차로 임시 계산'], ['POL-14', '교재비 반환, 정책 대기']].map(p => '<div class="row" style="gap:6px">' + h.polChip(p[0]) + '<span class="small">' + esc(p[1]) + '</span><span style="margin-left:auto">' + stChip(polSt(p[0])) + '</span></div>').join('') +
-          '<div class="small">기준일은 사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + '이에요. ' + (done ? '이 환불에 위 값과 상태, 기준일을 함께 저장했어요 (' + esc(cs.snapAt || '') + ').' : '5일 법정 기한이 있어서 미정 값이 있어도 막지 않고, 실행할 때 쓴 값과 상태를 함께 저장해요.') + '</div></div>',
+          '<div class="small">기준일은 사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + '이에요. ' + (done && cs.ruleVer ? '본사 환불 규정 ' + esc(cs.ruleVer) + '을 썼어요. ' : !done && cal.rule.ver ? '본사 환불 규정 ' + esc(cal.rule.ver) + '을 써요. ' : '') + (done ? '이 환불에 위 값과 상태, 기준일을 함께 저장했어요 (' + esc(cs.snapAt || '') + ').' : '법정 반환 기한이 있어서 미정 값이 있어도 막지 않고, 실행할 때 쓴 값과 상태를 함께 저장해요.') + '</div></div>',
       });
       const step = c10stepIdx(cs.status);
       html += h.card({
@@ -809,7 +869,7 @@
           '<div class="small">' + (done ? '실행 ' + esc(cs.doneAt) + ', ' + esc(cs.doneBy || '') + (cs.reqBy ? ', 요청 ' + esc(cs.reqBy) : '') : cs.status === '승인 대기' ? esc(cs.reqBy) + '이 요청했어요. 원장이 승인하면 실행되고, 승인하지 않으면 사유를 남겨 반려해요.' : cs.status === '반려' ? esc(cs.rejBy || '원장') + '이 반려했어요 (' + esc(cs.rejWhy || '') + '). 고쳐서 다시 요청해요.' : ctx.partial ? '실장은 환불 요청까지 해요. 원장이 승인하고 실행해요.' : '원장은 바로 환불을 등록할 수 있어요. 실장이 요청하면 여기서 승인하거나 반려해요.') + '</div></div>',
       });
       const C = s.ct10.cases;
-      const q = Object.keys(C).map(k => C[k]).filter(x => x.center === ctx.centerId && x.status !== '실행 완료').map(x => ({ x, c: c10calc(x, x.occur, s.today) })).sort((a, b) => (a.c.due || '').localeCompare(b.c.due || ''));
+      const q = Object.keys(C).map(k => C[k]).filter(x => x.center === ctx.centerId && x.status !== '실행 완료').map(x => ({ x, c: c10calc(x, x.occur, s.today, s) })).sort((a, b) => (a.c.due || '').localeCompare(b.c.due || ''));
       html += h.card({
         title: '처리 대기 목록', pin: 6,
         body: h.table({
@@ -833,7 +893,7 @@
       items: [
         { n: 1, t: '반환 사유', d: '퇴원이나 휴원 같은 사유와 사유가 생긴 날을 적어요. 원생 상세(CT-06)에서 퇴원을 처리하면 이 화면으로 바로 넘어와요.', ref: 'p.55 ①' },
         { n: 2, t: '계산', d: '학원법 반환 기준(본사 환불 규정)에 따라 총 교습시간 중 지난 비율로 계산해요. 총 교습시간에는 4·5주 달 정책과 공휴일, 휴원일이 들어가요. 계산식은 HQ-12 미리 보기와 같아요.', pol: ['POL-25', 'POL-20'], ref: 'p.55 ②' },
-        { n: 3, t: '센터 기준', d: '가맹 센터가 학부모에게 더 유리한 기준을 쓰면 그 기준으로 계산해요. 법정 기준보다 불리하게는 바꿀 수 없어요.', pol: ['POL-25'], ref: 'p.55 ③' },
+        { n: 3, t: '센터 기준', d: '가맹 센터가 학부모에게 더 유리한 기준을 쓰면 그 기준으로 계산해요. 본사 환불 규정(HQ-12)에 센터별로 저장한 비율과 기한, 끝전 단위를 그대로 읽어요. 법정 기준보다 불리하게는 바꿀 수 없어요.', pol: ['POL-25'], ref: 'p.55 ③' },
         { n: 4, t: '반환 기한', d: '사유가 생긴 날부터 5일 안에 돌려줘야 해요(법정). 기한 2일 전부터 대시보드에 경고가 떠요.', ref: 'p.55 ④' },
         { n: 5, t: '환불 실행', d: '카드 취소나 계좌 반환을 기록해요. 직영의 결제선생 결제는 결제 취소로 처리돼요. 실행하면 수납 내역(CT-09)에 마이너스 금액이 남고 보호자에게 환불 안내가 가요.', pol: ['POL-36'], ref: 'p.55 ⑤' },
         { n: 6, t: '처리 대기', d: '기한이 가까운 순서로 보여 줘요. 줄을 누르면 그 환불을 열어요. 교재비 같은 기타경비를 어떻게 돌려줄지는 아직 미정이에요.', pol: ['POL-14'], ref: 'p.55 ⑥' },
@@ -855,10 +915,10 @@
   }
   function c10save(cs, v) { Object.assign(cs, { reason: v.reason, occur: v.occur, method: v.method, acct: v.acct, memo: v.memo }); }
   function c10exec(ctx, cs, v) {
-    const s = ctx.s, cal = c10calc(cs, v.occur, s.today);
+    const s = ctx.s, cal = c10calc(cs, v.occur, s.today, s);
     c10save(cs, v);
     if (cs.status === '승인 대기') cs.apprBy = who(ctx);
-    Object.assign(cs, { status: '실행 완료', amount: cal.amount, doneAt: '03-08 ' + tick(s), doneBy: who(ctx), snapAt: '03-08', baseDay: v.occur, snap: ['POL-25', 'POL-20', 'POL-14'].map(c => ({ code: c, status: polSt(c) })) });
+    Object.assign(cs, { status: '실행 완료', amount: cal.amount, doneAt: '03-08 ' + tick(s), doneBy: who(ctx), snapAt: '03-08', baseDay: v.occur, ruleVer: cal.rule.ver, snap: ['POL-25', 'POL-20', 'POL-14'].map(c => ({ code: c, status: polSt(c) })) });
     cs.log.unshift({ at: cs.doneAt, what: '환불 실행 ' + num(cal.amount) + '원 (' + v.method + ')', by: who(ctx) });
     s.ct09.rows.push({ id: 'c9-r' + (s.ct09.rows.length + 1), center: cs.center || ctx.centerId, date: C9_DAY, time: cs.doneAt.slice(6), student: cs.student || null, name: cs.student ? null : cs.name, kind: '환불', item: cs.item + ' 환불', amount: -cal.amount, method: v.method, approval: '-', cash: '', by: who(ctx), subject: '환불', period: cs.item });
     // 보호자 환불 안내 (학부모에게 나가는 글에는 (안) 표시 없이 숫자만 써요)
@@ -877,7 +937,7 @@
     if (cs.status === '승인 대기') { B.toast('이미 원장 승인을 기다리고 있어요.'); return; }
     const v = c10check(ctx, cs); if (!v) { B.toast('빨간 글씨를 확인해 주세요.'); return; }
     c10save(cs, v); cs.status = '승인 대기'; cs.reqBy = who(ctx); cs.rejBy = ''; cs.rejWhy = '';
-    cs.log.unshift({ at: '03-08 ' + tick(ctx.s), what: '환불 요청 ' + num(c10calc(cs, v.occur, ctx.s.today).amount) + '원', by: who(ctx) });
+    cs.log.unshift({ at: '03-08 ' + tick(ctx.s), what: '환불 요청 ' + num(c10calc(cs, v.occur, ctx.s.today, ctx.s).amount) + '원', by: who(ctx) });
     B.toast('원장에게 환불 승인 요청을 보냈어요.');
   });
   B.action('CT10.register', (ctx, arg, el) => {
@@ -887,7 +947,7 @@
     const cs = c10case(ctx); if (!cs) return;
     if (cs.status === '실행 완료') { B.toast('이미 환불을 실행했어요.'); return; }
     const v = c10check(ctx, cs); if (!v) { B.toast('빨간 글씨를 확인해 주세요.'); return; }
-    const cal = c10calc(cs, v.occur, ctx.s.today);
+    const cal = c10calc(cs, v.occur, ctx.s.today, ctx.s);
     if (el) {
       B.modal({ title: '환불 등록 · ' + h.mask(cs.name), ok: num(cal.amount) + '원 돌려주기',
         body: h.kv([['반환액', num(cal.amount) + '원 (' + cal.fracTxt + ')'], ['수단', v.method], ['기한', cal.due ? mdS(cal.due) + '까지' : '-'], ['되돌리기', '실행한 뒤에는 취소할 수 없어요']]) + (cs.status === '승인 대기' ? h.alert(cs.reqBy + '이 요청한 환불을 승인하고 실행해요.', 'review') : ''),
@@ -1196,8 +1256,14 @@
   });
   const C12_ABS = 10, C12_NOOUT = 20; // 판정 기준 (분, 예시)
   const c12recs = s => (Array.isArray(s.attendance) ? s.attendance : s.ct12.fallback).concat(s.ct12.att);
+  // 화면 기준 시각. 키오스크(KS-01)에서 더 늦은 시각에 찍은 기록이 있으면 그 시각까지 앞으로 옮겨요.
+  function c12now(s) {
+    let m = toMin(s.ct12.now);
+    c12recs(s).filter(a => a.date === s.today).forEach(a => [a.in, a.out].forEach(v => { if (okTime(v)) m = Math.max(m, toMin(v)); }));
+    return fromMin(m);
+  }
   function c12status(s, k, rec) {
-    const now = toMin(s.ct12.now), t = k ? span(k.time).map(toMin) : [0, 0];
+    const now = toMin(c12now(s)), t = k ? span(k.time).map(toMin) : [0, 0];
     if (rec && rec.status === '결석') return '결석';
     if (rec && rec.in && rec.out) return '퇴실';
     if (rec && rec.in) return k && now > t[1] + C12_NOOUT ? '미퇴실' : '수업 중';
@@ -1228,9 +1294,9 @@
     return '-';
   }
   function c12mkOpts(ctx, p) {
-    const s = ctx.s, c = ctx.center, own = p.k, lv = p.level || (own || {}).level, out = [];
+    const s = ctx.s, c = ctx.center, own = p.k, lv = p.level || (own || {}).level, out = [], hm = holMap(s, ctx.centerId);
     for (let i = 1; i <= 14; i++) {
-      const d = addDays(s.today, i), w = dow(d); if (HOLI[d]) continue;
+      const d = addDays(s.today, i), w = dow(d); if (hm[d]) continue;
       s.classes.filter(k => k.center === ctx.centerId && k.level === lv && dayList(k.days).includes(w)).forEach(k => {
         if (own && (k.id === own.id || (dayList(own.days).includes(w) && overlap(own.time, k.time)))) return;
         const booked = s.ct12.makeups.filter(m => m.date === d && m.cls === k.id).length, free = k.cap - k.enrolled - booked;
@@ -1258,11 +1324,11 @@
       let html = '<div class="ctc-bar" data-pin="1">' + sel({ f: 'f_date', v: s.today, opts: [{ v: s.today, l: '오늘 ' + mdS(s.today) + ' (' + dow(s.today) + ')' }], label: '날짜' }) +
         sel({ f: 'f_time', v: ui.f_time || '', live: true, label: '타임', opts: [{ v: '', l: '타임 전체' }].concat(times) }) +
         sel({ f: 'f_st', v: ui.f_st || '', live: true, label: '상태', opts: [{ v: '', l: '상태 전체' }, '수업 중', '퇴실', '미퇴실', '결석', '예정'] }) +
-        '<span class="small muted">' + esc(s.ct12.now) + ' 기준 (예시) · 공용 패드는 퇴실 체크 때 학습 앱에서 자동 로그아웃해요 ' + h.polChip('POL-39') + '</span></div>';
+        '<span class="small muted">' + esc(c12now(s)) + ' 기준 (예시) · 공용 패드는 퇴실 체크 때 학습 앱에서 자동 로그아웃해요 ' + h.polChip('POL-39') + '</span></div>';
       html += h.alert('수업 시작 ' + C12_ABS + '분 뒤까지 입실이 없으면 결석, 끝나고 ' + C12_NOOUT + '분 뒤까지 퇴실이 없으면 미퇴실로 봐요 (예시). 결석이면 보호자에게 미등원 알림을 보낼 수 있어요.', 'review', { title: '검토 반영', pin: 6 });
       html += '<div style="margin-top:10px">' + h.table({
         cols: [
-          { label: '원생', render: p => esc(h.mask(p.name)) + (p.rec && p.rec.manual ? ' ' + h.chip('수정됨') : '') },
+          { label: '원생', render: p => esc(h.mask(p.name)) + (p.rec && p.rec.manual ? ' ' + h.chip('수동 수정') : '') },
           { label: '반', render: p => esc(p.k ? p.k.name : '-') },
           { label: '입실', render: p => '<span class="mono small">' + esc((p.rec && p.rec.in) || '-') + '</span>' },
           { label: '퇴실', render: p => '<span class="mono small">' + esc((p.rec && p.rec.out) || '-') + '</span>' },
