@@ -249,7 +249,7 @@
       },
     };
 
-    s.hq08 = s.hq08 || { basis: '학습 계정 활성 수', mid: '전액', out: '반환 없음', pay: '후불', billDay: '5', due: '15', od1: '7', od2: '15', od3: '30', next: {}, notice: null };
+    s.hq08 = s.hq08 || { basis: '학습 계정 활성 수', mid: '전액', out: '반환 없음', pay: '후불', billDay: '5', due: '15', od1: '7', od2: '15', od3: '30', next: {}, notice: null, consent: {} };
     s.hq09 = s.hq09 || {
       fees: [
         { id: 'fee', name: '가맹비', amount: '5,000,000', st: '안', exempt: '테스트베드 그룹 면제 (안)', escrow: true, disc: true, note: '10/14 회의, 보통 500만 원선' },
@@ -363,7 +363,7 @@
     const ui = ctx.ui, to = ui.typeTo, from = c.type;
     const cross = (from === '직영') !== (to === '직영');
     if (cross) {
-      return '<div style="margin-top:10px">' + h.alert(from + '에서 ' + to + ro(to) + ' 바꾸려면 정보공개서·계약 게이트(HQ-03)를 거쳐야 해요. 이 화면에서는 바꿀 수 없어요.', 'warn', { title: '유형 변경' }) +
+      return '<div style="margin-top:10px">' + h.alert(from + '에서 ' + to + ro(to) + ' 바꾸려면 정보공개서와 계약 게이트(HQ-03)를 거쳐야 해요. 이 화면에서는 바꿀 수 없어요. 원생 정보 처리자도 바뀌어서 보호자에게 알리고 다시 동의를 받아야 해요.', 'warn', { title: '유형 변경' }) +
         '<div class="hqb-actions" style="margin-top:8px">' + h.btn('HQ-03 열기', { sm: true, go: 'HQ-03' }) + h.btn('취소', { sm: true, act: 'HQ05.typeCancel' }) + '</div></div>';
     }
     const diff = typeDiff(ctx.s, from, to);
@@ -466,7 +466,7 @@
       cBody = form([
         { l: '계약서', v: esc(K.ver) + ' · 서명본' + h.btn('보기', { sm: true, act: 'HQ05.viewFile' }) },
         { l: '제공일 · 체결일', v: esc(K.given) + ' · ' + esc(K.signed) },
-        { l: '계약 기간', v: esc(c.opened) + ' ~ ' + esc(c.contractEnd) },
+        { l: '계약 기간', v: esc(c.opened) + ' ~ ' + esc(c.contractEnd) + varChip() },
         { l: '만료 알림', v: '180일 전 · 90일 전<span class="hqb-note">갱신 요구 기간' + (a180 ? ', 첫 알림 ' + a180 + (left > 0 ? ' (' + left + '일 남음)' : '') : '') + '</span>' },
         { l: '상태', v: h.chip(K.status, K.status === '유효' ? 'ok' : 'warn') },
       ]) + rvBox('계약한 날 고정한 값', 'IMP-25',
@@ -773,7 +773,7 @@
         '<div class="hqb-note" style="margin-top:6px">조회일은 센터가 CT-20에 넣으면 바로 반영돼요.</div>' +
         (sf.done ? '' : '<div class="hqb-actions" style="margin-top:6px">' + h.btn('조회일을 넣은 것으로 보기 (시연)', { sm: true, ghost: true, act: 'HQ06.staffSim', disabled: ro6 }) + '</div>');
     } else if (x.kind === '시스템') {
-      const note = x.id === 'alim' ? h.alert('외부 심사라 기간을 우리가 정할 수 없어요. 승인을 막지 않고 경고만 띄워요. 심사가 끝날 때까지 알림톡 자동 발송은 꺼 둔 채로 문을 열어요.', 'review', { title: '검토 반영' }) : '';
+      const note = x.id === 'alim' ? h.alert('외부 심사라 끝나는 날을 우리가 정할 수 없어요. 그래서 승인 조건에서 빼고 경고만 띄워요. 심사가 끝나기 전에는 미리 등록한 대체 문자 발신번호로 알림을 보내요.', 'review', { title: '검토 반영' }) : '';
       body = form([{ l: '상태', v: st6(applies6(x, c) ? d.st : '해당 없음') }, { l: '연결 화면', v: esc(x.note) + (d.note ? ' · ' + esc(d.note) : '') }]) + note +
         (applies6(x, c) && d.st !== '완료' ? '<div class="hqb-actions" style="margin-top:8px">' + sim(x.id === 'alim' ? '심사 끝난 것으로 보기 (시연)' : '완료된 것으로 보기 (시연)', 'HQ06.sysDone') + '</div>' : '');
     } else {
@@ -810,7 +810,7 @@
       const head = '<div class="hqb-sub"><h2>' + esc(c.name) + '</h2>' + h.chip(c.type, c.type === '직영' ? 'navy' : c.type === '가맹' ? 'brand' : 'review') + h.status(c.status) +
         '<span class="hqb-sum"' + P(1) + '>' + h.chip('필수 ' + req.length + '개 중 ' + reqOk + '개 승인', reqOk === req.length ? 'ok' : 'line') + h.chip('시스템 ' + sys.length + '개 중 ' + sysOk + '개 완료', sysOk === sys.length ? 'ok' : 'line') + '</span>' +
         '<span class="r">센터 ' + sel('center', c.id, s.centers.map(x => ({ v: x.id, l: x.name + ' · ' + x.status })), { size: 'l', live: true, label: '센터 고르기' }) + '</span></div>';
-      const banner = opened ? h.alert(eun(c.name) + ' ' + (K.approvedAt || c.opened) + '에 운영 개시를 승인했어요' + (K.approvedBy ? ' (' + K.approvedBy + ')' : '') + '. 원생 등록과 수납 메뉴가 열려 있어요.' + (K.alimOff ? ' 알림톡 자동 발송은 심사가 끝날 때까지 꺼져 있어요.' : ''), 'ok', { title: '승인 완료' }) + '<div style="height:10px"></div>'
+      const banner = opened ? h.alert(eun(c.name) + ' ' + (K.approvedAt || c.opened) + '에 운영 개시를 승인했어요' + (K.approvedBy ? ' (' + K.approvedBy + ')' : '') + '. 원생 등록과 수납 메뉴가 열려 있어요.' + (K.alimOff ? ' 알림톡 심사가 끝날 때까지 알림은 대체 문자로 나가요.' : ''), 'ok', { title: '승인 완료' }) + '<div style="height:10px"></div>'
         : K.request ? h.alert(K.request.date + ' 센터에 보완을 요청했어요. ' + K.request.reason, 'warn', { title: '보완 요청 보냄' }) + '<div style="height:10px"></div>' : '';
       const rows = DOCS6.map(x => {
         const d = K.docs[x.id] || {}, ap = applies6(x, c);
@@ -825,7 +825,7 @@
       const table = tbl([{ label: '서류·항목' }, { label: '구분' }, { label: '상태' }, { label: '파일' }, { label: '검토자' }, { label: '비고' }], rows);
       const reqBox = ui.reqOpen && !opened ? '<div class="hqb-box" style="margin-top:10px"><h4>센터에 보완 요청</h4><div class="hqb-fv">' + inp('req_reason', ui.req_reason || '', { size: 'xl', ph: '무엇을 언제까지 보완할지', label: '보완 요청 사유' }) +
         h.btn('보내기', { sm: true, primary: true, act: 'HQ06.request' }) + h.btn('닫기', { sm: true, act: 'HQ06.reqClose' }) + errLine(ui.e_req) + '</div></div>' : '';
-      const errOpen = ui.e_open && ui.e_open.length ? '<div style="margin-top:10px">' + h.alert('아직 끝나지 않은 항목이 있어요. ' + ui.e_open.join(', '), 'bad', { title: '승인할 수 없어요' }) + '</div>' : '';
+      const errOpen = ui.e_open && !opened && g.miss.length ? '<div style="margin-top:10px">' + h.alert('아직 끝나지 않은 항목이 있어요. ' + g.miss.join(', '), 'bad', { title: '승인할 수 없어요' }) + '</div>' : '';
       const warn = !opened && g.warn.length ? '<span class="hqb-note">' + esc(g.warn.map(w => w.name + iga(w.name) + ' ' + w.st + '이어도 승인할 수 있어요').join('. ')) + '</span>' : '';
       const bottom = '<div class="hqb-actions" style="margin-top:12px">' + h.btn('보완 요청', { act: 'HQ06.reqOpen', disabled: ro6 || opened }) +
         '<span class="hqb-actions hqb-pinpad"' + P(4) + '>' + h.btn(opened ? '운영 중' : '운영 개시 승인', { primary: true, act: 'HQ06.open', disabled: ro6 || opened || g.miss.length > 0 }) +
@@ -843,9 +843,9 @@
         { n: 3, t: '종사자 경력 조회', d: '원장, 강사, 보조요원 모두 성범죄와 아동학대 경력 조회일이 있어야 해요(CT-20). 한 명이라도 빠지면 승인 버튼이 켜지지 않아요.', ref: 'p.25 ③' },
         { n: 4, t: '승인의 효과', d: '필수 항목이 모두 승인돼야 운영 개시 승인 버튼이 켜져요. 승인하면 센터가 운영 상태가 되고 원생 등록과 수납 메뉴가 열려요. 가맹 센터는 다음 달 1일부터 사용료를 내요. 부족하면 보완 요청으로 센터에 돌려보내요.', pol: ['POL-02', 'POL-04'], ref: 'p.25 ④' },
         { n: 5, t: '직영도 같은 절차', d: '회의 결정대로 직영 시범 센터도 이 절차를 거쳐요. 인테리어와 간판 같은 오픈 준비 체크리스트는 확대 단계(P2)에서 붙여요.', ref: 'p.25 ⑤' },
-        { n: 6, kind: 'review', imp: 'IMP-16', t: '조회일만 남기고 원본은 안 받아요', d: '범죄경력 조회 결과 원본은 민감한 정보라 본사가 받지 않아요. 조회일과 확인한 사람만 남기고, 조회 전인 사람은 수업에 배치되지 않아요.' },
+        { n: 6, kind: 'review', imp: 'IMP-16', t: '조회일만 남기고 원본은 안 받아요', d: '범죄경력 조회 결과 원본은 민감정보일 수 있어서 본사가 받지 않아요(법무 확인이 남아 있어요). 조회일, 조회 기관, 확인한 사람만 남기고, 조회 전인 사람은 수업에 배치되지 않아요.' },
         { n: 7, kind: 'review', imp: 'IMP-04', t: '직영은 위탁계약이 해당 없어요', d: '직영 센터는 본사가 직접 운영해서 본사와 센터 사이 위탁계약을 맺을 상대가 없어요. 위탁계약은 가맹 센터에만 필수로 걸어요. 그래서 동탄센터는 필수 서류가 7개가 아니라 6개예요.', pol: ['POL-42'] },
-        { n: 8, kind: 'review', imp: 'IMP-06', t: '외부 심사 항목은 경고만', d: '알림톡 발신 프로필은 외부 심사라 기간을 우리가 정할 수 없어요. 승인을 막지 않고 경고만 띄우고, 심사가 끝날 때까지 알림톡 자동 발송을 꺼 둔 채로 문을 열어요.' },
+        { n: 8, kind: 'review', imp: 'IMP-06', t: '외부 심사 항목은 경고만', d: '알림톡 발신 프로필은 외부 심사를 거쳐서 언제 끝날지 우리가 정할 수 없어요. 그래서 승인 조건에서 빼고 경고만 띄워요. 심사가 끝나기 전에는 미리 등록한 대체 문자 발신번호로 알림을 보내요.' },
       ],
       open: ['시스템 항목 가운데 무엇까지 끝나야 승인되는지(지금은 키오스크와 결제 연동만 조건)', '만료 서류 재요청 시점 30일(예시)과 기한을 넘겼을 때 조치', '승인 전 센터에서 열어 둘 메뉴(상담 예약, 대기자)', '가맹 사용료 과금 기준과 청구 방식(POL-02, POL-04)'],
     },
@@ -910,7 +910,7 @@
     if (!ctx.canEdit) return;
     if (c.status === '운영') { say('이미 운영 중인 센터예요.'); return; }
     const g = gate6(s, c, K);
-    if (g.miss.length) { ui.e_open = g.miss; return; }
+    if (g.miss.length) { ui.e_open = true; return; }
     ui.e_open = null;
     c.status = '운영'; c.opened = ctx.today;
     K.approvedAt = ctx.today; K.approvedBy = ctx.persona.name; K.alimOff = g.warn.length > 0; K.request = null;
@@ -1021,7 +1021,7 @@
 
   B.screen({
     id: 'HQ-07', side: 'hq', phase: 'P1a', devices: ['pc'], pages: [26],
-    title: '정책 현황', menuLabel: '정책 현황', crumb: '정책·요금 설정 > 정책 현황',
+    title: '정책 현황·변경 이력', menuLabel: '정책 현황', crumb: '정책·요금 설정 > 정책 현황',
     headActions: ctx => '<span' + P(6) + '>' + h.btn('결정 요청 목록 출력', { act: 'HQ07.print' }) + '</span>',
     render(ctx) {
       const s = ctx.s, ui = ctx.ui, rows = polRows(s);
@@ -1050,7 +1050,7 @@
         '<button type="button" class="' + (view === 'list' ? 'on' : '') + '" data-act="HQ07.view" data-arg="list">정책 목록 <span class="n">' + filt7(rows, ui).length + '</span></button>' +
         '<button type="button" class="' + (view === 'log' ? 'on' : '') + '" data-act="HQ07.view" data-arg="log"' + P(5) + '>변경 이력 <span class="n">' + hist.length + '</span></button>' +
         '<button type="button" class="' + (view === 'dec' ? 'on' : '') + '" data-act="HQ07.view" data-arg="dec"' + P(7) + '>결정 관리표 <span class="n">미결 ' + openDec + '</span></button></div>';
-      const note = '<div class="hqb-note" style="margin-top:6px">숫자는 아래 목록에서 바로 세요. 원문 그림의 미확정 31, 법정 5는 9월 시점 예시였어요.</div>';
+      const note = '<div class="hqb-note" style="margin-top:6px">숫자는 아래 정책 목록 44개에서 바로 세요. 그래서 원문 그림의 미확정 31, 법정 5와 달라요.</div>';
       const body = view === 'log' ? log7(ctx) : view === 'dec' ? dec7(ctx) : list7(ctx, filt7(rows, ui));
       return kpis + note + filters + tabs + body;
     },
@@ -1065,7 +1065,7 @@
         { n: 4, t: '예약 변경', d: '적용 시작일이 앞으로인 변경을 보여 줘요. 그날 0시에 바뀌어요.', ref: 'p.26 ④' },
         { n: 5, t: '변경 이력', d: '바뀌기 전 값과 바뀐 값, 범위, 바꾼 사람, 근거, 영향 센터 수를 남겨요. 되돌릴 때도 새 변경으로 기록해요.', ref: 'p.26 ⑤' },
         { n: 6, t: '결정 요청 목록', d: '미확정 정책을 결정 부서별로 묶어 출력해요. 부록 A와 같은 형식이에요.', ref: 'p.26 ⑥' },
-        { n: 7, kind: 'review', imp: 'IMP-01', t: '결정 관리표', d: '먼저 정할 10가지에 결정자와 마감일이 없어서 결정이 늦어졌어요. 결정마다 결정자, 마감, 기본안, 상태를 한 표로 보고, 결정을 기록하면 관련 정책이 확정으로 바뀌고 이력이 남아요. 마감까지 못 정하면 (안) 값을 시범 확정값으로 써요.' },
+        { n: 7, kind: 'review', imp: 'IMP-01', t: '결정 관리표', d: '부록 A의 정할 일에는 마감일과 결정자가 없어서 누가 언제까지 정할지 알 수 없었어요. 결정마다 결정자, 마감, 기본안, 상태를 한 표로 보고, 결정을 기록하면 관련 정책이 확정으로 바뀌고 이력이 남아요. 마감까지 못 정하면 (안) 값을 시범 확정값으로 쓰기로 미리 정해 둬요.' },
         { n: 8, kind: 'review', imp: 'IMP-10', t: '돈 계산 정책 점검', d: '사용료나 테스트비처럼 돈이 오가는 정책이 아직 (안)이면 청구와 판매에 그대로 쓰일 수 있어요. 그런 정책 수를 따로 세고, 쓰려면 슈퍼관리자가 임시 적용을 승인한 기록을 남겨요.', pol: ['POL-01', 'POL-27'] },
       ],
       open: ['정책을 확정으로 바꿀 때 누가 어떻게 결재하는지', '예약 변경을 취소하거나 고치는 방법', '법령이 바뀔 때 법정 값을 누가 어디서 고치는지'],
@@ -1112,7 +1112,7 @@
     const rows = polRows(ctx.s).filter(r => unconf(r.status));
     const g = {}; rows.forEach(r => { (g[r.p.decider] = g[r.p.decider] || []).push(r); });
     const body = Object.keys(g).map(k => '<div><b>' + esc(k) + ' (' + g[k].length + ')</b><div class="hqb-note">' + g[k].map(r => esc(r.p.code + ' ' + r.p.name + ', ' + stLabel(r.status) + ', ' + r.p.when)).join('<br>') + '</div></div>').join('');
-    B.modal({ title: '결정 요청 목록 (미확정 ' + rows.length + '개)', body: '<div class="hqb-note">부록 A와 같은 형식으로 결정 부서별로 묶었어요.</div>' + body, ok: '출력', cancel: '닫기', onOk: () => { say('결정 요청 목록을 출력했어요 (시연).'); return true; } });
+    B.modal({ title: '결정 요청 목록 (미확정 ' + rows.length + '개)', body: '<div class="hqb-note">부록 A와 같은 형식으로 결정 부서별로 묶었어요.</div><div style="max-height:380px;overflow:auto;display:flex;flex-direction:column;gap:10px">' + body + '</div>', ok: '출력', cancel: '닫기', onOk: () => { say('결정 요청 목록을 출력했어요 (시연).'); return true; } });
     return false;
   });
   act('HQ07.dfilter', (ctx, v) => { ctx.ui.dfilter = v; });
@@ -1208,22 +1208,24 @@
         tbl([{ label: '센터' }, { label: '계정', num: true }, { label: '지금', num: true }, { label: '바뀐 뒤', num: true }, { label: '차이', num: true }], rows.map(r => ({
           cells: [esc(r.c.name.replace('센터', '')) + (r.a.from !== '기본값' ? ' <span class="hqb-note">' + r.a.from + '</span>' : ''), r.n, comma(r.a.v), comma(r.b.v), (r.diff >= 0 ? '+' : '') + comma(r.diff)],
         })).concat([{ cells: ['<b>합계</b>', accounts, '<b>' + comma(tA) + '</b>', '<b>' + comma(tB) + '</b>', '<b>' + (tB - tA >= 0 ? '+' : '') + comma(tB - tA) + '</b>'] }]), { cls: 'hqb-mini' }) +
-        '<div style="margin-top:6px">원문 예시 +520,000원은 개별 값을 빼지 않고 셌어요. 사용료는 사용한 달의 값으로 청구해서 즉시 적용은 막고 다음 달 1일부터만 골라요.</div>', 8, 'margin-top:10px');
+        '<div style="margin-top:6px">원문 예시 +520,000원은 부산해운대 개별 값 18,000원을 무시하고 104명 모두에 기본값을 곱했어요. 청구서는 대상 달 1일의 값으로 계산해서 즉시 적용 대신 다음 달 1일 예약만 받아요. 이 표는 대상 센터가 모두 새 값을 쓴다고 보고 셌어요. 동의 확인 전 센터는 9번 표를 봐요.</div>', 8, 'margin-top:10px');
     return h.card({ title: '영향 미리보기', pin: 7, body });
   }
   function notice8(ctx) {
-    const s = ctx.s, N = s.hq08.notice, n = N ? (s.notices || []).find(x => x.id === N.id) : null;
+    const s = ctx.s, N = s.hq08.notice, n = N ? (s.notices || []).find(x => x.id === N.id) : null, CS = s.hq08.consent || {};
     const rows = frCenters(s).map(c => {
       const K = (s.hq05.contract || {})[c.id] || {}, st = s.pol[C8] || {}, ind = (st.centers || {})[c.id];
-      const target = !ind;
-      const read = n && n.read ? n.read[c.id] : undefined;
-      return { cells: [esc(c.name.replace('센터', '')), esc((K.ver || '표준 v1') + (target ? ', 제7조 사용료' : '')), target ? '바뀌어요' : '<span class="hqb-note">개별 값 유지</span>',
-        !target ? '해당 없음' : !n ? h.chip('저장하면 보내요', 'line') : read ? h.chip('확인', 'ok') : h.chip('보냄, 미확인', 'warn')] };
+      const target = !ind, read = n && n.read ? n.read[c.id] : undefined, cs = CS[c.id];
+      const apply = !target ? '<span class="hqb-note">개별 값 유지</span>'
+        : cs ? h.chip('동의 ' + cs.date, 'ok')
+        : h.chip('동의 확인 전', 'warn') + ' ' + h.btn('동의 확인', { sm: true, act: 'HQ08.consent', arg: c.id, disabled: !ctx.canEdit });
+      return { cells: ['<span class="hqb-nw">' + esc(c.name.replace('센터', '')) + '</span>', esc((K.ver || '표준 v1') + (target ? ', 제7조' : '')),
+        !target ? '해당 없음' : !n ? h.chip('저장하면 보내요', 'line') : read ? h.chip('확인', 'ok') : h.chip('보냄, 미확인', 'warn'), apply] };
     });
     return h.card({
       title: '가맹점 통지와 동의', pin: 9, right: B.impChip('IMP-25'),
-      body: tbl([{ label: '센터' }, { label: '계약 근거' }, { label: '이번 변경' }, { label: '필독 공지' }], rows, { cls: 'hqb-mini' }) +
-        '<div class="hqb-note" style="margin-top:6px">변경 예약을 저장하면 바뀌는 센터에 필독 공지(CT-17)를 보내고 확인 여부를 남겨요. 기존 계약은 계약 조항이나 동의를 확인한 센터에만 새 값을 적용해요. 동의 요청은 HQ-21에서 받아요.</div>',
+      body: tbl([{ label: '센터' }, { label: '계약 근거' }, { label: '필독 공지' }, { label: '새 값 적용' }], rows, { cls: 'hqb-mini' }) +
+        '<div class="hqb-note" style="margin-top:6px">변경 예약을 저장하면 새 값을 쓸 센터에 필독 공지(CT-17)를 보내고 확인 여부를 남겨요. 기본은 새로 계약하는 센터부터 적용해요. 이미 계약한 센터는 계약 조항이나 동의를 확인한 곳에만 새 값을 적용하고, 확인 전에는 계약한 날 값(HQ-05)을 그대로 써요. 동의 요청은 HQ-21에서 보내요.</div>',
     });
   }
   function nextNote8(s, k) { const x = (s.hq08.next || {})[k]; return x ? '<span class="hqb-next">' + esc(x.md) + '부터 ' + esc(x.value) + '</span>' : ''; }
@@ -1276,7 +1278,7 @@
           { cells: [ninp('od2', '경고 경과일') + ' 일' + varChip(), '경고', '본사 담당 연락'] },
           { cells: [ninp('od3', '등록 제한 경과일') + ' 일' + varChip(), '신규 원생 등록 제한', '기존 원생 학습은 유지'] },
         ], { cls: 'hqb-mini' }) +
-          rvBox('연체 중에도 학부모 업무는 막지 않아요', 'IMP-27', '<div class="hqb-actions">' + ['원생 동의 (CT-05)', '수납 (CT-07)', '환불 (CT-10)', '영수증'].map(x => h.chip(x + ' 유지', 'ok')).join('') + '</div><div style="margin-top:6px">경과일은 납부기한 다음 날부터 세고, 이의 신청 중인 금액은 빼요. 입금이 확인되면 바로 제한을 풀어요.</div>', 10, 'margin-top:10px'),
+          rvBox('연체 중에도 학부모 업무는 막지 않아요', 'IMP-27', '<div class="hqb-actions">' + ['원생 동의 (CT-05)', '수납 (CT-07)', '환불 (CT-10)', '영수증'].map(x => h.chip(x + ' 유지', 'ok')).join('') + '</div><div style="margin-top:6px">이의 신청 중인 금액은 연체 금액에서 빼요. 등록 제한을 남기려면 계약서와 정보공개서에 분명히 적어야 해요.</div>', 10, 'margin-top:10px'),
       });
       const left = '<div class="stack">' + part1 + quick + scopeBox + errs + pol234 + pol5 + '</div>';
       const right = '<div class="stack">' + preview8(ctx) + notice8(ctx) + part3 + '</div>';
@@ -1289,14 +1291,14 @@
       items: [
         { n: 1, t: '적용 범위 탭', d: '모든 정책 화면에 같은 탭이 있어요. 기본값 위에 직영, 가맹, 테스트베드 그룹 값이 덮이고, 그 위에 개별 센터 값이 덮여요. 개별 값이 있는 탭에는 개수가 보이고, 위 값을 바꿔도 아래 값은 그대로예요.', pol: ['POL-44'], ref: 'p.27 ①' },
         { n: 2, t: '값과 상태', d: '미확정이면 모든 화면에 (안)이 붙어요. 확정은 결재 근거가 있을 때만 고를 수 있어요.', pol: ['POL-01'], ref: 'p.27 ②' },
-        { n: 3, t: '적용 시작일', d: '즉시 또는 예약으로 정해요. 진행 중인 달을 건드리지 않도록 다음 달 1일이 기본이에요. 예약은 그날 0시에 적용되고 정책 현황(HQ-07)에 보여요.', ref: 'p.27 ③' },
+        { n: 3, t: '적용 시작일', d: '즉시 또는 예약으로 정해요. 진행 중인 달을 건드리지 않도록 다음 달 1일이 기본이에요. 예약은 그날 0시에 적용되고 정책 현황(HQ-07)에 보여요. 사용료는 8번 규칙 때문에 예약만 받아요.', ref: 'p.27 ③' },
         { n: 4, t: '근거 필수', d: '사용료는 가맹금에 해당할 수 있어서 계약 조항이나 가맹점 동의가 있어야 바꿔요. 근거가 없으면 저장되지 않아요.', ref: 'p.27 ④' },
         { n: 5, t: '과금 기준과 월중 처리, 청구', d: '가맹 수납은 수기라 검증할 수 없어서 학습 계정 활성 수로 세는 것을 권해요. 월중 등록 전액과 퇴원 반환 없음(안)은 업계 관행이에요. 청구일 5일과 기한 15일은 예시예요.', pol: ['POL-02', 'POL-03', 'POL-04'], ref: 'p.27 ⑤' },
         { n: 6, t: '연체 단계', d: '7일, 15일, 30일(예시)이 지나면 안내, 경고, 신규 원생 등록 제한으로 올라가요. 기존 원생의 학습은 막지 않아요. 단계와 조치는 계약서에 근거가 있어야 해요.', pol: ['POL-05'], ref: 'p.27 ⑥' },
         { n: 7, t: '영향 미리보기', d: '저장하기 전에 대상 센터 수, 과금 계정 수, 월 청구액 변화를 계산해 보여 줘요. 금액을 고치면 바로 다시 계산해요.', ref: 'p.27 ⑦' },
-        { n: 8, kind: 'review', imp: 'IMP-10', t: '청구서와 같은 순서로 계산', d: '원문 예시는 부산해운대 개별 값 18,000원을 빼지 않고 +520,000원으로 셌어요. 청구서처럼 센터 값, 그룹 값, 기본값 순서로 찾으면 +315,000원이에요. 사용료는 사용한 달의 값으로 청구해서 즉시 적용은 막아요.', pol: ['POL-01'] },
-        { n: 9, kind: 'review', imp: 'IMP-25', t: '가맹점 통지와 동의', d: '사용료를 바꾸면 바뀌는 센터에 필독 공지(CT-17)가 자동으로 가고 확인했는지 남아요. 기존 계약은 계약 조항이나 동의를 확인한 센터에만 새 값을 적용해요.' },
-        { n: 10, kind: 'review', imp: 'IMP-27', t: '연체 중에도 학부모 업무는 그대로', d: '연체 단계가 올라가도 원생 동의, 수납, 환불, 영수증은 막지 않아요. 경과일은 납부기한 다음 날부터 세고, 이의 신청 중인 금액은 빼요.', pol: ['POL-05'] },
+        { n: 8, kind: 'review', imp: 'IMP-10', t: '청구서와 같은 순서로 계산', d: '원문 예시는 부산해운대 개별 값 18,000원을 무시하고 104명 모두에 새 기본값을 곱해 +520,000원으로 셌어요. 청구서처럼 센터 값, 그룹 값, 기본값 순서로 찾으면 +315,000원이에요. 청구서는 대상 달 1일의 값으로 계산해서 즉시 적용은 막아요.', pol: ['POL-01'] },
+        { n: 9, kind: 'review', imp: 'IMP-25', t: '가맹점 통지와 동의', d: '사용료 기본값을 바꾸면 기본은 새로 계약하는 센터부터 적용해요. 이미 계약한 센터는 계약 조항이나 동의를 확인한 곳에만 새 값을 쓰고, 센터마다 동의 확인을 눌러 기록해요. 변경 예약을 저장하면 새 값을 쓸 센터에 필독 공지(CT-17)가 가고 확인했는지 남아요.' },
+        { n: 10, kind: 'review', imp: 'IMP-27', t: '연체 중에도 학부모 업무는 그대로', d: '연체 단계가 올라가도 원생 동의, 수납, 환불, 영수증은 막지 않아요. 이의 신청 중인 금액은 연체에서 빼고, 등록 제한을 남기려면 계약서와 정보공개서에 적어야 해요.', pol: ['POL-05'] },
       ],
       open: ['사용료 금액(POL-01). 10/21 회의에서 타사 회원비가 약 2만 원이라는 이야기만 나왔어요', '학생 수를 세는 기준(POL-02)', '월중 등록과 퇴원 처리(POL-03)', '선불 또는 후불, 청구일과 납부기한(POL-04)', '연체 단계와 조치, 계약서 근거(POL-05)'],
     },
@@ -1311,6 +1313,14 @@
   });
   act('HQ08.opt', (ctx, arg) => { const [k, v] = String(arg || '').split('|'); if (k && ctx.canEdit) ctx.ui['o_' + k] = v; });
   act('HQ08.basis', (ctx, v) => { ctx.ui[C8 + ':reason'] = v; ctx.ui[C8 + ':err'] = null; });
+  act('HQ08.consent', (ctx, cid) => {
+    const s = ctx.s, c = B.center(cid); if (!ctx.canEdit || !c) return;
+    s.hq08.consent = s.hq08.consent || {};
+    if (s.hq08.consent[cid]) { say('이미 동의를 확인한 센터예요.'); return; }
+    s.hq08.consent[cid] = { date: ctx.today, by: ctx.persona.name };
+    audit(ctx, '사용료 변경 동의 확인', c.name, '가맹점 동의서');
+    say(c.name + ' 동의를 기록했어요. 예약일부터 이 센터에도 새 값을 적용해요.');
+  });
   act('HQ08.cancel', ctx => {
     const ui = ctx.ui, st = ctx.s.pol[C8] || {};
     Object.keys(ui).forEach(k => { if (k.indexOf('o_') === 0 || k.indexOf(C8 + ':') === 0) delete ui[k]; });
@@ -1517,7 +1527,7 @@
         { n: 6, t: '필수품목과 공급가', d: '필수 품목과 공급가 계산 방식은 계약서에 적어야 해요. 학부모가 내는 교재비(POL-14)와는 따로예요.', pol: ['POL-09', 'POL-38'], ref: 'p.28 ⑥' },
         { n: 7, kind: 'review', imp: 'IMP-25', t: '정보공개서 변경등록과 기존 계약', d: '값을 바꾸면 정보공개서 변경등록 할 일이 생겨요. 이미 계약한 센터는 계약한 날 값이 그대로이고, 바꾸려면 부속합의서를 등록해요.' },
         { n: 8, kind: 'review', imp: 'IMP-24', t: '다른 가맹점 영역 안 출점 차단', d: '원문 기본값은 겹쳐도 경고만 해서 다른 가맹점 동네에 새 센터가 들어설 수 있었어요. 계약이 유효한 가맹점 영역 안이면 막고, 일부만 겹치거나 직영과 겹치면 경고하는 선택지를 더했어요. P1b에는 경계 데이터가 없어서 반경만 열어요.', pol: ['POL-08'] },
-        { n: 9, kind: 'review', imp: 'IMP-27', t: '갱신 거절 통지 기한', d: '갱신 요구를 받으면 15일 안에 거절 여부를 서면으로 알려야 해요(법정, 법무 확인 필요). 요구를 받은 날부터 기한을 계산해 대시보드에 띄워요.', pol: ['POL-07'] },
+        { n: 9, kind: 'review', imp: 'IMP-27', t: '갱신 거절 통지 기한', d: '갱신 요구를 받으면 15일 안에 거절 여부를 서면으로 알려야 해요(법정). 법무 확인이 남아 있어요. 요구를 받은 날부터 기한을 계산해 대시보드에 띄워요.', pol: ['POL-07'] },
       ],
       open: ['가맹비 금액(500만 원은 회의 안), 교육비와 보증금 금액', '테스트베드 10곳 가맹비 면제 여부', '계약 기간을 몇 년으로 할지', '영업지역 기준과 거리, 겹칠 때 경고만 할지 막을지', '주간 교재 공급가의 N%', '학습 패드 공급 방식(POL-38)'],
       rules: ['갱신 요구 기간은 만료 180일 전부터 90일 전까지이고, 갱신은 총 10년까지 보장돼요(법정).', '정보공개서에 적힌 가맹금과 계약 조건이 바뀌면 변경등록을 해야 해요.'],
