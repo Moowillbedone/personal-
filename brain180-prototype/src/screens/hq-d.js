@@ -1226,7 +1226,7 @@
     const price = Number(String(ui.f_price || '').replace(/[^\d]/g, ''));
     s.hq19.products.push({ id: 'g' + (s.hq19.products.length + 1), name, must: map[0], unit: ui.f_unit || '권', price: price || null, calc: map[1], stock: map[2], sale: price ? '판매' : '준비' });
     ui.form = false; ui.f_name = ''; ui.f_price = '';
-    say(name + ' 상품을 등록했어요. 구분은 POL-09 품목표대로 ' + (map[0] === '필수' ? '필수예요.' : '권장이에요.'));
+    say(name + ' 상품을 등록했어요. 품목 분류에 따라 ' + (map[0] === '필수' ? '필수로' : '권장으로') + ' 넣었어요. POL-09가 정해지면 계약서와 맞춰요.');
   });
   B.action('HQ19.priceForm', (ctx, id) => { ctx.ui.pf = id || 'g1'; ctx.ui.p_err_price = null; ctx.ui.p_err_reason = null; B.state.tab = 'prod'; });
   B.action('HQ19.priceClose', ctx => { ctx.ui.pf = null; });

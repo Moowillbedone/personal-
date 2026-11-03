@@ -2,56 +2,23 @@
   "screens": [
     {
       "id": "HQ-16",
-      "tabs": [
-        "a",
-        "b"
-      ],
+      "tabs": ["a", "b"],
       "tab_labels": {
         "a": "청구서 (1/2 월 마감·청구, P1b, p.35)",
         "b": "직영 수납 대사 (2/2, P1a, p.36)"
       },
       "persona": "hq:fin (정산 이수민) 또는 hq:super. hq:ops는 보기만 해서 저장 동작이 막혀요",
       "pins": {
-        "a": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6,
-          7,
-          8,
-          9
-        ],
-        "b": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6
-        ]
+        "a": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        "b": [1, 2, 3, 4, 5, 6]
       },
       "review_pins": {
-        "a": [
-          7,
-          8,
-          9
-        ],
-        "b": [
-          5,
-          6
-        ]
+        "a": [7, 8, 9],
+        "b": [5, 6]
       },
       "review_imps": {
-        "a": [
-          "IMP-22",
-          "IMP-26",
-          "IMP-27"
-        ],
-        "b": [
-          "IMP-13"
-        ]
+        "a": ["IMP-22", "IMP-26", "IMP-27"],
+        "b": ["IMP-13"]
       },
       "actions": [
         {
@@ -152,26 +119,9 @@
       "id": "HQ-17",
       "tabs": [],
       "persona": "hq:fin 또는 hq:super",
-      "pins": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-      ],
-      "review_pins": [
-        6,
-        7,
-        8
-      ],
-      "review_imps": [
-        "IMP-27",
-        "IMP-23",
-        "IMP-26"
-      ],
+      "pins": [1, 2, 3, 4, 5, 6, 7, 8],
+      "review_pins": [6, 7, 8],
+      "review_imps": ["IMP-27", "IMP-23", "IMP-26"],
       "actions": [
         {
           "name": "HQ17.pick",
@@ -209,11 +159,7 @@
     },
     {
       "id": "HQ-18",
-      "tabs": [
-        "tpl",
-        "bal",
-        "stat"
-      ],
+      "tabs": ["tpl", "bal", "stat"],
       "tab_labels": {
         "tpl": "템플릿",
         "bal": "센터별 잔액·충전",
@@ -221,33 +167,15 @@
       },
       "persona": "hq:ops (운영 홍길동) 또는 hq:super. 정산은 보기만",
       "pins": {
-        "tpl": [
-          1,
-          2,
-          3,
-          7
-        ],
-        "bal": [
-          4,
-          6,
-          8
-        ],
-        "stat": [
-          5
-        ]
+        "tpl": [1, 2, 3, 7],
+        "bal": [4, 6, 8],
+        "stat": [5]
       },
       "review_pins": {
-        "tpl": [
-          7
-        ],
-        "bal": [
-          8
-        ]
+        "tpl": [7],
+        "bal": [8]
       },
-      "review_imps": [
-        "IMP-06",
-        "IMP-26"
-      ],
+      "review_imps": ["IMP-06", "IMP-26"],
       "actions": [
         {
           "name": "HQ18.pick",
@@ -305,11 +233,7 @@
     },
     {
       "id": "HQ-19",
-      "tabs": [
-        "prod",
-        "order",
-        "week"
-      ],
+      "tabs": ["prod", "order", "week"],
       "tab_labels": {
         "prod": "상품",
         "order": "주문 처리",
@@ -317,38 +241,16 @@
       },
       "persona": "hq:ops 또는 hq:super. 정산은 보기만",
       "pins": {
-        "prod": [
-          1,
-          2,
-          6
-        ],
-        "order": [
-          3,
-          4,
-          5,
-          7
-        ],
-        "week": [
-          3,
-          8
-        ]
+        "prod": [1, 2, 6],
+        "order": [3, 4, 5, 7],
+        "week": [3, 8]
       },
       "review_pins": {
-        "prod": [
-          6
-        ],
-        "order": [
-          7
-        ],
-        "week": [
-          8
-        ]
+        "prod": [6],
+        "order": [7],
+        "week": [8]
       },
-      "review_imps": [
-        "IMP-25",
-        "IMP-26",
-        "IMP-19"
-      ],
+      "review_imps": ["IMP-25", "IMP-26", "IMP-19"],
       "actions": [
         {
           "name": "HQ19.newForm",
@@ -408,26 +310,9 @@
       "id": "HQ-20",
       "tabs": [],
       "persona": "hq:content (콘텐츠 정다은) 또는 hq:super. 운영은 보기만, 정산과 SV는 메뉴 없음",
-      "pins": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-      ],
-      "review_pins": [
-        6,
-        7,
-        8
-      ],
-      "review_imps": [
-        "IMP-05",
-        "IMP-22",
-        "IMP-19"
-      ],
+      "pins": [1, 2, 3, 4, 5, 6, 7, 8],
+      "review_pins": [6, 7, 8],
+      "review_imps": ["IMP-05", "IMP-22", "IMP-19"],
       "actions": [
         {
           "name": "HQ20.form",
@@ -474,10 +359,5 @@
       "demo_hint": "P1a 준비 장에서 개방 레벨과 검사 버전 배포에 쓰고, P1b 월 마감 장 앞에서 check, resend 'm1'로 HQ-16 대사와 이어 보여 주면 좋다"
     }
   ],
-  "shared_data_changes": [
-    "inv-busan-09, inv-daegu-09를 원문 p.35 값으로 맞췄어요. 부산 status '확인 대기' 834,400(사용료 738,000, 알림톡 12,400, 교재 84,000), 대구 status '초안' 1,366,000(사용료 1,260,000, 조정 -20,000, 교재 126,000). lines에 k('fee'|'adj'|'alim'|'book')를 더했어요. CT-15는 HQ16.issue 다음에 대구 청구서를 받는 흐름이에요",
-    "s.alim.templates 상태를 원문 p.38로 맞췄어요 (T04 심사 중, T05 승인, T06 반려). s.alim.balances busan 3,120, daegu 41,500. s.alim.log에 10-04 부산 발송 2건(CT-14 원문 예시)을 중복 없이 더했어요",
-    "s.orders의 #0705(대구)를 도서 키트 L3 1권 98,000으로 맞추고 #0712(대구), #0711(부산), #0698(부산 반품 요청)을 더했어요. 대치1 #0698은 그대로 둬요",
-    "새 키 s.hq16, s.hq17, s.hq18, s.hq19, s.hq20"
-  ]
+  "shared_data_changes": ["inv-busan-09, inv-daegu-09를 원문 p.35 값으로 맞췄어요. 부산 status '확인 대기' 834,400(사용료 738,000, 알림톡 12,400, 교재 84,000), 대구 status '초안' 1,366,000(사용료 1,260,000, 조정 -20,000, 교재 126,000). lines에 k('fee'|'adj'|'alim'|'book')를 더했어요. CT-15는 HQ16.issue 다음에 대구 청구서를 받는 흐름이에요", "s.alim.templates 상태를 원문 p.38로 맞췄어요 (T04 심사 중, T05 승인, T06 반려). s.alim.balances busan 3,120, daegu 41,500. s.alim.log에 10-04 부산 발송 2건(CT-14 원문 예시)을 중복 없이 더했어요", "s.orders의 #0705(대구)를 도서 키트 L3 1권 98,000으로 맞추고 #0712(대구), #0711(부산), #0698(부산 반품 요청)을 더했어요. 대치1 #0698은 그대로 둬요", "새 키 s.hq16, s.hq17, s.hq18, s.hq19, s.hq20"]
 }

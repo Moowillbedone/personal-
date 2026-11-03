@@ -59,7 +59,7 @@
   const wd = d => WEEK[new Date(toT(d)).getUTCDay()];
   const ddChip = n => n == null ? '' : n < 0 ? h.chip('기한 지남', 'bad') : n === 0 ? h.chip('오늘', 'bad') : h.chip('D-' + n, n <= 3 ? 'bad' : n <= 7 ? 'warn' : 'line');
   const blindMoney = ctx => ctx.side === 'ct' && (ctx.role === '교사' || ctx.role === '보조교사');
-  // 이 사람이 열 수 없는 화면(7쪽 권한표에서 –)으로 가는 버튼은 그리지 않아요.
+  // 이 사람이 열 수 없는 화면(7쪽 권한표에서 메뉴 숨김)으로 가는 버튼은 그리지 않아요.
   const canOpen = (ctx, id) => B.perm(id, ctx.persona) !== '–';
   const isUnread = (n, cid) => !(n.read || {})[cid];
   const clock = s => { s.ctaClock = (s.ctaClock || 0) + 1; const m = 9 * 60 + 40 + s.ctaClock * 4; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
@@ -369,7 +369,7 @@
       const rn = runOf(ctx, r), err = ui.t_err || {}, ro = !ctx.canEdit;
       const minG = s.ct03.minGrade;
       const picks = list.filter(x => x.status === '예약' || x.id === r.id);
-      let html = '<div class="cta-who"><span class="nm">' + esc(h.mask(r.student)) + ' (' + esc(r.grade) + ')</span>' + h.chip(r.kind, r.kind === '재테스트' ? 'info' : 'navy') +
+      let html = '<div class="cta-who"><span class="nm">' + esc(h.mask(r.student)) + ' (' + esc(rn.step > 1 ? rn.gradeSaid : r.grade) + ')</span>' + h.chip(r.kind, r.kind === '재테스트' ? 'info' : 'navy') +
         '<span class="muted small">' + esc(r.at) + ', ' + esc(r.route) + ' 예약, 보호자 ' + esc(h.maskPhone(r.guardianPhone)) + '</span>' +
         '<div style="margin-left:auto">' + h.opts(picks.map(x => ({ v: x.id, l: x.at.slice(6) + ' ' + h.mask(x.student) })), r.id, { act: 'CT03.pick' }) + '</div></div>';
       html += '<div class="card" style="padding:10px 14px;margin-bottom:12px">' + h.steps(STEPS.map((l, i) => ({ label: l, state: rn.done || i + 1 < rn.step ? 'done' : i + 1 === rn.step ? 'cur' : 'lock' }))) + '</div>';
@@ -421,7 +421,7 @@
           ['소요', res.minutes + '분'],
           ['등록할 레벨', (rn.step === 4 ? h.opts(Object.keys(LEVELS).map(k => ({ v: k, l: k + ' ' + LEVELS[k].name })), pick, { act: 'CT03.level' }) : '<b>' + esc(lvLabel(pick)) + '</b>' + (rn.levelNote ? h.chip(rn.levelNote, 'info') : '')) +
             '<div class="hint" style="width:100%">읽기 ' + sc + '점은 ' + byScore + ' 구간(' + LEVELS[byScore].s.join('~') + '점)이에요. ' + pick + ' 대상 학년은 ' + lvGrades(pick) + '예요 (레벨 표 모두 예시).</div>' +
-            (rn.step === 4 && out ? '<div class="cta-err">' + esc(gradeLabel(gNow) + '은 ' + pick + ' 대상 학년 밖이에요. ' + (ctx.role === '원장' ? '결과 확인을 누르면 원장 확인으로 남아요.' : '원장이 확인해야 넘어가요.')) + '</div>' : '') +
+            (rn.step === 4 && out && !err.level ? '<div class="cta-err">' + esc(gradeLabel(gNow) + '은 ' + pick + ' 대상 학년 밖이에요. ' + (ctx.role === '원장' ? '결과 확인을 누르면 원장 확인으로 남아요.' : '원장이 확인해야 넘어가요.')) + '</div>' : '') +
             (err.level ? '<div class="cta-err">' + esc(err.level) + '</div>' : ''), 9],
         ]) + (rn.step === 4 ? '<div class="row" style="justify-content:flex-end;margin-top:10px">' + h.btn('결과 확인', { primary: true, act: 'CT03.next', disabled: ro }) + '</div>' : '');
       }
@@ -458,11 +458,11 @@
         ]),
       }));
 
-      /* 오른쪽: 결과지 미리 보기, ⑤ 원칙 */
+      /* 오른쪽 열은 결과지 미리 보기와 ⑤ 원칙 */
       const res = rn.result, lvShow = rn.level || (res && (ui.t_level || res.level));
       let sheet = '<div class="cta-sheet"><h4>브레인180 입학 테스트 결과지</h4>';
       if (res) {
-        sheet += '<div class="meta">' + esc(h.mask(r.student)) + ', ' + esc(r.grade) + ' / ' + esc(res.date) + ' ' + esc(c ? c.name : '') + '</div>' +
+        sheet += '<div class="meta">' + esc(h.mask(r.student)) + ', ' + esc(rn.gradeSaid || r.grade) + ' / ' + esc(res.date) + ' ' + esc(c ? c.name : '') + '</div>' +
           '<dl class="res"><dt>두뇌 유형</dt><dd>' + esc(res.type) + '</dd><dt>읽기 레벨</dt><dd>' + esc(lvLabel(lvShow)) + '</dd></dl>' +
           '<div class="small muted">유형 지수는 표시하지 않아요. 결과 설명과 프로그램 안내는 상담에서 해요.</div>';
       } else sheet += '<div class="cta-none">검사를 마치면 결과지 미리 보기가 나와요.</div>';
@@ -595,7 +595,7 @@
     rn.done = true; r.status = '완료';
     const st = enrolledStudent(ctx, r);
     if (st) { Object.assign(U(ctx, 'CT-13'), { student: st.id, cls: st.cls || undefined, level: rn.level, from: r.id }); B.go('CT-13'); return false; }
-    Object.assign(U(ctx, 'CT-05'), { from: r.id, name: r.student, grade: rn.gradeSaid || r.grade, phone: r.guardianPhone, level: rn.level, testDate: rn.result.date, testType: rn.result.type });
+    Object.assign(U(ctx, 'CT-05'), { from: r.id, name: r.student, grade: rn.gradeSaid || r.grade, phone: r.guardianPhone, birth: rn.birth || undefined, level: rn.level, testDate: rn.result.date, testType: rn.result.type });
     B.go('CT-05'); return false;
   });
   B.action('CT03.pay', () => { B.toast('교육청 확인 전에는 테스트비를 받지 않아요.'); return false; });

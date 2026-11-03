@@ -1,46 +1,248 @@
-{ "screens": [
-  { "id": "CT-01", "tabs": [], "pins": [1,2,3,4,5,6,7,8,9,10], "review_pins": [7,8,9,10],
-    "actions": [
-      { "name": "CT01.done", "arg": "할 일 키 문자열 ('rf1' 환불, 'lk1' 변경신고, 'no1' 미퇴실, 'notice' 필독, 'unpaid' 미수, 'rereg' 재등록, 'hold-r4' 보류 상담, 'staffcheck' 경력 조회, 가맹은 'alim', 'inv-inv-daegu-09')", "does": "오늘 할 일 한 줄을 처리함으로 체크하거나 되돌린다. 처리한 줄은 아래로 내려가고 남은 일 수가 줄어든다" },
-      { "name": "CT01.readNotice", "arg": "공지 id ('n-ct17-1' 4월 재등록 안내 문구 변경, 필독. CT-17 공지 데이터와 같은 id)", "does": "현재 센터에서 공지를 읽음으로 바꾼다. 기한·경고의 필독 공지 줄이 사라진다 (모달 없이 쓰는 데모용)" },
-      { "name": "CT01.notice", "arg": "공지 id", "does": "공지 확인 모달을 연다. 확인을 누르면 CT01.readNotice와 같다 (클릭 전용, 데모에서는 readNotice를 쓴다)" },
-      { "name": "CT01.open", "arg": "'CT-10|rf1' | 'CT-18' | 'CT-12' | 'CT-08' | 'CT-09' | 'CT-14' | 'CT-15' | 'CT-20' | 'CT-02|r4'", "does": "할 일 버튼처럼 해당 화면으로 이동한다. CT-02는 s.ui['CT-02'].sel, CT-03은 s.ui['CT-03'].res, CT-10은 s.ui['CT-10'].from='CT-01'과 refund를 넘긴다" },
-      { "name": "CT01.openRes", "arg": "예약 id ('r1' 입학 테스트, 'r2' 상담, 'r-rt1' 재테스트)", "does": "오늘 상담·테스트 줄 클릭. 테스트면 s.ui['CT-03'].res를 넣고 CT-03으로, 상담이면 s.ui['CT-02'].sel을 넣고 CT-02로 간다" }
-    ],
-    "reads": "s.reservations 결과 '보류'와 s.consults[예약id].recall(CT-02 데이터)로 보류 상담 후속 줄을 만든다. s.notices 읽음 여부, s.staff 경력 조회일, s.alim.balances(가맹), s.invoices(가맹)를 읽는다. 대치1 숫자와 시간표는 원문 예시(s.ct01)",
-    "demo_hint": "하루 시작 장면. 대치1 원장으로 열어 오늘 할 일(환불 D-3, 미수, 재등록 D-12, 보류 상담 D-4, 경력 조회 전 교직원)을 보여 주고 CT01.done 'rf1', CT01.readNotice 'n-ct17-1'로 정리한다. 교사(ct:daechi1:교사)로 바꾸면 돈 숫자가 가려진다(핀 10). 가맹 장에서는 ct:daegu:원장으로 열면 알림톡 잔액과 청구서 확인 줄이 나온다" },
-  { "id": "CT-03", "tabs": [], "pins": [1,2,3,4,5,6,7,8], "review_pins": [6,7,8],
-    "actions": [
-      { "name": "CT03.pick", "arg": "예약 id ('r1' 윤시온 입학 테스트, 'r-rt1' 오지호 재테스트)", "does": "테스트할 예약을 고른다 (s.ui['CT-03'].res와 같다)" },
-      { "name": "CT03.check", "arg": "{t_birth:'2017-04-12', t_consent:true} (선택 t_grade:'초4', 학년이 다르면 t_reason:'조기 입학'과 원장 계정 필요)", "does": "학생 확인. 생년월일 형식, 최저 학년(초1, 예시) 미만 차단, 보호자 확인 학년과 생년월일 학년 비교, 보호자 동의 체크를 검사하고 통과하면 패드를 잠그고 2단계(두뇌 유형 검사)로 간다. 오류 문구는 s.ui['CT-03'].t_err" },
-      { "name": "CT03.next", "arg": "없음 또는 3단계에서 결과 덮어쓰기 {level:'L2', score:52, minutes:34, type:'○○형'}, 4단계에서 {t_level:'L3'}", "does": "2단계에서 3단계, 3단계에서 4단계(결과 생성, 예약 상태 완료), 4단계에서 5단계(등록할 레벨 확정)로 넘긴다. 데모는 세 번 부르면 결과지·전달 단계가 된다" },
-      { "name": "CT03.method", "arg": "'현장 출력' | '우편' | '이메일' | '알림톡 링크'", "does": "전달 방식을 켜고 끈다 (기본 현장 출력)" },
-      { "name": "CT03.deliver", "arg": "{} 또는 {methods:['현장 출력','우편'], t_addr:'서울 강남구 대치동 (예시)', t_email:'a@b.kr'}", "does": "5단계에서 결과지 전달을 기록한다. 우편은 주소, 이메일은 주소 형식을 검사한다. 우편 주소 삭제 예정일(30일 뒤)을 알린다" },
-      { "name": "CT03.print", "arg": "없음", "does": "결과지 출력(현장 출력)을 기록한다. 4단계면 5단계로 넘긴다" },
-      { "name": "CT03.toRegister", "arg": "없음", "does": "전달 기록이 있어야 진행. 신규면 s.ui['CT-05'] = {from, name, grade, phone, level, testDate, testType}를 넣고 CT-05로 간다. 이미 재원생(재테스트)이면 s.ui['CT-13'] = {student, cls, level, from}를 넣고 CT-13으로 간다" },
-      { "name": "CT03.reset", "arg": "없음", "does": "고른 예약의 테스트 진행을 처음으로 되돌린다" }
-    ],
-    "reads": "s.ui['CT-03'].res (예약 id)로 시작한다. 없으면 s.ui['CT-02'].sel이 테스트 예약일 때 그것, 아니면 첫 '예약' 상태 테스트(r1). 진행 상태는 s.ct03.runs[예약id]",
-    "demo_hint": "신규 원생 장에서 CT-02 다음 장면. 실장이 r1 윤시온을 태블릿으로 진행: CT03.check {t_birth:'2017-04-12', t_consent:true}, CT03.next 세 번, CT03.print, CT03.toRegister로 CT-05에 레벨 L2를 넘긴다. 오류 장면은 t_birth '2021-05-02'(미취학 차단)나 동의 미체크. 테스트비 수납은 교육청 확인 전이라 잠겨 있다(핀 8)" },
-  { "id": "CT-04", "tabs": [], "pins": [1,2,3,4,5,6,7], "review_pins": [4,5,6,7],
-    "actions": [
-      { "name": "CT04.tab", "arg": "'재원' | '휴원' | '퇴원' | '대기'", "does": "상태 탭을 바꾼다" },
-      { "name": "CT04.search", "arg": "{f_status:'재원', f_cls:'c4', f_level:'L3', f_pay:'미수', f_acc:'활성', f_q:'박하준'} (모두 선택)", "does": "필터를 적용한다. f_pay는 '수납 완료' | '미수' | '청구 전' | '제외'" },
-      { "name": "CT04.resetFilter", "arg": "없음", "does": "필터를 지운다" },
-      { "name": "CT04.pick", "arg": "학생 id 배열 ['s1','s7'] 또는 's1,s7'", "does": "선택을 정확히 그 학생들로 바꾼다" },
-      { "name": "CT04.check", "arg": "학생 id", "does": "한 명 선택을 켜고 끈다" },
-      { "name": "CT04.bulk", "arg": "'move' | 'msg' | 'exclude'", "does": "일괄 작업 확인 패널을 연다. 선택이 없으면 재원생 2명을 자동으로 고른다(데모, PRD 카드용)" },
-      { "name": "CT04.target", "arg": "반 id ('c1'~'c5')", "does": "반 이동 대상 반을 고르고 정원과 같은 시간대 합계를 미리 보여 준다 (c4 L3-화목B는 15/15라 막힌다)" },
-      { "name": "CT04.tpl", "arg": "템플릿 id ('T03' 수강료 안내, 'T04' 미납 안내 등 승인된 것만)", "does": "알림톡 템플릿을 고르고 비용과 잔액을 보여 준다" },
-      { "name": "CT04.reason", "arg": "'휴원 예정' | '퇴원 예정' | '장학' | '기타'", "does": "재등록 제외 사유를 고른다" },
-      { "name": "CT04.run", "arg": "{mode:'move', ids:['s1','s7'], target:'c5', when:'다음 수업부터'} | {mode:'msg', ids:[...], tpl:'T04'} | {mode:'exclude', ids:[...], reason:'장학'} (memo는 기타일 때)", "does": "확인 패널의 실행 버튼. 반 이동은 정원 초과면 막고, 알림톡은 승인 템플릿과 잔액을 검사하고, 제외는 사유를 검사한다. 장학과 기타는 원장이 아니면 승인 대기가 된다. 결과(성공, 실패)와 이력을 남긴다" },
-      { "name": "CT04.approve", "arg": "학생 id", "does": "원장이 재등록 제외 승인 대기를 승인한다" },
-      { "name": "CT04.include", "arg": "학생 id", "does": "제외한 학생을 재등록 대상에 다시 넣는다" },
-      { "name": "CT04.closeBulk", "arg": "없음", "does": "일괄 작업 패널을 닫는다" },
-      { "name": "CT04.excel", "arg": "사유 문자열 또는 {reason:'3월 재등록 상담 준비'} (없으면 사유 입력 모달)", "does": "연락처를 가린 엑셀 내려받기를 s.audit 맨 위에 기록한다" },
-      { "name": "CT04.open", "arg": "학생 id", "does": "s.ui['CT-06'] = {student, from:'CT-04'}를 넣고 원생 상세로 간다" },
-      { "name": "CT04.toDetail", "arg": "'학생id|휴원' 또는 '학생id|퇴원'", "does": "재등록 제외 뒤 상태 변경을 이어 가도록 s.ui['CT-06'] = {student, from:'CT-04', want}를 넣고 CT-06으로 간다" }
-    ],
-    "reads": "s.students(대치1 12명 중 상담 상태 제외), s.classes, s.products, s.alim(템플릿, 잔액). 재등록 제외와 예약 반 이동은 s.ct04.rereg, s.ct04.pending, 이력은 s.ct04.history",
-    "demo_hint": "재등록 준비 장면에 좋다. 실장으로 CT04.run {mode:'exclude', ids:['s2'], reason:'장학'} 하면 승인 대기, 원장으로 바꿔 CT04.approve 's2'. 휴원 예정 제외는 CT-06 상태 변경으로 이어진다. 반 이동 장면은 CT04.pick ['s1','s7'], CT04.bulk 'move', CT04.target 'c4'로 정원 초과 경고를 보여 준 뒤 target 'c5'로 실행. 핀 4는 제외 확인 패널(CT04.bulk 'exclude')에서, 핀 5는 확인과 결과 패널에서 보인다" }
-] }
+{
+ "screens": [
+  {
+   "id": "CT-01",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "review_pins": [
+    7,
+    8,
+    9,
+    10
+   ],
+   "actions": [
+    {
+     "name": "CT01.done",
+     "arg": "할 일 키 문자열 ('rf1' 환불, 'lk1' 변경신고, 'no1' 미퇴실, 'notice' 필독, 'unpaid' 미수, 'order' 교재 주문 마감, 'rereg' 재등록, 'hold-r4' 보류 상담, 'staffcheck' 수업 배치 불가 교직원, 가맹은 'alim', 'inv-inv-daegu-09')",
+     "does": "오늘 할 일 한 줄을 처리함으로 체크하거나 되돌린다. 처리한 줄은 아래로 내려가고 남은 일 수가 줄어든다"
+    },
+    {
+     "name": "CT01.readNotice",
+     "arg": "공지 id ('n-ct17-1' 4월 재등록 안내 문구 변경, 필독. CT-17 공지 데이터와 같은 id)",
+     "does": "현재 센터에서 공지를 읽음으로 바꾸고 CT-17 확인 기록(s.ct17.readBy)에도 남긴다. 기한·경고의 필독 공지 줄이 사라진다 (모달 없이 쓰는 데모용)"
+    },
+    {
+     "name": "CT01.notice",
+     "arg": "공지 id",
+     "does": "공지 확인 모달을 연다. 확인을 누르면 CT01.readNotice와 같다 (클릭 전용, 데모에서는 readNotice를 쓴다)"
+    },
+    {
+     "name": "CT01.open",
+     "arg": "'CT-10|rf1' | 'CT-18' | 'CT-12' | 'CT-08' | 'CT-09' | 'CT-14' | 'CT-15' | 'CT-16' | 'CT-20' | 'CT-02|r4'",
+     "does": "할 일 버튼처럼 해당 화면으로 이동한다. CT-02는 s.ui['CT-02'].sel, CT-03은 s.ui['CT-03'].res, CT-10은 s.ui['CT-10'].from='CT-01'과 refund를 넘긴다. 화면에는 그 역할이 열 수 있는 화면(7쪽 권한표)으로 가는 버튼만 보인다"
+    },
+    {
+     "name": "CT01.openRes",
+     "arg": "예약 id ('r1' 입학 테스트, 'r2' 상담, 'r-rt1' 재테스트)",
+     "does": "오늘 상담·테스트 줄 클릭. 테스트면 s.ui['CT-03'].res를 넣고 CT-03으로, 상담이면 s.ui['CT-02'].sel을 넣고 CT-02로 간다"
+    }
+   ],
+   "reads": "s.reservations 결과 '보류'와 s.consults[예약id].recall(CT-02 데이터)로 보류 상담 후속 줄을 만든다. 공지 읽음은 CT-17과 같은 기준(read[센터]가 없으면 안 읽음). 교직원 배치 가능 여부는 B.staffCanTeach(CT-20)가 있으면 그것을, 없으면 경력 조회일과 교육청 통보일로 본다. s.alim.balances(가맹), s.invoices(가맹)를 읽는다. 대치1 숫자와 시간표는 원문 예시(s.ct01, 교사 이름만 교직원 명단에 맞춤)",
+   "demo_hint": "하루 시작 장면. 대치1 원장으로 열어 오늘 할 일(환불 D-3, 미수, 교재 주문 마감 D-2, 재등록 D-12, 보류 상담 D-4, 수업 배치 불가 교직원)을 보여 주고 CT01.done 'rf1', CT01.readNotice 'n-ct17-1'로 정리한다. 교사(ct:daechi1:교사)로 바꾸면 돈 숫자와 교직원 줄이 가려진다(핀 10). 부산(ct:busan:원장)은 교습소 9명(법정), 알림톡 잔액 부족, 교육청 통보일 없는 보조교사가 보인다"
+  },
+  {
+   "id": "CT-03",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "review_pins": [
+    6,
+    7,
+    8,
+    9
+   ],
+   "actions": [
+    {
+     "name": "CT03.pick",
+     "arg": "예약 id ('r1' 윤시온 입학 테스트, 'r-rt1' 오지호 재테스트)",
+     "does": "테스트할 예약을 고른다 (s.ui['CT-03'].res와 같다)"
+    },
+    {
+     "name": "CT03.check",
+     "arg": "{t_birth:'2017-04-12', t_consent:true} (선택 t_grade:'초4', 학년이 다르면 t_reason:'조기 입학')",
+     "does": "학생 확인. 생년월일 형식, 최저 학년(초1, 예시) 미만 차단, 보호자 확인 학년과 생년월일 학년(3월 1일 기준) 비교, 보호자 동의 체크를 검사한다. 학년이 다르면 실장은 원장 확인 요청(s.ct03.runs[id].ask)만 남기고, 원장이 같은 동작을 부르면 통과한다. 통과하면 패드를 잠그고 2단계로 간다. 오류 문구는 s.ui['CT-03'].t_err"
+    },
+    {
+     "name": "CT03.next",
+     "arg": "없음 또는 3단계에서 결과 덮어쓰기 {score:52} (레벨은 점수 구간으로 정해짐) 또는 {level:'L2', score:52, minutes:34, type:'○○형'}, 4단계에서 {t_level:'L3'}",
+     "does": "2단계에서 3단계, 3단계에서 4단계(결과 생성, 예약 상태 완료), 4단계에서 5단계(등록할 레벨 확정)로 넘긴다. 4단계에서 학생 학년이 고른 레벨 대상 학년(예시 표) 밖이면 원장만 확정할 수 있다. 데모는 세 번 부르면 결과지 전달 단계가 된다"
+    },
+    {
+     "name": "CT03.level",
+     "arg": "'L1' | 'L2' | 'L3' | 'L4'",
+     "does": "4단계에서 등록할 레벨을 고른다. 점수 구간과 대상 학년(모두 예시)을 바로 보여 준다"
+    },
+    {
+     "name": "CT03.method",
+     "arg": "'현장 출력' | '우편' | '이메일' | '알림톡 링크'",
+     "does": "전달 방식을 켜고 끈다 (기본 현장 출력)"
+    },
+    {
+     "name": "CT03.deliver",
+     "arg": "{} 또는 {methods:['현장 출력','우편'], t_addr:'서울 강남구 대치동 (예시)', t_email:'a@b.kr'}",
+     "does": "5단계에서 결과지 전달을 기록한다. 우편은 주소, 이메일은 주소 형식을 검사하고, T06 템플릿이 승인 상태가 아니면 알림톡 링크를 막는다. 우편 주소 삭제 예정일(30일 뒤)을 알린다"
+    },
+    {
+     "name": "CT03.print",
+     "arg": "없음",
+     "does": "결과지 출력(현장 출력)을 기록한다. 4단계면 5단계로 넘긴다"
+    },
+    {
+     "name": "CT03.toRegister",
+     "arg": "없음",
+     "does": "전달 기록이 있어야 진행. 신규면 s.ui['CT-05'] = {from, name, grade, phone, birth, level, testDate, testType}를 넣고 CT-05로 간다. 이미 재원생(재테스트)이면 s.ui['CT-13'] = {student, cls, level, from}를 넣고 CT-13으로 간다"
+    },
+    {
+     "name": "CT03.reset",
+     "arg": "없음",
+     "does": "고른 예약의 테스트 진행을 처음으로 되돌린다"
+    },
+    {
+     "name": "CT03.pay",
+     "arg": "없음",
+     "does": "잠긴 테스트비 수납 버튼. 교육청 확인 전이라 받지 않는다는 안내만 띄운다"
+    }
+   ],
+   "reads": "s.ui['CT-03'].res (예약 id)로 시작한다. 없으면 s.ui['CT-02'].sel이 테스트 예약일 때 그것, 아니면 첫 '예약' 상태 테스트(r1). 진행 상태는 s.ct03.runs[예약id]",
+   "demo_hint": "신규 원생 장에서 CT-02 다음 장면. 실장이 r1 윤시온을 태블릿으로 진행: CT03.check {t_birth:'2017-04-12', t_consent:true}, CT03.next 세 번, CT03.print, CT03.toRegister로 CT-05에 레벨 L2를 넘긴다. 오류 장면은 t_birth '2021-05-02'(미취학 차단)나 동의 미체크. 원장 확인 장면은 실장으로 {t_birth:'2018-04-12', t_reason:'조기 입학', t_consent:true}를 부른 뒤 원장으로 바꿔 CT03.check. 테스트비 수납은 교육청 확인 전이라 잠겨 있다(핀 8). 핀 9는 4단계 등록할 레벨 칸"
+  },
+  {
+   "id": "CT-04",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "actions": [
+    {
+     "name": "CT04.tab",
+     "arg": "'재원' | '휴원' | '퇴원' | '대기'",
+     "does": "상태 탭을 바꾼다"
+    },
+    {
+     "name": "CT04.search",
+     "arg": "{f_status:'재원', f_cls:'c4', f_level:'L3', f_pay:'미수', f_acc:'활성', f_q:'박하준'} (모두 선택)",
+     "does": "필터를 적용한다. f_pay는 '수납 완료' | '미수' | '청구 전' | '제외'"
+    },
+    {
+     "name": "CT04.resetFilter",
+     "arg": "없음",
+     "does": "필터를 지운다"
+    },
+    {
+     "name": "CT04.pick",
+     "arg": "학생 id 배열 ['s1','s7'] 또는 's1,s7'",
+     "does": "선택을 정확히 그 학생들로 바꾼다"
+    },
+    {
+     "name": "CT04.check",
+     "arg": "학생 id",
+     "does": "한 명 선택을 켜고 끈다"
+    },
+    {
+     "name": "CT04.checkAll",
+     "arg": "없음",
+     "does": "지금 목록에 보이는 원생을 모두 고르거나 모두 푼다"
+    },
+    {
+     "name": "CT04.bulk",
+     "arg": "'move' | 'msg' | 'exclude'",
+     "does": "일괄 작업 확인 패널을 연다. 선택이 없으면 재원생 2명을 자동으로 고른다(데모, PRD 카드용)"
+    },
+    {
+     "name": "CT04.msg",
+     "arg": "없음",
+     "does": "제목 옆 알림톡 보내기 버튼. CT04.bulk 'msg'와 같다"
+    },
+    {
+     "name": "CT04.target",
+     "arg": "반 id ('c1'~'c5')",
+     "does": "반 이동 대상 반을 고르고 정원과 같은 시간대 합계를 미리 보여 준다 (c4 L3-화목B는 15/15라 막힌다)"
+    },
+    {
+     "name": "CT04.when",
+     "arg": "'다음 수업부터' | '4월 1일부터'",
+     "does": "반 이동 적용일을 고른다. 4월 1일부터면 예약 이동으로 남는다"
+    },
+    {
+     "name": "CT04.tpl",
+     "arg": "템플릿 id ('T03' 수강료 안내, 'T04' 미납 안내 등 승인된 것만)",
+     "does": "알림톡 템플릿을 고르고 비용과 잔액을 보여 준다"
+    },
+    {
+     "name": "CT04.reason",
+     "arg": "'휴원 예정' | '퇴원 예정' | '장학' | '기타'",
+     "does": "재등록 제외 사유를 고른다"
+    },
+    {
+     "name": "CT04.run",
+     "arg": "{mode:'move', ids:['s1','s7'], target:'c5', when:'다음 수업부터'} | {mode:'msg', ids:[...], tpl:'T04'} | {mode:'exclude', ids:[...], reason:'장학'} (memo는 기타일 때)",
+     "does": "확인 패널의 실행 버튼. 반 이동은 정원 초과와 같은 시간대 합계(일시수용능력)를 막고, 알림톡은 승인 템플릿과 잔액을 검사하고, 제외는 사유를 검사한다. 장학과 기타는 원장이 아니면 승인 대기가 된다. 결과(성공, 실패)와 이력을 남긴다"
+    },
+    {
+     "name": "CT04.approve",
+     "arg": "학생 id",
+     "does": "원장이 재등록 제외 승인 대기를 승인하고 이력(s.ct04.history)에 남긴다"
+    },
+    {
+     "name": "CT04.include",
+     "arg": "학생 id",
+     "does": "제외한 학생을 재등록 대상에 다시 넣는다"
+    },
+    {
+     "name": "CT04.closeBulk",
+     "arg": "없음",
+     "does": "일괄 작업 패널을 닫는다"
+    },
+    {
+     "name": "CT04.excel",
+     "arg": "사유 문자열 또는 {reason:'재등록 상담 준비', items:['이름','학년','연락처']} (없으면 사유와 항목을 고르는 모달)",
+     "does": "CM-03 규칙대로 사유와 항목을 남기고 엑셀 내려받기를 s.audit 맨 위에 기록한다. 연락처와 생년월일은 기본으로 빠지고, 넣으면 가운데를 가린다"
+    },
+    {
+     "name": "CT04.open",
+     "arg": "학생 id",
+     "does": "s.ui['CT-06'] = {student, from:'CT-04'}를 넣고 원생 상세로 간다"
+    },
+    {
+     "name": "CT04.toDetail",
+     "arg": "'학생id|휴원' 또는 '학생id|퇴원'",
+     "does": "재등록 제외 뒤 상태 변경을 이어 가도록 s.ui['CT-06'] = {student, from:'CT-04', want}를 넣고 CT-06으로 간다"
+    }
+   ],
+   "reads": "s.students(대치1 12명 중 상담 상태 제외), s.classes, s.products, s.alim(템플릿, 잔액). 재등록 제외와 예약 반 이동은 s.ct04.rereg, s.ct04.pending, 이력은 s.ct04.history",
+   "demo_hint": "재등록 준비 장면에 좋다. 실장으로 CT04.run {mode:'exclude', ids:['s2'], reason:'장학'} 하면 승인 대기, 원장으로 바꿔 CT04.approve 's2'. 휴원 예정 제외는 CT-06 상태 변경으로 이어진다. 반 이동 장면은 CT04.pick ['s1','s7'], CT04.bulk 'move', CT04.target 'c4'로 정원 초과 경고를 보여 준 뒤 target 'c5'로 실행. 핀 4는 제외 확인 패널(CT04.bulk 'exclude')에서, 핀 5는 확인과 결과 패널에서 보인다"
+  }
+ ]
+}
