@@ -37,12 +37,14 @@
     '.cmk-lockline{font-size:12px;color:var(--sub);display:flex;flex-direction:column;gap:6px}',
     '.cmk-foot{text-align:center;color:var(--sub);font-size:12px;padding:0 20px 20px}',
     /* support band */
-    '.cmk-band{display:flex;align-items:center;flex-wrap:wrap;gap:6px 0;background:#c8102e;color:#fff;border-radius:8px;padding:8px 12px;font-size:12.3px;margin-bottom:12px}',
+    '.cmk-band{display:flex;align-items:center;flex-wrap:wrap;gap:6px 0;background:#c8102e;color:#fff;border-radius:8px;padding:8px 12px 8px 18px;font-size:12.3px;margin-bottom:12px}',
     '.cmk-band b{margin-right:10px}',
-    '.cmk-band > span{padding:0 10px;border-left:1px solid rgba(255,255,255,.45)}',
+    '.cmk-band > span:not(.pin){padding:0 10px;border-left:1px solid rgba(255,255,255,.45)}',
     '.cmk-band > b + span{border-left:0;padding-left:0}',
     '.cmk-band > span.r{margin-left:auto;display:flex;gap:6px;border-left:0;padding-right:0}',
-    '.cmk-band.preview{margin:6px 0 0;font-size:11.5px;padding:6px 10px}',
+    '.cmk-band.preview{margin:6px 0 0;font-size:11.5px;padding:6px 8px 6px 18px;gap:4px}',
+    '.cmk-band.preview > b{margin-right:4px}',
+    '.cmk-band.preview > span:not(.pin){border-left:0;padding:1px 7px;background:rgba(255,255,255,.16);border-radius:4px}',
     '.cmk-prev{margin-top:12px}',
     /* common rules */
     '.cmk-filter{display:grid;grid-template-columns:104px 120px minmax(120px,1fr) auto 96px 96px;gap:8px;align-items:end;margin-bottom:8px}',
@@ -168,7 +170,7 @@
       att: { daegu: '47/52 (예시)' },
       last: {},
       log: [
-        { at: '10-06 14:21', who: '홍길동 (본사 운영)', center: 'daegu', reason: '1:1 문의 대응 (#1042)', memo: '청구서 조정 문의 확인', seen: 'CT-15 청구서·납부 열람', end: '10-06 14:38' },
+        { at: '03-05 14:21', who: '홍길동 (본사 운영)', center: 'daegu', reason: '1:1 문의 대응 (#1042)', memo: '청구서 조정 문의 확인', seen: 'CT-15 본사 청구서·거래원장 열람', end: '03-05 14:38' },
         { at: '03-08 09:05', who: '홍길동 (본사 운영)', center: 'daechi1', reason: '1:1 문의 대응 (재등록 청구 금액)', memo: '4월 회차 금액 확인', seen: 'CT-08 재등록 대상 열람', end: '03-08 09:31' },
       ],
     };
@@ -258,7 +260,7 @@
         '<input class="inp cmk-code' + (ui.codeErr ? ' bad' : '') + '" maxlength="6" inputmode="numeric" autocomplete="one-time-code" aria-label="인증 코드 6자리" data-field="code" placeholder="000000" value="' + esc(ui.code || '') + '"' + (on2 ? '' : ' disabled') + '>' +
         (ui.codeErr ? '<div class="cmk-err">' + esc(ui.codeErr) + '</div>' : '') +
         chk('remember', !shared && ui.remember, '이 기기 30일 동안 기억 (예시)', { pin: 5, cls: 'cmk-pp', disabled: !on2 || shared }) +
-        '<div class="small muted cmk-pp" style="margin-top:-6px">' + (shared ? '센터 데스크는 여러 직원이 같이 쓰는 기기라 기억하지 않아요.' : '처음에는 꺼져 있어요. 기억한 기기는 계정 설정에서 지워요.') + '</div>' +
+        '<div class="small muted cmk-pp" style="margin-top:-6px">' + (shared ? '이 센터는 데스크 기기를 공용 기기로 정해 두어서 기억을 켤 수 없어요 (센터 설정).' : '처음에는 꺼져 있어요. 기억한 기기는 계정 설정에서 지워요.') + '</div>' +
         '<div class="cmk-full">' + h.btn('확인', { primary: on2, act: 'CM01.verify', disabled: !on2 }) + '</div>' +
         '<button type="button" class="cmk-link" data-act="CM01.sms">인증 앱이 없으면 휴대폰 문자로 받기</button>' +
         '<div class="cmk-pp" data-pin="6"><button type="button" class="cmk-link" data-act="CM01.lost">인증 수단을 잃어버렸어요</button></div>' +
@@ -291,10 +293,10 @@
       who: '본사 5개 역할(슈퍼관리자, 운영, 정산, 콘텐츠, SV)과 센터 4개 역할(원장, 실장·데스크, 교사, 보조교사)이 모두 같은 주소로 로그인해요. 학생과 학부모는 쓰지 않아요.',
       items: [
         { n: 1, t: '하나의 로그인, 역할로 나뉘는 첫 화면', d: '본사와 센터가 같은 주소로 로그인하고, 계정이 어디 소속인지에 따라 들어가는 곳이 달라요. 학생과 학부모 로그인은 없고, 학습 앱 계정과 관리자 계정은 따로예요.', ref: 'p.16 ①' },
-        { n: 2, t: '2단계 인증', d: '비밀번호 다음에 인증 앱의 6자리 숫자를 넣어요. 본사 계정 전원과 원장은 꼭 하고, 실장과 교사는 본사 설정에 따라 해요. 인증 앱이 없으면 예외로 문자를 받을 수 있어요.', ref: 'p.16 ②' },
+        { n: 2, t: '2단계 인증', d: '비밀번호 다음에 인증 앱의 6자리 숫자를 넣어요. 본사 계정 전원과 원장은 꼭 하고, 실장과 교사는 본사 설정에 따라 해요. 인증 앱이 없으면 예외로 문자를 받을 수 있어요. 기억해 둔 기기는 계정 설정에서 지울 수 있어요.', ref: 'p.16 ②' },
         { n: 3, t: '실패 잠금과 비밀번호 찾기', d: '비밀번호를 5번 틀리면 10분 동안 잠겨요(예시). 비밀번호는 영문, 숫자, 특수문자를 섞어 8자 이상이에요(예시). 잊어버리면 등록된 휴대폰으로 본인 확인을 하고 재설정 링크를 받아요.', ref: 'p.16 ③' },
         { n: 4, t: '역할별 첫 화면과 접속기록', d: '본사 계정은 본사 대시보드(HQ-01), 센터 계정은 센터 대시보드(CT-01), 센터를 여러 곳 맡은 원장은 센터 선택(CM-02)으로 가요. 첫 로그인에는 비밀번호를 바꾸고 보안 서약을 해요. 로그인 성공과 실패는 접속기록(HQ-22)에 남아요.', pol: ['POL-42'], ref: 'p.16 ④' },
-        { n: 5, t: '이 기기 기억은 처음에 꺼 둬요', kind: 'review', imp: 'IMP-14', d: '원문 그림에는 이 기기 30일 기억이 처음부터 켜져 있었어요. 여러 직원이 같이 쓰는 센터 데스크 PC에서는 다른 사람이 원장 권한으로 쓸 수 있어서, 처음에는 꺼 두고 공용 기기에서는 아예 막아요.' },
+        { n: 5, t: '이 기기 기억은 처음에 꺼 둬요', kind: 'review', imp: 'IMP-14', d: '원문 그림에는 이 기기 30일 기억이 처음부터 켜져 있었어요. 여러 직원이 같이 쓰는 센터 데스크 PC에서는 다른 사람이 원장 권한으로 쓸 수 있어요. 그래서 처음에는 꺼 두고, 본사나 센터가 공용 기기로 정한 곳에서는 아예 켤 수 없게 해요.' },
         { n: 6, t: '인증 수단을 잃어버렸을 때', kind: 'review', imp: 'IMP-14', d: '휴대폰을 바꾸거나 잃어버리면 로그인을 못 해요. 본사 계정은 슈퍼관리자가, 원장은 본사 운영팀이, 교직원은 원장이 본인 확인 뒤 초기화해요. 처음 등록할 때 받은 1회용 복구 코드로도 들어올 수 있어요.' },
         { n: 7, t: '오래 쓰지 않으면 자동 로그아웃', kind: 'review', imp: 'IMP-14', d: '관리자 화면에는 아무것도 안 하면 로그아웃하는 규칙이 없었어요. 공용 PC를 켜 둔 채 자리를 비우는 일을 막으려고 넣어요. 몇 분으로 할지와 같은 계정의 동시 로그인을 허용할지는 아직 정하지 않았어요.' },
       ],
@@ -443,14 +445,14 @@
       who: '센터 전환은 여러 센터를 맡은 원장이 써요. 지원 모드는 본사 직원이 열고, 어느 본사 역할까지 열 수 있는지는 아직 정하지 않았어요. 센터 원장은 본사가 연 기록을 봐요.',
       items: [
         { n: 1, t: '다점포 원장의 센터 전환', d: '한 사람이 여러 센터를 맡으면 위쪽 센터 선택에서 바꿔요. 센터마다 데이터가 나뉘어 있어서 목록과 검색은 고른 센터 안에서만 돼요. 마지막으로 쓴 센터로 시작해요.', ref: 'p.17 ①' },
-        { n: 2, t: '본사 지원 모드', d: '본사가 문의 대응이나 정산 확인, 점검 때문에 센터 화면을 열 때 사유를 꼭 넣어요. 기본은 읽기 전용이고, 원생 정보는 지원 모드에서도 가려져요. 열면 그 센터의 대시보드(CT-01)를 본사 사람으로 봐요. 본사 대시보드 경고에서 넘어오면 사유를 미리 채우고 그 센터 화면으로 바로 가요.', pol: ['POL-42'], ref: 'p.17 ②' },
+        { n: 2, t: '본사 지원 모드', d: '본사가 문의 대응이나 정산 확인, 점검 때문에 센터 화면을 열 때 사유를 꼭 넣어요. 기본은 읽기 전용이고, 고쳐야 할 때는 센터 원장의 동의를 받아요. 원생 정보는 지원 모드에서도 가려져요. 열면 그 센터의 대시보드(CT-01)를 본사 사람으로 보고, 본사 대시보드 경고에서 넘어오면 사유를 미리 채워 줘요.', pol: ['POL-42'], ref: 'p.17 ②' },
         { n: 3, t: '지원 모드 표시', d: '지원 모드인 동안 화면 위에 빨간 띠를 고정해서 지금 남의 센터를 보고 있다는 걸 알려요. 30분이 지나면 저절로 끝나요(예시).', ref: 'p.17 ③' },
         { n: 4, t: '기록', d: '열람 사유와 본 화면과 동작을 감사 로그(HQ-22)에 남겨요. 센터도 본사가 언제 왜 열었는지 볼 수 있어요(CT-17).', ref: 'p.17 ④' },
         { n: 5, t: '지원 모드에서는 내려받기와 해제를 막아요', kind: 'review', imp: 'IMP-14', d: '읽기 전용이라면서 원생 명단을 파일로 가져갈 수 있으면 안 돼요. 지원 모드에서는 엑셀 다운로드와 마스킹 해제 버튼을 잠가요. 공통 규칙 화면(CM-03)에서도 같이 잠겨요.' },
         { n: 6, t: '편집 요청은 P1b부터', kind: 'review', imp: 'IMP-14', d: '원장이 어디서 어떻게 동의하는지 흐름이 아직 없어요. 그래서 P1a에서는 읽기 전용만 열고, 센터 동의를 받는 편집 요청은 다음 단계로 미뤄요.' },
         { n: 7, t: '직영 센터는 처리자가 본사예요', kind: 'review', imp: 'IMP-04', cond: true, reveal: 'CM02.pick', revealArg: 'daechi1', d: '직영 센터는 본사(MSC Brain)가 직접 운영해서 원생 정보 처리자도 본사예요. 직영 업무를 돕는 본사 직원에게 직영 센터 계정을 줄지, 지원 모드로 열게 할지 정해야 해요. 직영 센터를 고르면 이 안내가 보여요.' },
       ],
-      open: ['지원 모드 자동 종료 30분 (예시)', '편집 요청에 원장이 동의하는 방법', '지원 모드를 쓸 수 있는 본사 역할과 사유 목록', '직영 센터를 돕는 본사 직원의 계정 방식 (부록 A 결정 10번)'],
+      open: ['지원 모드 자동 종료 30분 (예시)', '편집 요청에 원장이 동의하는 방법', '지원 모드를 쓸 수 있는 본사 역할과 사유 목록', '직영 센터를 돕는 본사 직원의 계정 방식 (부록 A 결정 10번)', '지원 모드를 P1a에 열지 P1b로 미룰지 (검토 의견 IMP-02는 P1b로 미루고 그동안 공유 시트와 메신저로 대신하자는 안)'],
     },
   });
 
@@ -485,7 +487,7 @@
           { label: '유형', render: c => h.chip(c.type, typeChip(c.type)) },
           { label: '내 역할', render: () => esc(p.role) },
           { label: '오늘 출결', render: c => esc(c.att) },
-          { label: '', render: c => c.open ? h.btn('열기', { sm: true, act: 'CM02.switch', arg: c.id }) : h.chip('오픈 준비', 'p2') },
+          { label: '', render: c => c.open ? h.btn('열기', { sm: true, act: 'CM02.switch', arg: c.id }) : h.btn('열기', { sm: true, disabled: true, title: '오픈 준비 중이라 아직 열 수 없어요' }) },
         ],
         rows: list,
         rowAttr: c => ' class="click' + (c.id === last ? ' sel' : '') + '" data-act="CM02.switch" data-arg="' + c.id + '"',
@@ -640,6 +642,7 @@
       });
       let listBody = filt;
       if (state === '오류') listBody += h.alert('목록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요.', 'bad') + '<div class="row" style="margin-top:8px">' + h.btn('다시 시도', { sm: true, act: 'CM03.state', arg: '정상' }) + '</div>';
+      else if (state === '불러오는 중') listBody += '<div class="cmk-note" role="status">원생 목록을 불러오는 중이에요. 잠시만 기다려 주세요.</div><div class="cmk-dimtbl" style="margin-top:8px">' + h.table({ cols: [{ label: '이름' }, { label: '학년' }, { label: '보호자 연락처' }, { label: '생년월일' }, { label: '수강료' }, { label: '다음 변경' }], rows: [], empty: '불러오는 중' }) + '</div>';
       else if (state === '오프라인') listBody += h.alert('인터넷 연결이 끊겼어요. 마지막으로 불러온 목록을 보여 줘요. 저장과 다운로드는 연결되면 다시 해요.', 'warn') + '<div class="cmk-dimtbl" style="margin-top:8px">' + table + '</div>';
       else listBody += table;
       listBody += '<div class="row" style="margin-top:10px" data-pin="2">' + h.btn('마스킹 해제', { act: 'CM03.unmaskForm', arg: 'open', disabled: !can.ok, title: can.why }) +
@@ -656,7 +659,7 @@
         const r = s.cm03.rows.find(x => x.id === un.id);
         listBody += '<div style="margin-top:10px">' + h.alert(h.mask(r.name) + ' 학생 정보를 ' + un.at.slice(6) + '에 풀었어요. 10분 뒤 다시 가려요 (예시). 사유 ' + un.reason, 'warn') + '<div class="row" style="margin-top:6px">' + h.btn('지금 다시 가리기', { sm: true, act: 'CM03.remask' }) + '</div></div>';
       }
-      listBody += '<div class="row cmk-pp" style="margin-top:12px" data-pin="10"><span class="small muted">목록 상태 미리 보기</span>' + h.opts(['정상', '빈 목록', '오류', '오프라인'], state, { act: 'CM03.state' }) + '</div>';
+      listBody += '<div class="row cmk-pp" style="margin-top:12px" data-pin="10"><span class="small muted">목록 상태 미리 보기</span>' + h.opts(['정상', '빈 목록', '불러오는 중', '오류', '오프라인'], state, { act: 'CM03.state' }) + '</div>';
 
       let html = h.card({ title: '원생 목록 (예시 화면)', sub: '공통 규칙 적용 예', right: h.btn('엑셀 다운로드', { act: 'CM03.dl', arg: 'open', pin: 3 }), body: listBody });
       html += '<div class="grid g2" style="margin-top:12px;align-items:start">' + dlCard(ctx, rows) + '<div class="stack">' + noPermCard(ctx) + dirtyCard(ctx) + varCard(ctx) + '</div></div>';
@@ -668,14 +671,14 @@
       items: [
         { n: 1, t: '목록 공통', d: '검색 조건과 정렬과 페이지 크기는 메뉴마다 기억해서, 화면을 떠났다 돌아와도 그대로예요. 날짜는 2027-03-01처럼 쓰고, 금액은 천 단위 쉼표를 찍고 원을 생략해요.', ref: 'p.18 ①' },
         { n: 2, t: '개인정보 마스킹', d: '이름 가운데 글자, 연락처 가운데 4자리, 생년월일의 월과 일을 가려요. 해제는 권한 있는 사람이 사유를 남기고 하고, 10분 뒤 다시 가려요(예시). 본사 화면은 기본으로 가려요.', pol: ['POL-42'], ref: 'p.18 ②' },
-        { n: 3, t: '다운로드', d: '엑셀을 내려받을 때마다 사유와 항목을 고르고 기록해요. 개인정보 항목은 꼭 필요한 것만 골라요. 다운로드 기록은 매월 점검해요(HQ-22).', ref: 'p.18 ③' },
+        { n: 3, t: '다운로드', d: '엑셀을 내려받을 때마다 사유와 항목을 고르고 기록해요. 연락처와 생년월일 같은 개인정보 항목은 처음에 체크가 꺼져 있어서, 꼭 필요한 것만 골라 켜요. 다운로드 기록은 매월 점검해요(HQ-22).', ref: 'p.18 ③' },
         { n: 4, t: '가변 값 표기', d: '정책에서 온 값이 아직 확정되지 않았으면 (안)을 붙이고, 예약된 변경이 있으면 다음 값을 같이 보여 줘요. 법으로 정해진 값은 회색 법정 표시를 붙이고 고칠 수 없게 잠가요.', pol: ['POL-44'], ref: 'p.18 ④' },
         { n: 5, t: '권한 없음', d: '볼 수 없는 메뉴는 숨기는 것이 기본이에요. 주소로 직접 들어오면 이 안내를 보여 줘요. 본사 사람에게는 슈퍼관리자에게 요청하라고 안내해요.', ref: 'p.18 ⑤' },
         { n: 6, t: '이탈 경고', d: '입력하다가 다른 메뉴로 가면 저장할지 물어봐요. 3분마다 임시 저장해요(예시). 메모 칸에 적고 다른 메뉴로 가기를 눌러 보세요.', ref: 'p.18 ⑥' },
         { n: 7, t: '해제는 한 명씩만', kind: 'review', imp: 'IMP-14', d: '목록 위 버튼 한 번으로 모든 원생이 풀리면 위험해요. 해제할 원생을 한 명 고르고 사유를 넣어야 풀려요. 해제한 사람과 사유는 감사 로그에 남아요.' },
         { n: 8, t: '파일 속 개인정보도 가려서 내보내요', kind: 'review', imp: 'IMP-14', cond: true, reveal: 'CM03.dl', revealArg: 'open', d: '개인정보가 가장 많이 새는 곳은 내려받은 파일이에요. 파일 안의 이름과 연락처도 기본으로 가려서 내보내고, 원본은 마스킹 해제 권한이 있는 사람만 받아요.' },
-        { n: 9, t: '학부모에게는 숫자만 나가요', kind: 'review', imp: 'IMP-10', d: '(안), 가변, 법정 같은 표시는 관리자 화면에만 붙여요. 알림톡과 영수증처럼 학부모에게 나가는 글에는 숫자만 써요. 아직 (안)인 값으로 돈을 받을 때는 경고해요.' },
-        { n: 10, t: '빈 목록, 오류, 끊김 상태', kind: 'review', imp: 'IMP-18', d: '목록이 비었을 때, 불러오다 실패했을 때, 인터넷이 끊겼을 때 무엇을 보여 줄지 정해 둬요. 목록 아래 버튼으로 상태를 바꿔 볼 수 있어요.' },
+        { n: 9, t: '학부모에게는 숫자만 나가요', kind: 'review', imp: 'IMP-10', d: '(안), 가변, 법정 같은 표시는 관리자 화면에만 붙여요. 알림톡과 영수증처럼 학부모에게 나가는 글에는 숫자만 써요. 아직 (안)이나 미정인 값으로 돈을 받으려 하면 경고하고, 슈퍼관리자가 임시로 쓰도록 승인한 기록이 있어야 써요.' },
+        { n: 10, t: '빈 목록, 불러오는 중, 오류, 끊김 상태', kind: 'review', imp: 'IMP-18', d: '목록이 비었을 때, 불러오는 동안, 불러오다 실패했을 때, 인터넷이 끊겼을 때 무엇을 보여 줄지 정해 둬요. 목록 아래 버튼으로 상태를 바꿔 볼 수 있어요.' },
       ],
       open: ['센터에서 마스킹을 풀 수 있는 역할', '다시 가리는 시간 10분, 임시 저장 간격 3분 (예시)', '다운로드 사유 목록에 넣을 보기', '파일 속 개인정보를 가릴지 원본으로 줄지'],
       rules: ['원생 개인정보는 역할과 상관없이 기본으로 가리고, 풀 때마다 사유를 남겨요 (7쪽 권한표)'],
@@ -690,6 +693,7 @@
       return h.card({ title: '엑셀 다운로드', body: '<div class="small muted">목록 위 엑셀 다운로드를 누르면 사유와 항목을 고르는 창이 열려요.</div>' + recent });
     }
     const raw = !!ui.dl_raw;
+    const sup = p.side === 'hq' && !!B.state.support;
     return h.card({
       title: '엑셀 다운로드', sub: rows.length + '명 (지금 목록)', right: h.btn('닫기', { sm: true, act: 'CM03.dl', arg: 'close' }),
       body: '<div class="stack" style="gap:10px">' +
@@ -697,8 +701,8 @@
         '<div class="field"><label>항목</label><div class="row">' + chk('dl_name', ui.dl_name !== false, '이름') + chk('dl_grade', ui.dl_grade !== false, '학년') + chk('dl_phone', !!ui.dl_phone, '연락처') + chk('dl_birth', !!ui.dl_birth, '생년월일') + '</div></div>' +
         '<div class="field cmk-pp" data-pin="8"><label>파일 속 개인정보</label>' + h.opts(['가려서 내보내기', '원본 (해제 권한자만)'], raw ? '원본 (해제 권한자만)' : '가려서 내보내기', { act: 'CM03.dlRaw' }) + '</div>' +
         '<div class="cmk-note">개인정보 항목은 꼭 필요한 것만 고르세요. 다운로드 내역은 기록되고 매월 점검해요 (HQ-22).</div>' +
-        (ui.dl_err2 ? '<div class="cmk-err">' + esc(ui.dl_err2) + '</div>' : '') +
-        '<div class="row" style="justify-content:flex-end">' + h.btn('취소', { act: 'CM03.dl', arg: 'close' }) + h.btn('다운로드', { primary: true, act: 'CM03.download', disabled: !ctx.canEdit }) + '</div>' + recent + '</div>',
+        (ui.dl_err2 ? '<div class="cmk-err">' + esc(ui.dl_err2) + '</div>' : sup ? '<div class="cmk-err">지원 모드에서는 내려받을 수 없어요.</div>' : '') +
+        '<div class="row" style="justify-content:flex-end">' + h.btn('취소', { act: 'CM03.dl', arg: 'close' }) + h.btn('다운로드', { primary: true, act: 'CM03.download', disabled: !ctx.canEdit || sup, title: sup ? '지원 모드에서는 잠겨 있어요' : '' }) + '</div>' + recent + '</div>',
     });
   }
   function noPermCard(ctx) {
@@ -710,7 +714,7 @@
       title: '권한 없음', pin: 5,
       body: '<div class="cmk-noperm"><b>이 메뉴를 볼 권한이 없습니다.</b><span>' + esc(ask) + '</span></div>' +
         '<div class="small muted" style="margin-top:8px">메뉴는 숨기는 것이 기본이에요. 주소로 직접 들어오면 이 안내를 보여 줘요.</div>' +
-        '<div class="small" style="margin-top:4px">지금 역할(' + esc(p.role) + ')에게 숨겨진 메뉴 ' + (hidden.length ? esc(hidden.slice(0, 5).join(', ')) + (hidden.length > 5 ? ' 외 ' + (hidden.length - 5) + '개' : '') : '없음') + '</div>',
+        '<div class="small" style="margin-top:4px">지금 역할(' + esc(p.role) + ')에게 숨겨진 메뉴가 ' + (hidden.length ? esc(hidden.slice(0, 5).join(', ')) + (hidden.length > 5 ? ' 외 ' + (hidden.length - 5) + '개' : '') : '없어요') + '</div>',
     });
   }
   function dirtyCard(ctx) {
@@ -735,7 +739,7 @@
         '<dl class="cmk-rows"><dt>POL-01</dt><dd>' + h.pv('POL-01', ctx.center) + '</dd><dt>POL-16</dt><dd>' + h.pv('POL-16', ctx.center) + '</dd><dt>POL-41</dt><dd>' + h.pv('POL-41', ctx.center) + '</dd></dl>' +
         '<div class="cmk-sub" data-pin="9" style="margin-top:10px"><b class="small">학부모에게 나가는 글</b>' +
         '<dl class="cmk-rows"><dt>관리자</dt><dd><b>20,000</b>' + h.chip('(안)', 'st-안') + '</dd><dt>알림톡</dt><dd>20,000원</dd></dl>' +
-        '<p>(안), 가변, 법정 표시는 관리자 화면에만 붙여요. (안) 값으로 돈을 받으려 하면 경고해요.</p></div>',
+        '<p>(안), 가변, 법정 표시는 관리자 화면에만 붙여요. (안) 값으로 돈을 받으려 하면 경고하고, 슈퍼관리자가 임시 사용을 승인해야 받을 수 있어요.</p></div>',
     });
   }
 
@@ -872,7 +876,7 @@
       const nAlim = todays.filter(a => a.alimIn === '발송 완료').length, nLogout = todays.filter(a => a.appLogout === '완료').length;
       const queued = todays.filter(a => a.sync === '대기').length;
       const stOf = id => s.students.find(x => x.id === id);
-      const clsLine = st => { const cl = s.classes.find(x => x.id === st.cls); return cl ? cl.name + ' ' + cl.time + ' · ' + cl.room : '오늘 정규 수업 없음'; };
+      const clsLine = st => { const cl = s.classes.find(x => x.id === st.cls); return cl ? cl.name + ' ' + cl.time + ' · ' + cl.room : '오늘은 정규 수업이 없어요'; };
 
       let state = '';
       if (mode === 'confirm') {
@@ -921,13 +925,13 @@
         '<span>체크 방식 번호 입력 (POL-39 예시)</span><button type="button" class="cmk-k-admin" data-act="KS01.admin" data-pin="7">관리자</button></footer></div>';
     },
     prd: {
-      summary: '학생이 센터 입구 패드에서 번호를 눌러 들어오고 나가는 화면이에요. 원문에는 없는 검토 제안 화면이고, 업무 흐름(11쪽)과 출결·보강(CT-12), 기기(CT-19)를 바탕으로 그렸어요.',
+      summary: '학생이 센터 입구 패드에서 번호를 눌러 들어오고 나가는 화면이에요. 원문에는 없는 검토 제안 화면이고, 업무 흐름(11쪽)과 출결·보강(CT-12), 센터 정보 화면(CT-19)의 키오스크 기기 칸을 바탕으로 그렸어요.',
       who: '학생이 직접 눌러요. 관리자 로그인과 따로 돌아가고, 설정은 관리자 PIN을 아는 직원만 열어요. 기록은 원장, 실장·데스크, 교사, 보조교사가 출결·보강(CT-12)에서 봐요.',
       items: [
         { n: 1, t: '번호 입력', d: '학생이 출결 번호 4자리를 누르고 확인을 눌러요. 이 프로토타입은 보호자 휴대폰 뒤 4자리를 번호로 썼어요(예시). 체크 방식은 번호 입력이 예시이고, QR이나 개인 로그인도 보기에 있어요.', pol: ['POL-39'], ref: 'p.11 ⑤ ①' },
         { n: 2, t: '입실 기록과 입실 알림톡', d: '처음 누르면 입실로 기록하고, 보호자에게 입실 알림톡을 자동으로 보내요. 센터가 자동 발송을 꺼 두면 보내지 않아요. 기록은 바로 출결·보강(CT-12)에 쌓여요.', pol: ['POL-35'], ref: 'p.11 ⑤ ②' },
         { n: 3, t: '퇴실 체크와 학습 앱 자동 로그아웃', d: '한 번 더 누르면 퇴실로 기록하고 퇴실 알림톡을 보내요. 공용 패드에서 학생이 로그아웃하지 않고 나가는 일이 있어서, 퇴실 체크 때 학습 앱을 자동으로 로그아웃해요(10/14 회의).', pol: ['POL-35'], ref: 'p.11 ⑤ ④, p.57 ①' },
-        { n: 4, t: '등록된 기기에서만', d: '센터가 등록한 패드에서만 입실과 퇴실 체크를 받아요. 기기 등록과 해제는 센터 정보·기기(CT-19)에서 해요. 패드를 어떻게 공급할지는 아직 정하지 않았어요.', pol: ['POL-38'], ref: 'p.57 ⑤, p.64 ④' },
+        { n: 4, t: '등록된 기기에서만', d: '센터가 등록한 패드에서만 입실과 퇴실 체크를 받아요. 기기 등록과 해제는 센터 정보 화면(CT-19)의 키오스크 기기 칸에서 해요. 패드를 어떻게 공급할지는 아직 정하지 않았어요.', pol: ['POL-38'], ref: 'p.57 ⑤, p.64 ④' },
         { n: 5, t: '이름을 한 번 더 확인해요', kind: 'review', imp: 'IMP-05', cond: true, reveal: 'KS01.number', revealArg: '5521', d: '번호를 잘못 누르면 남의 출결이 찍혀요. 가린 이름을 보여 주고 맞는지 한 번 더 물어요. 같은 번호가 둘이면 이름을 고르게 하고, 같은 날 이미 퇴실했으면 다시 찍지 않고 데스크로 안내해요.' },
         { n: 6, t: '인터넷이 끊겨도 기록해요', kind: 'review', imp: 'IMP-05', d: '연결이 끊기면 체크 기록을 패드에 저장해 두고, 다시 연결되면 기록과 알림톡과 로그아웃을 한꺼번에 보내요. 관리자 메뉴에서 연결 끊김을 시험해 볼 수 있어요.' },
         { n: 7, t: '관리자 화면과 따로 돌아가요', kind: 'review', imp: 'IMP-05', d: '키오스크는 관리자 로그인과 따로 돌아가요. 설정을 열려면 관리자 PIN을 넣어야 하고, 기기는 1회용 코드로 등록하는 안이에요. 이 화면을 어느 팀이 만들지는 아직 정하지 않았어요.' },
@@ -1046,13 +1050,13 @@
         { n: 1, tab: 'chat', t: '알림톡 대화방', d: '센터 알림톡 채널에서 오는 메시지가 한 대화방에 쌓여요. 입실, 퇴실, 수강료 안내, 미납 안내, 재등록 안내, 결과지 링크 같은 정보성 메시지만 와요. 키오스크(KS-01)에서 체크하면 여기에 바로 새 메시지가 생겨요.', pol: ['POL-35'], imp: 'IMP-05', ref: 'p.11 ⑤ ②⑤' },
         { n: 2, tab: 'chat', t: '수강료 안내와 결제 버튼', d: '재등록 기간(20일부터 말일까지, 안)에 수강료 안내가 결제 버튼과 함께 와요. 직영은 결제선생 링크로 받아요. 버튼을 누르면 결제 링크 탭으로 가요.', pol: ['POL-24', 'POL-36'], ref: 'p.10 ③ ③' },
         { n: 3, tab: 'pay', t: '결제 링크 페이지', d: '받는 곳과 금액과 항목을 보여 줘요. 직영 센터는 본사(MSC Brain) 계좌로 받아요. 카드나 계좌이체를 골라 결제해요.', pol: ['POL-36', 'POL-37'], imp: 'IMP-05', ref: 'p.52 ④' },
-        { n: 4, tab: 'pay', t: '결제하면 수납 기록과 학습 계정이 이어져요', d: '결제가 끝나면 센터의 수강 등록·수납(CT-07)에 자동으로 기록되고, 수납 확인 뒤 학습 계정이 열려요(안). 영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요.', pol: ['POL-23'], ref: 'p.10 ② ⑦⑧, p.52 ⑤' },
+        { n: 4, tab: 'pay', t: '결제하면 수납 기록과 학습 계정이 이어져요', d: '결제가 끝나면 센터의 수강 등록·수납(CT-07)에 자동으로 기록되고, 학습 계정이 열려요. 수납 확인 즉시 열지, 원장 승인 뒤 열지, 며칠 먼저 열어 줄지는 아직 정하지 않았어요(POL-23 미정). 영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요.', pol: ['POL-23'], ref: 'p.10 ② ⑦⑧, p.52 ⑤' },
         { n: 5, tab: 'consent', t: '보호자 본인인증과 동의', d: '초등학생은 모두 만 14세 미만이라 법정대리인 동의가 필요해요. 보호자가 휴대폰 본인인증을 하고 필수 항목에 동의하면, 방법과 일시와 문안 버전이 원생 등록(CT-05)에 저장돼요. P1a에는 센터 태블릿에서 보호자가 이 화면을 직접 쓰고, 집에서 여는 원격 링크는 다음 단계로 미루는 안이에요.', pol: ['POL-43'], imp: 'IMP-05', ref: 'p.49 ②③' },
         { n: 6, tab: 'consent', t: '처리자를 바르게 알려요', kind: 'review', imp: 'IMP-04', d: '직영 센터는 본사가 직접 운영해서 개인정보 처리자도 MSC Brain이에요. 원문 예시는 센터를 처리자로 적어서 직영에서는 틀린 고지가 돼요. 센터 유형과 결제 방식에 따라 처리자와 수탁자 문구가 저절로 바뀌어요.' },
         { n: 7, tab: 'result', t: '결과지 링크', d: '입학 테스트 결과지는 바로 출력하는 것이 기본이고, 센터가 켜면 알림톡 링크로도 보내요(안). 두뇌 유형은 지수 없이 유형만, 읽기는 레벨만 보여 주고 설명은 상담에서 해요.', pol: ['POL-30'], imp: 'IMP-05', ref: 'p.47 ③⑤' },
         { n: 8, tab: 'consent', t: '광고 수신은 따로, 보관 기간은 미리 알려요', kind: 'review', imp: 'IMP-07', d: '광고 수신은 선택 동의로 받고, 받는 경로와 밤 9시부터 아침 8시 사이(법정 야간 시간) 수신을 따로 물어요. 동의한 날과 철회한 날을 저장해요. 그만둔 뒤 정보를 얼마나 보관할지(POL-40)는 아직 정하지 않아서, 정해지면 이 화면에 적어요.', pol: ['POL-40'] },
-        { n: 9, tab: 'result', t: '결과지 링크는 보호자 확인 뒤에 열려요', kind: 'review', imp: 'IMP-07', d: '결과지에는 아이 정보가 들어 있어서 링크만 알면 아무나 보면 안 돼요. 보호자 휴대폰 뒤 4자리를 넣어야 열리고, 정해진 기간이 지나면 링크를 닫아요.' },
-        { n: 10, tab: 'pay', t: '학부모에게는 숫자만 보여요', kind: 'review', imp: 'IMP-10', d: '관리자 화면의 (안) 같은 표시는 학부모 화면에 나오지 않아요. 아직 확정되지 않은 금액은 센터가 보내기 전에 확인하고, 학부모에게는 확인한 숫자만 보내요.' },
+        { n: 9, tab: 'result', t: '결과지 링크는 보호자 확인 뒤에 열려요', kind: 'review', imp: 'IMP-05', ref: 'p.47 검토 의견', d: '결과지에는 아이의 두뇌 유형과 읽기 레벨이 들어 있어서 링크만 알면 아무나 보면 안 돼요. 보호자 휴대폰 뒤 4자리를 넣어야 열리고, 7일(예시)이 지나면 링크를 닫아요. 이 링크 페이지를 누가 만들지는 아직 정하지 않았어요.' },
+        { n: 10, tab: 'pay', t: '학부모에게는 숫자만 보여요', kind: 'review', imp: 'IMP-10', d: '관리자 화면의 (안), 가변, 법정 같은 표시는 학부모 화면과 영수증에 나오지 않고 숫자만 보여요. 아직 (안)인 금액으로 청구하려 하면 관리자 화면에서 먼저 경고해요.' },
       ],
       open: ['원격 동의 링크를 언제 열지 (P1a는 센터 태블릿 안)', '결과지를 알림톡 링크로도 보낼지 (POL-30 안)', '퇴원 뒤 개인정보 보관 기간 (POL-40 미정)', '알림톡 발신 프로필을 센터 이름으로 할지, 본사 채널 하나로 할지'],
       rules: ['만 14세 미만 아동의 개인정보는 법정대리인 동의를 받아요 (법정)', '알림톡에는 광고를 넣지 않아요. 광고는 수신 동의한 사람에게만 따로 보내요', '거래 증빙은 5년 보관해요 (POL-41 법정)'],
@@ -1083,15 +1087,16 @@
     const paid = ui.receipt && ui.paidFor === st.id;
     const already = !paid && st.paid === '수납 완료';
     const method = ui.method || '카드';
-    let html = '<section class="cmk-psec" data-pin="3"><div class="small muted">' + esc(bill.month) + ' 수강료 결제 요청</div>' +
+    const notReady = st.pseudo || st.status === '상담' || !st.product;
+    let html = '<section class="cmk-psec" data-pin="3"><div class="small muted">' + (notReady ? '등록하면 받게 될 결제 요청 (미리 보기)' : esc(bill.month) + ' 수강료 결제 요청') + '</div>' +
       '<div><b>브레인180 ' + esc(c.name) + '</b><div class="small muted">받는 곳 ' + (direct ? 'MSC Brain (본사 직영)' : esc(c.name) + ' 사업자') + '</div></div>' +
       '<div class="cmk-amt">' + h.money(bill.total) + '</div><div class="cmk-lines">' +
       bill.lines.map(l => '<div><span>' + esc(l.t) + '</span><span>' + h.money(l.a) + '</span></div>').join('') +
       '<div class="tot"><span>결제 금액</span><span>' + h.money(bill.total) + '</span></div></div>' +
       h.kv([['학생', st.name + ' (' + st.grade + ')'], ['교습 기간', '2027-03-01 ~ 2027-03-31']]) +
-      '<div class="cmk-note cmk-pp" data-pin="10">이 화면 금액에는 (안) 같은 표시가 붙지 않아요. 센터가 확인을 마친 숫자만 보내요.</div></section>';
-    if (st.pseudo) {
-      html += '<section class="cmk-psec" data-pin="4"><h3>아직 결제할 수 없어요</h3><p>원생 등록(CT-05)을 마치면 센터가 결제 링크를 보내요.</p></section>';
+      '<div class="cmk-note cmk-pp" data-pin="10">학부모 화면에는 (안) 같은 표시를 붙이지 않고 숫자만 보여 줘요.</div></section>';
+    if (notReady) {
+      html += '<section class="cmk-psec" data-pin="4"><h3>아직 결제할 수 없어요</h3><p>원생 등록(CT-05)과 수강 등록(CT-07)을 마치면 센터가 결제 링크를 보내요.</p></section>';
     } else if (paid || already) {
       const r = ui.receipt || {};
       const p = s.payments.slice().reverse().find(x => x.student === st.id) || {};
@@ -1102,7 +1107,7 @@
     } else {
       html += '<section class="cmk-psec" data-pin="4"><h3>결제 수단</h3>' + h.opts(['카드', '계좌이체'], method, { act: 'PA01.method' }) +
         '<div class="cmk-full">' + h.btn(h.money(bill.total) + ' 결제하기', { primary: true, act: 'PA01.pay' }) + '</div>' +
-        '<p>결제하면 센터 수납 기록(CT-07)에 바로 남고, 학습 계정이 ' + (st.account === '활성' ? '계속 열려 있어요.' : '열려요 (' + esc(st.account || '-') + ' 상태).') + '</p></section>';
+        '<p>결제하면 센터 수납 기록(CT-07)에 바로 남아요. ' + (st.account === '활성' ? '학습 계정은 계속 열려 있어요.' : st.account === '가오픈' ? '지금은 가오픈 상태이고, 결제하면 정식으로 열려요.' : '결제하면 학습 계정이 열려요.') + '</p></section>';
     }
     return html;
   }
@@ -1171,7 +1176,7 @@
     if (arg && typeof arg === 'object') { if (arg.student) ui.student = arg.student; if (arg.method) ui.method = arg.method; if (arg.bill) ui.bill = arg.bill; }
     else if (typeof arg === 'string' && s.students.some(x => x.id === arg)) ui.student = arg;
     const st = paStudent({ s, ui });
-    if (!st || st.pseudo) { say('원생 등록을 마친 뒤 결제 링크가 와요.'); return; }
+    if (!st || st.pseudo || st.status === '상담' || !st.product) { say('원생 등록과 수강 등록을 마친 뒤 결제 링크가 와요.'); return; }
     if (st.paid === '수납 완료') { say('이미 결제했어요.'); return; }
     const bill = billFor(s, ui, st);
     const n = s.payments.length + 1;

@@ -33,7 +33,7 @@
   const polSt = code => h.pol(code).status;
   const isFixed = code => ['확정', '법정'].includes(polSt(code));
   const nameOf = (s, r) => { const st = r.student && s.students.find(x => x.id === r.student); return st ? h.mask(st.name) : (r.name || h.mask(r.student || '-')); };
-  // 직영은 원문 52쪽 본사 확정가(주 3회는 변경신고가 끝날 때까지 교육청 등록액 340,000), 가맹은 센터 교습비
+  // 직영은 원문 52쪽 본사 확정가(주 3회는 360,000으로 바꾸는 교육청 신고 중이라 지금 값 340,000), 가맹은 센터 교습비
   const PRICE = { pr1: 260000, pr2: 340000, pr3: 150000 };
   function price(s, center, pid) {
     if (isDirect(center)) return PRICE[pid] || PRICE.pr1;
@@ -110,19 +110,22 @@
   /* =====================================================================
      CT-08 월 재등록 일괄 청구 (p.53)
      ===================================================================== */
-  const C8_BILLED = ['수납 완료', '미수', '발송 실패', '부분 납부'];
+  const C8_BILLED = ['수납 완료', '미수', '발송 실패', '부분 납부', '결제 취소'];
+  const C8_UNPAID = ['미수', '부분 납부', '결제 취소']; // 청구는 갔고 돈은 덜 받은 상태. 다시 안내 대상이에요.
   const C8_ELIG = ['재원', '휴원', '휴원 예정', '퇴원 예정'];
+  const c8owe = (amt, r) => amt - (r.disc || 0) - (r.part || 0);
   // 원문 예시 상태를 대치1센터 원생에게 나눠 줘요. 위쪽 숫자 칸은 이 표에 없는 원생까지 더해 128, 123, 71, 52가 되게 맞춰요.
+  // 부분 납부와 결제 취소는 검토 반영(IMP-12)으로 더한 예시 상태예요.
   const C8_INIT = {
     s1: { st: '수납 완료', sent: '03-20', pay: '03-21 결제선생' },
     s2: { st: '수납 완료', sent: '03-20', pay: '03-21 카드', disc: 26000, discWhy: '형제 10% (예시)' },
     s3: { st: '미수', sent: '03-20' },
     s5: { st: '미수', sent: '03-20' },
     s6: { st: '제외', why: '휴원' },
-    s7: { st: '수납 완료', sent: '03-20', pay: '03-22 결제선생' },
+    s7: { st: '결제 취소', sent: '03-20', pay: '03-22 결제선생 결제 뒤 취소 (예시)' },
     s8: { st: '발송 실패', sent: '03-20', fail: '전화번호 오류' },
     s9: { st: '제외', why: '퇴원 예정' },
-    s10: { st: '수납 완료', sent: '03-20', pay: '03-23 계좌이체' },
+    s10: { st: '부분 납부', sent: '03-20', pay: '03-23 계좌이체 100,000 (예시)', part: 100000 },
     s11: { st: '수납 완료', sent: '03-20', pay: '03-21 카드' },
   };
   const C8_POLS = [['POL-24', '재등록 청구 기간'], ['POL-18', '등록 단위 (월)'], ['POL-20', '4·5주 달 금액'], ['POL-13', '할인 이어받기'], ['POL-23', '미수 계정 정지']];
@@ -132,9 +135,9 @@
     s.students.filter(st => st.center === 'daechi1' && C8_INIT[st.id]).forEach(st => { rows[st.id] = Object.assign({ disc: 0 }, C8_INIT[st.id]); });
     const R = Object.keys(rows).map(k => ({ r: rows[k], st: s.students.find(x => x.id === k) }));
     const cnt = f => R.filter(f).length;
-    const due = R.filter(x => C8_BILLED.includes(x.r.st) && x.r.st !== '수납 완료').reduce((a, x) => a + price(s, c, x.st.product) - (x.r.disc || 0), 0);
+    const due = R.filter(x => C8_BILLED.includes(x.r.st) && x.r.st !== '수납 완료').reduce((a, x) => a + c8owe(price(s, c, x.st.product), x.r), 0);
     s.ct08 = {
-      month: '2027-04', asOf: '2027-03-27', ver: '2027-03-20 정책 묶음 (예시)', ack: false, log: [],
+      month: '2027-04', asOf: '2027-03-27', baseDay: '2027-04-01', ver: '2027-03-20 정책 묶음 (예시)', ack: false, log: [],
       rows: { daechi1: rows },
       base: { daechi1: { target: 128 - R.length, hyu: 3 - cnt(x => x.r.why === '휴원'), out: 2 - cnt(x => x.r.why === '퇴원 예정'), billed: 123 - cnt(x => C8_BILLED.includes(x.r.st)), paid: 71 - cnt(x => x.r.st === '수납 완료'), due: 13520000 - due, remind: '' } },
     };
@@ -163,12 +166,14 @@
       fail: rows.filter(x => x.r.st === '발송 실패').length, pending: rows.filter(x => x.r.st === '발송 전').length,
     };
     o.unpaid = o.billed - o.paid;
-    o.due = b.due + billed.filter(x => x.r.st !== '수납 완료').reduce((a, x) => a + x.amt - (x.r.disc || 0), 0);
+    o.due = b.due + billed.filter(x => x.r.st !== '수납 완료').reduce((a, x) => a + c8owe(x.amt, x.r), 0);
     return o;
   }
   B.c8kpi = c8kpi; // 수납·미수·마감(CT-09) 미수 탭에서 같은 숫자를 써요
-  const c8open = () => C8_POLS.filter(p => !isFixed(p[0]));
-  const C8_TONE = { '수납 완료': 'ok', '미수': 'bad', '발송 실패': 'bad', '부분 납부': 'warn', '발송 전': 'info', '제외': 'p2' };
+  // 확정이나 법정이 아니고, 슈퍼관리자 임시 적용 승인 기록(HQ-07, s.pol[code].temp)도 없는 정책
+  const c8temp = (s, code) => ((s.pol || {})[code] || {}).temp || null;
+  const c8open = s => C8_POLS.filter(p => !isFixed(p[0]) && !c8temp(s, p[0]));
+  const C8_TONE = { '수납 완료': 'ok', '미수': 'bad', '발송 실패': 'bad', '부분 납부': 'warn', '결제 취소': 'bad', '발송 전': 'info', '제외': 'p2' };
 
   B.screen({
     id: 'CT-08', side: 'ct', phase: 'P1a', devices: ['pc'], pages: [53],
@@ -186,28 +191,27 @@
         '<span class="muted small">시연 기준일 ' + mdS(asOf) + ' (청구가 진행 중인 원문 예시)</span></div>';
       html += h.alert(m + '월은 월·수 반 ' + ses('월·수') + '회, 화·목 반 ' + ses('화·목') + '회(목요일 5번), 금 반 ' + ses('금') + '회예요. 표의 회차 칸에서 반마다 확인해요. 월 정액과 회차 기준 중 무엇으로 받을지는 아직 미정이에요(POL-20).', 'review', { title: '검토 반영', pin: 9 });
       html += '<div style="margin-top:12px">' + h.kpis([
-        { l: '대상', v: num(k.target), s: '휴원 ' + k.hyu + ' · 퇴원 예정 ' + k.out + ' 제외' + (k.other ? ', 기타 ' + k.other : '') },
-        { l: '청구 발송', v: num(k.billed), s: direct ? '알림톡 · 결제선생' : '알림톡 · 방문 결제 대기' + (k.pending ? ' · 발송 전 ' + k.pending : '') },
+        { l: '대상', v: num(k.target), s: '휴원 예정 ' + k.hyu + ' · 퇴원 예정 ' + k.out + ' 제외' + (k.other ? ', 기타 ' + k.other : '') },
+        { l: '청구 발송', v: num(k.billed), s: direct ? '알림톡 · 결제선생' : '알림톡 · 방문 결제 대기' + (k.pending ? ', 발송 전 ' + k.pending : '') },
         { l: '수납 완료', v: num(k.paid), s: (k.target ? Math.round(k.paid / k.target * 100) : 0) + '% · 청구 기준 ' + (k.billed ? Math.round(k.paid / k.billed * 100) : 0) + '%', tone: 'ok' },
         { l: '미수', v: num(k.unpaid), s: '₩ ' + num(k.due), tone: k.unpaid ? 'bad' : '' },
       ]) + '</div>';
       // 필터와 미수 관리
       const clsOpts = [{ v: '', l: '반 전체' }].concat(s.classes.filter(x => x.center === ctx.centerId).map(x => ({ v: x.id, l: x.name })));
-      const stOpts = [{ v: '', l: '상태 전체' }].concat(['수납 완료', '미수', '발송 실패', '발송 전', '제외'].map(x => ({ v: x, l: x })));
+      const stOpts = [{ v: '', l: '상태 전체' }].concat(['수납 완료', '미수', '부분 납부', '결제 취소', '발송 실패', '발송 전', '제외'].map(x => ({ v: x, l: x })));
       const checked = Object.keys(ui.chk || {}).filter(x => ui.chk[x]);
       html += '<div class="ctc-bar" style="margin-top:14px">' + sel({ f: 'f_st', v: ui.f_st || '', opts: stOpts, live: true, label: '상태' }) + sel({ f: 'f_cls', v: ui.f_cls || '', opts: clsOpts, live: true, label: '반' }) +
         '<div class="row" data-pin="3">' + h.opts([{ v: 'on', l: '미수만' }], ui.f_st === '미수' ? 'on' : '', { act: 'CT08.unpaidOnly' }) + h.btn('다시 안내' + (checked.length ? ' (' + checked.length + ')' : ''), { act: 'CT08.remind', disabled: !ctx.canEdit || !k.unpaid }) + '</div>' +
         '<span class="grow muted small">' + (s.ct08.base[ctx.centerId] && s.ct08.base[ctx.centerId].remind ? '미수 전체 다시 안내 ' + s.ct08.base[ctx.centerId].remind : '안내를 보내면 이 줄에 날짜가 남아요') + '</span></div>';
       // 검토 반영: 발송 실패와 중복 발송 막기
       html += h.alert((k.fail ? '발송 실패 ' + k.fail + '명이 있어요 (' + rows.filter(x => x.r.st === '발송 실패').map(x => h.mask(x.st.name) + ' ' + (x.r.fail || '')).join(', ') + '). 실패한 학생만 다시 보내요. ' : '발송 실패 0명이에요. ') +
-        '청구 일괄 발송은 아직 안 보낸 학생' + (k.pending ? ' ' + k.pending + '명' : '') + '에게만 가고, 이미 보낸 학생에게는 다시 안내를 써요.' +
+        '청구 일괄 발송은 아직 안 보낸 학생' + (k.pending ? ' ' + k.pending + '명' : '') + '에게만 가고, 이미 보낸 학생에게는 다시 안내를 써요. 부분 납부와 결제 취소도 미수처럼 다시 안내로 챙겨요.' +
         (k.fail ? ' ' + h.btn('실패 건만 다시 보내기', { sm: true, act: 'CT08.retry', disabled: !ctx.canEdit }) : ''), k.fail ? 'warn' : 'review', { raw: true, pin: 7, title: '검토 반영' });
       // 명단
       const list = rows.filter(x => (!ui.f_st || x.r.st === ui.f_st) && (!ui.f_cls || x.st.cls === ui.f_cls));
       html += '<div style="margin-top:10px">' + h.table({
-        pin: 2,
         cols: [
-          { label: '선택', render: x => chk((ui.chk || {})[x.id], 'CT08.check', x.id, x.r.st !== '미수', h.mask(x.st.name) + ' 선택') },
+          { label: '선택', render: x => chk((ui.chk || {})[x.id], 'CT08.check', x.id, !C8_UNPAID.includes(x.r.st), h.mask(x.st.name) + ' 선택') },
           { label: '원생', render: x => esc(h.mask(x.st.name)) },
           { label: '반', render: x => esc(x.k ? x.k.name : '-') },
           { label: m + '월 상품', render: x => x.r.st === '제외' ? '-' : esc(prodShort(s, x.st.product)) },
@@ -219,14 +223,14 @@
           { label: '상태', render: x => h.chip(x.r.st === '제외' ? (x.r.why === '휴원' ? '휴원 예정' : x.r.why) : x.r.st, C8_TONE[x.r.st] || '') },
           { label: '조치', render: x => '<div class="ctc-acts">' + (x.r.st === '발송 실패' ? h.btn('다시 보내기', { sm: true, act: 'CT08.retry', arg: x.id, disabled: !ctx.canEdit }) : '') +
             (x.r.st === '제외' ? h.btn('명단에 넣기', { sm: true, act: 'CT08.include', arg: x.id, disabled: !ctx.canEdit }) : '') +
-            (x.r.st === '발송 전' || x.r.st === '미수' ? h.btn('빼기', { sm: true, act: 'CT08.exclude', arg: x.id, disabled: !ctx.canEdit }) : '') + '</div>' },
+            (x.r.st === '발송 전' || C8_UNPAID.includes(x.r.st) ? h.btn('빼기', { sm: true, act: 'CT08.exclude', arg: x.id, disabled: !ctx.canEdit }) : '') + '</div>' },
         ],
         rows: list,
         rowAttr: x => x.r.st === '제외' ? ' class="ctc-off"' : '',
         empty: '조건에 맞는 원생이 없어요.',
-      }) + '<div class="small muted" style="margin-top:6px">표에는 이 센터 예시 원생만 보여요. 위쪽 숫자 칸은 센터 전체(대상 ' + num(k.target) + '명) 기준이에요.</div></div>';
+      }) + '<div class="small muted" data-pin="2" style="margin-top:6px;padding:4px 0 0 16px">이번 달 재원생으로 자동으로 만든 명단이에요. 휴원 예정, 퇴원 예정 원생은 빼고 상품과 할인은 이번 달 것을 이어받아요. 표에는 이 센터 예시 원생만 보이고, 위쪽 숫자 칸은 센터 전체(대상 ' + num(k.target) + '명) 기준이에요.</div></div>';
       // 아래 카드 3개
-      const pols = c8open();
+      const pols = c8open(s);
       html += '<div class="grid g3" style="margin-top:14px">';
       html += h.card({
         title: '발송 방식', pin: 4,
@@ -239,14 +243,14 @@
         title: m + '월 1일 처리', pin: 6,
         body: '<div class="ctc-note">미수납 원생은 학습 계정을 <b>5일</b> ' + varChip() + ' 유예한 뒤 멈춰요 ' + h.chip('미확정(안)', 'st-안') + '</div>' +
           '<div class="ctc-note" style="margin-top:6px">정지 전날 보호자에게 안내해요.</div>' +
-          '<div class="ctc-box" style="margin-top:8px">지금 미수 ' + num(k.unpaid) + '명이 ' + m + '/1까지 내지 않으면 ' + m + '/5에 안내하고 ' + m + '/6에 계정을 멈춰요.</div>' +
+          '<div class="ctc-box" style="margin-top:8px">지금 미수 ' + num(k.unpaid) + '명이 ' + m + '/1까지 내지 않으면 ' + m + '/5에 안내하고 ' + m + '/6에 계정을 멈춰요 (유예 5일 안으로 센 예시).</div>' +
           '<div class="small muted" style="margin-top:6px">본사 사용료 과금 기준에도 들어가요. ' + h.polChip('POL-23') + h.polChip('POL-02') + '</div>',
       });
       html += h.card({
         title: '계산에 쓴 정책 값', pin: 8,
-        body: '<div class="stack" style="gap:6px">' + C8_POLS.map(p => '<div class="row" style="gap:6px">' + h.polChip(p[0]) + '<span class="small">' + esc(p[1]) + '</span><span style="margin-left:auto">' + stChip(polSt(p[0])) + '</span></div>').join('') +
-          '<div class="small muted">보낸 청구마다 ' + esc(s.ct08.ver) + '을 함께 저장했어요.</div>' +
-          (pols.length ? '<label class="row small" style="gap:6px;align-items:flex-start">' + chk(s.ct08.ack, 'CT08.ack', null, !ctx.canEdit, '임시 적용 승인 확인') + '<span>(안)이나 미정 값 ' + pols.length + '개를 본사 임시 적용 승인으로 쓰는 것을 확인했어요</span></label>' : '') +
+        body: '<div class="stack" style="gap:6px">' + C8_POLS.map(p => { const tp = c8temp(s, p[0]); return '<div class="row" style="gap:6px">' + h.polChip(p[0]) + '<span class="small">' + esc(p[1]) + '</span><span style="margin-left:auto">' + stChip(polSt(p[0])) + '</span></div>' + (tp ? '<div class="small muted" style="margin:-4px 0 0 4px;font-size:11px">임시 적용 승인 ' + esc(tp.by + ' ' + tp.date) + '</div>' : ''); }).join('') +
+          '<div class="small muted">기준일 ' + mdS(s.ct08.baseDay) + ' (대상 기간 시작일). 보낸 청구마다 정책 값, 버전(' + esc(s.ct08.ver.replace(' (예시)', ', 예시')) + '), 기준일을 함께 저장했어요.</div>' +
+          (pols.length ? '<label class="row small" style="gap:6px;align-items:flex-start;flex-wrap:nowrap">' + chk(s.ct08.ack, 'CT08.ack', null, !ctx.canEdit, '임시 적용 승인 기록 확인') + '<span>(안)이나 미정 값 ' + pols.length + '개에 슈퍼관리자의 임시 적용 승인 기록이 있는 것을 확인했어요</span></label>' : '<div class="small">확정이 아닌 값에는 모두 슈퍼관리자 임시 적용 승인 기록이 있어요.</div>') +
           (ui.err_ack ? '<div class="ctc-errs">' + esc(ui.err_ack) + '</div>' : '') + '</div>',
       });
       html += '</div>';
@@ -258,13 +262,13 @@
       who: '원장과 실장·데스크가 써요. 교사와 보조교사에게는 메뉴가 안 보여요.',
       items: [
         { n: 1, t: '청구 기간', d: '매달 20일부터 말일까지(안) 다음 달 학원비를 청구해요. 한 달 단위로 1일에 시작하는 안이라 매달 모든 학생이 다시 내요. D-4는 청구 마감까지 남은 날이에요(시연 기준일 3/27).', pol: ['POL-24', 'POL-18'], ref: 'p.53 ①' },
-        { n: 2, t: '대상 자동 생성', d: '이번 달 재원생으로 다음 달 명단을 자동으로 만들어요. 휴원 학생과 퇴원 예정 학생은 빼고, 상품과 할인은 이번 달 것을 이어받아요. 새로 등록한 원생은 발송 전으로 붙어요.', pol: ['POL-21'], ref: 'p.53 ②' },
+        { n: 2, t: '대상 자동 생성', d: '이번 달 재원생으로 다음 달 명단을 자동으로 만들어요. 휴원 예정 학생과 퇴원 예정 학생은 빼고, 상품과 할인은 이번 달 것을 이어받아요. 새로 등록한 원생은 발송 전으로 붙어요.', pol: ['POL-21'], ref: 'p.53 ②' },
         { n: 3, t: '미수 관리', d: '안 낸 학생만 골라 다시 안내해요. 가맹 센터는 안내 비용이 알림톡 잔액에서 빠지고, 직영은 본사 내부 비용으로 처리해요. 보내기 전에 대상 수와 비용을 한 번 더 보여 줘요.', pol: ['POL-35', 'POL-34'], ref: 'p.53 ③' },
         { n: 4, t: '발송 방식', d: '직영은 결제선생 청구서를 한꺼번에 보내고, 결제하면 수납이 자동으로 기록돼요. 가맹은 알림톡으로 안내하고 센터 방문 결제 대기 목록으로 챙겨요.', pol: ['POL-36'], ref: 'p.53 ④' },
         { n: 5, t: '4·5주 달', d: '다음 달 회차 수를 보여 줘요. 4월은 4주 달이라 월·수 반이 8회예요. 금액을 월 정액으로 받을지 회차 기준으로 받을지는 아직 미정이에요.', pol: ['POL-20'], ref: 'p.53 ⑤' },
         { n: 6, t: '1일 처리', d: '1일까지 안 낸 학생은 유예 기간 5일(안)이 지나면 학습 계정을 멈춰요. 멈추기 전날 보호자에게 알려요. 이 결과는 본사 사용료 계산에도 들어가요.', pol: ['POL-23', 'POL-02'], ref: 'p.53 ⑥' },
-        { n: 7, t: '발송 실패와 다시 보내기', kind: 'review', imp: 'IMP-12', d: '한꺼번에 보내면 번호 오류로 못 받는 학생이 생겨요. 발송 실패 상태를 두고 실패한 학생만 다시 보내요. 일괄 발송은 아직 안 보낸 학생에게만 가서 같은 청구가 두 번 가지 않아요. 명단에서 뺄 때는 사유를 골라요.' },
-        { n: 8, t: '계산에 쓴 정책 값 기록', kind: 'review', imp: 'IMP-10', pol: ['POL-24', 'POL-20'], d: '청구마다 계산에 쓴 정책 값과 버전을 함께 저장해요. (안)이나 미정 값이 들어 있으면 본사 임시 적용 승인을 확인해야 새 청구를 보낼 수 있어요.' },
+        { n: 7, t: '발송 실패와 다시 보내기', kind: 'review', imp: 'IMP-12', d: '한꺼번에 보내면 번호 오류로 못 받는 학생이 생겨요. 발송 실패, 부분 납부, 결제 취소 상태를 따로 두고 실패한 학생만 다시 보내요. 일괄 발송은 아직 안 보낸 학생에게만 가서 같은 청구가 두 번 가지 않아요. 명단에서 뺄 때는 사유를 고르고, 휴원이나 퇴원이면 원생 상세(CT-06)로 이어져요.' },
+        { n: 8, t: '계산에 쓴 정책 값 기록', kind: 'review', imp: 'IMP-10', pol: ['POL-24', 'POL-20'], d: '청구마다 계산에 쓴 정책 값과 버전, 기준일을 함께 저장해요. 기준일은 대상 기간이 시작하는 4/1이에요. (안)이나 미정 값이 들어 있으면 슈퍼관리자의 임시 적용 승인 기록(HQ-07)이 있어야 새 청구를 보낼 수 있어요.' },
         { n: 9, t: '반마다 회차 보여 주기', kind: 'review', imp: 'IMP-09', pol: ['POL-20'], d: '회차는 반의 요일마다 달라요. 2027년 4월은 월·수 반이 8회, 화·목 반은 목요일이 5번이라 9회예요. 표에 회차 칸을 두어 반마다 확인해요.' },
       ],
       open: ['재등록 청구 기간 20일부터 말일까지를 확정할지 (POL-24)', '4·5주 달 금액을 월 정액과 회차 기준 중 무엇으로 할지 (POL-20)', '미수 학생 학습 계정 유예 기간, 지금 안은 5일 (POL-23)', '유예 중인 학생을 본사 사용료에 셀지 (POL-02)', '휴원 허용 여부와 이월 방법 (POL-21)', '가맹 결제 연동 방식, 결제선생 답변 대기 (POL-36)'],
@@ -280,20 +284,21 @@
   B.action('CT08.send', (ctx, arg, el) => {
     if (!ctx.canEdit) return;
     const s = ctx.s, ui = ctx.ui;
-    if (arg && typeof arg === 'object' && arg.ack) s.ct08.ack = true;
     const rows = c8rows(ctx), pend = rows.filter(x => x.r.st === '발송 전');
     if (!pend.length) { B.toast('새로 보낼 학생이 없어요. 이미 보낸 학생에게는 일괄 발송이 다시 가지 않아요.'); return; }
-    if (c8open().length && !s.ct08.ack) { ui.err_ack = '(안)이나 미정 값이 들어간 금액이에요. 본사 임시 적용 승인을 확인해 주세요.'; B.toast('계산에 쓴 정책 값을 먼저 확인해 주세요.'); return; }
+    if (arg && typeof arg === 'object' && arg.ack) s.ct08.ack = true;
+    if (c8open(s).length && !s.ct08.ack) { ui.err_ack = '(안)이나 미정 값이 들어간 금액이에요. 슈퍼관리자 임시 적용 승인 기록을 확인해 주세요.'; B.toast('계산에 쓴 정책 값을 먼저 확인해 주세요.'); return; }
     const direct = isDirect(ctx.center);
     const apply = () => {
-      pend.forEach(x => { x.r.st = '미수'; x.r.sent = '03-27'; x.r.ver = s.ct08.ver; });
+      const snap = C8_POLS.map(p => ({ code: p[0], status: polSt(p[0]), temp: c8temp(s, p[0]) ? '임시 적용 승인' : '' }));
+      pend.forEach(x => { x.r.st = '미수'; x.r.sent = '03-27'; x.r.ver = s.ct08.ver; x.r.baseDay = s.ct08.baseDay; x.r.snap = snap; });
       s.ct08.log.unshift({ at: '03-27', what: '청구 일괄 발송 ' + pend.length + '명', by: ctx.persona.name });
       ui.err_ack = null;
       B.toast(pend.length + '명에게 4월 청구를 보냈어요. ' + (direct ? '결제하면 수납이 자동으로 기록돼요.' : '방문 결제 대기 목록에 올렸어요.'));
     };
     if (el) {
       B.modal({ title: '청구 일괄 발송 ' + pend.length + '명', ok: pend.length + '명에게 보내기',
-        body: h.kv([['대상', pend.map(x => h.mask(x.st.name)).join(', ')], ['보내는 것', direct ? '결제선생 청구서' : '알림톡 안내와 방문 결제 대기 목록'], ['금액', num(pend.reduce((a, x) => a + x.amt - (x.r.disc || 0), 0)) + '원'], ['다시 가지 않는 학생', '이미 보낸 ' + num(c8kpi(ctx, rows).billed) + '명']]) + '<div class="small muted">보낸 청구는 결제 전까지 취소할 수 있어요.</div>',
+        body: h.kv([['대상', pend.map(x => h.mask(x.st.name)).join(', ')], ['보내는 것', direct ? '결제선생 청구서' : '알림톡 안내와 방문 결제 대기 목록'], ['금액', num(pend.reduce((a, x) => a + c8owe(x.amt, x.r), 0)) + '원'], ['다시 가지 않는 학생', '이미 보낸 ' + num(c8kpi(ctx, rows).billed) + '명']]) + '<div class="small muted">청구마다 정책 값과 버전, 기준일 ' + mdS(s.ct08.baseDay) + '을 함께 저장해요.</div>',
         onOk: () => { apply(); } });
       return false;
     }
@@ -302,9 +307,9 @@
   B.action('CT08.remind', (ctx, arg, el) => {
     if (!ctx.canEdit) return;
     const s = ctx.s, ui = ctx.ui, c = ctx.center, direct = isDirect(c);
-    const rows = c8rows(ctx), unpaid = rows.filter(x => x.r.st === '미수');
+    const rows = c8rows(ctx), unpaid = rows.filter(x => C8_UNPAID.includes(x.r.st));
     let ids = Array.isArray(arg) ? arg : (arg && typeof arg === 'object' && Array.isArray(arg.ids)) ? arg.ids : null;
-    if (!ids) { const chk = Object.keys(ui.chk || {}).filter(x => ui.chk[x]); if (chk.length) ids = chk; }
+    if (!ids && arg !== 'all') { const chk = Object.keys(ui.chk || {}).filter(x => ui.chk[x]); if (chk.length) ids = chk; }
     const targets = ids ? unpaid.filter(x => ids.includes(x.id)) : unpaid;
     const k = c8kpi(ctx, rows), n = ids ? targets.length : k.unpaid - k.fail;
     if (!n) { B.toast('다시 안낼 미수 학생이 없어요.'); return; }
@@ -337,7 +342,9 @@
     x.r.prev = x.r.st; x.r.st = '제외'; x.r.why = why || '기타';
     if (why === '휴원' || why === '퇴원 예정') {
       ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: id, want: why === '휴원' ? '휴원' : '퇴원' });
-      B.toast(h.mask(x.st.name) + ' 학생을 명단에서 뺐어요. 원생 상세(CT-06)에서 ' + (why === '휴원' ? '휴원' : '퇴원') + ' 처리도 이어서 해요.');
+      // 상태 변경으로 바로 이어요 (IMP-12). 원생 상세 화면이 있으면 그 화면으로 가요.
+      if (B.screens['CT-06']) B.go('CT-06');
+      B.toast(h.mask(x.st.name) + ' 학생을 명단에서 뺐어요. 원생 상세(CT-06)에서 ' + (why === '휴원' ? '휴원' : '퇴원') + ' 처리를 이어서 해요.');
     } else B.toast(h.mask(x.st.name) + ' 학생을 명단에서 뺐어요. 사유 ' + (why || '기타'));
   }
   B.action('CT08.exclude', (ctx, arg, el) => {
@@ -419,7 +426,8 @@
   function c9unpaid(ctx) { return ctx.s.ct09.unpaid.filter(u => u.center === ctx.centerId && !u.paid); }
 
   function c9closeCard(ctx, full) {
-    const s = ctx.s, ui = ctx.ui, d = C9_DAY, t = c9tot(ctx, d), done = s.ct09.closed[d], c = ctx.center, err = ui.cerr || {};
+    const s = ctx.s, ui = ctx.ui, d = C9_DAY, done = s.ct09.closed[d], live = c9tot(ctx, d), t = done && done.t ? done.t : live, c = ctx.center, err = ui.cerr || {};
+    const moved = done && (live.noCash !== t.noCash || live.book !== t.book || live.back !== t.back);
     const cnt = done ? done.cash : (ui.cashCnt !== '' && ui.cashCnt != null && !isNaN(Number(String(ui.cashCnt).replace(/,/g, ''))) ? Number(String(ui.cashCnt).replace(/,/g, '')) : null);
     const cashTxt = cnt == null ? '<span class="muted">확인 중</span>' : num(cnt) + (cnt === t.book ? ' ' + h.chip('장부와 같음', 'ok') : ' ' + h.chip((cnt > t.book ? '남음 ' : '모자람 ') + num(Math.abs(cnt - t.book)), 'warn'));
     const recvTxt = cnt == null ? num(t.noCash) + ' + 현금' : num(t.noCash + cnt);
@@ -436,6 +444,7 @@
       '<span class="tot">순합계</span><span class="tot">' + netTxt + '</span></div>' +
       (isDirect(c) ? '<div class="small">직영 현금은 본사 계좌에 넣은 날도 등록해요. 입금 주기는 내규로 정해요 (미정).' + (done ? ' ' + (done.deposit ? h.chip('본사 입금 ' + done.deposit, 'ok') : h.btn('현금 본사 입금 등록', { sm: true, act: 'CT09.deposit', disabled: !ctx.canEdit })) : '') + '</div>' : '') + '</div>';
     if (t.unknown) body += '<div class="small muted" style="margin-top:6px">금액이 미정인 ' + t.unknown + '건은 합계에서 빠져요.</div>';
+    if (moved) body += '<div class="small" style="margin-top:6px;color:var(--warn)">마감한 뒤에 바뀐 수납이 있어요. 다음 마감에 들어가요.</div>';
     if (!done && (ui.cashOpen || full)) {
       body += '<div class="ctc-form" style="margin-top:10px"><label>현금 시재</label>' + inp({ f: 'cashCnt', v: ui.cashCnt, ph: '센 금액 (원)', err: err.cash, label: '현금 시재' }) +
         '<label>차액 사유</label>' + inp({ f: 'cashWhy', v: ui.cashWhy, ph: '장부와 다르면 꼭 적어요', err: err.why, label: '차액 사유' }) + '</div>';
@@ -444,13 +453,13 @@
     if (errs && !done) body += '<div class="ctc-errs">' + errs + '</div>';
     body += '<div class="row" style="margin-top:10px">' + (done
       ? h.chip('마감 완료 ' + done.at + ' ' + done.by, 'ok') + (done.diff ? '<span class="small muted">시재 차액 ' + num(done.diff) + ' · ' + esc(done.why) + '</span>' : '')
-      : h.btn('현금 시재 입력', { act: 'CT09.cashOpen', disabled: !ctx.canEdit }) + h.btn('마감', { primary: true, act: 'CT09.close', disabled: !ctx.canEdit })) + '</div>';
+      : (full ? '' : h.btn('현금 시재 입력', { act: 'CT09.cashOpen', disabled: !ctx.canEdit })) + h.btn('마감', { primary: true, act: 'CT09.close', disabled: !ctx.canEdit })) + '</div>';
     return h.card({ title: '일일 마감 (' + mdS('2027-' + d) + ')', pin: 4, body });
   }
   function c9missBox(ctx) {
     const miss = c9missing(ctx, C9_DAY), s = ctx.s;
     if (!miss.length) return h.alert('현금이나 계좌이체로 10만 원 이상 받은 건은 모두 현금영수증 번호가 있어요. 빠진 건이 있으면 마감이 막혀요.', 'ok', { pin: 6, title: '검토 반영' });
-    return h.alert('현금이나 계좌이체로 10만 원 이상 받았는데 현금영수증 번호가 없는 건이 ' + miss.length + '건 있어요. 번호를 넣어야 마감할 수 있어요 (발급 기준은 법정, 세무 확인 중).' +
+    return h.alert('현금이나 계좌이체로 10만 원 이상 받았는데 현금영수증 번호가 없는 건이 ' + miss.length + '건 있어요. ' + (s.ct09.closed[C9_DAY] ? '다음 마감 전에 번호를 넣어 주세요' : '번호를 넣어야 마감할 수 있어요') + ' (발급 기준은 법정, 세무 확인 중).' +
       '<div class="ctc-acts" style="margin-top:6px">' + miss.map(r => '<span class="row" style="gap:4px"><b>' + esc(r.time || r.date) + ' ' + esc(nameOf(s, r)) + ' ' + esc(r.method) + ' ' + num(r.amount) + '</b>' + h.btn('번호 넣기', { sm: true, act: 'CT09.cashNo', arg: r.id, disabled: !ctx.canEdit }) + '</span>').join('') + '</div>', 'bad', { raw: true, pin: 6, title: '검토 반영' });
   }
   function c9approvalNote(ctx) {
@@ -591,7 +600,7 @@
       const closed = !!ctx.s.ct09.closed[r.date];
       B.modal({ title: '수납 취소 · ' + nameOf(ctx.s, r) + ' ' + (r.amount == null ? '' : num(r.amount) + '원'), ok: closed && ctx.role !== '원장' ? '원장 승인 요청' : '취소 기록',
         body: '<div class="field"><label for="ctc9-why">사유<span class="req">*</span></label><select class="inp" id="ctc9-why"><option>중복 결제</option><option>금액을 잘못 입력</option><option>수단을 잘못 입력</option><option>보호자 요청</option><option>교육청 확인 전에 받은 돈</option></select></div>' +
-          (closed ? h.alert(ctx.role === '원장' ? '마감한 날이에요. 원장이 직접 승인하면 사유가 본사 정산 담당에게 알림으로 가요.' : '마감한 날이에요. 원장 승인을 받아야 취소돼요.', 'review') : '<div class="small muted">돈을 돌려주는 결제 취소는 카드사나 결제선생 취소 결과를 받은 뒤 완료로 바뀌어요.</div>'),
+          (closed ? h.alert(ctx.role === '원장' ? '마감한 날이에요. 원장이 직접 승인하면 사유가 본사 정산 담당에게 알림으로 가요.' : '마감한 날이에요. 원장 승인을 받아야 취소돼요.', 'review') : '<div class="small muted">취소한 금액은 오늘 마감표에서 돌려준 돈으로 빠지고, 원래 결제한 날의 마감은 그대로 둬요.</div>'),
         onOk: back => { c9cancel(ctx, id, readModal(back, 'ctc9-why')); } });
       return false;
     }
@@ -614,7 +623,11 @@
       B.toast('현금영수증 번호를 넣었어요.');
     };
     if (arg && typeof arg === 'object') { set(arg.no); return; }
-    if (el) { B.modal({ title: '현금영수증 번호 넣기', ok: '저장', body: '<div class="field"><label for="ctc9-no">번호<span class="req">*</span></label><input class="inp" id="ctc9-no" placeholder="010-0000-0000 또는 승인번호"></div>', onOk: back => set(readModal(back, 'ctc9-no')) }); return false; }
+    if (el) {
+      B.modal({ title: '현금영수증 번호 넣기', ok: '저장', body: '<div class="field"><label for="ctc9-no">번호<span class="req">*</span></label><input class="inp" id="ctc9-no" placeholder="010-0000-0000 또는 승인번호"></div><div class="ctc-errs" id="ctc9-no-err"></div>',
+        onOk: back => { const r = set(readModal(back, 'ctc9-no')); if (r === false) { const e = back.querySelector('#ctc9-no-err'); if (e) e.textContent = '휴대폰 번호나 승인번호를 8자리 이상 숫자로 넣어 주세요.'; } return r; } });
+      return false;
+    }
   });
   B.action('CT09.close', (ctx, arg) => {
     if (!ctx.canEdit) return;
@@ -627,7 +640,7 @@
     if (ui.cashCnt == null || String(ui.cashCnt).trim() === '' || isNaN(cnt)) { e.cash = '현금 시재를 먼저 넣어 주세요.'; ui.cashOpen = true; }
     else if (cnt !== t.book && !String(ui.cashWhy || '').trim()) { e.why = '장부와 ' + num(Math.abs(cnt - t.book)) + '원 차이가 나요. 차액 사유를 적어 주세요.'; ui.cashOpen = true; }
     if (Object.keys(e).length) { B.toast('마감할 수 없어요. 빨간 글씨를 확인해 주세요.'); return; }
-    s.ct09.closed[d] = { at: tick(s), by: who(ctx), cash: cnt, book: t.book, diff: cnt - t.book, why: String(ui.cashWhy || ''), deposit: '' };
+    s.ct09.closed[d] = { at: tick(s), by: who(ctx), cash: cnt, book: t.book, diff: cnt - t.book, why: String(ui.cashWhy || ''), deposit: '', t: { by: Object.assign({}, t.by), back: t.back, noCash: t.noCash, book: t.book, unknown: t.unknown } };
     ui.cashOpen = false; ui.cerr = {};
     B.toast('3/8 일일 마감을 했어요. 이제 이날 수납을 고치려면 원장 승인이 있어야 해요.');
   });
@@ -663,6 +676,8 @@
       cases: {
         rf1: { key: 'rf1', center: 'daechi1', name: '정*호', grade: '초5', cls: 'L3-월수A', days: '월·수', item: '3월 교습비', base: 260000, book: 0, paid: 260000, disc: '', reason: '퇴원 (학원 일정 겹침)', occur: '2027-03-06', status: '계산 완료', method: '카드 취소', log: [] },
         rf2: { key: 'rf2', center: 'daechi1', name: '오*린', grade: '초4', cls: 'L2-월수B', days: '월·수', item: '3월 교습비', base: 260000, book: 0, paid: 260000, disc: '', reason: '퇴원 (이사)', occur: '2027-03-08', status: '계산 중', method: '카드 취소', log: [] },
+        // 본사 대시보드(HQ-01)의 환불 기한 D-2 대구수성센터 1건을 지원 모드로 열 때 보이는 예시예요. 금액은 대구 센터 교습비 290,000 기준이에요.
+        rf3: { key: 'rf3', center: 'daegu', name: '문*아', grade: '초4', cls: 'L3-화목A', days: '화·목', item: '3월 교습비', base: 290000, book: 0, paid: 290000, disc: '', reason: '퇴원 (학습 중단)', occur: '2027-03-05', status: '계산 완료', method: '카드 취소', log: [] },
       },
     };
   });
@@ -692,12 +707,20 @@
       }
       ['student', 'occur', 'out', 'reason'].forEach(k => delete ui[k]);
     }
-    if (!ui.key || !C[ui.key]) {
-      const st = s.students.find(x => x.id === 's1');
-      if (!C.s1 && st) C.s1 = c10caseOf(s, st, {});
-      ui.key = C.s1 ? 's1' : 'rf1';
+    // 지금 센터의 환불 건만 열어요. 대치1은 안내서대로 s1 윤서아, 다른 센터는 기한이 가장 가까운 건이에요.
+    const mine = k => !!(k && C[k] && C[k].center === ctx.centerId);
+    if (!mine(ui.key)) {
+      ui.key = null;
+      const st = s.students.find(x => x.id === 's1' && x.center === ctx.centerId);
+      if (st) { if (!C.s1) C.s1 = c10caseOf(s, st, {}); ui.key = 's1'; }
+      else {
+        const list = Object.keys(C).filter(mine).map(k => C[k]);
+        const open = list.filter(x => x.status !== '실행 완료').sort((a, b) => String(a.occur).localeCompare(String(b.occur)));
+        ui.key = (open[0] || list[0] || {}).key || null;
+      }
+      c10clear(ui);
     }
-    return C[ui.key];
+    return ui.key ? C[ui.key] : null;
   }
   function c10clear(ui) { ['f_reason', 'f_occur', 'f_acct', 'f_memo', 'f_method', 'err'].forEach(k => delete ui[k]); }
   // 학원법 반환 기준 (교습기간 1개월 이내). 지난 회차는 반 시간표로 세요.
@@ -716,26 +739,30 @@
     return { ym, n, k, r, past, frac, fracTxt, label, amount, due, dd: due ? dayDiff(today, due) : null, five, hol, same: all.includes(occur) };
   }
   const C10_STEPS = ['계산', '요청', '승인', '실행 완료'];
-  const c10stepIdx = st => ({ '계산 중': 0, '계산 완료': 0, '승인 대기': 1, '승인': 2, '실행 완료': 3 })[st] || 0;
+  const c10stepIdx = st => ({ '계산 중': 0, '계산 완료': 0, '반려': 0, '승인 대기': 1, '승인': 2, '실행 완료': 3 })[st] || 0;
+  const C10_TONE = { '실행 완료': 'ok', '승인 대기': 'warn', '반려': 'bad' };
   function c10vals(ctx, cs) { const ui = ctx.ui; return { reason: ui.f_reason || cs.reason, occur: ui.f_occur != null ? ui.f_occur : cs.occur, method: ui.f_method || cs.method, acct: ui.f_acct != null ? ui.f_acct : (cs.acct || ''), memo: ui.f_memo != null ? ui.f_memo : (cs.memo || '') }; }
 
   B.screen({
     id: 'CT-10', side: 'ct', phase: 'P1a', devices: ['pc'], pages: [55],
     title: '휴원·퇴원·환불', menuLabel: '환불 처리', crumb: '수강·수납 > 환불 처리',
     headActions: ctx => {
-      const cs = c10case(ctx), done = cs.status === '실행 완료';
+      const cs = c10case(ctx); if (!cs) return '';
+      const done = cs.status === '실행 완료', wait = cs.status === '승인 대기';
       const main = ctx.partial
-        ? h.btn(cs.status === '승인 대기' ? '승인 요청 보냄' : '환불 요청', { primary: true, act: 'CT10.request', disabled: done || cs.status === '승인 대기' })
-        : h.btn(cs.status === '승인 대기' ? '승인하고 환불 등록' : '환불 등록', { primary: true, act: 'CT10.register', disabled: done || !ctx.canEdit });
-      return h.btn('취소', { act: 'CT10.reset', disabled: done }) + main;
+        ? h.btn(wait ? '승인 요청 보냄' : cs.status === '반려' ? '다시 요청' : '환불 요청', { primary: true, act: 'CT10.request', disabled: done || wait })
+        : h.btn(wait ? '승인하고 환불 등록' : '환불 등록', { primary: true, act: 'CT10.register', disabled: done || !ctx.canEdit });
+      return h.btn('취소', { act: 'CT10.reset', disabled: done }) + (wait && !ctx.partial ? h.btn('반려', { act: 'CT10.reject', disabled: !ctx.canEdit }) : '') + main;
     },
     render(ctx) {
-      const s = ctx.s, ui = ctx.ui, cs = c10case(ctx), v = c10vals(ctx, cs), cal = c10calc(cs, v.occur, s.today), done = cs.status === '실행 완료';
+      const s = ctx.s, ui = ctx.ui, cs = c10case(ctx);
+      if (!cs) return h.alert('학부모 환불과 본사 사용료 반환은 따로 처리해요. 사용료는 POL-03을 따라요.', 'info') + '<div style="margin-top:12px">' + h.empty('이 센터에는 기다리는 환불이 없어요. 원생 상세(CT-06)에서 퇴원을 처리하면 여기로 넘어와요.') + '</div>';
+      const v = c10vals(ctx, cs), cal = c10calc(cs, v.occur, s.today), done = cs.status === '실행 완료';
       const e = ui.err || {}, ro = !ctx.canEdit || done;
       let html = h.alert('학부모 환불과 본사 사용료 반환은 따로 처리해요. 사용료는 POL-03을 따라요.', 'info');
       html += '<div class="ctc-line" style="margin-top:12px"><h2>환불 처리 · ' + esc(h.mask(cs.name)) + ' (' + esc(cs.grade) + ')</h2>' +
         '<span class="ctc-pill' + (cal.dd != null && cal.dd <= 2 ? ' bad' : '') + '" data-pin="4">' + (cal.due ? (done ? '반환 완료 ' + esc(cs.doneAt || '') : (cal.dd < 0 ? '반환 기한 지남 ' : '반환 기한 D-' + cal.dd + ' · ') + mdS(cal.due) + '까지') : '사유 발생일을 넣어 주세요') + '</span>' +
-        '<span class="muted small">사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + ' + 5일 (법정)' + (cal.dd != null && cal.dd <= 2 && !done ? ', 대시보드 경고 중' : '') + '</span>' + h.chip(cs.status, done ? 'ok' : cs.status === '승인 대기' ? 'warn' : 'info') + '</div>';
+        '<span class="muted small">사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + ' + 5일 (법정)' + (cal.dd != null && cal.dd <= 2 && !done ? ', 대시보드 경고 중' : '') + '</span>' + h.chip(cs.status, C10_TONE[cs.status] || 'info') + '</div>';
       html += '<div class="grid g2">';
       // 왼쪽: 반환 사유, 계산, 센터 기준
       html += '<div class="stack">';
@@ -755,7 +782,7 @@
           '<label>교재비</label><span>' + h.chip('미정', 'st-미정') + varChip() + ' <span class="small muted">처리 방식 정책 대기</span></span></div>' +
           '<div class="ctc-box review" data-pin="7" style="margin-top:10px"><b>기준 금액은 실제로 낸 교습비예요</b>' +
           '<div>낸 돈 ' + num(cs.paid) + '원 = 교습비 ' + num(cs.base) + (cs.disc ? ' (' + esc(cs.disc) + ' 반영)' : '') + (cs.book ? ' + 교재비 ' + num(cs.book) : '') + '. 교재비는 빼고 교습비만 비율로 계산해요.</div>' +
-          '<div>지난 회차는 출석이 아니라 반 시간표로 세요' + (cs.since ? '. 달 중간에 들어와서 ' + mdS(cs.since) + '부터 세었어요.' : '.') + '</div></div>',
+          '<div>지난 회차는 출석이 아니라 반 시간표로 세요' + (cs.since ? '. 달 중간에 들어와서 ' + mdS(cs.since) + '부터 세었어요 (안).' : '.') + '</div></div>',
       });
       html += h.card({
         title: '센터 기준', pin: 3,
@@ -769,7 +796,7 @@
           '<span class="tot">반환액</span><span class="tot ctc-big">' + num(cal.amount) + '</span></div><div class="small muted" style="margin-top:4px">끝전 처리 학부모에게 유리하게 10원 단위 올림 (예시)</div>' +
           '<div class="ctc-box review" data-pin="9" style="margin-top:10px"><b>계산에 쓴 값</b>' +
           [['POL-25', '환불 규정, 학원법 반환 기준'], ['POL-20', '총 교습시간, 달력 회차로 임시 계산'], ['POL-14', '교재비 반환, 정책 대기']].map(p => '<div class="row" style="gap:6px">' + h.polChip(p[0]) + '<span class="small">' + esc(p[1]) + '</span><span style="margin-left:auto">' + stChip(polSt(p[0])) + '</span></div>').join('') +
-          '<div class="small">' + (done ? '이 환불에 위 값과 상태를 함께 저장했어요 (' + esc(cs.snapAt || '') + ').' : '미정 값이 있어도 법정 기한이 있어서 막지 않아요. 실행할 때 쓴 값을 함께 저장해요.') + '</div></div>',
+          '<div class="small">기준일은 사유 발생일 ' + (okDate(v.occur) ? mdS(v.occur) : '-') + '이에요. ' + (done ? '이 환불에 위 값과 상태, 기준일을 함께 저장했어요 (' + esc(cs.snapAt || '') + ').' : '5일 법정 기한이 있어서 미정 값이 있어도 막지 않고, 실행할 때 쓴 값과 상태를 함께 저장해요.') + '</div></div>',
       });
       const step = c10stepIdx(cs.status);
       html += h.card({
@@ -779,7 +806,7 @@
           '<label>메모</label>' + inp({ f: 'f_memo', v: v.memo, dis: ro, label: '메모' }) + '</div>' +
           '<div class="small muted" style="margin-top:6px">직영 결제선생 결제는 결제 취소로 처리돼요. 계좌번호는 가려서 저장해요. ' + h.polChip('POL-36') + '</div>' +
           '<div class="ctc-box review" data-pin="8" style="margin-top:10px">' + h.steps(C10_STEPS.map((l, i) => ({ label: l, state: i < step || (done && i === step) ? 'done' : i === step ? 'cur' : '' }))) +
-          '<div class="small">' + (done ? '실행 ' + esc(cs.doneAt) + ' · ' + esc(cs.doneBy || '') + (cs.reqBy ? ' · 요청 ' + esc(cs.reqBy) : '') : cs.status === '승인 대기' ? esc(cs.reqBy) + '이 요청했어요. 원장이 승인하면 실행돼요.' : ctx.partial ? '실장은 환불 요청까지 해요. 원장이 승인하고 실행해요.' : '원장은 바로 환불을 등록할 수 있어요. 실장이 요청하면 여기서 승인해요.') + '</div></div>',
+          '<div class="small">' + (done ? '실행 ' + esc(cs.doneAt) + ', ' + esc(cs.doneBy || '') + (cs.reqBy ? ', 요청 ' + esc(cs.reqBy) : '') : cs.status === '승인 대기' ? esc(cs.reqBy) + '이 요청했어요. 원장이 승인하면 실행되고, 승인하지 않으면 사유를 남겨 반려해요.' : cs.status === '반려' ? esc(cs.rejBy || '원장') + '이 반려했어요 (' + esc(cs.rejWhy || '') + '). 고쳐서 다시 요청해요.' : ctx.partial ? '실장은 환불 요청까지 해요. 원장이 승인하고 실행해요.' : '원장은 바로 환불을 등록할 수 있어요. 실장이 요청하면 여기서 승인하거나 반려해요.') + '</div></div>',
       });
       const C = s.ct10.cases;
       const q = Object.keys(C).map(k => C[k]).filter(x => x.center === ctx.centerId && x.status !== '실행 완료').map(x => ({ x, c: c10calc(x, x.occur, s.today) })).sort((a, b) => (a.c.due || '').localeCompare(b.c.due || ''));
@@ -791,7 +818,7 @@
             { label: '사유 발생', render: o => esc(o.x.occur.slice(5)) },
             { label: '기한', render: o => o.c.dd == null ? '-' : o.c.dd < 0 ? h.chip('지남', 'bad') : o.c.dd <= 2 ? h.chip('D-' + o.c.dd, 'bad') : 'D-' + o.c.dd },
             { label: '금액', num: true, render: o => o.x.status === '계산 중' ? '<span class="muted">계산 중</span>' : num(o.c.amount) },
-            { label: '상태', render: o => h.chip(o.x.status, o.x.status === '승인 대기' ? 'warn' : 'info') },
+            { label: '상태', render: o => h.chip(o.x.status, C10_TONE[o.x.status] || 'info') },
           ],
           rows: q, rowAttr: o => ' class="click' + (o.x.key === cs.key ? ' sel' : '') + '" data-act="CT10.open" data-arg="' + esc(o.x.key) + '"', empty: '기다리는 환불이 없어요.',
         }) + '<div class="small muted" style="margin-top:6px">기한이 가까운 순서예요. 교재비 같은 기타경비 처리 방식은 미정이에요. ' + h.polChip('POL-14') + '</div>',
@@ -808,11 +835,11 @@
         { n: 2, t: '계산', d: '학원법 반환 기준(본사 환불 규정)에 따라 총 교습시간 중 지난 비율로 계산해요. 총 교습시간에는 4·5주 달 정책과 공휴일, 휴원일이 들어가요. 계산식은 HQ-12 미리 보기와 같아요.', pol: ['POL-25', 'POL-20'], ref: 'p.55 ②' },
         { n: 3, t: '센터 기준', d: '가맹 센터가 학부모에게 더 유리한 기준을 쓰면 그 기준으로 계산해요. 법정 기준보다 불리하게는 바꿀 수 없어요.', pol: ['POL-25'], ref: 'p.55 ③' },
         { n: 4, t: '반환 기한', d: '사유가 생긴 날부터 5일 안에 돌려줘야 해요(법정). 기한 2일 전부터 대시보드에 경고가 떠요.', ref: 'p.55 ④' },
-        { n: 5, t: '환불 실행', d: '카드 취소나 계좌 반환을 기록해요. 직영의 결제선생 결제는 결제 취소로 처리돼요. 실행하면 수납 내역(CT-09)에 마이너스 금액이 남아요.', pol: ['POL-36'], ref: 'p.55 ⑤' },
+        { n: 5, t: '환불 실행', d: '카드 취소나 계좌 반환을 기록해요. 직영의 결제선생 결제는 결제 취소로 처리돼요. 실행하면 수납 내역(CT-09)에 마이너스 금액이 남고 보호자에게 환불 안내가 가요.', pol: ['POL-36'], ref: 'p.55 ⑤' },
         { n: 6, t: '처리 대기', d: '기한이 가까운 순서로 보여 줘요. 줄을 누르면 그 환불을 열어요. 교재비 같은 기타경비를 어떻게 돌려줄지는 아직 미정이에요.', pol: ['POL-14'], ref: 'p.55 ⑥' },
-        { n: 7, t: '기준 금액과 지난 회차', kind: 'review', imp: 'IMP-09', d: '돌려줄 돈의 기준은 실제로 낸 교습비예요. 할인과 차감은 반영하고 교재비는 빼요. 지난 회차는 출석이 아니라 그 학생 반의 시간표로 세고, 달 중간에 들어온 학생은 등록한 날부터 세요.' },
-        { n: 8, t: '요청과 승인 단계', kind: 'review', imp: 'IMP-14', d: '환불을 계산, 요청, 승인, 실행 완료 순서로 나눠요. 실장이 요청하면 원장이 승인하고 실행해요. 누가 언제 요청하고 승인했는지 남아요.' },
-        { n: 9, t: '계산에 쓴 값 기록', kind: 'review', imp: 'IMP-10', pol: ['POL-20'], d: '환불마다 계산에 쓴 정책 값과 상태를 함께 저장해요. 4·5주 달 정책(POL-20)이 미정이라 지금은 달력 회차로 계산한다고 보여 줘요. 환불은 법정 기한이 있어서 미정 값이 있어도 막지 않아요.' },
+        { n: 7, t: '기준 금액과 지난 회차', kind: 'review', imp: 'IMP-09', d: '돌려줄 돈의 기준은 실제로 낸 교습비예요. 할인과 차감은 반영하고 교재비는 빼요. 지난 회차는 출석이 아니라 그 학생 반의 시간표로 세요. 달 중간에 들어온 학생은 등록한 날부터 세는 안을 써요.' },
+        { n: 8, t: '요청과 승인 단계', kind: 'review', imp: 'IMP-14', d: '환불을 계산, 요청, 승인, 실행 완료 순서로 나눠요. 실장이 요청하면 원장이 승인하고 실행해요. 승인하지 않으면 사유를 남기고 반려해서 계산 단계로 돌려보내요. 누가 언제 요청하고 승인했는지 남아요.' },
+        { n: 9, t: '계산에 쓴 값 기록', kind: 'review', imp: 'IMP-10', pol: ['POL-20'], d: '환불마다 계산에 쓴 정책 값과 상태, 기준일을 함께 저장해요. 환불의 기준일은 사유 발생일이에요. 4·5주 달 정책(POL-20)이 미정이라 지금은 달력 회차로 계산한다고 보여 줘요. 환불은 5일 법정 기한이 있어서 미정 값이 있어도 막지 않아요.' },
       ],
       open: ['교재비 같은 기타경비 반환 방식 (POL-14)', '4·5주 달 총 교습시간 세는 법 (POL-20)', '끝전 처리 방식, 화면의 올림은 예시', '사유 발생일 당일 수업과 딱 1/3이 지난 날 같은 경계 계산', '달 중간 퇴원 때 본사 사용료, 돌려주지 않는 안 (POL-03)'],
       rules: ['환불은 사유가 생긴 날부터 5일 안에 해야 해요 (학원법, 법정).', '교습기간 1개월 이내는 1/3이 지나기 전 2/3, 1/2이 지나기 전 1/2를 돌려주고 그 뒤에는 돌려주지 않아요 (법정).'],
@@ -831,22 +858,25 @@
     const s = ctx.s, cal = c10calc(cs, v.occur, s.today);
     c10save(cs, v);
     if (cs.status === '승인 대기') cs.apprBy = who(ctx);
-    Object.assign(cs, { status: '실행 완료', amount: cal.amount, doneAt: '03-08 ' + tick(s), doneBy: who(ctx), snapAt: '03-08', snap: ['POL-25', 'POL-20', 'POL-14'].map(c => ({ code: c, status: polSt(c) })) });
+    Object.assign(cs, { status: '실행 완료', amount: cal.amount, doneAt: '03-08 ' + tick(s), doneBy: who(ctx), snapAt: '03-08', baseDay: v.occur, snap: ['POL-25', 'POL-20', 'POL-14'].map(c => ({ code: c, status: polSt(c) })) });
     cs.log.unshift({ at: cs.doneAt, what: '환불 실행 ' + num(cal.amount) + '원 (' + v.method + ')', by: who(ctx) });
     s.ct09.rows.push({ id: 'c9-r' + (s.ct09.rows.length + 1), center: cs.center || ctx.centerId, date: C9_DAY, time: cs.doneAt.slice(6), student: cs.student || null, name: cs.student ? null : cs.name, kind: '환불', item: cs.item + ' 환불', amount: -cal.amount, method: v.method, approval: '-', cash: '', by: who(ctx), subject: '환불', period: cs.item });
+    // 보호자 환불 안내 (학부모에게 나가는 글에는 (안) 표시 없이 숫자만 써요)
+    if (s.alim && Array.isArray(s.alim.log)) s.alim.log.push({ at: cs.doneAt, center: cs.center || ctx.centerId, student: cs.student || '', tpl: '', name: '환불 안내', to: '-', text: cs.item + ' ' + num(cal.amount) + '원을 ' + v.method + '로 돌려드렸어요.', status: '발송 완료', src: 'CT-10' });
     ctx.ui.err = {};
-    B.toast(num(cal.amount) + '원 환불을 실행했어요. 수납 내역(CT-09)에 -' + num(cal.amount) + '원이 남았어요.');
+    B.toast(num(cal.amount) + '원 환불을 실행했어요. 수납 내역(CT-09)에 -' + num(cal.amount) + '원이 남고, 보호자에게 환불 안내가 갔어요.');
   }
   B.action('CT10.open', (ctx, key) => { if (ctx.s.ct10.cases[key]) { ctx.ui.key = key; c10clear(ctx.ui); } });
   B.action('CT10.method', (ctx, m) => { ctx.ui.f_method = m; });
   B.action('CT10.reset', ctx => { c10clear(ctx.ui); B.toast('입력한 내용을 되돌렸어요.'); });
-  B.action('CT10.toCT06', ctx => { const cs = c10case(ctx); if (!cs.student) return; ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: cs.student }); B.go('CT-06'); return false; });
+  B.action('CT10.toCT06', ctx => { const cs = c10case(ctx); if (!cs || !cs.student) return; ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: cs.student }); B.go('CT-06'); return false; });
   B.action('CT10.request', (ctx, arg) => {
     if (!ctx.canEdit) return;
     if (arg && typeof arg === 'object') Object.keys(arg).forEach(k => { ctx.ui['f_' + k] = arg[k]; });
-    const cs = c10case(ctx); if (cs.status === '실행 완료') return;
+    const cs = c10case(ctx); if (!cs || cs.status === '실행 완료') return;
+    if (cs.status === '승인 대기') { B.toast('이미 원장 승인을 기다리고 있어요.'); return; }
     const v = c10check(ctx, cs); if (!v) { B.toast('빨간 글씨를 확인해 주세요.'); return; }
-    c10save(cs, v); cs.status = '승인 대기'; cs.reqBy = who(ctx);
+    c10save(cs, v); cs.status = '승인 대기'; cs.reqBy = who(ctx); cs.rejBy = ''; cs.rejWhy = '';
     cs.log.unshift({ at: '03-08 ' + tick(ctx.s), what: '환불 요청 ' + num(c10calc(cs, v.occur, ctx.s.today).amount) + '원', by: who(ctx) });
     B.toast('원장에게 환불 승인 요청을 보냈어요.');
   });
@@ -854,7 +884,8 @@
     if (!ctx.canEdit) return;
     if (ctx.partial) { B.toast('실장은 환불 요청까지 할 수 있어요.'); return; }
     if (arg && typeof arg === 'object') Object.keys(arg).forEach(k => { ctx.ui['f_' + k] = arg[k]; });
-    const cs = c10case(ctx); if (cs.status === '실행 완료') { B.toast('이미 환불을 실행했어요.'); return; }
+    const cs = c10case(ctx); if (!cs) return;
+    if (cs.status === '실행 완료') { B.toast('이미 환불을 실행했어요.'); return; }
     const v = c10check(ctx, cs); if (!v) { B.toast('빨간 글씨를 확인해 주세요.'); return; }
     const cal = c10calc(cs, v.occur, ctx.s.today);
     if (el) {
@@ -864,6 +895,25 @@
       return false;
     }
     c10exec(ctx, cs, v);
+  });
+  // 원장이 실장의 요청을 받아들이지 않을 때. 사유를 남기고 계산 단계로 돌려보내요.
+  const C10_REJECT = ['사유 발생일을 다시 확인해요', '금액을 다시 계산해요', '보호자와 다시 상담해요'];
+  function c10reject(ctx, cs, why) {
+    cs.status = '반려'; cs.rejBy = who(ctx); cs.rejWhy = why || C10_REJECT[0];
+    cs.log.unshift({ at: '03-08 ' + tick(ctx.s), what: '환불 요청 반려 (' + cs.rejWhy + ')', by: who(ctx) });
+    B.toast('환불 요청을 반려했어요. ' + (cs.reqBy || '요청한 사람') + '에게 사유가 가요.');
+  }
+  B.action('CT10.reject', (ctx, arg, el) => {
+    if (!ctx.canEdit || ctx.partial) { B.toast('원장만 반려할 수 있어요.'); return; }
+    const cs = c10case(ctx); if (!cs || cs.status !== '승인 대기') { B.toast('승인을 기다리는 요청이 없어요.'); return; }
+    const why = typeof arg === 'string' && arg ? arg : arg && typeof arg === 'object' ? arg.why : '';
+    if (!why && el) {
+      B.modal({ title: '환불 요청 반려 · ' + h.mask(cs.name), ok: '반려',
+        body: '<div class="field"><label for="ctc10-rej">사유<span class="req">*</span></label><select class="inp" id="ctc10-rej">' + C10_REJECT.map(x => '<option>' + esc(x) + '</option>').join('') + '</select></div><div class="small muted">반려하면 계산 단계로 돌아가고, 실장이 고쳐서 다시 요청해요.</div>',
+        onOk: back => { c10reject(ctx, cs, readModal(back, 'ctc10-rej')); } });
+      return false;
+    }
+    c10reject(ctx, cs, why);
   });
 
   /* =====================================================================
@@ -944,6 +994,11 @@
     }).sort((a, b) => (b.lv - a.lv) || ((b.k.cap - b.k.enrolled) - (a.k.cap - a.k.enrolled)));
     return { st, list };
   }
+  // 배정할 반: 직접 고른 반, CT-07에서 고른 반, 같은 레벨에서 자리가 있는 반 순서로 정해요.
+  function c11want(ctx, A) {
+    const ui = ctx.ui, all = ctx.s.classes.filter(k => k.center === ctx.centerId);
+    return ui.aCls || (ui.cls && all.some(x => x.id === ui.cls) ? ui.cls : '') || ((A.list.find(o => o.lv && !o.why) || A.list.find(o => !o.why) || {}).k || {}).id || '';
+  }
 
   B.screen({
     id: 'CT-11', side: 'ct', phase: 'P1a', devices: ['pc', 'tablet'], pages: [56],
@@ -956,8 +1011,9 @@
       let html = '';
       // 검토 반영: 수납 뒤 넘어온 원생 반 배정
       const A = c11assignCands(ctx);
+      if (!A && ui.assignShow) html += h.card({ title: '반 배정을 기다리는 원생', pin: 8, right: h.btn('닫기', { sm: true, act: 'CT11.assignLater' }), body: '<div class="small muted">지금 반 배정을 기다리는 원생이 없어요. 수강 등록·수납(CT-07)에서 수납을 마치면 여기로 넘어와요.</div>' }) + '<div style="height:12px"></div>';
       if (A) {
-        const want = ui.aCls || (ui.cls && all.some(x => x.id === ui.cls) ? ui.cls : '') || ((A.list.find(o => o.lv && !o.why) || A.list.find(o => !o.why) || {}).k || {}).id;
+        const want = c11want(ctx, A);
         const wk = all.find(x => x.id === ui.cls);
         html += h.card({
           title: '반 배정을 기다리는 원생', sub: '수강 등록·수납에서 넘어왔어요', pin: 8, cls: '',
@@ -989,7 +1045,7 @@
       });
       tt += '</div>';
       const teachers = Array.from(new Set(all.map(x => x.teacher)));
-      html += '<div class="stack"><div class="ctc-bar" data-pin="1">' + sel({ f: 'f_month', v: '2027-03', opts: [{ v: '2027-03', l: '2027년 3월' }, { v: '2027-04', l: '2027년 4월' }], label: '달' }) +
+      html += '<div class="stack"><div class="ctc-bar" data-pin="1">' + sel({ f: 'f_month', v: '2027-03', opts: [{ v: '2027-03', l: '2027년 3월' }], label: '달' }) +
         sel({ f: 'f_teacher', v: tf, live: true, label: '교사', opts: [{ v: '', l: '교사 전체' }].concat(teachers) }) +
         '<span class="small muted">회당 90분, 하루 2타임 운영 안 ' + h.polChip('POL-10') + ' · 빈칸을 누르면 그 타임에 반을 만들어요</span></div>' + tt + '</div>';
       // 오른쪽: 반 설정
@@ -1029,7 +1085,7 @@
       html += '<div class="grid g2" style="margin-top:12px">';
       html += h.card({ title: '교습시간 검사', pin: 4, body: '<div>교습시간 상한 <b>' + esc(c.curfew) + '</b> ' + varChip() + ' (' + esc(c.region.split(' ')[0]) + ' 조례 값) ' + h.polChip('POL-17') + '</div><div class="small muted" style="margin-top:4px">' + (lateSlot ? esc(span(lateSlot)[0]) + ' 타임은 ' + esc(span(lateSlot)[1]) + '에 끝나서 저장할 수 없어요.' : '상한을 넘는 타임이 없어요.') + '</div>' });
       const tutor = c.facility === '교습소';
-      html += h.card({ title: '교습소 센터', pin: 5, body: '<div>정원 상한 9명 · 교습자 1명 · 보조요원 1명</div><div class="small ' + (tutor ? '' : 'muted') + '" style="margin-top:4px">' + (tutor ? h.chip('적용 중', 'warn') + ' 이 센터는 교습소라 정원과 교직원 수가 자동으로 제한돼요.' : '이 센터는 학원이라 해당 없어요.') + ' ' + h.polChip('POL-15') + '</div>' });
+      html += h.card({ title: '교습소 센터', pin: 5, body: '<div>정원 상한 9명, 교습자 1명, 보조요원 1명</div><div class="small ' + (tutor ? '' : 'muted') + '" style="margin-top:4px">' + (tutor ? h.chip('적용 중', 'warn') + ' 이 센터는 교습소라 정원과 교직원 수가 자동으로 제한돼요.' : '이 센터는 학원이라 해당 없어요.') + ' ' + h.polChip('POL-15') + '</div>' });
       html += '</div>';
       html += '<div style="margin-top:12px">' + h.card({ title: '대기자', right: h.chip('P2', 'p2'), body: '<div class="small muted">정원이 찬 반의 대기자 명단과 자리 생김 알림은 확대 단계 화면(CT-22)에서 해요.</div>' }) + '</div>';
       return html;
@@ -1046,7 +1102,7 @@
         { n: 5, t: '교습소 제한', d: '교습소 센터는 동시 9명, 교습자 1명, 보조요원 1명 제한이 자동으로 걸려요(법정). 부산해운대센터로 바꿔 보면 상한이 9명으로 바뀌어요.', pol: ['POL-15'], ref: 'p.56 ⑤' },
         { n: 6, t: '같은 시간대 합계 검사', kind: 'review', imp: 'IMP-15', pol: ['POL-15', 'POL-16'], d: '같은 시간에 반이 여러 개 열리면 정원을 합쳐서 일시수용능력(대치1 24명, 예시)을 넘는지 봐요. 넘으면 저장을 막아요. 같은 강의실이나 같은 교사가 겹쳐도 막아요.' },
         { n: 7, t: '경력 조회 전 배치 금지', kind: 'review', imp: 'IMP-16', d: '성범죄와 아동학대 경력 조회를 마친 교직원만 교사와 보조로 고를 수 있어요. 강사와 보조는 교육청 통보일도 있어야 하고, 실장처럼 직원으로 등록된 사람은 수업에 넣지 않아요.' },
-        { n: 8, t: '수납 뒤 반 배정', kind: 'review', imp: 'IMP-18', cond: true, reveal: 'CT11.assignStart', d: '수강 등록·수납(CT-07)을 마친 원생이 여기로 넘어와요. 같은 레벨 반을 먼저 보여 주고, 정원과 같은 시간대 합계를 다시 검사한 뒤 넣어요. 넣으면 출결 명단에 바로 들어가요.' },
+        { n: 8, t: '수납 뒤 반 배정 확정', kind: 'review', imp: 'IMP-18', cond: true, reveal: 'CT11.assignStart', d: '반은 수강 등록·수납(CT-07)에서 골라요. 수납을 마친 원생이 그 반을 고른 채로 여기로 넘어와서 흐름이 끊기지 않아요. 넣기 전에 정원과 같은 시간대 합계를 다시 검사하고, 고른 반이 없으면 같은 레벨 반을 먼저 보여 줘요. 넣으면 출결 명단에 바로 들어가요.' },
       ],
       open: ['학원과 교습소 중 무엇으로 할지, 지금은 학원 안 (POL-15)', '타임당 정원과 교사 1인당 학생 수, 정원 15명 안 (POL-16)', '회당 90분, 하루 2타임 운영을 확정할지 (POL-10)', '대치1 수용능력이 24명인지 30명인지', 'P2 전까지 꽉 찬 반의 대기 학생을 어떻게 받을지 (CT-22는 P2)'],
       rules: ['교습 종료 시각은 시·도 조례를 따라요 (서울 22:00, 법정).', '교습소는 동시 9명, 교습자 1명, 보조요원 1명까지예요 (법정).', '경력 조회를 하지 않은 사람은 수업에 넣지 않아요 (법정, 조회 시점은 법무 확인 중).'],
@@ -1091,14 +1147,16 @@
     const s = ctx.s, ui = ctx.ui;
     const st = s.students.find(x => x.id === sid && x.center === ctx.centerId) || s.students.find(x => x.center === ctx.centerId && !x.cls && ['재원', '수납 대기', '대기'].includes(x.status));
     if (st) { ui.assign = st.id; ui.aCls = null; }
+    ui.assignShow = true;
   });
   B.action('CT11.assignPick', (ctx, id) => { ctx.ui.aCls = id; });
-  B.action('CT11.assignLater', ctx => { ctx.ui.assign = null; ctx.ui.aCls = null; B.toast('반 배정을 미뤘어요. 원생 상세(CT-06)에서 다시 할 수 있어요.'); });
+  B.action('CT11.assignLater', ctx => { const had = !!ctx.ui.assign; ctx.ui.assign = null; ctx.ui.aCls = null; ctx.ui.assignShow = false; if (had) B.toast('반 배정을 미뤘어요. 원생 상세(CT-06)에서 다시 할 수 있어요.'); });
   B.action('CT11.assign', (ctx, arg) => {
     if (!ctx.canEdit) return;
     const s = ctx.s, ui = ctx.ui, c = ctx.center;
-    let sid = ui.assign, kid = ui.aCls || ui.cls;
-    if (arg && typeof arg === 'object') { sid = arg.student || sid; kid = arg.cls || kid; } else if (arg) kid = arg;
+    let sid = ui.assign, kid = '';
+    if (arg && typeof arg === 'object') { sid = arg.student || sid; kid = arg.cls || ''; } else if (arg) kid = arg;
+    if (!kid && sid) { const A = c11assignCands(Object.assign({}, ctx, { ui: Object.assign({}, ui, { assign: sid }) })); if (A) kid = c11want(ctx, A); }
     const st = s.students.find(x => x.id === sid), k = s.classes.find(x => x.id === kid && x.center === ctx.centerId);
     if (!st || !k) { B.toast('넣을 원생과 반을 골라 주세요.'); return; }
     if (k.enrolled >= k.cap) { B.toast(k.name + ' 반은 정원(' + k.cap + '명)이 찼어요.'); return; }
@@ -1107,7 +1165,7 @@
     const from = s.classes.find(x => x.id === st.cls); if (from) from.enrolled = Math.max(0, from.enrolled - 1);
     st.cls = k.id; k.enrolled += 1;
     s.ct11.log.unshift({ at: '03-08', what: h.mask(st.name) + ' ' + k.name + ' 반 배정', by: who(ctx) });
-    ui.assign = null; ui.aCls = null; ui.cls = null; ui.mode = ''; ui.sel = k.id;
+    ui.assign = null; ui.aCls = null; ui.cls = null; ui.mode = ''; ui.sel = k.id; ui.assignShow = false;
     B.toast(h.mask(st.name) + ' 학생을 ' + k.name + ' 반에 넣었어요. 출결 명단에 바로 보여요.');
   });
 
@@ -1204,7 +1262,7 @@
       html += h.alert('수업 시작 ' + C12_ABS + '분 뒤까지 입실이 없으면 결석, 끝나고 ' + C12_NOOUT + '분 뒤까지 퇴실이 없으면 미퇴실로 봐요 (예시). 결석이면 보호자에게 미등원 알림을 보낼 수 있어요.', 'review', { title: '검토 반영', pin: 6 });
       html += '<div style="margin-top:10px">' + h.table({
         cols: [
-          { label: '원생', render: p => esc(h.mask(p.name)) + (p.rec && p.rec.manual ? ' ' + h.chip('수정됨', 'line') : '') },
+          { label: '원생', render: p => esc(h.mask(p.name)) + (p.rec && p.rec.manual ? ' ' + h.chip('수정됨') : '') },
           { label: '반', render: p => esc(p.k ? p.k.name : '-') },
           { label: '입실', render: p => '<span class="mono small">' + esc((p.rec && p.rec.in) || '-') + '</span>' },
           { label: '퇴실', render: p => '<span class="mono small">' + esc((p.rec && p.rec.out) || '-') + '</span>' },
@@ -1240,7 +1298,7 @@
           '<label>' + (isOut ? '퇴실 시각' : '입실 시각') + '</label><div>' + inp({ f: 'm_time', v: ui.m_time, ph: '17:41', dis: ro, err: fe.time, label: isOut ? '퇴실 시각' : '입실 시각', w: '110px' }) + (fe.time ? '<div class="ctc-errs">' + esc(fe.time) + '</div>' : '') + '</div>' +
           '<label>사유<span class="req">*</span></label>' + sel({ f: 'm_why', v: ui.m_why, opts: [{ v: '', l: '고르세요' }, '퇴실 체크 누락', '입실 체크 누락', '번호를 잘못 누름', '패드 오류', '기타'], dis: ro, label: '사유', w: '100%' }) + '</div>' +
           (fe.why ? '<div class="ctc-errs">' + esc(fe.why) + '</div>' : '') +
-          '<label class="row small" style="gap:6px;margin-top:8px">' + chk(ui.m_notify !== 'off', 'CT12.fixNotify', null, ro, '보호자 알림') + '<span>보호자에게 직원 확인 ' + (isOut ? '퇴실' : '입실') + '로 알려요</span></label>' +
+          '<label class="row small" style="gap:6px;margin-top:8px;flex-wrap:nowrap">' + chk(ui.m_notify !== 'off', 'CT12.fixNotify', null, ro, '보호자 알림') + '<span>보호자에게 직원 확인 ' + (isOut ? '퇴실' : '입실') + '로 알려요</span></label>' +
           '<div class="row" style="justify-content:flex-end;margin-top:8px">' + h.btn('저장', { primary: true, act: 'CT12.fix', disabled: ro }) + '</div>';
       } else fixBody = '<div class="small muted">고칠 기록을 표에서 골라요. 퇴실 처리나 입실 고치기를 누르면 여기에 열려요.</div>';
       if (s.ct12.edits.length) fixBody += '<div class="ctc-hist">' + s.ct12.edits.slice(0, 3).map(x => '<div>' + esc(x.at + ' ' + x.name + ' ' + x.what + ' · ' + x.why + ' · ' + x.by) + '</div>').join('') + '<div>수정 이력은 지워지지 않아요.</div></div>';
@@ -1249,9 +1307,9 @@
         const opts = c12mkOpts(ctx, mkP), used = s.ct12.makeups.filter(m => m.student === mkP.id && m.date.slice(0, 7) === s.today.slice(0, 7)).length;
         const firstOk = (opts.find(o => !o.dis) || {}).v || '';
         if (ui.k_for !== mkP.id) { ui.k_for = mkP.id; ui.k_slot = firstOk; ui.k_err = null; }
-        mkBody = '<div class="ctc-form"><label>대상</label><span>' + esc(h.mask(mkP.name)) + ' (' + mdS(s.today) + ' 결석)</span>' +
-          '<label>보강일</label>' + (opts.length ? sel({ f: 'k_slot', v: ui.k_slot, opts: opts, dis: ro, label: '보강일', w: '100%' }) : '<span class="small muted">2주 안에 같은 레벨 반이 없어요</span>') +
-          '<label>한도</label><span>월 2회 · 2주 ' + varChip() + ' ' + h.chip('미확정(안)', 'st-안') + ' <span class="muted small">이번 달 ' + used + '회 씀</span></span></div>' +
+        mkBody = '<div class="ctc-form"><label>대상</label><span>' + esc(h.mask(mkP.name)) + ' (' + mdS(s.today) + ' 결석)</span></div>' +
+          '<div class="field" style="margin-top:8px"><label>보강일</label>' + (opts.length ? sel({ f: 'k_slot', v: ui.k_slot, opts: opts, dis: ro, label: '보강일', w: '100%' }) : '<span class="small muted">2주 안에 같은 레벨 반이 없어요</span>') + '</div>' +
+          '<div class="small" style="margin-top:8px">한도 월 2회 · 2주 ' + varChip() + ' ' + h.chip('미확정(안)', 'st-안') + ' <span class="muted">이번 달 ' + used + '회 씀</span></div>' +
           '<div class="ctc-box review" data-pin="8" style="margin-top:8px"><span class="small">같은 레벨 반 중 본인 정규 수업과 겹치지 않고 자리가 남은 타임만 고를 수 있어요. 보강 학생도 그 시간 인원에 넣어 세요.</span></div>' +
           (ui.k_err ? '<div class="ctc-errs">' + esc(ui.k_err) + '</div>' : '') +
           '<div class="row" style="justify-content:flex-end;margin-top:8px">' + h.btn('보강 저장', { primary: true, act: 'CT12.makeup', disabled: ro || !opts.length }) + '</div>';
@@ -1261,7 +1319,7 @@
       html += '<div class="grid g3" style="margin-top:12px">' +
         h.card({ title: '수동 수정', pin: 3, right: fixP ? h.btn('닫기', { sm: true, act: 'CT12.pickFix', arg: 'none' }) : '', body: fixBody }) +
         h.card({ title: '보강', pin: 4, right: h.polChip('POL-22'), body: mkBody }) +
-        h.card({ title: '키오스크 기기', pin: 5, body: '<div class="stack" style="gap:4px">' + devs.map(x => '<div class="small"><b>' + esc(x.name) + '</b> · ' + esc(x.st) + ' <span class="muted">' + esc(x.use) + '</span></div>').join('') +
+        h.card({ title: '키오스크 기기', pin: 5, body: '<div class="stack" style="gap:4px">' + devs.map(x => '<div class="small"><b>' + esc(x.name) + '</b> · ' + esc(x.st) + ' <span class="muted">(' + esc(x.use) + '용)</span></div>').join('') +
           '<div class="small">체크 방식 <b>' + esc(String(h.polValue('POL-39', c).value).replace(/\s*\(예시\)/, '')) + '</b> ' + varChip() + stChip(polSt('POL-39')) + '</div><div class="small muted">등록한 기기에서만 입실과 퇴실 체크가 돼요. ' + h.polChip('POL-38') + '</div>' +
           '<div class="row" style="margin-top:4px">' + h.btn('기기 관리', { sm: true, go: 'CT-19' }) + '</div></div>' }) +
         '</div>';
@@ -1274,10 +1332,10 @@
       items: [
         { n: 1, t: '오늘 출결', d: '키오스크 입실과 퇴실 기록을 타임별로 봐요. 공용 패드는 퇴실 체크 때 학습 앱에서 자동으로 로그아웃해요(10/14 회의에서 나온 걱정).', pol: ['POL-39'], ref: 'p.57 ①' },
         { n: 2, t: '알림톡', d: '입실과 퇴실 때 보호자에게 정보성 알림톡이 자동으로 가요. 센터는 항목별로 끌 수 있고, 여기서 끄면 알림톡 화면(CT-14) 설정도 같이 바뀌어요.', pol: ['POL-35'], ref: 'p.57 ②' },
-        { n: 3, t: '수동 수정', d: '빠진 입실이나 퇴실은 사유를 남기고 고쳐요. 고친 기록은 지워지지 않아요.', ref: 'p.57 ③' },
-        { n: 4, t: '보강', d: '결석한 회차의 보강을 정책 한도 안에서 잡아요. 한도는 월 2회, 결석 뒤 2주 안(안)이에요. 보강 출석도 같은 키오스크로 체크해요.', pol: ['POL-22'], ref: 'p.57 ④' },
+        { n: 3, t: '수동 수정', d: '빠진 입실이나 퇴실은 사유를 남기고 고쳐요. 고친 기록은 지워지지 않아요. 저장할 때 보호자에게 직원 확인 퇴실처럼 손으로 고친 기록이라고 알릴지 골라요.', ref: 'p.57 ③' },
+        { n: 4, t: '보강', d: '결석한 회차의 보강을 정책 한도 안에서 잡아요. 지금 안은 한 달 2회, 결석 뒤 2주 이내예요. 보강 출석도 같은 키오스크로 체크해요.', pol: ['POL-22'], ref: 'p.57 ④' },
         { n: 5, t: '키오스크 기기', d: '등록한 기기에서만 입실과 퇴실 체크가 돼요. 기기 등록과 해제는 CT-19에서 해요. 체크 방식은 번호 입력(예시)이에요.', pol: ['POL-38', 'POL-39'], ref: 'p.57 ⑤' },
-        { n: 6, t: '결석 판정과 미등원 알림', kind: 'review', imp: 'IMP-18', pol: ['POL-35'], d: '수업 시작 10분 뒤까지 입실이 없으면 결석, 끝나고 20분 뒤까지 퇴실이 없으면 미퇴실로 봐요(예시). 결석이면 보호자에게 미등원 알림을 보내요. 직원이 손으로 넣은 기록은 직원 확인 퇴실처럼 따로 알려요.' },
+        { n: 6, t: '결석 판정과 미등원 알림', kind: 'review', imp: 'IMP-18', pol: ['POL-35'], d: '수업 시작 10분 뒤까지 입실이 없으면 결석, 끝나고 20분 뒤까지 퇴실이 없으면 미퇴실로 봐요(예시). 결석이면 보호자에게 미등원 알림을 보내요. 판정 시각과 미등원 알림은 아직 정책으로 정하지 않아서 예시 값으로 보여 줘요.' },
         { n: 7, t: '패드 기록 전송과 앱 로그아웃', kind: 'review', imp: 'IMP-05', d: '키오스크 기록이 서버에 들어왔는지, 퇴실 때 학습 앱 로그아웃이 됐는지 함께 보여 줘요. 인터넷이 끊기면 패드에 모아 두었다가 연결되면 다시 보내요.' },
         { n: 8, t: '보강 자리 검사', kind: 'review', imp: 'IMP-15', d: '보강 날짜는 같은 레벨 반 중에서 본인 정규 수업과 겹치지 않고 자리가 남은 타임만 보여 줘요. 보강 학생도 그 시간 인원에 넣어서 정원과 일시수용능력을 넘지 않게 해요.' },
       ],

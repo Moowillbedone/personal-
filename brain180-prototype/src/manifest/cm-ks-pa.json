@@ -72,6 +72,16 @@
      "name": "CM01.unlock",
      "arg": "없음",
      "does": "잠금이 풀린 뒤 상태로 바꾼다(시연)"
+    },
+    {
+     "name": "CM01.sendReset",
+     "arg": "없음",
+     "does": "비밀번호 찾기에서 본인 확인 뒤 재설정 링크 요청을 s.audit에 남긴다"
+    },
+    {
+     "name": "CM01.askReset",
+     "arg": "없음",
+     "does": "인증 수단 분실 때 2단계 인증 초기화 요청을 s.audit에 남긴다(검토 반영 6번)"
     }
    ],
    "reads": "B.state.persona로 시연 계정을 채운다. 시연 비밀번호 brain180!",
@@ -188,11 +198,11 @@
     {
      "name": "CM03.download",
      "arg": "{dl_reason:'일일 마감', dl_phone:true, dl_raw:false} (dl_reason:''이면 오류)",
-     "does": "사유와 항목을 검사하고 다운로드 기록을 s.audit과 최근 다운로드에 남긴다. 지원 모드와 원본 권한 없음은 막는다"
+     "does": "사유와 항목을 검사하고 다운로드 기록을 s.audit과 최근 다운로드에 남긴다. 지원 모드(다운로드 버튼도 잠김)와 원본 권한 없음은 막는다"
     },
     {
      "name": "CM03.state",
-     "arg": "'정상' | '빈 목록' | '오류' | '오프라인'",
+     "arg": "'정상' | '빈 목록' | '불러오는 중' | '오류' | '오프라인'",
      "does": "목록 상태 미리 보기를 바꾼다"
     },
     {
@@ -276,6 +286,11 @@
      "name": "KS01.reset",
      "arg": "없음",
      "does": "첫 화면으로 돌아간다"
+    },
+    {
+     "name": "KS01.pick",
+     "arg": "학생 id",
+     "does": "같은 번호가 여러 명일 때 이름 확인 단계에서 학생을 고른다"
     }
    ],
    "reads": "B.state.persona의 센터 (지원 모드면 그 센터), s.students 보호자 휴대폰 뒤 4자리, s.classes 시간표, s.alim.auto['입실'|'퇴실']",
@@ -346,7 +361,7 @@
     {
      "name": "PA01.pay",
      "arg": "없음 | 학생 id | {student:'s3', method:'카드'|'계좌이체', bill:{...}}",
-     "does": "결제선생 결제를 마친다. s.payments에 결제선생 링크 기록을 더하고, 학생 paid를 수납 완료로, account를 활성으로 바꾼다. s.ui['CT-07'].student, 반이 없으면 s.ui['CT-11'].assign을 넘긴다"
+     "does": "결제선생 결제를 마친다. s.payments에 결제선생 링크 기록을 더하고, 학생 paid를 수납 완료로, account를 활성으로 바꾼다. s.ui['CT-07'].student, 반이 없으면 s.ui['CT-11'].assign을 넘긴다. 상담 단계 학생(s4처럼 product가 없는 학생)은 결제하지 않고 안내만 띄운다"
     },
     {
      "name": "PA01.method",

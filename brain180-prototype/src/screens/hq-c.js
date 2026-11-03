@@ -68,6 +68,8 @@
     '.hqc-res{border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.6;margin-top:10px}',
     '.hqc .tbl .num{text-align:right}',
     '.hqc .kv{grid-template-columns:96px minmax(0,1fr)}',
+    '.hqc-bal td{white-space:nowrap;padding:7px 8px}',
+    '.hqc-bal td:last-child{white-space:normal}',
   ].join('\n');
   (function inject() {
     if (typeof document === 'undefined' || document.getElementById('hqc-css')) return;
@@ -91,7 +93,9 @@
     const t = {};
     WEEKS.forEach(w => MINS.forEach(m => { t['t_' + w + '_' + m] = null; }));
     Object.assign(t, { t_1_90: 150000, t_2_90: 260000, t_3_90: 360000, direct_fixed: true, dev_pct: 10, disc_sib: 10, disc_long: 5, disc_cap: 20, x_book: 15000, x_book_reg: '등록 완료' });
-    s.hq10 = { vals: { base: t }, pending: [], log: [] };
+    // 직영 센터 교육청 등록액: 원문 52쪽(CT-07 대치1) 표 그대로. 목동, 분당은 같은 값(예시). 주 3회는 360,000원으로 변경신고 중.
+    const reg = () => ({ t_1_90: { amt: 150000, st: '등록' }, t_2_90: { amt: 280000, st: '등록' }, t_3_90: { amt: 340000, st: '변경신고 중', next: 360000 } });
+    s.hq10 = { vals: { base: t }, pending: [], log: [], edu: { daechi1: reg(), mokdong: reg(), bundang: reg() } };
     s.hq11 = {
       vals: { base: { p15: ['학원'], p16_cap: 15, p16_ratio: 10, p18: '월', p19: '', p20: '', p21_allow: true, p21_max: 1, p21_mode: '다음 달 차감', p22_n: 2, p22_due: '2주', p23: '', p23_grace: 5, p24_day: 20, p24_auto: true } },
       pending: [], log: [],
@@ -107,10 +111,12 @@
     };
     s.hq15 = {
       vals: {
-        base: { p34_price: 7, p34_mode: '선불 충전', p34_refund: true, p35: ['입실', '퇴실', '수납 안내', '미납', '재등록'], p36_direct: '결제선생', p36_fr: '수기 기록', p37: ['카드', '계좌', '현금', '지역화폐', '결제선생 링크'], p38: '', p39: '번호', p40: '', p42_mask: true, p42_who: '슈퍼관리자', p43_re: '수집 항목 추가 시', p34_warn: 1000, p34_guard: true },
+        base: { p34_price: 7, p34_mode: '선불 충전', p34_refund: true, p35: ['입실', '퇴실', '수납 안내', '미납', '재등록'], p36_direct: '결제선생', p36_fr: '수기 기록', p37: ['카드', '계좌', '현금', '지역화폐', '결제선생 링크'], p38: '', p39: '번호', p40: '', p42_mask: true, p42_who: '슈퍼관리자', p43_re: '수집 항목 추가 시', p34_warn: 3, p34_guard: true },
         'c:busan': { p39: 'QR' },
       },
       pending: [], log: [],
+      // 최근 7일 하루 평균 알림톡 사용액(원, 예시). CT-14가 같은 값을 갖고 있으면 그 값을 써요.
+      avg7: { busan: 1560, daegu: 1600 },
     };
     s.pol['POL-39'] = s.pol['POL-39'] || {};
     s.pol['POL-39'].centers = Object.assign({ busan: { value: 'QR (테스트베드 시험)', status: '예시' } }, s.pol['POL-39'].centers || {});
@@ -141,10 +147,12 @@
     }
     return undefined;
   }
-  function get(ctx, sid, key) { return eff(ctx, sid, scopeK(ctx.ui), key); }
+  // 범위 탭과 상관없이 본사 기본값에 두는 키 (HQ-12 센터별 상향 행), 범위 탭이 없는 화면(HQ-13)
+  function kOf(ctx, sid, key) { const c = CFG[sid]; return c.noScope || (c.baseKeys && c.baseKeys.test(key)) ? 'base' : scopeK(ctx.ui); }
+  function get(ctx, sid, key) { return eff(ctx, sid, kOf(ctx, sid, key), key); }
   function cur(ctx, sid, key) { const f = ctx.ui['f:' + key]; return f != null ? f : get(ctx, sid, key); }
   function setD(ctx, k, key, v) { const ui = ctx.ui; ui.draft = ui.draft || {}; ui.draft[k] = ui.draft[k] || {}; ui.draft[k][key] = v; }
-  function set(ctx, sid, key, v) { if (!same(v, get(ctx, sid, key))) setD(ctx, scopeK(ctx.ui), key, v); }
+  function set(ctx, sid, key, v) { if (!same(v, get(ctx, sid, key))) setD(ctx, kOf(ctx, sid, key), key, v); }
   function norm(sid, key, v) {
     const c = CFG[sid];
     if (c.num && c.num.test(key) && (typeof v === 'string' || typeof v === 'number')) {
@@ -161,7 +169,7 @@
     Object.keys(ui).filter(x => x.indexOf('f:') === 0).forEach(x => { const key = x.slice(2); set(ctx, sid, key, norm(sid, key, ui[x])); delete ui[x]; });
   }
   function isOv(ctx, sid, key) {
-    const k = scopeK(ctx.ui); if (k === 'base') return false;
+    const k = kOf(ctx, sid, key); if (k === 'base') return false;
     const d = (ctx.ui.draft || {})[k], v = st(ctx, sid).vals[k];
     return !!((d && Object.prototype.hasOwnProperty.call(d, key)) || (v && Object.prototype.hasOwnProperty.call(v, key)));
   }
@@ -203,7 +211,7 @@
   function err(out, key, msg) { out.fields[key] = msg; if (out.errs.indexOf(msg) < 0) out.errs.push(msg); }
   function validate(ctx, sid, list) {
     const c = CFG[sid], out = { errs: [], warns: [], fields: {}, html: '', force: null, reasonReq: null };
-    const ks = uniq(list.map(x => x.k).concat([scopeK(ctx.ui)]));
+    const ks = uniq(list.map(x => x.k).concat([CFG[sid].noScope ? 'base' : scopeK(ctx.ui)]));
     if (c.validate) ks.forEach(k => c.validate(ctx, out, key => eff(ctx, sid, k, key), k, list));
     if (out.reasonReq && !(ctx.ui.r_reason || '').trim()) { out.errs.push(out.reasonReq); out.reasonErr = out.reasonReq; }
     ctx.ui.err = out.fields;
@@ -248,7 +256,7 @@
         } else if (k === 'base') p.reserved = { date: mdS(when), value: txt };
       }
     });
-    s0.log.unshift({ at: ctx.today, by: ctx.persona.name, when, reason, n: aff.length, items: list.map(x => c.label(x.key) + ' ' + c.fmt(x.key, x.to) + ' (' + scopeName(x.k) + ')') });
+    s0.log.unshift({ at: ctx.today, by: ctx.persona.name, when, reason, n: aff.length, items: list.map(x => c.label(x.key, x.k) + ' ' + c.fmt(x.key, x.to) + ' (' + scopeName(x.k) + ')') });
     if (c.after) c.after(ctx, list, when);
     ctx.s.audit.unshift({ at: '03-08 ' + (10 + s0.log.length) + ':00', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '정책 변경', target: codes.join(', '), reason });
     ui.draft = {}; ui.review = false; ui.r_reason = ''; ui.r_when = '즉시'; ui.err = {};
@@ -269,7 +277,7 @@
   }
   const fmtIn = v => v == null ? '' : typeof v === 'number' ? v.toLocaleString('ko-KR') : String(v);
   function nx(ctx, sid, key) {
-    const k = scopeK(ctx.ui), p = st(ctx, sid).pending.filter(x => x.k === k && x.key === key).pop();
+    const k = kOf(ctx, sid, key), p = st(ctx, sid).pending.filter(x => x.k === k && x.key === key).pop();
     return p ? '<span class="hqc-next">' + esc(mdS(p.date)) + '부터 ' + esc(CFG[sid].fmt(key, p.to)) + '</span>' : '';
   }
   function errOf(ctx, key) { return (ctx.ui.err || {})[key]; }
@@ -304,7 +312,7 @@
   const fixedChk = label => '<span class="hqc-fx"><i class="cb"></i>' + esc(label) + '</span>';
   const reviewHead = (title, imp) => '<div class="hqc-subh">' + esc(title) + ' ' + B.impChip(imp) + '</div>';
   function ptable(rows) {
-    return '<div class="tbl-wrap"><table class="tbl hqc-ptbl"><thead><tr><th style="width:68px">코드</th><th style="width:126px">정책</th><th>값</th><th style="width:72px">직영</th><th style="width:72px">가맹</th><th style="width:92px">상태</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
+    return '<div class="tbl-wrap"><table class="tbl hqc-ptbl"><thead><tr><th style="width:68px">코드</th><th style="width:142px">정책</th><th>값</th><th style="width:72px">직영</th><th style="width:72px">가맹</th><th style="width:92px">상태</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
   }
   function prow(code, name, pin, val, d, f) {
     return '<tr><td class="code">' + esc(code) + '</td><td><span class="hqc-pn"' + (pin ? ' data-pin="' + pin + '"' : '') + '>' + esc(name) + '</span></td><td><div class="hqc-val">' + val + '</div></td><td>' + h.chip(d, 'line') + '</td><td>' + h.chip(f, 'line') + '</td><td>' + stChip(code) + '</td></tr>';
@@ -327,7 +335,7 @@
     const ui = ctx.ui, c = CFG[sid], list = changes(ctx, sid);
     if (!list.length) return '';
     const v = validate(ctx, sid, list), aff = affected(ctx, sid, list);
-    const rows = list.map(x => '<tr><td>' + h.polChip(x.code) + ' ' + esc(c.label(x.key)) + '</td><td>' + esc(scopeName(x.k)) + '</td><td>' + esc(c.fmt(x.key, x.from)) + '</td><td><b>' + esc(c.fmt(x.key, x.to)) + '</b></td></tr>').join('');
+    const rows = list.map(x => '<tr><td>' + h.polChip(x.code) + ' ' + esc(c.label(x.key, x.k)) + '</td><td>' + esc(scopeName(x.k)) + '</td><td>' + esc(c.fmt(x.key, x.from)) + '</td><td><b>' + esc(c.fmt(x.key, x.to)) + '</b></td></tr>').join('');
     const whenField = v.force
       ? h.field({ label: '적용 시작', type: 'static', value: v.force + ' (바꿀 수 없어요)' })
       : h.field({ label: '적용 시작', type: 'select', value: ui.r_when || '즉시', options: WHEN, field: 'r_when' });
@@ -345,7 +353,7 @@
   }
   function histCard(ctx, sid) {
     const s0 = st(ctx, sid), c = CFG[sid];
-    const pend = s0.pending.length ? '<div class="hqc-subh" style="margin-top:0">예약된 변경</div><div class="row" style="margin-bottom:10px">' + s0.pending.map(p => h.chip(p.date + ' 0시 · ' + c.label(p.key) + ' ' + c.fmt(p.key, p.to) + ' (' + scopeName(p.k) + ')', 'info')).join('') + '</div>' : '';
+    const pend = s0.pending.length ? '<div class="hqc-subh" style="margin-top:0">예약된 변경</div><div class="row" style="margin-bottom:10px">' + s0.pending.map(p => h.chip(p.date + ' 0시 · ' + c.label(p.key, p.k) + ' ' + c.fmt(p.key, p.to) + ' (' + scopeName(p.k) + ')', 'info')).join('') + '</div>' : '';
     const log = s0.log.length
       ? '<div class="tl">' + s0.log.map(x => '<div><b>' + esc(x.at) + '</b> ' + esc(x.by) + ' · ' + esc(x.when === '즉시' ? '바로 적용' : x.when) + ' · 근거 ' + esc(x.reason) + ' · 영향 ' + x.n + '곳<div class="small muted">' + esc(x.items.join(', ')) + '</div></div>').join('') + '</div>'
       : h.empty('아직 바꾼 기록이 없어요. 값을 고치고 변경 예약을 누르면 여기와 정책별 이력(HQ-08)에 함께 남아요.');
@@ -355,7 +363,7 @@
   function frame(ctx, sid, inner) {
     let html = '<div class="hqc">';
     if (ctx.role === '정산') html += '<div style="margin-bottom:10px">' + h.alert('정산 담당은 사용료 정책만 고쳐요. 이 화면은 보기만 할 수 있어요.', 'warn') + '</div>';
-    html += scopeBar(ctx, sid);
+    if (!CFG[sid].noScope) html += scopeBar(ctx, sid);
     if (ctx.ui.review) html += '<div style="margin-bottom:12px">' + panel(ctx, sid) + '</div>';
     return html + inner + '<div style="margin-top:12px">' + histCard(ctx, sid) + '</div></div>';
   }
@@ -383,8 +391,8 @@
   }
   function common(sid) {
     const c = CFG[sid];
-    act(sid, 'scope', (ctx, v) => { if (SC.indexOf(v) < 0) return; ctx.ui.scope = v; if (v === '개별 센터' && !ctx.ui.center) { const f = Object.keys(st(ctx, sid).vals).find(k => k.indexOf('c:') === 0); ctx.ui.center = f ? f.slice(2) : 'daechi1'; } });
-    act(sid, 'center', (ctx, id) => { if (B.center(id)) { ctx.ui.center = id; ctx.ui.scope = '개별 센터'; } });
+    act(sid, 'scope', (ctx, v) => { if (c.noScope || SC.indexOf(v) < 0) return; ctx.ui.scope = v; if (v === '개별 센터' && !ctx.ui.center) { const f = Object.keys(st(ctx, sid).vals).find(k => k.indexOf('c:') === 0); ctx.ui.center = f ? f.slice(2) : 'daechi1'; } });
+    act(sid, 'center', (ctx, id) => { if (!c.noScope && B.center(id)) { ctx.ui.center = id; ctx.ui.scope = '개별 센터'; } });
     act(sid, 'set', (ctx, arg) => {
       if (arg && typeof arg === 'object') { Object.keys(arg).forEach(k => set(ctx, sid, k, norm(sid, k, arg[k]))); return; }
       const i = String(arg).indexOf('|'), key = String(arg).slice(0, i); let v = String(arg).slice(i + 1);
@@ -401,8 +409,8 @@
     });
     act(sid, 'edit', (ctx, arg) => {
       if (!arg || typeof arg !== 'object') return;
-      if (arg.scope && SC.indexOf(arg.scope) >= 0) ctx.ui.scope = arg.scope;
-      if (arg.center && B.center(arg.center)) { ctx.ui.center = arg.center; ctx.ui.scope = '개별 센터'; }
+      if (!c.noScope && arg.scope && SC.indexOf(arg.scope) >= 0) ctx.ui.scope = arg.scope;
+      if (!c.noScope && arg.center && B.center(arg.center)) { ctx.ui.center = arg.center; ctx.ui.scope = '개별 센터'; }
       Object.keys(arg).filter(k => k !== 'scope' && k !== 'center').forEach(k => { ctx.ui['f:' + k] = arg[k]; });
       absorb(ctx, sid);
     });
@@ -427,12 +435,13 @@
   const T_LABEL = key => { const m = /^t_(\d)_(\d+)$/.exec(key); return m ? '주 ' + m[1] + '회 ' + m[2] + '분' : key; };
   function prodOf(ctx, key) { const m = /^t_(\d)_(\d+)$/.exec(key); return m ? ctx.s.products.find(p => p.perWeek === +m[1] && p.minutes === +m[2]) : null; }
   function onKeys(ctx) { const out = []; WEEKS.forEach(w => MINS.forEach(m => { const key = 't_' + w + '_' + m, v = eff(ctx, 'HQ-10', 'base', key); if (v != null) out.push(key); })); return out; }
-  function regRows(ctx) {
+  function regOf(ctx, cid, key) { const e = (ctx.s.hq10.edu || {})[cid] || {}; return e[key] || null; }
+  function regRows(ctx, savedOnly) {
     const keys = onKeys(ctx);
     return opCenters().filter(c => c.type === '직영').map(c => ({
       c, cells: keys.map(key => {
-        const price = eff(ctx, 'HQ-10', 'c:' + c.id, key), p = prodOf(ctx, key), reg = p && p.edu ? p.edu[c.id] : null;
-        return { key, price, reg, over: reg == null || (typeof price === 'number' && price > reg) };
+        const price = eff(ctx, 'HQ-10', 'c:' + c.id, key, savedOnly), r = regOf(ctx, c.id, key), reg = r ? r.amt : null;
+        return { key, price, reg, st: r ? r.st : '등록 전', next: r ? r.next : null, over: price != null && (reg == null || (typeof price === 'number' && price > reg)) };
       }),
     }));
   }
@@ -485,14 +494,15 @@
     });
     const rr = regRows(ctx), keys = onKeys(ctx), nOver = rr.reduce((n, r) => n + r.cells.filter(x => x.over).length, 0);
     const regTbl = '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>직영 센터</th>' + keys.map(k => '<th>' + esc(T_LABEL(k)) + '</th>').join('') + '</tr></thead><tbody>' +
-      rr.map(r => '<tr><td>' + esc(r.c.name.replace('센터', '')) + '</td>' + r.cells.map(x => '<td>' + (x.reg == null ? h.chip('등록액 없음', 'bad')
-        : x.over ? h.chip('잠김', 'bad') + ' <span class="small">' + money(x.price) + ' / 등록 ' + money(x.reg) + '</span>'
-          : h.chip('판매', 'ok') + ' <span class="small muted">' + money(x.price) + '</span>') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+      rr.map(r => '<tr><td>' + esc(r.c.name.replace('센터', '')) + '</td>' + r.cells.map(x => '<td>' + (x.reg == null ? h.chip('등록액 없음', 'bad') + '<div class="small muted">등록 전 판매 잠김</div>'
+        : (x.over ? h.chip('잠김', 'bad') : h.chip('판매', 'ok')) + ' <span class="small' + (x.over ? '' : ' muted') + '">' + money(x.price) + '</span>' +
+          '<div class="small muted">등록 ' + money(x.reg) + (x.next ? ', ' + money(x.next) + ' 신고 중' : '') + '</div>' +
+          (x.next && !R ? h.btn('수리 확인', { sm: true, ghost: true, act: 'HQ10.filed', arg: r.c.id + '|' + x.key }) : '')) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
     const c4 = card({
       pin: 4, title: 'POL-12 교육청 등록 교습비', chip: stChip('POL-12'),
       body: '<ul class="hqc-ul"><li>센터마다 교육청 등록액을 넣어야 팔 수 있어요</li><li>등록이나 변경신고가 끝나기 전에는 판매를 잠가요</li><li>등록액보다 많이 받는 수납은 막아요</li></ul>' +
         '<div class="hqc-rvbox" data-pin="7">' + reviewHead('직영 확정가와 등록액 대조', 'IMP-03') + regTbl +
-        (nOver ? '<div style="margin-top:8px">' + h.alert('확정가가 등록액보다 높은 칸이 ' + nOver + '곳이에요. 변경신고가 끝날 때까지 그 상품은 팔 수 없고, 재등록 기간과 겹치면 청구가 막혀요.', 'warn') + '</div>' +
+        (nOver ? '<div style="margin-top:8px">' + h.alert('확정가가 등록액보다 높거나 등록액이 없는 칸이 ' + nOver + '곳이에요. 변경신고가 수리될 때까지 그 상품은 팔 수 없고, 재등록 기간과 겹치면 청구가 막혀요. 수리 확인은 문서 번호를 남겨야 돼요.', 'warn') + '</div>' +
           '<div class="row" style="margin-top:8px;justify-content:flex-end">' + h.btn('넘는 센터는 등록액으로 유지', { sm: true, act: 'HQ10.keepReg', disabled: R }) + '</div>'
           : '<div style="margin-top:8px">' + h.alert('직영 센터 모두 등록액 안에서 팔 수 있어요.', 'ok') + '</div>') + '</div>',
     });
@@ -517,7 +527,7 @@
   }
   CFG['HQ-10'] = {
     num: /^(t_|dev_pct$|disc_|x_book$)/,
-    label: key => /^t_/.test(key) ? T_LABEL(key) + ' 권장가' : ({ direct_fixed: '직영 확정가 사용', dev_pct: '이탈 경고 기준', disc_sib: '형제 할인', disc_long: '장기 등록 할인', disc_cap: '직영 할인 상한', x_book: '교재비 (월)', x_book_reg: '교재비 교육청 등록' })[key] || key,
+    label: (key, k) => /^t_/.test(key) ? T_LABEL(key) + (k === '직영' || (k && k.indexOf('c:') === 0 && (B.center(k.slice(2)) || {}).type === '직영') ? ' 직영 확정가' : ' 권장가') : ({ direct_fixed: '직영 확정가 사용', dev_pct: '이탈 경고 기준', disc_sib: '형제 할인', disc_long: '장기 등록 할인', disc_cap: '직영 할인 상한', x_book: '교재비 (월)', x_book_reg: '교재비 교육청 등록' })[key] || key,
     fmt: (key, v) => {
       if (/^t_/.test(key)) return v == null ? '미사용' : v === '' ? '금액 없음' : money(v) + (typeof v === 'number' ? '원' : '');
       if (/^(dev_pct|disc_)/.test(key)) return v === '' || v == null ? '미정' : v + '%';
@@ -531,8 +541,9 @@
       [['disc_sib', '형제 할인'], ['disc_long', '장기 등록 할인'], ['disc_cap', '할인 상한']].forEach(([key, l]) => { const v = g(key); if (!(typeof v === 'number' && v >= 0 && v <= 100)) err(out, key, l + '은 0부터 100 사이 숫자로 넣어 주세요.'); });
       if (typeof g('disc_sib') === 'number' && typeof g('disc_cap') === 'number' && g('disc_sib') > g('disc_cap')) { const w = '형제 할인이 직영 할인 상한보다 커요. 직영 센터에서는 상한까지만 할인돼요.'; if (out.warns.indexOf(w) < 0) out.warns.push(w); }
       const x = g('x_book'); if (!(typeof x === 'number' && x >= 0)) err(out, 'x_book', '교재비를 숫자로 넣어 주세요.');
-      const over = regRows(ctx).reduce((a, r) => a.concat(r.cells.filter(c => c.over).map(c => r.c.name.replace('센터', '') + ' ' + T_LABEL(c.key))), []);
-      const w2 = '등록액을 넘는 직영 칸 ' + over.length + '곳 (' + over.join(', ') + ')은 적용일 0시부터 판매가 잠겨요. 변경신고가 끝날 때까지 등록액을 유지하려면 대조표의 버튼을 눌러요.';
+      const was = {}; regRows(ctx, true).forEach(r => r.cells.forEach(c => { was[r.c.id + c.key] = c.over; }));
+      const over = regRows(ctx).reduce((a, r) => a.concat(r.cells.filter(c => c.over && !was[r.c.id + c.key]).map(c => r.c.name.replace('센터', '') + ' ' + T_LABEL(c.key))), []);
+      const w2 = '이번 변경으로 등록액을 넘는 직영 칸 ' + over.length + '곳 (' + over.join(', ') + ')은 적용일 0시부터 판매가 잠겨요. 변경신고가 수리될 때까지 등록액을 유지하려면 대조표의 버튼을 눌러요.';
       if (over.length && out.warns.indexOf(w2) < 0) out.warns.push(w2);
     },
     text: {
@@ -560,6 +571,32 @@
     const v = get(ctx, 'HQ-10', key);
     set(ctx, 'HQ-10', key, v == null ? '' : null);
   });
+  act('HQ-10', 'filed', (ctx, arg) => {
+    const o = arg && typeof arg === 'object' ? arg : (() => { const [center, key] = String(arg || '').split('|'); return { center, key }; })();
+    const r = regOf(ctx, o.center, o.key), c = B.center(o.center);
+    if (!r || !r.next || !c) { B.toast('변경신고 중인 칸이 아니에요.'); return; }
+    const apply = doc => {
+      const from = r.amt; r.amt = r.next; r.st = '등록'; r.doc = doc; delete r.next;
+      ctx.s.hq10.log.unshift({ at: ctx.today, by: ctx.persona.name, when: '즉시', reason: '변경신고 수리 ' + doc, n: 1, items: [c.name + ' ' + T_LABEL(o.key) + ' 등록액 ' + money(from) + '원에서 ' + money(r.amt) + '원'] });
+      const p = ctx.s.pol['POL-12'] = ctx.s.pol['POL-12'] || {};
+      p.history = p.history || []; p.history.push({ date: ctx.today, from: c.name + ' ' + T_LABEL(o.key) + ' ' + money(from) + '원', to: money(r.amt) + '원 (변경신고 수리)', by: ctx.persona.name, reason: doc, n: 1 });
+      ctx.s.audit.unshift({ at: '03-08 11:10', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '교육청 변경신고 수리 확인', target: c.name + ' ' + T_LABEL(o.key), reason: doc });
+      B.toast(c.name + ' ' + T_LABEL(o.key) + ' 등록액을 ' + money(r.amt) + '원으로 바꿨어요. 판매 잠금이 풀려요.');
+    };
+    if (o.doc) { apply(String(o.doc)); return; }
+    B.modal({
+      title: '변경신고 수리 확인', ok: '수리 확인',
+      body: '<p style="margin:0 0 8px">' + esc(c.name + ' ' + T_LABEL(o.key)) + ' 교습비를 ' + money(r.amt) + '원에서 ' + money(r.next) + '원으로 바꾸는 신고예요.</p>' +
+        '<div class="field"><label>수리 문서 번호<span class="req">*</span></label><input class="inp" id="hqc-doc" placeholder="교육지원청 수리 공문 번호"><div class="err" id="hqc-doc-err" hidden></div></div>' +
+        '<div class="hint">문서 번호를 남겨야 본사가 확인한 등록액으로 바뀌어요.</div>',
+      onOk: back => {
+        const v = (back.querySelector('#hqc-doc').value || '').trim();
+        if (!v) { const e = back.querySelector('#hqc-doc-err'); e.textContent = '수리 문서 번호를 넣어 주세요.'; e.hidden = false; return false; }
+        apply(v);
+      },
+    });
+    return false;
+  });
   act('HQ-10', 'keepReg', ctx => {
     let n = 0;
     regRows(ctx).forEach(r => r.cells.forEach(x => { if (x.over && x.reg != null) { setD(ctx, 'c:' + r.c.id, x.key, x.reg); n++; } }));
@@ -582,7 +619,7 @@
         { n: 4, t: '교육청 등록 교습비', d: '시스템이 막는 가격 규칙은 이것 하나예요. 센터마다 교육청에 신고한 금액을 넣어야 하고, 신고가 끝나기 전이거나 신고 금액보다 많이 받으려 하면 막아요.', pol: ['POL-12'], ref: 'p.29 ④' },
         { n: 5, t: '할인', d: '할인은 가맹점이 알아서 정해요. 형제 10%, 장기 등록 3개월 5%가 들어 있고 프로모션은 센터가 넣어요(모두 예시). 할인할 때마다 사유를 남기고, 상한 20%(예시)는 직영에만 걸어요.', pol: ['POL-13'], ref: 'p.29 ⑤' },
         { n: 6, t: '기타경비', d: '교재비 같은 실비는 교육청에 등록한 항목만 받아요. 지금은 교재비 월 15,000원(예시)이에요. 영수증에는 교습비와 나눠서 적어요.', pol: ['POL-14'], ref: 'p.29 ⑥' },
-        { n: 7, t: '직영 확정가와 등록액 대조', kind: 'review', imp: 'IMP-03', pol: ['POL-11', 'POL-12'], d: '권장가를 바꾸기 전에 직영 센터마다 새 가격이 교육청 등록액 이하인지 바로 보여 줘요. 넘는 센터가 있으면 변경신고가 끝날 때까지 그 센터만 등록액으로 파는 개별 값을 버튼 하나로 넣어요.' },
+        { n: 7, t: '직영 확정가와 등록액 대조', kind: 'review', imp: 'IMP-03', pol: ['POL-11', 'POL-12'], d: '권장가를 바꾸기 전에 직영 센터마다 새 가격이 교육청 등록액 이하인지 바로 보여 줘요. 지금 예시는 주 3회 360,000원이 등록액 340,000원보다 높아서 변경신고가 수리될 때까지 잠겨 있어요(CT-07과 같은 예시). 넘는 센터는 그동안 등록액으로 파는 개별 값을 버튼 하나로 넣고, 수리 확인은 문서 번호를 남겨야 해요.' },
         { n: 8, t: '기타경비도 등록 상태 확인', kind: 'review', imp: 'IMP-03', pol: ['POL-14'], d: '교재비에도 교육청 등록 상태를 둬요. 신고 전으로 바꾸면 그 항목은 청구서와 결제 링크에 실리지 않아요.' },
         { n: 9, t: '이탈 기록은 통계에만', kind: 'review', imp: 'IMP-25', pol: ['POL-11'], d: '권장가는 참고용이에요. 가맹 센터가 다르게 정한 기록은 가격 비교 통계에만 쓰고, SV 점검이나 계약 갱신 판단에는 쓰지 않아요. 가격 구속으로 오해받지 않게 하려는 거예요.' },
       ],
@@ -613,7 +650,11 @@
       const k = 'c:' + c.id, cap = eff(ctx, 'HQ-11', k, 'p16_cap'), ratio = eff(ctx, 'HQ-11', k, 'p16_ratio'), fac = eff(ctx, 'HQ-11', k, 'p15') || [];
       const classCap = Math.min(typeof cap === 'number' ? cap : Infinity, c.roomCap, c.facility === '교습소' ? 9 : Infinity);
       const cls = ctx.s.classes.filter(x => x.center === c.id), over = cls.filter(x => x.cap > classCap).length;
-      return { c, classCap, ok: fac.indexOf(c.facility) >= 0, teachers: typeof ratio === 'number' && ratio > 0 ? Math.ceil(classCap / ratio) : null, cls, over };
+      // 같은 요일, 같은 시작 시각에 열리는 반 정원을 더해요 (IMP-15)
+      const slot = {};
+      cls.forEach(x => String(x.days || '').split('·').forEach(d => { const k = d.trim() + ' ' + String(x.time || '').slice(0, 5); slot[k] = (slot[k] || 0) + x.cap; }));
+      const peakKey = Object.keys(slot).sort((a, b) => slot[b] - slot[a])[0], peak = peakKey ? slot[peakKey] : null;
+      return { c, classCap, ok: fac.indexOf(c.facility) >= 0, teachers: typeof ratio === 'number' && ratio > 0 ? Math.ceil(classCap / ratio) : null, cls, over, maxCap: cls.reduce((m, x) => Math.max(m, x.cap), 0), peak, peakKey };
     });
   }
   function r11(ctx) {
@@ -665,15 +706,15 @@
         { label: '시설', render: r => esc(r.c.facility) + (r.ok ? '' : ' ' + h.chip('허용 밖', 'bad')) },
         { label: '강의실 정원', num: true, render: r => r.c.roomCap + '명' },
         { label: '반 정원 상한', num: true, render: r => '<b>' + r.classCap + '명</b>' },
-        { label: '같은 시간 합계 상한', num: true, render: r => r.c.facilityCap + '명' },
+        { label: '같은 시간 합계', num: true, render: r => (r.peak == null ? '<span class="muted">-</span>' : '<b' + (r.peak > r.c.facilityCap ? ' style="color:var(--bad)"' : '') + '>' + r.peak + '명</b>') + ' / ' + r.c.facilityCap + '명' },
         { label: '반 하나 교사', num: true, render: r => r.teachers == null ? '-' : r.teachers + '명' },
-        { label: '지금 반 설정', render: r => !r.cls.length ? '<span class="muted">-</span>' : r.over ? h.chip(r.cls.length + '개 반 중 ' + r.over + '개가 상한 초과', 'warn') : h.chip('모두 상한 안', 'ok') },
+        { label: '지금 반 설정', render: r => !r.cls.length ? '<span class="muted">반 없음</span>' : (r.over ? h.chip(r.over + '개 반 정원(' + r.maxCap + '명)이 상한보다 커요', 'warn') : h.chip('반 정원 상한 안', 'ok')) + (r.peak > r.c.facilityCap ? ' ' + h.chip(r.peakKey + ' 합계가 수용능력보다 커요', 'bad') : '') },
       ],
       rows: cr,
     });
     const c7 = card({
       pin: 7, title: '센터별 정원 계산', chip: B.impChip('IMP-15'), sub: '저장 전 값으로 바로 계산',
-      body: capTbl + '<div class="hqc-hint">반 하나는 본사 값, 강의실 정원, 교습소 9명 중 작은 값을 넘지 못하고, 같은 시간대 반 인원을 합쳐도 시설 수용능력을 넘지 못해요. 반 설정은 CT-11에서 같은 규칙으로 검사해요.</div>',
+      body: capTbl + '<div class="hqc-hint">반 하나는 본사 값, 강의실 정원, 교습소 9명 중 작은 값을 넘지 못해요. 같은 요일, 같은 시각에 열리는 반 정원을 더해도 시설 수용능력을 넘지 못해요. 반 설정은 CT-11에서 같은 규칙으로 검사해요. 대치1센터 반은 정원 15명인데 강의실이 12명이라 걸려요(모두 예시).</div>',
     });
     return frame(ctx, sid, ptable(rows) + '<div class="grid g2" style="margin-top:12px">' + c6 + c8 + '</div><div style="margin-top:12px">' + c7 + '</div>');
   }
@@ -756,13 +797,13 @@
       summary: '센터 운영의 기본 규칙을 한 표로 정하는 화면이에요. 정원, 수업 마감 시각, 등록 단위, 휴원과 보강, 계정 열기, 재등록 기간, 공휴일을 정하고, 여기 값이 수강료와 환불 계산에 그대로 쓰여요.',
       who: WHO + ' 값은 대표, 경영지원, 연구소, IT가 나눠 정해요. 센터는 표에서 가능이나 선택으로 표시된 값만 CT-18, CT-19에서 바꿔요.',
       items: [
-        { n: 1, t: '시설과 정원', d: '학원만 허용하는 것이 안이에요. 한 타임 15명(안), 교사 1명당 10명(예시)이에요. 반 정원은 본사 값, 시설 수용능력, 교습소 9명 중 가장 작은 값이에요. 회의 안의 20명이면 보조 교사 규칙은 학원 등록이 전제예요.', pol: ['POL-15', 'POL-16'], ref: 'p.30 ①' },
+        { n: 1, t: '시설과 정원', d: '회의에서 나온 안(한 타임 15명, 20명이면 보조 교사)은 학원으로 등록해야 쓸 수 있어요. 교습소는 동시에 9명, 보조요원 1명까지예요(법정). 센터 정원은 이 값과 시설 수용능력 중 작은 값이에요. 교사 1명당 10명(예시)도 함께 정해요.', pol: ['POL-15', 'POL-16'], ref: 'p.30 ①' },
         { n: 2, t: '교습시간 상한', d: '시·도 조례가 정한 수업 마감 시각이에요. 지역표로 관리하고 서울은 22:00이에요. 이 시각을 넘는 타임은 시간표(CT-11)에 저장되지 않아요.', pol: ['POL-17'], ref: 'p.30 ②' },
         { n: 3, t: '등록 단위와 월중 등록, 4·5주 달', d: '월 단위로 매달 1일에 시작하는 것이 안이에요. 달 중간 등록과 4·5주 달 처리는 아직 못 정해서 선택지로 둬요. 4·5주 처리는 환불 계산의 총 교습시간을 정해요. 가맹은 게시한 교습비와 같게 골라요.', pol: ['POL-18', 'POL-19', 'POL-20'], ref: 'p.30 ③' },
-        { n: 4, t: '휴원과 보강', d: '휴원은 최대 1개월, 남은 수업은 다음 달에 빼 줘요. 보강은 월 2회, 2주 안이에요(모두 예시). 가맹은 바꿀 수 있어요.', pol: ['POL-21', 'POL-22'], ref: 'p.30 ④' },
+        { n: 4, t: '휴원과 보강', d: '휴원은 최대 1개월이고, 쉬는 동안의 교습비는 다음 달 교습비에서 빼 줘요. 보강은 월 2회, 2주 안이에요(모두 예시). 가맹은 바꿀 수 있어요.', pol: ['POL-21', 'POL-22'], ref: 'p.30 ④' },
         { n: 5, t: '계정 오픈과 재등록', d: '돈을 먼저 내는 것이 원칙이에요(10/14). 학습 계정을 여는 때를 수납 확인 즉시, 원장 승인, 가오픈 3일 중에서 골라요. 미납이면 5일(예시) 기다려 줘요. 재등록 기간은 20일부터 말일까지(안)이고 안내가 자동으로 나가요.', pol: ['POL-23', 'POL-24'], ref: 'p.30 ⑤' },
         { n: 6, t: '공휴일과 본사 휴원일', d: '회차와 총 교습시간 계산에서 뺄 날을 관리해요. 설날 연휴, 삼일절, 본사 지정 휴원(예시)이 들어 있어요. 날짜와 이름을 넣고 추가하면 회차 미리보기에 바로 반영돼요. 센터 휴원일은 센터가 CT-19에서 넣어요.', ref: 'p.30 ⑥' },
-        { n: 7, t: '센터별 정원 계산', kind: 'review', imp: 'IMP-15', pol: ['POL-15', 'POL-16'], d: '센터마다 반 정원 상한과 같은 시간대 합계 상한을 따로 계산해 보여 줘요. 교사 1명당 인원으로 반 하나에 교사가 몇 명 필요한지도 나와요. 지금 반 설정이 상한을 넘거나 허용 밖 시설이면 바로 표시해요.' },
+        { n: 7, t: '센터별 정원 계산', kind: 'review', imp: 'IMP-15', pol: ['POL-15', 'POL-16'], d: '규칙은 두 개예요. 반 하나는 본사 값, 강의실 정원, 교습소 9명 중 가장 작은 값을 넘지 못해요. 같은 시간에 열리는 반 정원을 모두 더해도 시설 수용능력을 넘지 못해요. 센터마다 두 값을 계산하고, 지금 반 설정이 넘거나 허용 밖 시설이면 바로 표시해요.' },
         { n: 8, t: '반 요일별 회차 미리보기', kind: 'review', imp: 'IMP-09', pol: ['POL-20'], d: '반 요일마다 그달 수업이 몇 번인지 공휴일을 빼고 세어 줘요. 같은 달이라도 월·수 반과 화·목 반의 회차가 달라요. 고른 회차를 환불 계산 미리보기(HQ-12)로 바로 넘길 수 있어요.' },
       ],
       open: ['학원으로 할지 교습소로 할지 (부록 A 1번, P1a 전)', '한 타임 정원과 보조 교사를 붙이는 인원 기준', '달 중간 등록 학생의 수강료 계산 방법', '4주 달과 5주 달 처리 방법 (환불 계산에 바로 쓰여요)', '휴원 기간과 이월 방식, 보강 횟수와 기한', '학습 계정을 여는 시점과 미납 유예 일수', '1년치 공휴일과 임시공휴일을 누가 언제 넣는지'],
@@ -882,6 +923,7 @@
   }
   CFG['HQ-12'] = {
     num: /^(round|up_.*_d)$/,
+    baseKeys: /^up_/,
     label: key => { const m = /^up_(\w+)_([abcd])$/.exec(key); if (m) { const c = B.center(m[1]); return (c ? c.name.replace('센터', '') : m[1]) + ' ' + (m[2] === 'd' ? '반환 기한' : SEG[m[2]]); } return ({ p14_refund: '교재비 미사용분', round: '끝전 처리' })[key] || key; },
     fmt: (key, v) => /_d$/.test(key) ? v + '일' : key === 'round' ? ({ 1: '1원 단위', 10: '10원 올림', 100: '100원 올림' }[v] || v) : fmtDefault(v),
     code: key => key === 'p14_refund' ? 'POL-14' : 'POL-25',
@@ -924,7 +966,7 @@
       items: [
         { n: 1, t: '법정 반환 기준', d: '학원법 시행령 별표4의 반환 표를 읽기 전용으로 보여 줘요. 시스템은 이 표보다 적게 돌려주는 계산을 하지 않아요. 법령 원문과 대조한 뒤 확정해요.', pol: ['POL-25'], ref: 'p.31 ①' },
         { n: 2, t: '센터 상향 설정', d: '가맹 센터는 기준을 올리는 쪽으로만 바꿀 수 있어요. 예를 들어 1/2이 지나기 전에도 2/3를 돌려주는 식이에요. 편집을 눌러 구간별 비율을 고르면 되고, 법정보다 적은 값은 저장되지 않아요. 직영은 법정 기준을 그대로 써요.', pol: ['POL-25'], ref: 'p.31 ②' },
-        { n: 3, t: '계산 기준', d: '총 교습시간은 그달 회차 × 회당 시간이에요(POL-20 연동). 공휴일과 휴원일은 빼요. 교재비 같은 기타경비를 어떻게 돌려줄지는 아직 정하지 않았어요.', pol: ['POL-20', 'POL-14'], ref: 'p.31 ③' },
+        { n: 3, t: '계산 기준과 총 교습시간', d: '돌려줄 비율의 분모는 그달 회차 × 회당 시간이에요. 회차는 4·5주 달 정책(POL-20)이 정하고, 공휴일과 휴원일은 빼요. 교재비 같은 기타경비를 어떻게 돌려줄지는 아직 미정이에요. 검토에서는 받지 않은 주차분을 돌려주는 안이 나왔어요.', pol: ['POL-20', 'POL-14'], ref: 'p.31 ③' },
         { n: 4, t: '반환 기한', d: '사유가 생긴 날부터 5일 안에 돌려줘야 해요. 기한 2일 전부터 센터와 본사 대시보드에 경고가 떠요.', pol: ['POL-25'], ref: 'p.31 ④' },
         { n: 5, t: '계산 미리보기', d: '교습비 260,000원, 9회 × 90분 = 810분에서 1회가 지나면 11.1%라서 1/3 경과 전 구간이에요. 2/3를 돌려주고 끝전을 올려 173,340원이 돼요(예시). 칸의 숫자를 바꾸면 결과가 바로 바뀌어요. 학부모 환불과 본사 사용료 반환(POL-03)은 따로 계산해요.', pol: ['POL-25', 'POL-03'], ref: 'p.31 ⑤' },
         { n: 6, t: '실제 낸 금액과 사유 발생일', kind: 'review', imp: 'IMP-09', d: '할인과 테스트비 차감이 들어가면 학부모가 실제로 낸 돈은 정가보다 적어요. 기준 금액을 실제 낸 금액과 정가 중에서 골라 볼 수 있고, 사유 발생일을 넣으면 반환 기한 날짜와 경고 시작일을 바로 계산해 줘요.' },
@@ -1038,6 +1080,7 @@
     return frame(ctx, sid, '<div class="stack">' + c1 + c2 + '<div class="grid g2">' + c3 + c4 + '</div><div class="grid g2">' + c5 + c7 + '</div></div>');
   }
   CFG['HQ-13'] = {
+    noScope: true, // 원문 32쪽에는 범위 탭이 없어요. 센터는 직영, 가맹 모두 못 바꿔요.
     num: /^(p33_avg|p33_months|p33_retest)$/,
     label: key => ({ p32: '레벨 체계', levels: '레벨 표', p31_min: '대상 학년 최저', p31_max: '대상 학년 최고', p31_block: '검사 연령 검증', p33: '승급 방식', p33_avg: '자동 승급 평균', p33_months: '자동 승급 기간', p33_retest: '재테스트 주기', apply: '체계 적용 시작일', map: '기존 원생 매핑' })[key] || key,
     fmt: (key, v) => {
@@ -1112,13 +1155,13 @@
     title: '레벨 체계·승급', menuLabel: '레벨 체계', crumb: '정책·요금 설정 > 레벨 체계',
     headActions: heads('HQ-13'), render: r13, mount: mountFn,
     prd: {
-      summary: '학생 실력을 몇 단계로 나눌지, 몇 학년을 받을지, 언제 다음 레벨로 올릴지 정하는 화면이에요. 회의 때마다 안이 달라서 여러 안을 템플릿으로 골라 볼 수 있어요.',
+      summary: '학생 실력을 몇 단계로 나눌지, 몇 학년을 받을지, 언제 다음 레벨로 올릴지 정하는 화면이에요. 회의 때마다 안이 달라서 여러 안을 템플릿으로 골라 볼 수 있어요. 센터별로 다르게 둘 수 없는 값이라 범위 탭이 없어요.',
       who: WHO + ' 센터는 직영과 가맹 모두 이 값을 못 바꿔요. 레벨 체계와 승급은 연구소가, 대상 학년은 대표와 연구소가 정해요.',
       items: [
         { n: 1, t: '체계 템플릿', d: '무학년 12단계(10/14), 학년별 4레벨(10/21), 저학년 2레벨(10/20), 직접 구성 중에서 골라요. 고르면 아래 레벨 표가 그 안으로 채워져요. 지금은 학년별 4레벨이 골라져 있어요.', pol: ['POL-32'], ref: 'p.32 ①' },
-        { n: 2, t: '레벨 표', d: '레벨 이름, 대상 학년, 읽기 테스트 점수 구간, 분기에 읽을 책 수를 고쳐요. L1 새싹 초2~3 0~39점처럼 예시 값이 들어 있고, L3과 L4는 준비 상태예요. 상태 칸을 누르면 사용과 준비가 바뀌어요. 레벨은 학습 콘텐츠와 이어져 배포돼요(HQ-20).', pol: ['POL-32'], ref: 'p.32 ②' },
+        { n: 2, t: '레벨 표', d: '레벨 이름, 대상 학년, 읽기 테스트 점수 구간, 분기에 읽을 책 수를 고쳐요. L1 새싹 초2~3 0~39점처럼 예시 값이 들어 있고(모두 예시), L3과 L4는 준비 상태예요. 상태 칸을 누르면 사용과 준비가 바뀌어요. 레벨은 학습 콘텐츠와 이어져 배포돼요(HQ-20).', pol: ['POL-32'], ref: 'p.32 ②' },
         { n: 3, t: '대상 학년', d: '회의마다 초4부터, 저학년, 5·6학년으로 말이 달랐어요. 유아 대상 시험을 제한하는 법 때문에 최저를 초1로 두고, 그보다 어리면 입학 테스트를 막아요.', pol: ['POL-31'], ref: 'p.32 ③' },
-        { n: 4, t: '승급 방식', d: '독서퀴즈 성적으로 자동 승급(평균 80점 이상 3개월, 예시), 정기 재테스트(6개월마다), 원장 승인 중에서 골라요. 아직 아무것도 고르지 않았어요. 재테스트는 재검사 주기(POL-29)와 이어져요.', pol: ['POL-33', 'POL-29'], ref: 'p.32 ④' },
+        { n: 4, t: '승급 방식', d: '독서퀴즈 성적으로 자동 승급(평균 80점 이상 3개월, 예시), 정기 재테스트(6개월마다, 안), 원장 승인 중에서 골라요. 아직 아무것도 고르지 않았어요. 재테스트는 재검사 주기(POL-29)와 이어져요.', pol: ['POL-33', 'POL-29'], ref: 'p.32 ④' },
         { n: 5, t: '체계 변경', d: '체계를 바꿀 때는 적용 시작일과 기존 원생의 새 레벨 매핑을 함께 저장해요. 템플릿을 바꾸면 매핑 표가 열리고, 매핑이 비어 있으면 변경 예약이 되지 않아요. 시작일 2028-01-01은 예시예요.', pol: ['POL-32'], ref: 'p.32 ⑤' },
         { n: 6, t: '학년 빈틈 검사', kind: 'review', imp: 'IMP-19', pol: ['POL-31', 'POL-32'], d: '레벨 표의 대상 학년을 모두 합쳐 POL-31 범위를 빠짐없이 덮는지 늘 검사해요. 지금 예시는 최저가 초1인데 L1이 초2부터라서 초1이 들어갈 레벨이 없어요. 빈 학년이 있으면 저장을 막아요.' },
         { n: 7, t: '배정 규칙 미리보기', kind: 'review', imp: 'IMP-19', d: '학년과 읽기 점수를 넣으면 어느 레벨로 갈지 보여 줘요. 점수를 먼저 보고, 대상 학년 밖이면 원장이 확인해요. 준비 중인 레벨이 나오면 가장 가까운 열린 레벨로 보내요. 3월 전 예비 초1은 검사를 막아요.' },
@@ -1169,7 +1212,7 @@
     });
     const c5 = '<div data-pin="5">' + h.alert('테스트비와 상담비를 교습비 외에 받을 수 있는지, 등록 대상인지 교육청에 확인한 뒤 확정해요. 교습비 외 비용 징수는 점검 대상이에요.', 'bad', { title: '교육청 확인 필요' }) + '</div>';
     const edu = st(ctx, sid).edu, es = ui.e_status || edu.status;
-    const lockTxt = edu.status === '확인 전' ? '확인 전이라 CT-02 상담비와 CT-03 테스트비 수납 버튼이 잠겨 있어요.' : edu.status === '등록 필요' ? '등록이 필요해요. 센터별 등록액을 받기 전까지 수납 버튼은 계속 잠겨요.' : '등록이 필요 없다는 답을 받아 수납 버튼이 열렸어요. 공문은 근거로 남아요.';
+    const lockTxt = edu.status === '확인 전' ? '확인 전이라 CT-02 상담비와 CT-03 테스트비 수납을 잠가요. 그동안 입학 테스트는 무료예요.' : edu.status === '등록 필요' ? '교육청 등록 대상이에요. 센터별 등록액을 받기 전까지 수납은 계속 잠겨요.' : '등록이 필요 없다는 답을 받았어요. 센터 수납 잠금을 풀 수 있고, 공문은 근거로 남아요.';
     const c6 = card({
       pin: 6, title: '교육청 확인 기록', chip: B.impChip('IMP-08'),
       body: kvt([
@@ -1236,14 +1279,18 @@
     const ui = ctx.ui, edu = st(ctx, 'HQ-14').edu;
     if (arg && typeof arg === 'object') { if (arg.status) ui.e_status = arg.status; if (arg.date != null) ui.e_date = arg.date; if (arg.ref != null) ui.e_ref = arg.ref; }
     const status = ui.e_status || edu.status, date = (ui.e_date != null ? ui.e_date : edu.date || '').trim(), ref = (ui.e_ref != null ? ui.e_ref : edu.ref || '').trim();
-    ui.e_err = status !== '확인 전' && (!/^\d{4}-\d\d-\d\d$/.test(date) || !ref) ? '확인 결과를 남기려면 확인일과 공문 번호를 함께 넣어 주세요.' : null;
+    if (status === edu.status && date === edu.date && ref === edu.ref) { ui.e_err = null; B.toast('바뀐 내용이 없어요. 확인 상태를 고르고 확인일과 공문 번호를 넣어 주세요.'); return; }
+    ui.e_err = status === '확인 전' ? '확인 전 상태는 기록할 게 없어요. 교육청 답을 받은 뒤 등록 필요나 등록 불필요를 골라 주세요.'
+      : !/^\d{4}-\d\d-\d\d$/.test(date) || !ref ? '확인 결과를 남기려면 확인일과 공문 번호를 함께 넣어 주세요.'
+        : date > ctx.today ? '확인일은 오늘(' + ctx.today + ')이나 그 전 날짜여야 해요.' : null;
     if (ui.e_err) return;
+    const prev = edu.status;
     Object.assign(edu, { status, date, ref });
     ui.e_status = null; ui.e_date = null; ui.e_ref = null;
     const p = ctx.s.pol['POL-27'] = ctx.s.pol['POL-27'] || {};
-    p.history = p.history || []; p.history.push({ date: ctx.today, from: '교육청 확인 전', to: '교육청 ' + status, by: ctx.persona.name, reason: ref || '-', n: opCenters().length });
-    ctx.s.audit.unshift({ at: '03-08 11:30', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '교육청 확인 기록', target: 'POL-27 테스트비·상담비', reason: status + (ref ? ', ' + ref : '') });
-    B.toast(status === '등록 불필요' ? '기록했어요. 센터 화면의 테스트비 수납 버튼이 열려요.' : '기록했어요. 센터 화면의 수납 버튼은 계속 잠겨 있어요.');
+    p.history = p.history || []; p.history.push({ date: ctx.today, from: '교육청 ' + prev, to: '교육청 ' + status, by: ctx.persona.name, reason: ref, n: opCenters().length });
+    ctx.s.audit.unshift({ at: '03-08 11:30', who: ctx.persona.name + ' (본사 ' + ctx.role + ')', what: '교육청 확인 기록', target: 'POL-27 테스트비·상담비', reason: status + ', ' + ref });
+    B.toast(status === '등록 불필요' ? '기록했어요. 이 기록이 있어야 센터가 테스트비와 상담비를 받을 수 있어요.' : '기록했어요. 센터별 등록액을 받기 전까지 수납은 잠겨 있어요.');
   });
 
   B.screen({
@@ -1255,12 +1302,12 @@
       who: WHO + ' 검사 버전과 재검사 간격은 연구소가, 테스트비와 수납 주체는 대표와 경영지원이, 등록 차감과 결과지는 경영지원이 정해요. 센터는 CT-02, CT-03에서 이 값을 써요.',
       items: [
         { n: 1, t: '검사 버전', d: '두뇌 유형 검사를 180문항 원본으로 할지 약 15분짜리 간단판으로 할지 정해요(10/14 미정). 읽기 테스트는 10~20분이고, 합치면 35분 안팎, 상담까지 1시간이에요. 검사 버전은 HQ-20에서 배포해요.', pol: ['POL-26'], ref: 'p.33 ①' },
-        { n: 2, t: '테스트비와 상담비', d: '정가 5만 원, 프로모션 3만 원(안)이고 프로모션은 2027-12-31까지예요. 상담비는 금액이 미정이고 등록하면 면제해요. 받는 쪽을 센터로 할지 본사로 할지는 아직 정하지 않았어요. 프로모션가가 정가보다 높으면 저장되지 않아요.', pol: ['POL-27'], ref: 'p.33 ②' },
-        { n: 3, t: '등록 차감과 재검사', d: '테스트 뒤 30일 안에 등록하면 교습비에서 2만 원(안)을 빼 줘요. 차감액이 실제 테스트비보다 크면 저장되지 않아요. 재검사는 6개월 뒤부터(예시) 볼 수 있어요.', pol: ['POL-28', 'POL-29'], ref: 'p.33 ③' },
+        { n: 2, t: '테스트비와 상담비', d: '정가 5만 원, 프로모션 3만 원(안)이고 프로모션은 2027-12-31(예시)까지예요. 상담비는 등록하면 면제, 등록하지 않으면 받는데 금액은 미정이에요. 받는 쪽을 센터로 할지 본사로 할지도 아직 정하지 않았어요. 센터가 받으면 가맹 센터는 권장가를 참고해 정해요. 프로모션가가 정가보다 높으면 저장되지 않아요.', pol: ['POL-27'], ref: 'p.33 ②' },
+        { n: 3, t: '등록 차감과 재검사', d: '등록하면 테스트비 일부인 2만 원(안)을 교습비에서 빼 줘요. 테스트 뒤 30일(예시) 안에 등록해야 해요. 차감액이 실제 낸 테스트비보다 크면 저장되지 않아요. 재검사 허용 주기는 미정이고, 화면에는 6개월(예시)이 들어 있어요.', pol: ['POL-28', 'POL-29'], ref: 'p.33 ③' },
         { n: 4, t: '결과지', d: '두뇌 유형은 지수 없이 유형만, 읽기는 레벨만 보여 주고 상담은 사람이 해요(10/14 결정). 현장 출력이 기본이고 우편, 이메일, 알림톡 링크를 더 켤 수 있어요. 우편 주소는 30일(안) 뒤 자동으로 지우고, 센터는 이 기간을 줄이기만 해요.', pol: ['POL-30'], ref: 'p.33 ④' },
         { n: 5, t: '교육청 확인 안내', d: '테스트비와 상담비를 교습비 외에 받아도 되는지, 등록 대상인지 교육청에 확인한 뒤 확정해요. 교습비 외 비용 징수는 점검 대상이에요.', pol: ['POL-27'], ref: 'p.33 ⑤' },
-        { n: 6, t: '교육청 확인 기록', kind: 'review', imp: 'IMP-08', pol: ['POL-27'], d: '확인 상태를 확인 전, 등록 필요, 등록 불필요 중에서 고르고 확인일과 공문 번호를 남겨요. 확인 전이면 CT-02 상담비와 CT-03 테스트비 수납 버튼이 잠겨 있어요. 등록 불필요로 기록해야 버튼이 열려요.' },
-        { n: 7, t: '본사 과금 근거', kind: 'review', imp: 'IMP-25', pol: ['POL-27'], d: '검사 1건당 본사가 돈을 받는 쪽을 고르면 금액과 함께 계약 조항이나 동의서 근거를 넣어야 저장돼요. 가맹 센터에 새 돈을 받는 일이라 HQ-08 사용료처럼 다뤄요.' },
+        { n: 6, t: '교육청 확인 기록', kind: 'review', imp: 'IMP-08', pol: ['POL-27'], d: '확인 상태를 확인 전, 등록 필요, 등록 불필요 중에서 고르고 확인일과 공문 번호를 남겨요. 확인 전이면 CT-02 상담비와 CT-03 테스트비 수납을 잠그고 입학 테스트는 무료로 해요. 등록 필요로 나오면 교습비처럼 센터별 등록액을 받은 뒤에 열어요.' },
+        { n: 7, t: '본사 과금 근거', kind: 'review', imp: 'IMP-25', pol: ['POL-27'], d: '검사 1건당 본사가 돈을 받는 쪽을 고르면 금액과 함께 계약 조항이나 동의서 근거를 넣어야 저장돼요. 가맹 센터에 새로 돈을 받는 일이라 HQ-08 사용료처럼 근거가 있어야 해요. 가맹 센터가 없는 P1a에는 실제로 걸리지 않아요.' },
         { n: 8, t: '등록하지 않은 아이 기록', kind: 'review', imp: 'IMP-07', pol: ['POL-30', 'POL-40'], d: '상담과 테스트만 하고 등록하지 않은 아이 기록을 30일(예시) 뒤 자동으로 지우고 HQ-22 파기 대장에 남겨요. CT-02 예약 때 보호자에게 알리는 보관 기간과 같은 값을 써요.' },
       ],
       open: ['검사 버전 (180문항 원본 또는 간단판)', '테스트비와 상담비를 센터가 받을지 본사가 받을지', '상담비 금액', '테스트비와 상담비를 받아도 되는지, 교육청 등록 대상인지', '다시 테스트를 볼 수 있는 간격', '본사가 검사 1건당 돈을 받을지', '본사가 받고 센터가 차감할 때 2만 원을 누가 부담할지'],
@@ -1315,35 +1362,43 @@
           { a: '수납 증빙', b: '5년 (법정)', c: '분리 보관, 열람 권한 좁힘' },
           { a: '동의 기록', b: '미정 (법무 확인)', c: '-' },
         ],
-      }) + '<div style="margin-top:8px">' + h.alert('부록 B 기준으로는 야간(21시~8시) 광고를 보내려면 별도 동의가 있어야 해요. 위 안내 문구와 기준을 맞춰야 해요.', 'review', { title: '검토 반영' }) + '</div>',
+      }) + '<div style="margin-top:8px">' + h.alert('부록 B는 야간(21시~8시) 광고를 따로 동의한 사람에게만 보낼 수 있다고 적었어요. 표 아래 안내 문구도 이 기준으로 고쳐 써요.', 'review', { title: '검토 반영' }) + '</div>',
     });
-    const price = get(ctx, sid, 'p34_price'), warnN = get(ctx, sid, 'p34_warn');
-    const bal = ctx.s.alim.balances || {};
-    const balRows = Object.keys(bal).map(id => { const c = B.center(id), n = typeof price === 'number' && price > 0 ? Math.floor(bal[id] / price) : null, top = (ctx.s.alim.topups || []).find(t => t.center === id && t.status !== '완료'); return { c, b: bal[id], n, low: n != null && typeof warnN === 'number' && n < warnN, top }; });
+    const price = get(ctx, sid, 'p34_price'), warnD = get(ctx, sid, 'p34_warn'), basePrice = eff(ctx, sid, 'base', 'p34_price', true) || 7;
+    const bal = ctx.s.alim.balances || {}, avg7 = (ctx.s.ct14 && ctx.s.ct14.avg7) || st(ctx, sid).avg7 || {};
+    const balRows = Object.keys(bal).map(id => {
+      const c = B.center(id), n = typeof price === 'number' && price > 0 ? Math.floor(bal[id] / price) : null, top = (ctx.s.alim.topups || []).find(t => t.center === id && t.status !== '완료');
+      const perDay = avg7[id] ? avg7[id] / basePrice : null, days = n != null && perDay ? n / perDay : null; // 하루 평균 건수는 저장된 단가로 환산해요
+      return { c, b: bal[id], n, perDay, days, low: days != null && typeof warnD === 'number' && days < warnD, top };
+    });
     const c8 = card({
       pin: 8, title: '알림톡 잔액 보호', chip: B.impChip('IMP-26'),
-      body: h.table({
+      body: '<div class="hqc-bal">' + h.table({
         cols: [
           { label: '센터', render: r => esc(r.c ? r.c.name.replace('센터', '') : '-') },
-          { label: '충전 잔액', num: true, render: r => money(r.b) + '원' },
-          { label: '보낼 수 있는 건수', num: true, render: r => r.n == null ? '-' : money(r.n) + '건' },
-          { label: '상태', render: r => (r.low ? h.chip('충전 필요', 'warn') : h.chip('여유', 'ok')) + (r.top ? ' <span class="small muted">' + money(r.top.amount) + '원 ' + esc(r.top.status) + '</span>' : '') },
+          { label: '잔액', num: true, render: r => money(r.b) + '원' },
+          { label: '남은 건수', num: true, render: r => r.n == null ? '-' : money(r.n) + '건' },
+          { label: '하루 평균', num: true, render: r => r.perDay == null ? '-' : Math.round(r.perDay) + '건' },
+          { label: '남은 날', num: true, render: r => r.days == null ? '-' : '<b>' + (Math.floor(r.days * 10) / 10) + '일분</b>' },
+          { label: '상태', render: r => (r.low ? h.chip('부족', 'warn') : h.chip('여유', 'ok')) + (r.top ? ' <span class="small muted">' + money(r.top.amount) + '원 ' + esc(r.top.status) + '</span>' : '') },
         ],
         rows: balRows,
-      }) + '<div class="hqc-line">남은 건수가 ' + inp(ctx, sid, 'p34_warn', { ro: R, w: 64 }) + '건 <span class="small muted">(예시)</span>보다 적으면 센터와 본사에 경고</div>' +
-        '<div class="hqc-line">' + chk1(ctx, sid, 'p34_guard', '입·퇴실과 미납 안내는 잔액이 모자라도 보내고 다음 청구서에 더해요', R) + '</div>',
+      }) + '</div><div class="hqc-hint">하루 평균은 최근 7일 사용액(예시)을 저장된 단가로 나눈 건수예요. 직영은 본사 내부 비용이라 잔액이 없어요.</div>' +
+        '<div class="hqc-line">남은 날이 ' + inp(ctx, sid, 'p34_warn', { ro: R, w: 48 }) + '일분 <span class="small muted">(예시)</span>보다 적으면 센터와 본사에 경고해요</div>' +
+        '<div class="hqc-line">' + chk1(ctx, sid, 'p34_guard', '입·퇴실과 미납 안내는 잔액이 모자라도 정한 한도까지 보내고 다음 청구서에 더해요', R) + '</div>' +
+        '<div class="hqc-hint">한도 금액은 아직 미정이에요. 잔액은 발송에 성공한 건만 빠져요.</div>',
     });
     return frame(ctx, sid, ptable(rows) + note + '<div class="grid g2" style="margin-top:12px">' + c6 + c8 + '</div><div style="margin-top:12px">' + c7 + '</div>');
   }
   CFG['HQ-15'] = {
     num: /^(p34_price|p40|p34_warn)$/,
     order: { p35: ['입실', '퇴실', '수납 안내', '미납', '재등록', '결과지'], p37: ['카드', '계좌', '현금', '지역화폐', '결제선생 링크'] },
-    label: key => ({ p34_price: '알림톡 단가', p34_mode: '알림톡 요금 방식', p34_refund: '해지 시 잔액 환불', p35: '자동 발송 항목', p36_direct: '직영 결제 연동', p36_fr: '가맹 결제 연동', p37: '수납 수단', p38: '패드 공급', p39: '입·퇴실 체크', p40: '퇴원 후 보관', p42_mask: '기본 마스킹', p42_who: '마스킹 해제 권한', p43_re: '재동의 조건', p34_warn: '잔액 경고 건수', p34_guard: '필수 알림 보호' })[key] || key,
+    label: key => ({ p34_price: '알림톡 단가', p34_mode: '알림톡 요금 방식', p34_refund: '해지 시 잔액 환불', p35: '자동 발송 항목', p36_direct: '직영 결제 연동', p36_fr: '가맹 결제 연동', p37: '수납 수단', p38: '패드 공급', p39: '입·퇴실 체크', p40: '퇴원 후 보관', p42_mask: '기본 마스킹', p42_who: '마스킹 해제 권한', p43_re: '재동의 조건', p34_warn: '잔액 경고 기준', p34_guard: '필수 알림 보호' })[key] || key,
     fmt: (key, v) => {
       if (v === '' || v == null) return '미정';
       if (key === 'p34_price') return v + '원';
       if (key === 'p40') return v + '개월';
-      if (key === 'p34_warn') return money(v) + '건';
+      if (key === 'p34_warn') return v + '일분';
       return fmtDefault(v);
     },
     code: key => ({ p34_price: 'POL-34', p34_mode: 'POL-34', p34_refund: 'POL-34', p34_warn: 'POL-34', p34_guard: 'POL-34', p35: 'POL-35', p36_direct: 'POL-36', p36_fr: 'POL-36', p37: 'POL-37', p38: 'POL-38', p39: 'POL-39', p40: 'POL-40', p42_mask: 'POL-42', p42_who: 'POL-42', p43_re: 'POL-43' })[key] || 'POL-34',
@@ -1353,7 +1408,7 @@
       const v = g('p40');
       if (v !== '' && v != null && !isInt(v, 1, 120)) err(out, 'p40', '보관 기간은 개월 수로 넣거나 비워 두세요.');
       if (k !== 'base' && typeof v === 'number') { const b = eff(ctx, 'HQ-15', 'base', 'p40'); if (typeof b === 'number' && v > b) err(out, 'p40', '센터 값은 본사 기본값 ' + b + '개월보다 길게 정할 수 없어요. 줄이기만 할 수 있어요.'); }
-      if (!(typeof g('p34_warn') === 'number' && g('p34_warn') >= 0)) err(out, 'p34_warn', '잔액 경고 건수를 숫자로 넣어 주세요.');
+      if (!(typeof g('p34_warn') === 'number' && g('p34_warn') > 0 && g('p34_warn') <= 60)) err(out, 'p34_warn', '잔액 경고 기준을 1부터 60 사이 일수로 넣어 주세요.');
       if (!g('p42_mask')) { const w = '기본 마스킹을 끄면 본사 화면에 가맹 원생 정보가 그대로 보여요. 수탁자 범위를 넘을 수 있어요.'; if (out.warns.indexOf(w) < 0) out.warns.push(w); }
     },
     text: {
@@ -1390,19 +1445,19 @@
     title: '알림톡·결제·기기·개인정보', menuLabel: '알림톡·결제·기기', crumb: '정책·요금 설정 > 알림톡·결제·기기',
     headActions: heads('HQ-15'), render: r15, mount: mountFn,
     prd: {
-      summary: '알림톡 요금과 자동 발송, 학원비 받는 방법, 패드와 출석 체크, 학생 정보 보관과 열람 규칙을 한곳에서 정하는 화면이에요. 10개 규칙(POL-34~43) 중 9개가 아직 (안)이거나 미정이에요.',
+      summary: '알림톡 요금과 자동 발송, 학원비 받는 방법, 패드와 출석 체크, 학생 정보 보관과 열람 규칙을 한곳에서 정하는 화면이에요. 10개 규칙(POL-34~43) 중 법정인 거래 증빙 보관을 빼고 9개가 아직 확정 전이에요.',
       who: WHO + ' 값은 경영지원, IT, 법무가 정해요. 개별 센터 탭에는 부산해운대센터의 QR 체크 시험 값(예시)이 하나 들어 있어요.',
       items: [
         { n: 1, t: '알림톡 과금', d: '1건에 약 7원(안)이고 가맹 센터가 미리 충전해 두고 써요. 월 후불과 본사 부담도 고를 수 있어요. 해지하면 남은 돈을 돌려줘요. 직영은 본사 내부 비용이에요.', pol: ['POL-34'], ref: 'p.34 ①' },
         { n: 2, t: '자동 발송', d: '입실, 퇴실, 수납 안내, 미납, 재등록처럼 정보성 메시지만 자동으로 보내요. 결과지는 꺼져 있어요. 가맹 센터는 항목별로 끌 수 있어요. 광고성 메시지는 알림톡으로 보내지 않아요.', pol: ['POL-35'], ref: 'p.34 ②' },
         { n: 3, t: '결제 연동과 수납 수단', d: '직영은 결제선생으로, 가맹은 수기 기록(안)으로 받아요. 결제선생에 가맹점별 결제를 나눌 수 있는지 문의 중이고(10/21), 답에 따라 가맹점 개별 결제선생 선택지를 열어요. 수납 수단은 본사가 목록을 만들고 가맹이 골라 켜요.', pol: ['POL-36', 'POL-37'], ref: 'p.34 ③' },
         { n: 4, t: '기기', d: '패드를 센터가 사양 안내를 받아 직접 살지, 본사가 지정 사양으로 납품할지 아직 정하지 않았어요(10/14). 입·퇴실 체크는 번호, QR, 개인 로그인 중에서 센터가 골라요.', pol: ['POL-38', 'POL-39'], ref: 'p.34 ④' },
-        { n: 5, t: '개인정보', d: '퇴원 후 보관 기간은 미정이고 센터는 줄이기만 해요. 거래 증빙은 법으로 5년 보관해요. 본사 화면은 기본으로 가리고, 가림은 슈퍼관리자만 사유를 적고 풀어요. 동의서는 버전으로 관리하고 모으는 항목이 늘면 다시 동의를 받아요.', pol: ['POL-40', 'POL-41', 'POL-42', 'POL-43'], ref: 'p.34 ⑤' },
+        { n: 5, t: '개인정보', d: '원문은 원생 정보의 처리자를 센터, 본사를 수탁자로 적었어요(직영은 6번에서 고쳐요). 본사 화면은 기본으로 가리고, 가림은 슈퍼관리자만 사유를 적고 풀어요. 퇴원 후 보관 기간은 미정이고 센터는 줄이기만 해요. 기간이 지난 정보는 자동으로 지우고 HQ-22 파기 대장에 남겨요. 거래 증빙은 법으로 5년 보관해요. 동의서는 버전으로 관리하고 모으는 항목이 늘면 다시 동의를 받아요.', pol: ['POL-40', 'POL-41', 'POL-42', 'POL-43'], ref: 'p.34 ⑤' },
         { n: 6, t: '센터 유형별 처리자 고지', kind: 'review', imp: 'IMP-04', pol: ['POL-42', 'POL-43'], d: '직영 센터는 본사가 직접 운영하니까 개인정보 처리자도 본사예요. 가맹 센터는 가맹 사업자가 처리자이고 본사는 맡아서 처리하는 수탁자예요. 센터를 고르면 그 센터 동의서에 들어갈 고지 문구를 미리 보여 줘요.' },
         { n: 7, t: '항목별 보관표', kind: 'review', imp: 'IMP-07', pol: ['POL-40', 'POL-41'], d: '기본 인적사항, 상담 기록, 출결과 학습 결과, 수납 증빙, 동의 기록의 보관 기간을 따로 정해요. 수납 증빙은 5년 동안 따로 보관해요. 야간 광고는 별도 동의가 있어야 한다는 부록 B 기준도 함께 보여 줘요.' },
-        { n: 8, t: '알림톡 잔액 보호', kind: 'review', imp: 'IMP-26', pol: ['POL-34'], d: '충전 잔액으로 몇 건을 더 보낼 수 있는지 센터마다 보여 주고, 정한 건수(1,000건, 예시)보다 적으면 경고해요. 입·퇴실과 미납 안내는 잔액이 모자라도 보내고 다음 청구서에 더해요.' },
+        { n: 8, t: '알림톡 잔액 보호', kind: 'review', imp: 'IMP-26', pol: ['POL-34'], d: '충전 잔액으로 몇 건을 더 보낼 수 있는지, 최근 7일 평균으로 며칠을 더 쓸 수 있는지 센터마다 보여 줘요. 3일분(예시)보다 적으면 미리 경고해요. 입·퇴실과 미납 안내는 잔액이 모자라도 정한 한도까지 보내고 다음 청구서에 더해요. 경고 기준은 POL-34 아래에 둬요.' },
       ],
-      open: ['알림톡 단가와 요금 방식 (선불 충전, 월 후불, 본사 부담)', '가맹 센터 결제 방식 (결제선생 답변 대기)', '패드를 직접 살지 본사가 납품할지', '퇴원 후 학생 정보 보관 기간 (동의서 v1 전에 정해야 해요)', '광고성 메시지를 보낼 별도 채널', '자동 발송 항목, 수납 수단, 출석 체크 방식, 마스킹 규칙, 동의서 문안 최종 확정'],
+      open: ['알림톡 단가와 요금 방식 (선불 충전, 월 후불, 본사 부담)', '잔액 경고 기준과 잔액이 모자랄 때 필수 알림을 보내는 한도', '가맹 센터 결제 방식 (결제선생 답변 대기)', '패드를 직접 살지 본사가 납품할지', '퇴원 후 학생 정보 보관 기간 (동의서 v1 전에 정해야 해요)', '광고성 메시지를 보낼 별도 채널', '자동 발송 항목, 수납 수단, 출석 체크 방식, 마스킹 규칙, 동의서 문안 최종 확정'],
       rules: ['광고성 메시지는 수신 동의자에게만 보내요. 야간(21시~8시)은 별도 동의가 있어야 해요 (정보통신망법).', '거래 증빙은 5년 보관해요 (세법).', '만 14세 미만 아이 정보는 법정대리인 동의를 받아요.'],
     },
   });

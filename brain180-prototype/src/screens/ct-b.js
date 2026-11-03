@@ -258,6 +258,8 @@
     const d = { name: '', grade: '초4', phone: '', birth: (2021 - g) + '-05-12', school: '', g_name: '', g_rel: '모', alim: true, method: '휴대폰 본인인증', c_privacy: false, c_entrust: false, c_mkt: false };
     Object.keys(d).forEach(k => { if (ui[k] == null) ui[k] = d[k]; });
     if (ui.g_name) ui.guardian = ui.g_name; // 학부모 휴대폰(PA-01)이 보호자 이름을 읽어 가요
+    // 원생 상세(CT-06) 재입학으로 들어오면 예전 기록을 찾아 다시 등록을 골라 둬요
+    if (/^readmit:/.test(ui.from || '') && !ui.dup) { findDup(ctx); if (ui.dup.same) ui.dupChoice = '기존 원생 다시 등록'; }
     // 보호자가 자기 휴대폰(PA-01)에서 동의를 마치면 그 결과를 받아요
     const rc = ui.consent, gn = String(ui.g_name || '').trim();
     if (rc && rc.status === '인증 완료' && (!rc.student || rc.student === 'reg') && !ui._rcUsed) {
@@ -276,8 +278,10 @@
     const ui = ctx.ui, s = ctx.s, ph = digits(ui.phone);
     const list = ph.length >= 10 ? s.students.filter(x => x.center === ctx.centerId && digits(x.phone) === ph) : [];
     const same = list.find(x => x.name === String(ui.name || '').trim());
-    ui.dup = { phone: ph, ids: list.map(x => x.id), same: same ? same.id : null };
-    const okChoices = same ? ['기존 원생 다시 등록', '새로 만들기'] : ['형제로 연결', '새로 만들기'];
+    // 이름까지 같은데 아직 다니는 원생이면 새로 만들지 않고 원생 상세로 보내요. 퇴원했거나 퇴원 예정이면 다시 등록할 수 있어요.
+    const active = same && !/퇴원/.test(same.status) ? same : null;
+    ui.dup = { phone: ph, ids: list.map(x => x.id), same: same && !active ? same.id : null, active: active ? active.id : null };
+    const okChoices = active ? [] : same ? ['기존 원생 다시 등록', '새로 만들기'] : ['형제로 연결', '새로 만들기'];
     if (!list.length || !okChoices.includes(ui.dupChoice)) ui.dupChoice = null;
   }
   function doVerify(ctx, res) {
@@ -301,9 +305,9 @@
     else {
       const list = d.ids.map(id => s.students.find(x => x.id === id)).filter(Boolean);
       inner = '<div><b>같은 보호자 번호로 등록된 원생</b> ' + list.map(x => esc(h.mask(x.name)) + ' (' + esc(x.grade) + ', ' + esc(x.status) + ')').join(', ') + '</div>' +
-        h.opts((d.same ? ['기존 원생 다시 등록', '새로 만들기'] : ['형제로 연결', '새로 만들기']).map(v => ({ v, l: v, dis: ro })), ui.dupChoice || '', { act: 'CT05.dupChoice' }) +
+        (d.active ? '<div class="row"><span>이름까지 같은 원생이 이미 다니고 있어요. 새로 만들지 않고 원생 상세에서 확인해요.</span>' + h.btn('원생 상세 보기', { sm: true, act: 'CT05.toDetail', arg: d.active }) + '</div>' : h.opts((d.same ? ['기존 원생 다시 등록', '새로 만들기'] : ['형제로 연결', '새로 만들기']).map(v => ({ v, l: v, dis: ro })), ui.dupChoice || '', { act: 'CT05.dupChoice' }) +
         (ui.dupChoice === '형제로 연결' ? '<div class="small">보호자를 한 번만 저장하고 두 아이를 묶어요. 수강 등록에서 형제 할인 10%(예시)와 사유가 바로 채워져요.</div>' : '') +
-        (ui.dupChoice === '기존 원생 다시 등록' ? '<div class="small">예전 기록에 이어서 등록하고, 동의는 지금 문안으로 다시 받아요.</div>' : '');
+        (ui.dupChoice === '기존 원생 다시 등록' ? '<div class="small">예전 기록에 이어서 등록하고, 동의는 지금 문안으로 다시 받아요.</div>' : ''));
     }
     return '<div class="ctb-sub review"' + h.p(8) + '>' + inner + (e.dup ? '<div class="ctb-err">' + esc(e.dup) + '</div>' : '') + '</div>';
   }
@@ -361,7 +365,7 @@
     ];
     const consent = h.card({
       title: '법정대리인 동의', pin: 3, sub: a != null && a < 14 ? '만 14세 미만이라 꼭 받아야 저장돼요' : '',
-      right: h.btn('항목별 동의 내용 보기', { sm: true, act: 'CT05.terms', pin: 9 }),
+      right: '<span style="display:inline-block;padding-left:14px"' + h.p(9) + '>' + h.btn('항목별 동의 내용 보기', { sm: true, act: 'CT05.terms' }) + '</span>',
       body: form([
         fr('확인 방법', h.opts(methods, ui.method, { act: 'CT05.method' }) + h.polChip('POL-43')),
         fr('필수 동의', chk('c_privacy', ui.c_privacy, '개인정보 수집·이용', ro) + chk('c_entrust', ui.c_entrust, '처리 위탁 고지 확인', ro), { err: e.consent }),
@@ -413,13 +417,13 @@
       who: '원장과 실장·데스크가 입력해요. 교사와 보조교사는 보기만 해요. 동의와 본인인증은 보호자가 센터 태블릿에서 직접 해요.',
       items: [
         { n: 1, t: '테스트 결과 연결', d: '입학 테스트 결과를 불러와 레벨과 두뇌 유형을 채워요. 상담 화면(CT-02)에서 넘어온 이름, 학년, 보호자 번호도 그대로 이어 써서 다시 입력하지 않아요.', ref: 'p.49 ①' },
-        { n: 2, t: '만 14세 미만 자동 판정', d: '생년월일을 넣으면 만 나이를 바로 계산해요. 만 14세 미만이면 법정대리인 동의가 있어야 저장돼요. 초등학생은 모두 여기에 해당해요.', ref: 'p.49 ②' },
+        { n: 2, t: '만 14세 미만 자동 판정', d: '생년월일을 넣으면 만 나이를 바로 계산해요. 만 14세 미만(법정)이면 법정대리인 동의가 있어야 저장돼요. 초등학생은 모두 여기에 해당해요.', ref: 'p.49 ②' },
         { n: 3, t: '법정대리인 동의', d: '보호자가 직접 동의했는지 확인할 수 있는 방법으로 받아요. 받은 방법과 일시, 문안 버전을 함께 저장해요. 광고성 마케팅 수신은 선택 동의로 따로 물어요.', pol: ['POL-43', 'POL-35'], ref: 'p.49 ③' },
         { n: 4, t: '처리 위탁 고지', d: '아이 정보를 책임지는 곳(처리자)과 일을 맡아 하는 곳(수탁자)을 보호자에게 알려요. 아이에게 직접 받는 정보는 꼭 필요한 것만 받고, 안내는 쉬운 말로 써요.', pol: ['POL-42'], ref: 'p.49 ④' },
         { n: 5, t: '다음 단계', d: '저장하면 수강 등록·수납 화면(CT-07)으로 넘어가요. 학습 계정을 언제 열지는 계정 오픈 정책을 따르는데, 아직 정하지 않아서 확정처럼 적지 않았어요.', pol: ['POL-23'], ref: 'p.49 ⑤' },
         { n: 6, t: '직영 센터 고지를 바르게', kind: 'review', imp: 'IMP-04', pol: ['POL-44', 'POL-36'], d: '원문 예시는 직영인 대치1센터를 처리자로, 본사(MSC Brain)를 수탁자로 적었어요. 직영은 본사가 직접 운영하니까 처리자가 본사예요. 센터 유형과 결제 연동 방식에 맞춰 직영용과 가맹용 문안을 자동으로 골라요.' },
         { n: 7, t: '시범용 동의 방법과 본인 대조', kind: 'review', imp: 'IMP-05', d: '시범에서는 센터 태블릿 본인인증과 서면 동의서 사진 두 가지만 써요. 인증한 사람이 입력한 보호자와 다르면 저장을 막아요. 카카오 인증과 원격 동의 링크는 학부모 동의 화면을 맡을 팀을 정한 뒤로 미뤄요.' },
-        { n: 8, t: '기존 원생과 형제 찾기', kind: 'review', imp: 'IMP-11', d: '보호자 휴대폰 번호로 이미 다니는 원생을 찾아요. 찾으면 형제로 연결할지, 새로 만들지 골라요. 형제로 이으면 수강 등록 화면에서 형제 할인과 사유가 바로 채워져요.' },
+        { n: 8, t: '기존 원생과 형제 찾기', kind: 'review', imp: 'IMP-11', d: '보호자 휴대폰 번호로 이미 등록된 원생을 찾아요. 찾으면 형제로 연결할지 새로 만들지 고르고, 같은 이름이면 기존 원생 다시 등록도 고를 수 있어요. 형제로 이으면 수강 등록 화면에서 형제 할인 10%(예시)와 사유가 바로 채워져요.' },
         { n: 9, t: '항목별 동의 내용 보기', kind: 'review', imp: 'IMP-07', pol: ['POL-40'], d: '체크 칸만 있으면 보호자가 무엇에 동의하는지 알기 어려워요. 항목마다 목적, 받는 정보, 보관 기간, 거부하면 생기는 일을 보여 줘요. 보관 기간은 아직 미정이라 미정으로 보여요.' },
       ],
       open: ['동의서 문안과 다시 동의받을 조건 (POL-43, v1은 예시)', '퇴원 후 원생 정보 보관 기간 (POL-40)', '학습 계정을 여는 때 (POL-23)', '직영용과 가맹용 고지 문안의 법무 확인 (부록 A 10번)'],
@@ -436,6 +440,7 @@
   A5('CT05.findDup', (ctx, ph) => { c05init(ctx); if (typeof ph === 'string' && ph) ctx.ui.phone = ph; findDup(ctx); });
   A5('CT05.dupChoice', (ctx, v) => { c05init(ctx); if (!ctx.ui.dup) findDup(ctx); ctx.ui.dupChoice = v; if (ctx.ui.e) delete ctx.ui.e.dup; });
   A5('CT05.compare', ctx => { ctx.ui.showOrig = !ctx.ui.showOrig; });
+  A5('CT05.toDetail', (ctx, id) => { ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: id || (ctx.ui.dup || {}).active }); B.go('CT-06'); return false; });
   A5('CT05.terms', ctx => { B.modal({ title: '항목별 동의 내용', body: termsBody(ctx), cancel: '닫기' }); return false; });
   A5('CT05.cancel', ctx => {
     const from = ctx.ui.from || '';
@@ -465,13 +470,14 @@
       if (!v) e.verify = ui.method === '서면 동의서' ? '서면 동의서 사진을 먼저 올려 주세요.' : '보호자 본인인증을 먼저 마쳐 주세요.';
       else if (v.name !== gn || digits(v.phone) !== digits(ui.phone)) e.verify = '인증한 뒤 보호자 정보가 바뀌었어요. 다시 인증해 주세요.';
     }
-    const dupKeep = ui.dupChoice;
-    findDup(ctx); if (dupKeep && !ui.dupChoice && ui.dup.ids.length) ui.dupChoice = dupKeep;
-    if (ui.dup.ids.length && !ui.dupChoice) e.dup = '같은 보호자 번호로 등록된 원생이 있어요. 어떻게 할지 골라 주세요.';
+    findDup(ctx);
+    if (ui.dup.active) e.dup = '이미 다니는 원생이에요. 원생 상세(CT-06)에서 확인해 주세요.';
+    else if (ui.dup.ids.length && !ui.dupChoice) e.dup = '같은 보호자 번호로 등록된 원생이 있어요. 어떻게 할지 골라 주세요.';
     if (Object.keys(e).length) { B.toast('빨간 칸을 고치면 저장돼요.'); return; }
     ensure(s);
     const r = s.reservations.find(x => x.id === ui.from);
-    const level = ui.level || 'L2';
+    const re = /^readmit:/.test(ui.from || '') ? s.students.find(x => x.id === ui.from.slice(8)) : null;
+    const level = ui.level || (re ? re.level : r ? 'L2' : '');
     const consent = { date: TODAY, method: ui.verified ? ui.verified.method : '휴대폰 본인인증', version: VER };
     let st;
     if (ui.dupChoice === '기존 원생 다시 등록' && ui.dup.same) {
@@ -507,6 +513,7 @@
     return st || null;
   }
   const isTeacher = ctx => ctx.role === '교사' || ctx.role === '보조교사';
+  const RQ_HOW = ['휴대폰 본인인증', '센터 방문 신분증 확인', '서면 요청서'];
 
   function c06head(ctx, st, tab) {
     const s = ctx.s, ro = !ctx.canEdit, c = s.classes.find(x => x.id === st.cls), info = s.ct05.info[st.id] || {};
@@ -697,7 +704,7 @@
           '<div class="muted small" style="margin-top:6px">값은 학습 시스템에서 받아요 (예시). 세부 학습 화면은 학습 프로젝트 범위예요.</div>'
           : h.empty('학습 계정이 열리지 않아 받은 결과가 없어요.'),
       }) + '</div>';
-    html += '<div style="margin:12px 0"' + h.p(7) + '>' + h.alert(teacher ? '교사와 보조교사는 수업에 필요한 출결과 학습만 봐요. 수납과 동의 이력은 원장과 실장만 볼 수 있어요.' : '수납과 동의 이력은 원장과 실장만 봐요. 교사와 보조교사에게는 이 두 칸이 가려져요.', 'review', { title: '검토 반영' }) + '</div>';
+    html += '<div style="margin:12px 0"' + h.p(7) + '>' + h.alert(teacher ? '교사와 보조교사는 수업에 필요한 출결과 학습만 봐요. 수납, 동의 이력, 요청 기록은 원장과 실장만 볼 수 있어요.' : '수납, 동의 이력, 요청 기록은 원장과 실장만 봐요. 교사와 보조교사에게는 이 칸들이 가려져요.', 'review', { title: '검토 반영' }) + '</div>';
     const lock = t => h.card({ title: t, body: h.empty(t + '은 원장과 실장만 볼 수 있어요.') });
     html += '<div class="grid g2" style="align-items:start">' +
       (teacher ? lock('수납').replace('<section', '<section' + h.p(3)) : h.card({
@@ -717,10 +724,14 @@
     html += h.card({
       title: '개인정보 요청', pin: 5, right: h.chip('P2', 'p2') + h.btn('CT-24 열기', { sm: true, go: 'CT-24' }), cls: '',
       body: '<div class="small">보호자의 열람, 정정, 삭제 요청을 받고 처리한 기록은 확대 단계 화면(CT-24)에서 다뤄요.</div>' +
-        '<div class="ctb-sub review"' + h.p(6) + '><div class="row"><b>시범 기간 요청 기록</b><span class="small">CT-24가 나오기 전까지 여기에 적어요. 처리 기한 10일 (예시)</span></div>' +
-        '<div class="row"><span class="small">새 요청</span>' + h.opts(['열람', '정정', '삭제', '동의 철회'].map(v => ({ v, l: v, dis: ro || teacher })), '', { act: 'CT06.req' }) + '</div>' +
-        (reqs.length ? h.table({ cols: [{ label: '접수일', k: 'at' }, { label: '요청', k: 'kind' }, { label: '처리 기한', k: 'due' }, { label: '상태', render: r => h.status(r.status === '처리 완료' ? '완료' : '접수') + (r.done ? ' <span class="muted small">' + esc(r.done) + ' ' + esc(r.by) + '</span>' : '') },
-          { label: '', render: r => (r.status === '처리 완료' ? '' : h.btn('처리 완료', { sm: true, act: 'CT06.reqDone', arg: r.id, disabled: ro })) }], rows: reqs }) : '<span class="muted small">받은 요청이 없어요.</span>') + '</div>',
+        (teacher ? '<div class="ctb-sub review"' + h.p(6) + '><b>요청 기록</b><span class="small">요청 기록은 원장과 실장만 볼 수 있어요.</span></div>'
+          : '<div class="ctb-sub review"' + h.p(6) + '><div class="row"><b>요청 기록</b><span class="small">CT-24가 나오기 전까지 여기에 적어요. 처리 기한 10일 (예시)</span></div>' +
+          '<div class="row"><span class="small">본인 확인</span>' + sel({ f: 'rq_how', v: ctx.ui.rq_how || RQ_HOW[0], opts: RQ_HOW, dis: ro, w: '170px', label: '본인 확인 방법' }) + '<span class="small">새 요청</span>' + h.opts(['열람', '정정', '삭제', '동의 철회'].map(v => ({ v, l: v, dis: ro })), '', { act: 'CT06.req' }) + '</div>' +
+          (reqs.length ? h.table({ cols: [{ label: '접수일', k: 'at' }, { label: '요청', k: 'kind' }, { label: '본인 확인', k: 'how' },
+            { label: '처리 기한', render: r => esc(r.due) + (r.status === '처리 완료' ? '' : ' ' + h.chip('D-' + Math.max(0, between(TODAY, r.due)), between(TODAY, r.due) <= 3 ? 'bad' : 'warn')) },
+            { label: '처리일', render: r => (r.done ? esc(r.done) + ' <span class="muted small">' + esc(r.by) + '</span>' : h.status('접수')) },
+            { label: '통지일', render: r => (r.notice ? esc(r.notice) + ' <span class="muted small">' + esc(r.noticeHow) + '</span>' : '-') },
+            { label: '', render: r => (r.status === '처리 완료' ? '' : h.btn('처리 완료', { sm: true, act: 'CT06.reqDone', arg: r.id, disabled: ro })) }], rows: reqs }) : '<span class="muted small">받은 요청이 없어요.</span>') + '</div>'),
     });
     return '<div style="margin-top:0">' + html + '</div>';
   }
@@ -767,20 +778,20 @@
       summary: '원생 한 명의 수강, 상태, 출결, 학습, 수납, 동의 기록을 한곳에서 봐요. 휴원, 퇴원, 반 이동도 여기서 처리해요.',
       who: '원장과 실장·데스크가 상태를 바꿔요. 교사와 보조교사는 보기만 해요. 이름과 번호는 가려서 보여 주고, 풀 때는 사유를 남겨요.',
       items: [
-        { n: 1, tab: 'a', t: '탭 구성', d: '수강·상태, 출결, 학습, 상담, 수납, 동의 이력으로 나눠 봐요. 이 탭은 수강·상태이고, 출결부터 동의 이력까지는 옆 탭에 모았어요.', ref: 'p.50 ①' },
-        { n: 2, tab: 'a', t: '상태 변경 버튼', d: '휴원, 퇴원, 반 이동 버튼이에요. 바뀐 상태는 학습 계정과 본사 사용료 집계에 그대로 반영돼요.', pol: ['POL-02'], ref: 'p.50 ②' },
+        { n: 1, tab: 'a', t: '탭 구성', d: '수강·상태, 출결, 학습, 상담, 수납, 동의 이력으로 나눠 봐요. 이 탭은 수강·상태예요. 출결, 학습, 수납, 동의 이력은 옆 탭에 모았고, 상담을 누르면 상담 기록 창이 열려요.', ref: 'p.50 ①' },
+        { n: 2, tab: 'a', t: '상태 변경 버튼', d: '휴원, 퇴원, 반 이동 버튼이에요. 바뀐 상태는 학습 계정과 본사 사용료 과금에 그대로 반영돼요. 사용료를 무엇으로 셀지는 아직 미정이에요.', pol: ['POL-02'], ref: 'p.50 ②' },
         { n: 3, tab: 'a', t: '휴원', cond: true, reveal: 'CT06.open', revealArg: 'leave', d: '쉬는 기간과 이미 낸 돈을 넘기는 방식을 정해요. 최대 1개월과 다음 달 차감은 (안)이에요. 쉬는 동안 학습 계정은 멈춰요.', pol: ['POL-21', 'POL-23'], ref: 'p.50 ③' },
         { n: 4, tab: 'a', t: '퇴원', cond: true, reveal: 'CT06.open', revealArg: 'out', d: '퇴원일과 사유를 꼭 적어요. 돌려줄 돈이 있으면 환불 처리(CT-10)로 이어져요. 퇴원생 정보는 보관 기간이 지나면 자동으로 지우는데, 그 기간은 아직 미정이에요.', pol: ['POL-25', 'POL-40'], ref: 'p.50 ④' },
         { n: 5, tab: 'a', t: '상태 이력', d: '수강권 시작, 반 이동, 휴원, 퇴원 같은 변화를 누가 언제 했는지 남겨요.', ref: 'p.50 ⑤' },
         { n: 6, tab: 'a', t: '상태 되돌리기', kind: 'review', imp: 'IMP-12', d: '휴원 중에 일찍 돌아오거나 퇴원을 잘못 눌렀을 때 되돌릴 길이 없었어요. 휴원 복귀, 퇴원 취소, 재입학을 넣었어요. 퇴원 취소는 7일 안(예시)에 원장만 하고, 되돌린 이유는 상태 이력에 남아요.' },
-        { n: 7, tab: 'a', t: '사유 발생일과 환불 없음 막기', kind: 'review', imp: 'IMP-09', cond: true, reveal: 'CT06.open', revealArg: 'out', pol: ['POL-25'], d: '퇴원 창에 사유 발생일 칸을 넣어서 환불 반환 기한 5일(법정)을 이날부터 세요. 이미 낸 수강권이 퇴원일 뒤까지 남아 돌려줄 돈이 있으면 환불 없음을 고를 수 없어요.' },
-        { n: 1, tab: 'b', t: '출결', d: '한 달 달력으로 출석, 결석, 보강, 공휴일을 봐요. 결석한 날을 누르면 같은 레벨 반으로 보강을 잡아요. 보강은 월 2회까지, 결석일부터 2주 안(안)에서만 잡혀요.', pol: ['POL-22'], ref: 'p.51 ①' },
+        { n: 7, tab: 'a', t: '사유 발생일과 환불 없음 막기', kind: 'review', imp: 'IMP-09', cond: true, reveal: 'CT06.open', revealArg: 'out', pol: ['POL-25'], d: '퇴원 창에 사유 발생일 칸을 꼭 채우게 해서 환불 반환 기한 5일(법정)을 이날부터 세요. 퇴원일 뒤에 시작하는 수강권을 이미 냈거나, 이번 달 수업이 퇴원일까지 절반도 지나지 않았으면 돌려줄 돈이 있어요. 그때는 환불 없음을 고를 수 없어요.' },
+        { n: 1, tab: 'b', t: '출결', d: '한 달 달력으로 출석, 결석, 보강, 공휴일을 봐요. 결석한 날을 누르면 같은 레벨 반으로 보강을 잡아요. 보강은 월 2회까지, 2주 안(안)이고, 원문에 세는 기준이 없어서 이 화면은 결석한 달과 결석일을 기준으로 세요.', pol: ['POL-22'], ref: 'p.51 ①' },
         { n: 2, tab: 'b', t: '학습', d: '학습 시스템에서 받은 결과를 요약해 보여 줘요. 문제를 풀고 첨삭하는 세부 화면은 학습 프로젝트에서 만들어요.', ref: 'p.51 ②' },
         { n: 3, tab: 'b', t: '수납', d: '수납 내역과 영수증을 봐요. 교습비와 교재비 같은 기타경비는 줄을 나눠 보여 줘요.', pol: ['POL-14'], ref: 'p.51 ③' },
         { n: 4, tab: 'b', t: '동의 이력', d: '동의 항목, 문안 버전, 일시, 방법을 남겨요. 문안이 바뀌어 다시 동의를 받아야 하면 표시해요.', pol: ['POL-43'], ref: 'p.51 ④' },
         { n: 5, tab: 'b', t: '개인정보 요청 (P2)', d: '보호자가 정보를 보여 달라거나, 고치거나 지워 달라고 하면 확대 단계의 별도 화면(CT-24)에서 처리해요.', ref: 'p.51 ⑤' },
-        { n: 6, tab: 'b', t: '시범 기간 요청 기록', kind: 'review', imp: 'IMP-07', d: '실제 아이 정보는 1월 시범부터 모아요. 그래서 CT-24가 나오기 전에도 요청 받은 날, 종류, 처리 기한, 처리한 사람을 여기 적어요. 기한 10일(예시)이 다가오면 대시보드 경고에 올려요.' },
-        { n: 7, tab: 'b', t: '탭별 보기 권한', kind: 'review', imp: 'IMP-14', d: '교사와 보조교사도 원생 메뉴를 볼 수 있어서 수납과 동의 기록까지 보였어요. 수업에 필요한 출결과 학습만 보이게 하고, 수납과 동의 이력은 원장과 실장만 보게 나눴어요.' },
+        { n: 6, tab: 'b', t: '요청 기록 칸', kind: 'review', imp: 'IMP-07', d: '1~2월 시범에는 엑셀 접수 대장으로 받고, 3월 확장 전부터 CT-24가 나올 때까지 이 칸에 적어요. 접수일, 요청 종류, 본인 확인 방법, 처리일, 통지일을 남기고 남은 날을 보여 줘요. 처리 기한 10일은 예시이고 법정 기한은 법무가 확인하고 있어요.' },
+        { n: 7, tab: 'b', t: '탭별 보기 권한', kind: 'review', imp: 'IMP-14', d: '교사와 보조교사도 원생 메뉴를 볼 수 있어서 수납과 동의 기록까지 보였어요. 수업에 필요한 출결과 학습만 보이게 하고, 수납, 동의 이력, 요청 기록은 원장과 실장만 보게 나눴어요.' },
       ],
       open: ['휴원 최대 기간과 이월 방식 (POL-21)', '학습 계정을 멈추고 여는 조건 (POL-23)', '사용료를 세는 기준 (POL-02)', '퇴원생 정보 보관 기간 (POL-40)', '보강 횟수와 기한을 세는 기준 (POL-22)', '퇴원 취소를 허용하는 기간 (7일은 예시)'],
       rules: ['교습 시작 전이면 낸 교습비를 모두, 절반이 지나기 전이면 법정 비율만큼 돌려줘요 (학원법 시행령 별표4, 법정).'],
@@ -921,18 +932,21 @@
     B.modal({ title: mon(m) + ' 영수증', cancel: '닫기', body: '<div class="ctb-rcpt">' + h.kv([['학습자', un ? st.name : h.mask(st.name)], ['과목', '브레인180 ' + prodName(ctx.s, r.pid)], ['교습 기간', m + '-01 ~ ' + md(m + '-' + pad(dim(m)))], ['교습비', money(r.paid)], ['기타경비', r.book ? '교재비 ' + money(r.book) : '없음'], ['합계', '<b>' + money(r.paid + (r.book || 0)) + '</b>', true], ['수단', r.method], ['수납일', r.date]]) + '</div>' });
     return false;
   });
-  A6('CT06.req', (ctx, kind) => {
+  A6('CT06.req', (ctx, arg) => {
     const st = c06student(ctx), s = ctx.s; if (!st || !ctx.canEdit || isTeacher(ctx)) return;
+    let kind = arg, how = ctx.ui.rq_how || RQ_HOW[0];
+    if (arg && typeof arg === 'object') { kind = arg.kind; if (arg.how) how = arg.how; }
+    kind = kind || '열람';
     const list = s.ct06.req[st.id] = s.ct06.req[st.id] || [];
-    list.unshift({ id: 'q' + st.id + '-' + (list.length + 1), at: TODAY, kind: kind || '열람', due: addDays(TODAY, 10), status: '접수' });
+    list.unshift({ id: 'q' + st.id + '-' + (list.length + 1), at: TODAY, kind, how, due: addDays(TODAY, 10), status: '접수' });
     B.state.tab = 'b';
-    B.toast((kind || '열람') + ' 요청을 접수했어요. 처리 기한은 ' + addDays(TODAY, 10) + '이에요 (예시).');
+    B.toast(kind + ' 요청을 접수했어요. 처리 기한은 ' + addDays(TODAY, 10) + '이에요 (예시).');
   });
   A6('CT06.reqDone', (ctx, id) => {
-    const st = c06student(ctx), s = ctx.s; if (!st) return;
+    const st = c06student(ctx), s = ctx.s; if (!st || !ctx.canEdit || isTeacher(ctx)) return;
     const r = (s.ct06.req[st.id] || []).find(x => x.id === id) || (s.ct06.req[st.id] || []).find(x => x.status === '접수'); if (!r) return;
-    r.status = '처리 완료'; r.done = TODAY; r.by = ctx.role + ' ' + ctx.persona.name; B.state.tab = 'b';
-    B.toast('요청을 처리했어요. 처리일과 처리자가 남았어요.');
+    r.status = '처리 완료'; r.done = TODAY; r.by = ctx.role + ' ' + ctx.persona.name; r.notice = TODAY; r.noticeHow = '알림톡'; B.state.tab = 'b';
+    B.toast('요청을 처리하고 보호자에게 결과를 알렸어요. 처리일과 통지일이 남았어요.');
   });
 
   /* ======================================================================
@@ -962,7 +976,8 @@
       const info = s.ct05.info[st.id] || {}, sib = info.sibling ? s.students.find(x => x.id === info.sibling) : null;
       const cat = catalog(s, ctx.center);
       ui.pid = cat.some(r => r.pid === st.product && !lockOf(r)) ? st.product : 'pr1';
-      ui.start = st.since || '2027-03-15';
+      // 새로 들어오거나 다시 들어오는 원생은 예시 시작일 3/15로, 이미 다니는 원생(미수 등)은 원래 시작일로 열어요
+      ui.start = st.status === '수납 대기' && (!st.since || st.since < TODAY) ? '2027-03-15' : (st.since || '2027-03-15');
       const wc = info.wantCls ? s.classes.find(x => x.id === info.wantCls && (x.enrolled < x.cap || x.id === st.cls)) : null;
       ui.cls = wc ? wc.id : bestClass(s, st);
       ui.mmethod = '회차 기준';
@@ -1027,7 +1042,7 @@
     if (cl.disc) list.push(['POL-13', cl.discLabel]);
     if (cl.test) list.push(['POL-28', '테스트비 차감 ' + num(cl.test)]);
     if (cl.book) list.push(['POL-14', '교재비 ' + num(cl.book)]);
-    return list.map(([code, what]) => ({ code, what, status: h.pol(code).status }));
+    return list.map(([code, what]) => ({ code, what, status: h.pol(code).status, ver: 'v' + ((((B.store.pol || {})[code] || {}).history || []).length + 1) }));
   }
   function c07check(ctx, st, cl, mode) {
     const ui = ctx.ui, s = ctx.s, e = {};
@@ -1040,7 +1055,7 @@
     else if (c.enrolled >= c.cap && c.id !== st.cls) e.cls = c.name + ' 반은 정원(' + c.cap + '명)이 찼어요.';
     if (!okDate(ui.start)) e.start = '수강 시작일을 넣어 주세요.';
     if (cl.rate && !String(ui.reason || '').trim()) e.reason = '할인 사유를 적어 주세요.';
-    if (polUsed(ctx, cl).some(x => x.status !== '확정' && x.status !== '법정') && !ui.ack) e.ack = '(안)이나 미정 값이 들어간 금액이에요. 본사 임시 적용 승인을 확인해 주세요.';
+    if (polUsed(ctx, cl).some(x => x.status !== '확정' && x.status !== '법정') && !ui.ack) e.ack = '(안), 예시, 미정 값이 들어간 금액이에요. 슈퍼관리자 임시 적용 승인 기록을 확인해 주세요.';
     if (mode === 'manual' && ui.paym === '카드 단말기' && !/^[0-9A-Za-z-]{6,14}$/.test(String(ui.approval || '').trim())) e.approval = '카드 단말기 승인번호를 넣어 주세요.';
     return e;
   }
@@ -1050,9 +1065,9 @@
     let n = s.payments.length + 1; while (s.payments.some(p => p.id === 'pay' + n)) n++;
     const id = 'pay' + n;
     s.payments.push({ id, center: ctx.centerId, date: md(TODAY), student: st.id, item: mon(cl.ym) + ' 교습비' + (cl.book ? ', 교재비' : ''), amount: cl.total, method, approval: approval || '-', receipt: ui.cashNo ? '발급' : '-', by: ctx.persona.name });
-    const snap = polUsed(ctx, cl).map(x => ({ code: x.code, what: x.what, status: x.status }));
+    const snap = polUsed(ctx, cl).map(x => ({ code: x.code, what: x.what, status: x.status, ver: x.ver }));
     const lines = [[cl.label, cl.base]].concat(cl.disc ? [[cl.discLabel, -cl.disc]] : [], cl.test ? [['테스트비 차감', -cl.test]] : [], cl.book ? [['교재비', cl.book]] : []);
-    Object.assign(f, { lines, via: '', stage: '수납 완료', payId: id, at: TODAY, method, approval: approval || '-', total: cl.total, fee: cl.total - cl.book, book: cl.book, period: cl.period, pid: cl.row.pid, cls: ui.cls, snap, cash: ui.cashNo || '' });
+    Object.assign(f, { lines, via: '', stage: '수납 완료', payId: id, at: TODAY, base: cl.start, method, approval: approval || '-', total: cl.total, fee: cl.total - cl.book, book: cl.book, period: cl.period, pid: cl.row.pid, cls: ui.cls, snap, cash: ui.cashNo || '' });
     const discTxt = [cl.discLabel ? cl.discLabel + ' (' + ui.reason + ')' : '', cl.test ? '테스트비 차감 20,000' : ''].filter(Boolean).join(', ');
     const rows = s.ct06.hist[st.id].filter(r => r.m !== cl.ym);
     rows.unshift({ m: cl.ym, pid: cl.row.pid, fee: cl.fee, disc: discTxt, paid: cl.total - cl.book, date: md(TODAY), acct: '활성', method, book: cl.book });
@@ -1091,7 +1106,7 @@
         cols: [
           { label: '', w: '28px', render: r => (lockOf(r) ? '<span class="ctb-rad muted">○</span>' : '<span class="ctb-rad">' + (r.pid === cl.row.pid ? '●' : '○') + '</span>') },
           { label: '상품', render: r => '<b>' + esc(r.name) + '</b>' },
-          { label: direct ? '교습비 (본사 확정가)' : '교습비 (센터 결정)', num: true, render: r => num(r.fee) + ' ' + h.chip(h.pol('POL-11').status === '미정' && direct ? '미정' : '센터', direct ? 'st-미정' : '') },
+          { label: direct ? '교습비 (본사 확정가)' : '교습비 (센터 결정)', num: true, render: r => num(r.fee) + ' ' + h.chip('예시', 'st-예시') },
           { label: '교육청 등록액', num: true, render: r => (r.filing ? num(r.edu) + '에서 ' + num(r.eduNew) + '<br><span class="muted small">변경신고 중</span>' : num(r.edu)) },
           { label: '판매', render: r => (lockOf(r) ? h.chip('잠김', 'bad') : h.chip('판매', 'ok')) },
         ],
@@ -1107,7 +1122,7 @@
       body: form([
         fr('수강 시작', inp({ f: 'start', type: 'date', v: ui.start, dis: lock || ro, w: '160px', err: e.start }) + '<span class="muted small">월 단위, 1일 시작 (안)</span>', { err: e.start }),
         fr('월중 등록', h.opts(mOpts, cl.method, { act: 'CT07.mmethod' }) + h.chip(h.pol('POL-19').status, 'st-' + h.pol('POL-19').status), { pin: 7, rv: true, hint: cl.partial ? cl.frac + '. 계산식은 ' + cl.formula + '.' : '1일에 시작해서 한 달 치를 받아요.' }),
-        fr('반', sel({ f: 'cls', v: ui.cls, opts: clsOpts, dis: lock || ro, err: e.cls }), { err: e.cls, hint: '정원이 남은 반만 고를 수 있어요. 정원 15명 (안)' }),
+        fr('반', sel({ f: 'cls', v: ui.cls, opts: clsOpts, dis: lock || ro, err: e.cls }), { err: e.cls, hint: '정원이 남은 반만 고를 수 있어요. 괄호 안은 지금 인원과 정원이에요.' }),
       ]),
     });
     // 3 할인·차감
@@ -1129,10 +1144,10 @@
         : line(cl.label, num(cl.base)) + (cl.disc ? line(cl.discLabel, '-' + num(cl.disc)) : '') + (cl.test ? line('테스트비 차감', '-' + num(cl.test)) : '') + (cl.book ? line('교재비', num(cl.book)) : '') +
         line('결제 금액 (예시)', num(cl.total), 'tot')) + '</div><div class="muted small" style="margin-top:4px">끝전은 10원 미만을 버려요 (예시)</div>' +
         '<div class="ctb-sub review"' + h.p(6) + '>' + (done
-          ? (f.via ? '<b>' + esc(f.via) + '로 들어온 수납이에요</b><span>계산 근거는 그 거래에 함께 저장돼 있어요. 기준일 ' + esc(f.at) + '</span>' : '<b>저장한 계산 근거</b><span>' + f.snap.map(x => esc(x.code + ' ' + x.what + ' ' + (x.status === '안' ? '(안)' : '(' + x.status + ')'))).join(', ') + '. 기준일 ' + esc(f.at) + '</span>')
+          ? (f.via ? '<b>' + esc(f.via) + '로 들어온 수납이에요</b><span>계산 근거는 그 거래에 함께 저장돼 있어요. 기준일 ' + esc(f.at) + '</span>' : '<b>저장한 계산 근거</b><span>' + f.snap.map(x => esc(x.code + ' ' + x.what + ' (' + (x.status === '안' ? '안' : x.status) + ', ' + x.ver + ')')).join(', ') + '. 기준일 ' + esc(f.base || f.at) + ' (수강 시작일), 수납일 ' + esc(f.at) + '</span>')
           : risky.length ? '<b>아직 정하지 않은 값이 금액에 들어갔어요</b><div class="row">' + risky.map(x => '<span class="chip st-' + x.status + '" title="' + esc(h.pol(x.code).name) + '">' + esc(x.code + ' ' + x.what) + '</span>').join('') + '</div>' +
-            chk('ack', !!ui.ack, '본사가 시범 기간 임시 적용을 승인한 값으로 받아요', lock || ro) + (e.ack ? '<div class="ctb-err">' + esc(e.ack) + '</div>' : '') + '<span class="small">수납하면 계산에 쓴 정책 값과 기준일을 거래에 함께 저장해요.</span>'
-            : '<span>금액에 쓴 정책 값이 모두 확정됐어요. 수납하면 값과 기준일을 거래에 함께 저장해요.</span>') + '</div>',
+            chk('ack', !!ui.ack, '슈퍼관리자의 임시 적용 승인 기록을 확인했어요', lock || ro) + (e.ack ? '<div class="ctb-err">' + esc(e.ack) + '</div>' : '') + '<span class="small">수납하면 계산에 쓴 정책 값과 버전, 기준일(수강 시작일)을 거래에 함께 저장해요. 영수증과 알림톡에는 (안) 표시 없이 숫자만 나가요.</span>'
+            : '<span>금액에 쓴 정책 값이 모두 확정됐어요. 수납하면 값과 버전, 기준일을 거래에 함께 저장해요.</span>') + '</div>',
     });
     // 4 결제 (8 결제 대기, 검토 반영)
     const pOpts = ['카드 단말기', '계좌이체', '현금', '지역화폐'].map(v => ({ v, l: v, dis: lock || ro }));
@@ -1157,7 +1172,7 @@
           '<div class="row" style="margin-top:10px">' + h.btn('반 배정으로 이어서 하기', { primary: true, act: 'CT07.toAssign' }) + h.btn('원생 상세 보기', { act: 'CT07.toDetail' }) + h.btn('영수증 다시 보내기', { act: 'CT07.resendReceipt' }) + '</div>'
         : '<div class="small">영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요.</div>' +
           form([fr('현금영수증', inp({ f: 'cashNo', v: ui.cashNo, ph: '휴대폰 번호', dis: lock || ro, label: '현금영수증 휴대폰 번호' })),
-            fr('학습 계정', '수납 확인 시 오픈 ' + h.chip(p23 === '안' ? '(안)' : p23, 'st-' + p23) + '<span class="muted small">수납 확인 즉시, 원장 승인, 가오픈 가운데 정해요</span>')]),
+            fr('학습 계정', '수납 확인 시 오픈 ' + h.chip('(안)', 'st-안') + '<span class="muted small">POL-23 ' + esc(p23) + ', 수납 확인 즉시, 원장 승인, 가오픈 가운데 정해요</span>')]),
     });
     html += '<div class="ctb-two"><div class="stack">' + prod + startCard + discCard + '</div><div class="stack">' + sumCard + payCard + rcCard + '</div></div>';
     return html;
@@ -1182,11 +1197,11 @@
       who: '원장과 실장·데스크가 써요. 교사와 보조교사에게는 이 메뉴가 보이지 않아요.',
       items: [
         { n: 1, t: '상품', d: '센터가 파는 상품만 나와요. 직영은 본사가 정한 값을, 가맹은 센터가 정한 교습비를 써요. 교육청 등록액을 넘거나 변경신고 중인 상품은 잠겨서 고를 수 없어요.', pol: ['POL-10', 'POL-11', 'POL-12'], ref: 'p.52 ①' },
-        { n: 2, t: '시작·월중 처리', d: '월 단위로 매달 1일에 시작하는 것이 (안)이에요. 달 중간에 시작하면 정책에서 정한 방식으로 그달 교습비를 나눠 받아요. 반은 정원이 남은 곳만 고를 수 있어요.', pol: ['POL-18', 'POL-19', 'POL-16'], ref: 'p.52 ②' },
-        { n: 3, t: '할인·차감', d: '할인을 넣으면 사유를 꼭 남겨요. 입학 테스트비 20,000원(안)은 테스트 후 30일 안에 등록하면 빼 주고, 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
+        { n: 2, t: '시작·월중 처리', d: '월 단위로 매달 1일에 시작하는 것이 (안)이에요. 달 중간에 시작하면 일할, 다음 달부터, 회차 기준 가운데 정책에서 정한 방식으로 계산해요. 반은 정원이 남은 곳만 고를 수 있어요.', pol: ['POL-18', 'POL-19', 'POL-16'], ref: 'p.52 ②' },
+        { n: 3, t: '할인·차감', d: '할인은 센터가 정하고 사유를 꼭 남겨요. 입학 테스트비 20,000원(안)은 테스트 후 30일 안에 등록하면 빼 주고, 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
         { n: 4, t: '결제', d: '직영은 결제선생 링크로 결제하면 자동으로 기록돼요. 가맹은 센터 단말기로 결제한 뒤 승인번호를 적어요. 수납 수단은 센터가 켜 둔 것만 나와요.', pol: ['POL-36', 'POL-37'], ref: 'p.52 ④' },
         { n: 5, t: '영수증·계정 오픈', d: '영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요. 학습 계정은 계정 오픈 정책에 따라 열려요. 지금 화면은 수납을 확인하면 바로 여는 (안)을 따라요.', pol: ['POL-23'], ref: 'p.52 ⑤' },
-        { n: 6, t: '(안) 값 경고와 계산 근거 저장', kind: 'review', imp: 'IMP-10', d: '아직 정하지 않은 값으로 실제 돈을 받을 수 있었어요. 금액에 (안)이나 미정 값이 들어가면 목록으로 보여 주고, 본사 임시 승인을 확인해야 수납돼요. 수납할 때 쓴 정책 값과 기준일을 거래와 함께 저장해요.' },
+        { n: 6, t: '(안) 값 경고와 계산 근거 저장', kind: 'review', imp: 'IMP-10', d: '아직 정하지 않은 값으로 실제 돈을 받을 수 있었어요. 금액에 (안), 예시, 미정 값이 들어가면 목록으로 보여 주고, 슈퍼관리자의 임시 적용 승인 기록을 확인해야 수납돼요. 수납할 때 쓴 정책 값과 버전, 기준일(수강 시작일)을 거래와 함께 저장해요.' },
         { n: 7, t: '월중 계산 이름과 식 맞추기', kind: 'review', imp: 'IMP-09', pol: ['POL-19'], d: '원문은 일할이라고 적고 실제로는 회차로 나눴어요(5/9회, 예시). 방식을 고르면 쓰는 식과 숫자가 그대로 보이게 했어요. 회차는 고른 반의 수업 요일로 세고 공휴일은 빼요.' },
         { n: 8, t: '결제 대기 상태', kind: 'review', imp: 'IMP-12', cond: true, reveal: 'CT07.sendLink', revealArg: { ack: true }, d: '결제선생 링크를 보낸 뒤 아직 내지 않은 상태가 없었어요. 결제 대기로 두고 링크 유효 시간과 자리를 잡아 두는 시간(모두 예시)을 보여 줘요. 다시 보내기와 취소도 여기서 해요.' },
       ],

@@ -353,8 +353,11 @@
       $('#nextBtn').textContent = tot ? '데모 시작 ›' : '다음 ›';
     }
     const p = B.persona();
-    $('#viewMeta').innerHTML = '<span>지금 사람 <b>' + esc(p.label) + '</b> · 권한 <b>' + esc(B.perm(def.id, p)) + '</b></span><span>운영 환경 <b>' +
-      esc(def.devices.map(x => ({ pc: 'PC 웹', tablet: '태블릿', mobile: '모바일', kiosk: '공용 태블릿' })[x]).join(', ')) + '</b></span>';
+    const ph = B.phaseOf(def, B.state.tab), c = B.center(B.state.support || p.center);
+    const later = ph !== 'P1a' || (c && c.type !== '직영');
+    const permText = { '●': '보고 고칠 수 있음', '◐': '일부만 고칠 수 있음', '○': '보기만 가능', '–': '메뉴 숨김' }[B.perm(def.id, p)] || '';
+    $('#viewMeta').innerHTML = '<span>지금 사람 <b>' + esc(p.label) + '</b>, 권한 <b>' + esc(permText) + '</b></span><span>화면 속 날짜 <b>' + (later ? '2027년 10월 (가맹 개시 뒤 예시)' : '2027-03-08 월요일 (직영 시범 예시)') + '</b></span><span>운영 환경 <b>' +
+      esc(def.devices.map(x => ({ pc: 'PC 웹', tablet: '태블릿', mobile: '학부모 휴대폰', kiosk: '공용 태블릿' })[x]).join(', ')) + '</b></span>';
   }
 
   /* ---------------- fit device to view ---------------- */

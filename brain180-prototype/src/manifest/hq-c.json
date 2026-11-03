@@ -18,20 +18,21 @@
     { "id": "HQ-10", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8, 9], "review_pins": [7, 8, 9],
       "keys": "t_{주횟수}_{분} (t_1_90=150000, t_2_90=260000, t_3_90=360000, 나머지 null=미사용), direct_fixed, dev_pct(10), disc_sib(10), disc_long(5), disc_cap(20), x_book(15000), x_book_reg('등록 완료'|'신고 전')",
       "actions": [
-        { "name": "HQ10.edit", "arg": "{t_2_90: 270000}", "does": "주 2회 90분 권장가를 바꾼다. 직영 대조표(핀 7)에 직영 3곳 모두 잠김이 뜬다" },
+        { "name": "HQ10.edit", "arg": "{t_2_90: 290000}", "does": "주 2회 90분 권장가를 바꾼다. 직영 등록액 280,000원(원문 52쪽)을 넘어 직영 대조표(핀 7)의 주 2회 칸이 3곳 모두 잠김이 된다" },
+        { "name": "HQ10.filed", "arg": "'daechi1|t_3_90' (창에서 문서 번호 입력) 또는 {center:'daechi1', key:'t_3_90', doc:'강남서초 2027-0402 (예시)'}", "does": "변경신고 중인 칸(주 3회 340,000원에서 360,000원)을 수리 확인한다. 문서 번호가 없으면 막고, 있으면 등록액을 바꿔 잠금을 푼다. POL-12 이력과 감사 로그가 남는다" },
         { "name": "HQ10.cell", "arg": "'t_4_60' 같은 칸 키", "does": "미사용 칸을 켜거나 켜진 칸을 끈다. 켠 칸은 금액을 넣어야 저장된다" },
         { "name": "HQ10.keepReg", "arg": "없음", "does": "등록액을 넘는 직영 칸마다 그 센터 개별 값(등록액)을 저장 전 값으로 넣고 확인 패널을 연다" },
         { "name": "HQ10.edit", "arg": "{scope:'가맹', dev_pct: 15}", "does": "가맹 그룹의 이탈 경고 기준을 바꾼다. 비교표에서 대구수성 +11.5% 경고가 사라진다" },
         { "name": "HQ10.set", "arg": "'x_book_reg|신고 전'", "does": "교재비를 신고 전으로 바꿔 청구 잠김 안내를 띄운다" },
         { "name": "HQ10.confirm", "arg": "{reason:'11/10 결정 회의', when:'2027-04-01 0시 예약'}", "does": "예약 저장. 표 칸 옆에 4/1부터 표시, POL-11 이력과 reserved 가 남는다. 즉시 저장이면 s.products 의 recommend/direct 도 바뀐다" }
       ],
-      "reads": "s.products (perWeek, minutes, edu, centerPrice) 로 직영 등록액 대조와 가맹 판매가 비교를 계산한다",
-      "writes": "s.hq10, B.store.pol['POL-10'|'POL-11'|'POL-13'|'POL-14'], 즉시 저장 시 s.products[].recommend/direct (새 템플릿이면 s.products 에 행 추가)",
-      "demo_hint": "직영 시범 가격 묶음 결정 장면. 주 2회 권장가를 270,000원으로 올리면 직영 등록액(260,000원)을 넘어 잠김 경고가 뜨고, keepReg 로 신고 전까지 센터별 등록액 유지 값을 넣은 뒤 confirm 한다. 핀 3과 9로 가격 구속 방지를 설명한다" },
+      "reads": "s.hq10.edu (직영 센터 교육청 등록액, 원문 52쪽 CT-07 표: 주 1회 150,000, 주 2회 280,000, 주 3회 340,000에서 360,000 변경신고 중) 로 직영 대조를, s.products (perWeek, minutes, centerPrice) 로 가맹 판매가 비교를 계산한다",
+      "writes": "s.hq10 (vals, edu), B.store.pol['POL-10'|'POL-11'|'POL-12'|'POL-13'|'POL-14'], 즉시 저장 시 s.products[].recommend/direct (새 템플릿이면 s.products 에 행 추가)",
+      "demo_hint": "직영 시범 가격 묶음 결정 장면. 처음부터 주 3회 칸이 변경신고 중이라 잠겨 있다(CT-07과 같은 예시). keepReg 로 신고가 수리될 때까지 등록액 340,000원을 유지하는 개별 값을 넣고 confirm 한 뒤, filed 로 수리 문서 번호를 남겨 잠금을 푼다. 핀 3과 9로 가격 구속 방지를 설명한다" },
     { "id": "HQ-11", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8], "review_pins": [7, 8],
       "keys": "p15(['학원']), p16_cap(15), p16_ratio(10), p18('월'), p19(''), p20(''), p21_allow, p21_max(1), p21_mode, p22_n(2), p22_due('2주'), p23(''), p23_grace(5), p24_day(20), p24_auto",
       "actions": [
-        { "name": "HQ11.edit", "arg": "{p16_cap: 20}", "does": "타임당 정원을 바꾼다. 센터별 정원 계산(핀 7)이 바로 다시 계산된다" },
+        { "name": "HQ11.edit", "arg": "{p16_cap: 20}", "does": "타임당 정원을 바꾼다. 센터별 정원 계산(핀 7)의 반 정원 상한과 같은 시간 합계가 바로 다시 계산된다" },
         { "name": "HQ11.tog", "arg": "'p15|교습소'", "does": "교습소를 허용 시설에 넣는다. 부산해운대의 허용 밖 표시가 사라진다" },
         { "name": "HQ11.set", "arg": "'p20|회차 차감' 또는 'p23|가오픈 3일'", "does": "선택지 값을 고른다" },
         { "name": "HQ11.month", "arg": "'2027-02' ~ '2027-08'", "does": "회차 미리보기 달을 바꾼다" },
@@ -41,11 +42,11 @@
         { "name": "HQ11.toRefund", "arg": "'2027-04|화·목'", "does": "그달 그 반 요일 회차를 s.ui['HQ-12'].x_n 으로 넘기고 HQ-12로 이동한다" },
         { "name": "HQ11.confirm", "arg": "{reason:'연구소 안', when:'즉시'}", "does": "저장. POL-16 값이 '20명'처럼 바뀌어 다른 화면 h.pv 에 반영된다" }
       ],
-      "reads": "s.centers (facility, roomCap, facilityCap), s.classes (대치1 반 요일, cap)",
+      "reads": "s.centers (facility, roomCap, facilityCap), s.classes (반 요일, 시작 시각, cap)",
       "writes": "s.hq11 (vals, hol), B.store.pol['POL-15'~'POL-24']",
       "demo_hint": "학사 규칙 장면. 어린이날을 휴원일로 넣어 회차가 줄어드는 걸 보여 주고, 화·목 반 4월 9회를 환불 계산(HQ-12)으로 넘긴다" },
     { "id": "HQ-12", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8], "review_pins": [6, 7, 8],
-      "keys": "p14_refund('미정'|'받지 않은 주차분 반환'), round(1|10|100), up_daegu_a/b/c 와 up_busan_a/b/c ('반환 없음','1/3','1/2','2/3','3/4','전액'), up_daegu_d / up_busan_d (반환 기한 일수, 5 이하)",
+      "keys": "p14_refund('미정'|'받지 않은 주차분 반환'), round(1|10|100), up_daegu_a/b/c 와 up_busan_a/b/c ('반환 없음','1/3','1/2','2/3','3/4','전액'), up_daegu_d / up_busan_d (반환 기한 일수, 5 이하). up_ 키는 범위 탭과 상관없이 본사 기본값에 저장된다",
       "actions": [
         { "name": "HQ12.calc", "arg": "{fee:260000, paid:214000, n:9, min:90, el:1, date:'2027-03-06', center:'법정'|'daegu', base:'실제 낸 금액'|'정가'}", "does": "계산 미리보기 값을 넣는다. 기본값이면 173,340원, paid 214000 이면 142,670원" },
         { "name": "HQ12.pc", "arg": "'법정' | 'daegu' | 'busan'", "does": "미리보기 기준 센터를 고른다 (상향 기준 적용)" },
@@ -60,13 +61,16 @@
       "writes": "s.hq12 (vals, ver), B.store.pol['POL-25'|'POL-14'].history",
       "demo_hint": "환불 장면. 원문 예시 173,340원을 보여 주고, 실제 낸 금액 214,000원(형제 10%와 테스트비 차감 반영, 예시)으로 바꿔 142,670원과 반환 기한 2027-03-11을 보여 준다. 대구수성 1/2 경과 전을 2/3로 올리고 저장한 뒤 미리보기 기준 센터를 대구수성, 경과 4회로 바꾼다" },
     { "id": "HQ-13", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7], "review_pins": [6, 7],
-      "keys": "p32('학년별 4레벨'), levels(배열) 또는 lv_{행}_{name|grade|score|books}, p31_min('초1'), p31_max('초6'), p31_block, p33(''), p33_avg(80), p33_months(3), p33_retest(6), apply('2028-01-01'), map_{기존코드}",
+      "keys": "p32('학년별 4레벨'), levels(배열) 또는 lv_{행}_{name|grade|score|books}, p31_min('초1'), p31_max('초6'), p31_block, p33(''), p33_avg(80), p33_months(3), p33_retest(6), apply('2028-01-01'), map_{기존코드}. 원문처럼 범위 탭이 없고 모든 값은 본사 기본값이다 (HQ13.scope, HQ13.center 는 아무것도 하지 않는다)",
       "actions": [
         { "name": "HQ13.edit", "arg": "{lv_0_grade:'초1~3'}", "does": "L1 대상 학년을 고친다. 학년 빈틈 검사(핀 6)가 통과로 바뀐다" },
         { "name": "HQ13.set", "arg": "'p33|원장 승인'", "does": "승급 방식을 고른다" },
         { "name": "HQ13.tpl", "arg": "'무학년 12단계' | '학년별 4레벨' | '저학년 2레벨' | '직접 구성'", "does": "템플릿으로 레벨 표를 채우고 매핑 표를 연다" },
         { "name": "HQ13.edit", "arg": "{map_L1:'L1', map_L2:'L3', map_L3:'L6', map_L4:'L9'}", "does": "기존 원생 레벨 매핑을 채운다" },
-        { "name": "HQ13.addLevel / HQ13.delLevel / HQ13.lvStatus", "arg": "없음 / 행 번호 / 행 번호", "does": "레벨 행 추가, 삭제, 사용과 준비 전환" },
+        { "name": "HQ13.addLevel", "arg": "없음", "does": "레벨 행을 하나 더한다 (이름과 학년은 비어 있어 저장 전에 채워야 한다)" },
+        { "name": "HQ13.delLevel", "arg": "행 번호 (0부터)", "does": "레벨 행을 지우고 코드를 L1부터 다시 매긴다. 매핑 표가 열린다" },
+        { "name": "HQ13.lvStatus", "arg": "행 번호 (0부터)", "does": "그 레벨의 상태를 사용과 준비 사이에서 바꾼다" },
+        { "name": "HQ13.agrade", "arg": "'예비 초1' | '초1' ~ '초6'", "does": "배정 미리보기 학년을 고른다" },
         { "name": "HQ13.mapOpen", "arg": "없음", "does": "매핑 표를 열고 닫는다" },
         { "name": "HQ13.assign", "arg": "{grade:'초3'|'예비 초1', score:65}", "does": "배정 규칙 미리보기 값을 넣는다. 초3 65점이면 L3 준비 중이라 L2 줄기에 배정" },
         { "name": "HQ13.confirm", "arg": "{reason:'11/10 연구소 결정', when:'즉시'}", "does": "학년 빈틈, 형식, 매핑, 적용일을 검사하고 저장한다. 처음 상태는 초1 빈틈 때문에 막힌다" }
@@ -81,23 +85,24 @@
         { "name": "HQ14.set", "arg": "'p27_hq|검사 1건당'", "does": "본사 과금을 켠다. 금액과 근거가 있어야 저장된다" },
         { "name": "HQ14.tog", "arg": "'p30_ways|우편'", "does": "결과지 전달 방식에 우편을 더한다. 미리보기에 주소 30일 뒤 삭제 문구가 붙는다" },
         { "name": "HQ14.edu", "arg": "'확인 전' | '등록 필요' | '등록 불필요'", "does": "교육청 확인 상태를 고른다 (기록 전)" },
-        { "name": "HQ14.eduSave", "arg": "{status:'등록 불필요', date:'2027-03-05', ref:'강남서초 2027-0311 (예시)'}", "does": "교육청 확인 결과를 바로 기록한다. 확인일과 공문 번호가 없으면 막는다. s.hq14.edu 에 남고 POL-27 이력과 감사 로그가 생긴다" },
+        { "name": "HQ14.eduSave", "arg": "{status:'등록 불필요', date:'2027-03-05', ref:'강남서초 2027-0311 (예시)'}", "does": "교육청 확인 결과를 바로 기록한다. 확인 전 상태, 확인일이나 공문 번호가 빠진 기록, 오늘 뒤 확인일, 바뀐 것 없는 기록은 막는다. s.hq14.edu 에 남고 POL-27 이력(이전 상태에서 새 상태)과 감사 로그가 생긴다" },
         { "name": "HQ14.confirm", "arg": "{reason:'P1b 대비', when:'즉시'}", "does": "저장. 개별 센터 범위에서 주소 삭제 기간을 본사보다 길게 하면 막는다" }
       ],
       "reads": "없음",
-      "writes": "s.hq14 (vals, edu {status, date, ref}). CT-02, CT-03 화면은 s.hq14.edu.status 가 '등록 불필요'일 때만 테스트비와 상담비 수납 버튼을 열면 이어진다",
+      "writes": "s.hq14 (vals, edu {status, date, ref}). 아직 CT-02, CT-03 은 이 값을 읽지 않고 수납 버튼을 늘 잠가 둔다. 두 화면이 s.hq14.edu.status === '등록 불필요' 일 때만 열도록 바꾸면 데모가 이어진다",
       "demo_hint": "테스트비 정책 장면. 교육청 확인 전이라 수납이 잠겨 있다는 걸 보여 주고, 회신을 받아 eduSave 로 기록하는 흐름. 본사 과금 근거 필수도 함께 보여 준다" },
     { "id": "HQ-15", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8], "review_pins": [6, 7, 8],
-      "keys": "p34_price(7), p34_mode('선불 충전'), p34_refund, p35(['입실','퇴실','수납 안내','미납','재등록']), p36_direct, p36_fr, p37(5개), p38(''), p39('번호', 개별 busan='QR'), p40(''), p42_mask, p42_who, p43_re, p34_warn(1000), p34_guard",
+      "keys": "p34_price(7), p34_mode('선불 충전'), p34_refund, p35(['입실','퇴실','수납 안내','미납','재등록']), p36_direct, p36_fr, p37(5개), p38(''), p39('번호', 개별 busan='QR'), p40(''), p42_mask, p42_who, p43_re, p34_warn(3, 남은 일수 기준 예시), p34_guard",
       "actions": [
-        { "name": "HQ15.edit", "arg": "{p34_price: 8}", "does": "알림톡 단가를 바꾼다. 잔액 보호표(핀 8)의 보낼 수 있는 건수가 바로 바뀐다" },
+        { "name": "HQ15.edit", "arg": "{p34_price: 8}", "does": "알림톡 단가를 바꾼다. 잔액 보호표(핀 8)의 보낼 수 있는 건수와 남은 날이 바로 바뀐다" },
         { "name": "HQ15.edit", "arg": "{p40: 6} 다음 {scope:'개별 센터', center:'daegu', p40: 12}", "does": "보관 기간을 정한 뒤 센터 값을 더 길게 넣으면 줄이기만 가능하다는 오류로 막힌다" },
         { "name": "HQ15.nc", "arg": "센터 id", "does": "처리자 고지 미리보기 센터를 바꾼다 (대치1은 본사 처리자, 대구수성은 가맹 사업자 처리자)" },
-        { "name": "HQ15.spec / HQ15.text", "arg": "없음", "does": "패드 지정 사양 창, 동의서 문안 창을 연다" },
+        { "name": "HQ15.spec", "arg": "없음", "does": "패드 지정 사양 창을 연다" },
+        { "name": "HQ15.text", "arg": "없음", "does": "동의서 문안 창을 연다" },
         { "name": "HQ15.confirm", "arg": "{reason:'발송사 단가 확정', when:'즉시'}", "does": "저장. POL-34 값이 '8원, 선불 충전'으로 바뀐다" }
       ],
-      "reads": "s.alim.balances, s.alim.topups, s.centers[].pay, s.hq14.vals.base.unreg_days",
+      "reads": "s.alim.balances, s.alim.topups, s.ct14.avg7 (없으면 s.hq15.avg7, 하루 평균 사용액 예시), s.centers[].pay, s.hq14.vals.base.unreg_days",
       "writes": "s.hq15, B.store.pol['POL-34'~'POL-43'] (시작할 때 POL-39 centers.busan 'QR (테스트베드 시험)' 예시 하나 추가)",
-      "demo_hint": "개인정보와 알림톡 장면. 처리자 고지를 대치1과 대구수성으로 바꿔 보이며 직영과 가맹의 차이를 설명하고, 부산해운대 잔액 585건이 경고 기준 1,000건(예시) 아래라 충전 필요로 뜨는 걸 보여 준다" }
+      "demo_hint": "개인정보와 알림톡 장면. 처리자 고지를 대치1과 대구수성으로 바꿔 보이며 직영과 가맹의 차이를 설명하고, 부산해운대 잔액이 약 2일분으로 경고 기준 3일분(예시) 아래라 부족으로 뜨는 걸 보여 준다" }
   ]
 }
