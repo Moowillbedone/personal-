@@ -116,7 +116,7 @@
     };
 
     // HQ-24 운영 점검. 원문 p.43 예시 일정 2건.
-    if (!s.ct23) s.ct23 = { items: [{ id: 'sv1', date: '2027-07-02', item: '종사자 경력 조회', result: '보완', due: '2027-07-16', status: '보완 요청', sv: '최민호', memo: '경력 조회일이 없는 종사자가 있어요.', reply: null }], files: {} };
+    if (!s.ct23) s.ct23 = { items: [{ id: 'sv1', date: '2027-07-02', item: '종사자 경력 조회', result: '보완', due: '2027-07-16', status: '보완 요청', sv: '정유나', memo: '경력 조회일이 없는 종사자가 있어요.', reply: null }], files: {} };
     s.hq24 = {
       visits: [
         { id: 'v-0715', date: '2027-07-15', center: 'daegu', sv: '정유나', status: '예정', tpl: 'v2', res: {}, memo: {}, link: {}, re: {} },
@@ -1106,6 +1106,7 @@
 
   B.screen({
     id: 'HQ-24', side: 'hq', phase: 'P2', devices: ['pc', 'tablet'], pages: [43], channelText: 'PC 웹·태블릿',
+    dateLabel: '2027년 7월 (원문 점검 예시 날짜 그대로)',
     title: '운영 점검(SV)', menuLabel: '운영 점검(SV)', crumb: '운영 점검(SV)',
     headActions: ctx => h.btn('+ 점검 일정', { primary: true, act: 'HQ24.newVisit', disabled: !ctx.canEdit }),
     render(ctx) {

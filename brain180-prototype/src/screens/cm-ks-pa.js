@@ -191,7 +191,8 @@
     );
     s.ks01 = { clock: '16:05', offline: false };
     // 학부모 대화방 예시 (박하준 s5, 주 3회 상품과 교재비로 계산)
-    const pr2 = s.products.find(p => p.id === 'pr2'), book = s.extraFees[0].amount, amt = h.num(pr2.direct + book);
+    // 직영 주 3회는 변경신고 중이라 지금 등록액(340,000원)까지만 받아요 (B.feeNow)
+    const book = s.extraFees[0].amount, amt = h.num(B.feeNow(s, 'daechi1', 'pr2') + book);
     s.pa01 = {
       seed: [
         { student: 's5', at: '2027-01-02 15:10', tpl: 'T06', name: '결과지 링크', text: '입학 테스트 결과지를 확인해 주세요.' },
@@ -1014,7 +1015,7 @@
     }
     const pr = s.products.find(p => p.id === (st.product || 'pr1')) || s.products[0];
     const c = B.center(st.center) || {};
-    const fee = c.type === '직영' ? pr.direct : ((pr.centerPrice || {})[c.id] || pr.recommend);
+    const fee = B.feeNow(s, c.id, pr.id);
     const lines = [{ t: '3월 교습비 (' + pr.name + ')', a: fee }, { t: s.extraFees[0].name, a: s.extraFees[0].amount }];
     return { student: st.id, month: '3월', lines, total: lines.reduce((x, l) => x + l.a, 0), product: pr.name };
   }

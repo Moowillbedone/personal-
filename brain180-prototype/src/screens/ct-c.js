@@ -49,8 +49,10 @@
   const nameOf = (s, r) => { const st = r.student && s.students.find(x => x.id === r.student); return st ? h.mask(st.name) : (r.name || h.mask(r.student || '-')); };
   // 직영은 원문 52쪽 본사 확정가(주 3회는 360,000으로 바꾸는 교육청 신고 중이라 지금 값 340,000), 가맹은 센터 교습비
   const PRICE = { pr1: 260000, pr2: 340000, pr3: 150000 };
+  // HQ-14에 남긴 교육청 확인 결과. '등록 불필요'가 아니면 테스트비와 상담비는 아직 받을 수 없는 돈이에요.
+  const eduSt = s => ((s.hq14 && s.hq14.edu) || {}).status || '확인 전';
   function price(s, center, pid) {
-    if (isDirect(center)) return PRICE[pid] || PRICE.pr1;
+    if (isDirect(center)) return B.feeNow ? B.feeNow(s, center.id, pid) || PRICE[pid] || PRICE.pr1 : PRICE[pid] || PRICE.pr1;
     const p = s.products.find(x => x.id === pid);
     return p ? ((p.centerPrice || {})[center.id] || p.recommend) : 0;
   }
@@ -523,7 +525,7 @@
         cols: [
           { label: '시각', render: r => '<span class="mono small">' + esc(day === 'week' ? r.date + ' ' + (r.time || '') : (r.time || '-')) + '</span>' },
           { label: '원생', render: r => esc(nameOf(s, r)) },
-          { label: '구분', render: r => esc(r.item) + (r.kind === '상담비' ? ' ' + h.chip('교육청 확인 전', 'warn') : '') + (Number(r.amount) < 0 ? ' ' + h.chip('환불', 'bad') : '') },
+          { label: '구분', render: r => esc(r.item) + ((r.kind === '상담비' || r.kind === '테스트비') && eduSt(s) !== '등록 불필요' ? ' ' + h.chip('교육청 확인 전', 'warn') : '') + (Number(r.amount) < 0 ? ' ' + h.chip('환불', 'bad') : '') },
           { label: '금액', num: true, render: r => r.amount == null ? h.chip('미정', 'st-미정') + varChip() : '<span class="amt">' + (Number(r.amount) < 0 ? '-' + num(-r.amount) : num(r.amount)) + '</span>' },
           { label: '수단', render: r => esc(r.method) },
           { label: '승인번호', render: r => '<span class="mono small">' + esc(r.approval || '-') + '</span>' },
@@ -551,7 +553,7 @@
       const un = c9unpaid(ctx);
       html += '<div style="margin-top:12px">' + h.card({
         title: '미수 (탭 요약)', pin: 5, right: h.btn('미수 탭 열기', { sm: true, goTab: 'b', go: 'CT-09' }),
-        body: '<div>' + un.length + '건 · ' + num(un.reduce((a, u) => a + u.amount, 0)) + '원. 4월 재등록 미수는 재등록 화면(CT-08)에서 관리해요.</div>',
+        body: '<div>' + un.length + '건, ' + num(un.reduce((a, u) => a + u.amount, 0)) + '원. 4월 재등록 미수는 재등록 화면(CT-08)에서 관리해요.</div>',
       }) + '</div>';
       return html;
     },
@@ -566,7 +568,7 @@
   // PRD 항목 (탭마다 보이는 번호가 달라요)
   (function () {
     const I = {
-      1: { t: '수납 내역', d: '모든 수납을 시간 순서로 봐요. 직영의 결제선생 결제는 자동으로 들어오고, 가맹은 센터가 기록한 내역이에요. 기간, 수단, 구분으로 골라 볼 수 있어요.', pol: ['POL-36'], ref: 'p.54 ①' },
+      1: { t: '수납 내역', d: '모든 수납을 시간 순서로 봐요. 직영의 결제선생 결제는 자동으로 들어오고, 가맹은 센터가 기록한 내역이에요. 기간, 수단, 구분으로 골라 볼 수 있어요. 원문 예시의 테스트비와 상담비 줄은 HQ-14 교육청 확인이 끝나기 전이면 노란 표시가 붙어요. 받으면 안 되는 돈이라 취소 사유에 \'교육청 확인 전에 받은 돈\'이 있어요.', pol: ['POL-36'], ref: 'p.54 ①' },
       2: { t: '영수증', d: '교습비 영수증에는 학습자 이름, 과목, 교습 기간을 적고 현금영수증 번호도 함께 남겨요. 영수증 버튼을 누르면 아래에 미리 보기가 열려요.', pol: ['POL-37'], ref: 'p.54 ②' },
       3: { t: '수정·취소', d: '수납을 고치거나 취소할 때는 사유를 꼭 골라요. 기록은 이력에 남고 지워지지 않아요.', ref: 'p.54 ③' },
       4: { t: '일일 마감', d: '수단별 합계와 현금 시재를 맞춰 보고 마감해요. 마감한 뒤에 고치려면 원장 승인이 있어야 해요.', ref: 'p.54 ④' },

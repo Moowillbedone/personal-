@@ -255,7 +255,7 @@
             ins: { st: '대기' }, ent: { st: '대기' }, staff: {}, post: { st: '미제출' },
             kiosk: { st: '완료' }, pay: { st: '완료', note: 'KP-DT0180' }, alim: { st: '심사 중' },
           },
-          fees: [{ p: 'pr1', edu: 260000, price: 260000 }, { p: 'pr2', edu: 370000, price: 370000 }, { p: 'pr3', edu: null, price: 140000 }],
+          fees: [{ p: 'pr1', edu: 280000, price: 260000 }, { p: 'pr2', edu: 360000, price: 360000 }, { p: 'pr3', edu: null, price: 150000 }],
           request: null, approvedAt: '', approvedBy: '', sel: 'fee',
         },
       },

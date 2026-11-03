@@ -8,7 +8,15 @@
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
   const DMAP = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
   const VER = 'v1';
-  const BOOK = 15000, TESTFEE = 20000;
+  const BOOK = 15000;
+  // 등록 시 테스트비 차감액과 유효 기간은 HQ-14(POL-28) 값을 따라요. 센터 값, 그룹 값, 본사 기본값 순서로 찾아요.
+  function hq14v(s, c, key, def) {
+    const v = (s.hq14 && s.hq14.vals) || {};
+    const keys = [c ? 'c:' + c.id : '', c ? c.type : '', 'base'].filter(Boolean);
+    for (const k of keys) if (v[k] && Object.prototype.hasOwnProperty.call(v[k], key) && typeof v[k][key] === 'number') return v[k][key];
+    return def;
+  }
+  const testAmt = (s, c) => hq14v(s, c, 'p28_amt', 20000), testDays = (s, c) => hq14v(s, c, 'p28_days', 30);
   const PHONE = /^01[016789]-?\d{3,4}-?\d{4}$/;
   const pad = n => String(n).padStart(2, '0');
   const D = s => { const a = String(s).split('-').map(Number); return new Date(Date.UTC(a[0], a[1] - 1, a[2])); };
@@ -167,18 +175,26 @@
   /* ---------------- 공용 조회 ---------------- */
   const cent = (s, id) => s.centers.find(c => c.id === id) || {};
   const prodName = (s, pid) => (s.products.find(p => p.id === pid) || {}).name || '-';
-  // 직영은 원문 52쪽 본사 확정가 표, 가맹은 센터가 정한 교습비
+  // 직영은 본사 확정가(HQ-10)와 센터 교육청 등록액, 가맹은 센터가 정한 교습비. 처음 값은 원문 52쪽 표와 같아요.
+  // HQ-10이나 CT-18에서 변경신고 수리를 확인하면 등록액이 바뀌고 잠금도 풀려요.
+  const DIRECT0 = [['pr3', 't_1_90', 150000, 150000], ['pr1', 't_2_90', 260000, 280000], ['pr2', 't_3_90', 360000, 340000]];
   function catalog(s, center) {
-    if (!center || center.type === '직영') return [
-      { pid: 'pr3', name: '주 1회 · 90분', fee: 150000, edu: 150000 },
-      { pid: 'pr1', name: '주 2회 · 90분', fee: 260000, edu: 280000 },
-      { pid: 'pr2', name: '주 3회 · 90분', fee: 360000, edu: 340000, eduNew: 360000, filing: true },
-    ];
+    if (!center || center.type === '직영') {
+      const H = s.hq10 || {}, base = (H.vals && H.vals.base) || {}, reg = (H.edu && H.edu[(center && center.id) || 'daechi1']) || null;
+      return DIRECT0.map(([pid, k, fee0, edu0]) => {
+        const r = reg ? reg[k] : null, fee = typeof base[k] === 'number' ? base[k] : fee0;
+        const row = { pid, name: prodName(s, pid), fee, edu: r ? (r.amt || 0) : edu0 };
+        if (r && r.next) Object.assign(row, { eduNew: r.next, filing: true });
+        else if (!r && pid === 'pr2') Object.assign(row, { eduNew: 360000, filing: true });
+        return row;
+      });
+    }
     return ['pr3', 'pr1', 'pr2'].map(id => s.products.find(p => p.id === id)).filter(Boolean)
       .map(p => ({ pid: p.id, name: p.name, fee: (p.centerPrice || {})[center.id] || p.recommend, edu: (p.edu || {})[center.id] || 0 }));
   }
   const lockOf = r => (r.filing ? '신고 중' : r.fee > r.edu ? '등록액 초과' : '');
-  function dataFee(s, st) { const p = s.products.find(x => x.id === st.product); if (!p) return 0; const c = cent(s, st.center); return c.type === '직영' ? p.direct : ((p.centerPrice || {})[c.id] || p.recommend); }
+  // 이미 다니는 원생이 지금 내는 교습비. 직영 주 3회처럼 변경신고 중이면 등록액까지만 받아요 (B.feeNow, data.js).
+  function dataFee(s, st) { return B.feeNow(s, st.center, st.product); }
   function ensure(s) { s.ct06 = s.ct06 || {}; ['hist', 'log', 'att', 'mk', 'st', 'req', 'cons', 'moves'].forEach(k => { s.ct06[k] = s.ct06[k] || {}; }); s.ct05 = s.ct05 || { info: {} }; s.ct05.info = s.ct05.info || {}; s.ct07 = s.ct07 || { flow: {}, want: {} }; }
   function hist(s, st) {
     ensure(s);
@@ -233,7 +249,8 @@
     const date = info.test || (r ? '2027-' + r.at.slice(0, 5) : null);
     if (!date) return null;
     const paid = r && s.ct03 && s.ct03.fees ? s.ct03.fees[r.id] || null : null;
-    return { date, valid: addDays(date, 30) >= TODAY, res: r ? r.id : null, paid };
+    const c = cent(s, st.center), days = testDays(s, c);
+    return { date, valid: addDays(date, days) >= TODAY, res: r ? r.id : null, paid, max: testAmt(s, c), days };
   }
 
   // 반 이동 기록을 거꾸로 따라가서 그날 다니던 반을 찾아요
@@ -1045,7 +1062,7 @@
     const disc = floor10(base * rate);
     const ti = testInfo(s, st);
     // 테스트비를 실제로 낸 기록이 있을 때만 빼요. 낸 금액보다 많이 빼지 않아요.
-    const test = ti && ti.valid && ti.paid && ui.test !== false ? Math.min(TESTFEE, ti.paid.amount) : 0;
+    const test = ti && ti.valid && ti.paid && ui.test !== false ? Math.min(ti.max, ti.paid.amount) : 0;
     const book = ui.book !== false ? BOOK : 0;
     const total = Math.max(0, base - disc - test + book);
     return { row, fee, base, label, partial, frac, formula, method, ym: bym, start: pStart, period: pStart + ' ~ ' + md(bym + '-' + pad(dim(bym))), rate, disc, discLabel: rate ? ui.disc.replace(' ', ' 할인 ') : '', ti, test, book, total, cls: c };
@@ -1102,9 +1119,9 @@
     const ti = cl.ti;
     if (!ti) return '<span class="muted small">연결된 입학 테스트가 없어요</span>';
     if (ti.paid) {
-      const amt = Math.min(TESTFEE, ti.paid.amount);
+      const amt = Math.min(ti.max, ti.paid.amount);
       return chk('test', ui.test !== false && ti.valid, '-' + num(amt), dis || !ti.valid) + h.chip('(안)', 'st-안') +
-        '<span class="muted small">' + esc(md(ti.date) + ' 테스트비 ' + num(ti.paid.amount) + '원 수납, 30일 유효' + (ti.valid ? '' : ', 기간 지남')) + '</span>';
+        '<span class="muted small">' + esc(md(ti.date) + ' 테스트비 ' + num(ti.paid.amount) + '원 수납, ' + ti.days + '일 유효' + (ti.valid ? '' : ', 기간 지남')) + '</span>';
     }
     const why = eduOf(s).status === '등록 불필요' ? md(ti.date) + ' 테스트에는 테스트비를 낸 기록이 없어서 빼지 않아요.' : md(ti.date) + ' 테스트는 교육청 확인 전이라 무료였어요. 낸 테스트비가 없어서 빼지 않아요.';
     return '<b>0원</b><span class="muted small">' + esc(why) + '</span>';
@@ -1228,7 +1245,7 @@
       items: [
         { n: 1, t: '상품', d: '센터가 파는 상품만 나와요. 직영은 본사가 정한 값을, 가맹은 센터가 정한 교습비를 써요. 교육청 등록액을 넘거나 변경신고 중인 상품은 잠겨서 고를 수 없어요.', pol: ['POL-10', 'POL-11', 'POL-12'], ref: 'p.52 ①' },
         { n: 2, t: '시작·월중 처리', d: '월 단위로 매달 1일에 시작하는 것이 (안)이에요. 달 중간에 시작하면 일할, 다음 달부터, 회차 기준 가운데 정책에서 정한 방식으로 계산해요. 반은 정원이 남은 곳만 고를 수 있어요.', pol: ['POL-18', 'POL-19', 'POL-16'], ref: 'p.52 ②' },
-        { n: 3, t: '할인·차감', d: '할인은 센터가 정하고 사유를 꼭 남겨요. 입학 테스트비를 낸 아이가 테스트 후 30일 안에 등록하면 20,000원(안)을 빼 주고, 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
+        { n: 3, t: '할인·차감', d: '할인은 센터가 정하고 사유를 꼭 남겨요. 입학 테스트비를 낸 아이가 테스트 후 30일 안에 등록하면 20,000원(안)을 빼 줘요. 이 금액과 기간은 HQ-14에서 바꾼 값을 따라가요. 교재비 15,000원(예시) 같은 기타경비는 더해요.', pol: ['POL-13', 'POL-28', 'POL-14'], ref: 'p.52 ③' },
         { n: 4, t: '결제', d: '직영은 결제선생 링크로 결제하면 자동으로 기록돼요. 가맹은 센터 단말기로 결제한 뒤 승인번호를 적어요. 수납 수단은 센터가 켜 둔 것만 나와요.', pol: ['POL-36', 'POL-37'], ref: 'p.52 ④' },
         { n: 5, t: '영수증·계정 오픈', d: '영수증에는 학습자 이름, 과목, 교습 기간, 금액을 적어요. 학습 계정은 계정 오픈 정책에 따라 열려요. 지금 화면은 수납을 확인하면 바로 여는 (안)을 따라요.', pol: ['POL-23'], ref: 'p.52 ⑤' },
         { n: 6, t: '(안) 값 경고와 계산 근거 저장', kind: 'review', imp: 'IMP-10', d: '아직 정하지 않은 값으로 실제 돈을 받을 수 있었어요. 금액에 (안), 예시, 미정 값이 들어가면 목록으로 보여 주고, 슈퍼관리자의 임시 적용 승인 기록을 확인해야 수납돼요. 수납할 때 쓴 정책 값과 버전, 기준일(수강 시작일)을 거래와 함께 저장해요.' },

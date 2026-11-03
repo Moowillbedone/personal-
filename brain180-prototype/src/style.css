@@ -298,6 +298,9 @@ textarea.inp { min-height: 64px; resize: vertical; }
 }
 @media (max-width: 640px) {
   .tb { gap: 6px; }
+  .tb-group { flex-wrap: wrap; }
+  .tb-brand { white-space: normal; }
+  .tb-brand small { display: none; }
   .tb select { max-width: 150px; }
   .tour-bar { display: none; }
 }

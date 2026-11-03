@@ -74,7 +74,7 @@
     { id: 'hq:ops', side: 'hq', role: '운영', name: '홍길동', label: '본사 운영팀 홍길동' },
     { id: 'hq:fin', side: 'hq', role: '정산', name: '이수민', label: '본사 정산팀 이수민' },
     { id: 'hq:content', side: 'hq', role: '콘텐츠', name: '정다은', label: '본사 콘텐츠팀 정다은' },
-    { id: 'hq:sv', side: 'hq', role: 'SV', name: '최민호', label: '본사 SV 최민호' },
+    { id: 'hq:sv', side: 'hq', role: 'SV', name: '정유나', label: '본사 SV 정유나 (가맹 담당)' },
     { id: 'ct:daechi1:원장', side: 'ct', center: 'daechi1', role: '원장', name: '김지원', label: '대치1센터 원장 김지원' },
     { id: 'ct:daechi1:실장·데스크', side: 'ct', center: 'daechi1', role: '실장·데스크', name: '송하늘', label: '대치1센터 실장 송하늘' },
     { id: 'ct:daechi1:교사', side: 'ct', center: 'daechi1', role: '교사', name: '한결', label: '대치1센터 교사 한결' },
@@ -357,7 +357,7 @@
     const ds = B.state.mode === 'demo' ? B.demoSteps[B.state.step] : null;
     const later = ds && ds.phaseLabel ? !/^P1a/.test(ds.phaseLabel) : (ph !== 'P1a' || (c && c.type !== '직영'));
     const permText = { '●': '보고 고칠 수 있음', '◐': '일부만 고칠 수 있음', '○': '보기만 가능', '–': '메뉴 숨김' }[B.perm(def.id, p)] || '';
-    $('#viewMeta').innerHTML = '<span>지금 사람 <b>' + esc(p.label) + '</b>, 권한 <b>' + esc(permText) + '</b></span><span>화면 속 날짜 <b>' + (later ? '2027년 10월 (가맹 개시 뒤 예시)' : '2027-03-08 월요일 (직영 시범 예시)') + '</b></span><span>운영 환경 <b>' +
+    $('#viewMeta').innerHTML = '<span>지금 사람 <b>' + esc(p.label) + '</b>, 권한 <b>' + esc(permText) + '</b></span><span>화면 속 날짜 <b>' + esc(def.dateLabel || (later ? '2027년 10월 (가맹 개시 뒤 예시)' : '2027-03-08 월요일 (직영 시범 예시)')) + '</b></span><span>운영 환경 <b>' +
       esc(def.devices.map(x => ({ pc: 'PC 웹', tablet: '태블릿', mobile: '학부모 휴대폰', kiosk: '공용 태블릿' })[x]).join(', ')) + '</b></span>';
   }
 

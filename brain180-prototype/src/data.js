@@ -30,10 +30,11 @@
         { id: 'c4', center: 'daechi1', name: 'L3-화목B', level: 'L3', days: '화·목', time: '17:50~19:20', teacher: '서도윤', assistant: '', cap: 15, enrolled: 15, room: '2실' },
         { id: 'c5', center: 'daechi1', name: 'L1-금A', level: 'L1', days: '금', time: '16:00~17:30', teacher: '한결', assistant: '', cap: 15, enrolled: 9, room: '1실' },
       ],
+      // 직영 확정가와 등록액은 원문 52쪽 표와 같아요. 주 3회는 360,000원으로 바꾸는 변경신고 중이라 지금은 등록액 340,000원까지만 받아요.
       products: [
-        { id: 'pr1', name: '주 2회 · 90분', perWeek: 2, minutes: 90, recommend: 260000, direct: 260000, edu: { daechi1: 260000, mokdong: 260000, bundang: 260000, daegu: 300000, busan: 250000 }, centerPrice: { daegu: 290000, busan: 250000 } },
-        { id: 'pr2', name: '주 3회 · 90분', perWeek: 3, minutes: 90, recommend: 370000, direct: 370000, edu: { daechi1: 370000, mokdong: 370000, bundang: 370000, daegu: 400000, busan: 360000 }, centerPrice: { daegu: 380000, busan: 360000 } },
-        { id: 'pr3', name: '주 1회 · 90분', perWeek: 1, minutes: 90, recommend: 140000, direct: 140000, edu: { daechi1: 140000, mokdong: 140000, bundang: 140000, daegu: 150000, busan: 135000 }, centerPrice: { daegu: 150000, busan: 135000 } },
+        { id: 'pr1', name: '주 2회 · 90분', perWeek: 2, minutes: 90, recommend: 260000, direct: 260000, edu: { daechi1: 280000, mokdong: 280000, bundang: 280000, daegu: 300000, busan: 250000 }, centerPrice: { daegu: 290000, busan: 250000 } },
+        { id: 'pr2', name: '주 3회 · 90분', perWeek: 3, minutes: 90, recommend: 360000, direct: 360000, edu: { daechi1: 340000, mokdong: 340000, bundang: 340000, daegu: 400000, busan: 360000 }, centerPrice: { daegu: 380000, busan: 360000 } },
+        { id: 'pr3', name: '주 1회 · 90분', perWeek: 1, minutes: 90, recommend: 150000, direct: 150000, edu: { daechi1: 150000, mokdong: 150000, bundang: 150000, daegu: 150000, busan: 135000 }, centerPrice: { daegu: 150000, busan: 135000 } },
       ],
       extraFees: [{ id: 'ex1', name: '교재비 (월)', amount: 15000, eduRegistered: true }],
       students: [
@@ -116,6 +117,18 @@
       },
       ui: {},
     };
+  };
+  // 지금 실제로 청구하는 교습비. 직영은 HQ-10 확정가와 교육청 등록액 가운데 낮은 값이에요(변경신고가 수리되기 전에는 등록액까지만 받아요).
+  // 가맹은 센터가 정한 교습비, 없으면 본사 권장가예요. CT-06, CT-07, CT-08, PA-01이 같은 값을 쓰게 여기 한 곳에 둬요.
+  B.feeNow = function (s, centerId, pid) {
+    const p = (s.products || []).find(x => x.id === pid); if (!p) return 0;
+    const c = (s.centers || []).find(x => x.id === centerId) || {};
+    if (c.type !== '직영') return (p.centerPrice || {})[c.id] || p.recommend;
+    const k = 't_' + p.perWeek + '_' + p.minutes, H = s.hq10 || {};
+    const base = (H.vals && H.vals.base) || {}, fee = typeof base[k] === 'number' ? base[k] : p.direct;
+    const r = H.edu && H.edu[c.id] && H.edu[c.id][k];
+    const edu = r ? r.amt : (p.edu || {})[c.id];
+    return edu != null && edu < fee ? edu : fee;
   };
   // decisions from the review (부록 A 10가지 + 검토 의견)
   B.extend(s => {

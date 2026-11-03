@@ -1167,8 +1167,8 @@
   B.extend(s => {
     s.ct23 = {
       items: [
-        { id: 'sv1', date: '2027-07-02', item: '종사자 경력 조회', result: '보완', due: '2027-07-16', status: '보완 요청', sv: '최민호', memo: '경력 조회일이 없는 종사자가 있어요.', reply: null },
-        { id: 'sv2', date: '2027-07-02', item: '교습비 게시', result: '적합', due: '', status: '적합', sv: '최민호', memo: '', reply: null },
+        { id: 'sv1', date: '2027-07-02', item: '종사자 경력 조회', result: '보완', due: '2027-07-16', status: '보완 요청', sv: '정유나', memo: '경력 조회일이 없는 종사자가 있어요.', reply: null },
+        { id: 'sv2', date: '2027-07-02', item: '교습비 게시', result: '적합', due: '', status: '적합', sv: '정유나', memo: '', reply: null },
       ],
       files: {},
     };
@@ -1178,6 +1178,7 @@
 
   B.screen({
     id: 'CT-23', side: 'ct', phase: 'P2', devices: ['pc'], pages: [67],
+    dateLabel: '2027년 7월 (원문 점검 예시 날짜 그대로)',
     title: '운영 점검 결과 회신', menuLabel: '운영 점검', crumb: '본사 > 운영 점검',
     render(ctx) {
       const s = ctx.s, ui = ctx.ui, c = ctx.center, dis = !ctx.canEdit;

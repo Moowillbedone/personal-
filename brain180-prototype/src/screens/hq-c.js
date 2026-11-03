@@ -355,7 +355,7 @@
     const s0 = st(ctx, sid), c = CFG[sid];
     const pend = s0.pending.length ? '<div class="hqc-subh" style="margin-top:0">예약된 변경</div><div class="row" style="margin-bottom:10px">' + s0.pending.map(p => h.chip(p.date + ' 0시 · ' + c.label(p.key, p.k) + ' ' + c.fmt(p.key, p.to) + ' (' + scopeName(p.k) + ')', 'info')).join('') + '</div>' : '';
     const log = s0.log.length
-      ? '<div class="tl">' + s0.log.map(x => '<div><b>' + esc(x.at) + '</b> ' + esc(x.by) + ' · ' + esc(x.when === '즉시' ? '바로 적용' : x.when) + ' · 근거 ' + esc(x.reason) + ' · 영향 ' + x.n + '곳<div class="small muted">' + esc(x.items.join(', ')) + '</div></div>').join('') + '</div>'
+      ? '<div class="tl">' + s0.log.map(x => '<div><b>' + esc(x.at) + '</b> ' + esc(x.by) + ', ' + esc(x.when === '즉시' ? '바로 적용' : x.when) + ', 근거 ' + esc(x.reason) + ', 영향 ' + x.n + '곳<div class="small muted">' + esc(x.items.join(', ')) + '</div></div>').join('') + '</div>'
       : h.empty('아직 바꾼 기록이 없어요. 값을 고치고 변경 예약을 누르면 여기와 정책별 이력(HQ-08)에 함께 남아요.');
     return card({ title: '변경 이력', sub: '이 화면에서 바꾼 기록', body: pend + log });
   }
@@ -1188,7 +1188,7 @@
         ['수납 주체', rad(ctx, sid, 'p27_payer', ['센터', '본사'], R) + (get(ctx, sid, 'p27_payer') ? '' : '<span class="small muted">미정</span>')],
         ['테스트비 정가', inp(ctx, sid, 'p27_fee', { ro: R, w: 80 }) + ' 원 <span class="small muted">(안)</span>'],
         ['프로모션가', inp(ctx, sid, 'p27_promo', { ro: R, w: 80 }) + ' 원 <span class="small muted">(안)</span> 기간 ~ ' + inp(ctx, sid, 'p27_end', { ro: R, w: 100 })],
-        ['상담비', inp(ctx, sid, 'p27_consult', { ro: R, w: 80, ph: '미정' }) + ' 원 · ' + chk1(ctx, sid, 'p27_waive', '등록 시 면제', R)],
+        ['상담비', inp(ctx, sid, 'p27_consult', { ro: R, w: 80, ph: '미정' }) + ' 원, ' + chk1(ctx, sid, 'p27_waive', '등록 시 면제', R)],
         ['본사 과금', '<div data-pin="7" class="hqc-val hqc-tp">' + rad(ctx, sid, 'p27_hq', ['없음', '검사 1건당'], R) + inp(ctx, sid, 'p27_hq_amt', { ro: R || !hqPer, w: 64, ph: '금액' }) + ' 원' +
           (hqPer ? '<div style="flex-basis:100%" class="hqc-val">근거 ' + inp(ctx, sid, 'p27_hq_reason', { ro: R, w: 210, ph: '계약 조항, 동의서 번호' }) + '</div>' : '<span class="small muted">검사 1건당을 고르면 근거가 있어야 저장돼요</span>') + '</div>'],
       ]),
@@ -1196,7 +1196,7 @@
     const c3 = card({
       pin: 3, title: 'POL-28·29 등록 차감·재검사', chip: stChip('POL-28'),
       body: kvt([
-        ['등록 시 차감', inp(ctx, sid, 'p28_amt', { ro: R, w: 80 }) + ' 원 <span class="small muted">(안)</span> · 유효 ' + inp(ctx, sid, 'p28_days', { ro: R, w: 40 }) + '일'],
+        ['등록 시 차감', inp(ctx, sid, 'p28_amt', { ro: R, w: 80 }) + ' 원 <span class="small muted">(안)</span>, 유효 ' + inp(ctx, sid, 'p28_days', { ro: R, w: 40 }) + '일'],
         ['재검사 허용', inp(ctx, sid, 'p29_months', { ro: R, w: 40 }) + '개월 뒤부터 <span class="small muted">(예시)</span>'],
       ]),
     });
@@ -1324,7 +1324,7 @@
     prep(ctx, 'HQ-15');
     const sid = 'HQ-15', R = ro(ctx), ui = ctx.ui;
     const rows = [
-      prow('POL-34', '알림톡 과금', 1, '단가 ' + inp(ctx, sid, 'p34_price', { ro: R, w: 40 }) + '원 <span class="small muted">(안)</span> · ' + rad(ctx, sid, 'p34_mode', ['선불 충전', '월 후불', '본사 부담'], R) + ' · ' + chk1(ctx, sid, 'p34_refund', '해지 시 잔액 환불', R), '내부', '불가'),
+      prow('POL-34', '알림톡 과금', 1, '단가 ' + inp(ctx, sid, 'p34_price', { ro: R, w: 40 }) + '원 <span class="small muted">(안)</span>, ' + rad(ctx, sid, 'p34_mode', ['선불 충전', '월 후불', '본사 부담'], R) + ', ' + chk1(ctx, sid, 'p34_refund', '해지 시 잔액 환불', R), '내부', '불가'),
       prow('POL-35', '자동 발송 (정보성)', 2, chks(ctx, sid, 'p35', ['입실', '퇴실', '수납 안내', '미납', '재등록', '결과지'], R), '본사', '가능'),
       prow('POL-36', '결제 연동', 3, '직영 ' + sel(ctx, sid, 'p36_direct', ['결제선생'], { ro: R }) + ' · 가맹 ' + sel(ctx, sid, 'p36_fr', [{ v: '수기 기록', l: '수기 기록 (안)' }, { v: '가맹점 개별 결제선생', l: '가맹점 개별 결제선생 (답변 뒤 열림)', dis: true }], { ro: R }) + h.chip('결제선생 답변 대기', 'warn'), '결제선생', '불가'),
       prow('POL-37', '수납 수단', 0, chks(ctx, sid, 'p37', ['카드', '계좌', '현금', '지역화폐', '결제선생 링크'], R), '본사', '선택'),

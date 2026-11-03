@@ -29,6 +29,7 @@
 
   B.screen({
     id: 'IN-01', side: 'cm', phase: 'P1a', devices: ['pc', 'tablet'], pages: [1, 4, 5, 6], chrome: 'none',
+    dateLabel: '날짜와 상관없는 안내 화면',
     title: '처음 보는 분을 위한 안내', channelText: '이 프로토타입 안내',
     render(ctx) {
       const R = B.REVIEW, bp = R.bigPicture || {};
