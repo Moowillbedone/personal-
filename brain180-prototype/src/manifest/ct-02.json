@@ -1,0 +1,10 @@
+{ "screens": [ { "id": "CT-02", "tabs": [], "pins": [1,2,3,4,5,6,7,8], "review_pins": [5,6,7,8],
+  "actions": [
+    { "name": "CT02.newForm", "arg": "없음", "does": "새 예약 등록 폼을 연다" },
+    { "name": "CT02.save", "arg": "{f_name:'윤시온', f_grade:'초4', f_phone:'010-4420-2210', f_kind:'입학 테스트', f_at:'03-09 16:00', f_route:'전화', f_notice:true}", "does": "예약을 저장한다. 같은 시간 겹침과 개인정보 안내 체크를 검사한다" },
+    { "name": "CT02.select", "arg": "예약 id (r1~r4 또는 새 id)", "does": "목록에서 예약을 고른다" },
+    { "name": "CT02.done", "arg": "예약 id", "does": "예약을 완료로 바꾼다" },
+    { "name": "CT02.result", "arg": "'등록' | '보류' | '미등록'", "does": "고른 예약에 결과를 붙인다" },
+    { "name": "CT02.toRegister", "arg": "예약 id", "does": "CT-05로 이름, 학년, 연락처를 넘기고 이동한다" }
+  ],
+  "reads": "없음", "demo_hint": "신규 원생 장의 첫 장면. r1(윤*온 03-08 11:00 입학 테스트)을 골라 완료, 등록 결과를 붙이고 CT-05로 넘긴다" } ] }
