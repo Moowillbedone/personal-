@@ -18,7 +18,7 @@ TITLE = '브레인180 관리자 프로토타입'
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">')
 
-ORDER = ['core.js', 'ui.js', 'data-gen.js', 'data.js', 'overview.js']
+ORDER = ['core.js', 'ui.js', 'data-gen.js', 'data.js', 'overview.js', 'intro.js']
 
 
 def read(p):

@@ -34,6 +34,8 @@
       return '<li><span class="chip ' + (i.priority === 'P0' ? 'brand' : i.priority === 'P1' ? 'info' : 'p2') + '">' + esc(i.priority) + '</span> <b>' + esc(i.id) + '</b> ' + esc(i.title) +
         '<br><span class="small">' + (where.length ? '반영 화면 ' + where.map(link).join(', ') : '<span class="muted">화면이 아니라 문서나 운영으로 풀어야 해요</span>') + '</span></li>';
     }).join('') + '</ul></div>';
+    const cats = {}; (B.GLOSSARY || []).forEach(t => { (cats[t.category] = cats[t.category] || []).push(t); });
+    h += '<div class="prd-sec"><h5>용어 풀이 (' + (B.GLOSSARY || []).length + '개)</h5>' + Object.keys(cats).map(c => '<p><b>' + esc(c) + '</b></p><ul>' + cats[c].map(t => '<li><b>' + esc(t.term) + '</b> ' + esc(t.easy) + '</li>').join('') + '</ul>').join('') + '</div>';
     if (B.chapters.length) h += '<div class="prd-sec"><h5>데모 가이드 구성</h5><ul>' + B.chapters.map(c => '<li><b>' + esc(c.title) + '</b> ' + esc(c.desc || '') + '</li>').join('') + '</ul></div>';
     return h;
   };

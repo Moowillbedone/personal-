@@ -61,7 +61,7 @@
     'CT-01': 'dash', 'CT-02': 'consult', 'CT-03': 'consult', 'CT-04': 'student', 'CT-05': 'student', 'CT-06': 'student',
     'CT-07': 'pay', 'CT-08': 'pay', 'CT-09': 'pay', 'CT-10': 'refund', 'CT-11': 'cls', 'CT-12': 'attend', 'CT-13': 'learn', 'CT-14': 'alim',
     'CT-15': 'hq', 'CT-16': 'hq', 'CT-17': 'notice', 'CT-18': 'setting', 'CT-19': 'setting', 'CT-20': 'staff',
-    'CT-21': 'stats', 'CT-22': 'waitlist', 'CT-23': 'svreply', 'CT-24': 'privacy', 'CM-02': 'common', 'CM-03': 'common', 'KS-01': 'field', 'PA-01': 'field', 'CM-01': 'common',
+    'CT-21': 'stats', 'CT-22': 'waitlist', 'CT-23': 'svreply', 'CT-24': 'privacy', 'CM-02': 'common', 'CM-03': 'common', 'KS-01': 'field', 'PA-01': 'field', 'CM-01': 'common', 'IN-01': 'common',
   };
   B.perm = function (screenId, persona) {
     persona = persona || B.persona();
@@ -442,6 +442,7 @@
     $('#deviceSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; B.state.device = b.getAttribute('data-device'); B.render(); });
     $('#modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) B.setMode(b.getAttribute('data-mode')); });
     $('#pinBtn').addEventListener('click', () => { B.state.pins = !B.state.pins; B.render(); });
+    $('#introBtn').addEventListener('click', () => { B.state.mode = 'free'; B.state.focusPins = []; B.go('IN-01'); });
     $('#prevBtn').addEventListener('click', B.demoPrev);
     $('#nextBtn').addEventListener('click', B.demoNext);
     $('#app').addEventListener('click', onAppClick);
@@ -465,6 +466,6 @@
       if (d.side === 'ct' || d.side === 'ks' || d.side === 'pa') B.state.persona = 'ct:daechi1:원장';
       B.go(hash); return;
     }
-    B.go('HQ-01');
+    B.go('IN-01');
   };
 })();
