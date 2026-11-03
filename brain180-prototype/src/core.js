@@ -119,6 +119,7 @@
   B.go = function (id, opts) {
     opts = opts || {};
     if (!B.screens[id]) { B.toast('아직 준비 중인 화면이에요 (' + id + ')'); return; }
+    if (id !== B.state.screenId) B.closeModal();
     if (opts.persona) B.state.persona = opts.persona;
     const def = B.screens[id];
     B.state.screenId = id;
@@ -176,7 +177,9 @@
       console.error(err);
       html = '<div class="solo" style="padding:24px"><div class="alert bad"><b>화면 오류</b>' + esc(def.id + ': ' + err.message) + '</div></div>';
     }
+    const keep = Array.prototype.slice.call(app.children).filter(el => el.classList.contains('toast') || el.classList.contains('modal-back'));
     app.innerHTML = html;
+    keep.forEach(el => app.appendChild(el));
     try { if (def.mount && B.perm(def.id) !== '–') def.mount(app, ctx); } catch (err) { console.error(err); }
     decoratePins(def, ctx);
     renderPRD(def, ctx);

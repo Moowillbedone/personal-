@@ -1,0 +1,302 @@
+{
+ "screens": [
+  {
+   "id": "CT-13",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    5,
+    6,
+    7
+   ],
+   "actions": [
+    {
+     "name": "CT13.cls",
+     "arg": "반 id (예 'c4' L3-화목B, 'c3' L2-화목A)",
+     "does": "표에 보일 반을 고른다. 기본은 그 센터의 첫 L3 반(대치1 c4 L3-화목B)"
+    },
+    {
+     "name": "CT13.period",
+     "arg": "'3월' | '2월'",
+     "does": "기간을 바꾼다. 2월이면 2월 전에 등록한 원생만 점수가 나온다"
+    },
+    {
+     "name": "CT13.method",
+     "arg": "'자동' | '재테스트' | '원장 승인'",
+     "does": "승급 방식(POL-33 미정) 미리 보기. ctx.ui.method에 저장하고 처리 칸 버튼이 바뀐다"
+    },
+    {
+     "name": "CT13.approve",
+     "arg": "학생 id (기본 's11' 오지호)",
+     "does": "승급 확인 패널을 연다 (레벨, 콘텐츠 레벨, 옮겨 갈 반, 적용일, 보호자 알림)"
+    },
+    {
+     "name": "CT13.confirm",
+     "arg": "학생 id 또는 {student:'s11', when:'바로'|'2027-04-01', notify:true}",
+     "does": "원장만 가능. 레벨을 L3에서 L4로 바꾸고(when '바로'일 때) promo.status='승인'. 반은 옮기지 않는다"
+    },
+    {
+     "name": "CT13.toMove",
+     "arg": "학생 id",
+     "does": "s.ui['CT-06'] = {student, from:'CT-13', moveLevel:'L4'} 를 넘기고 CT-06으로 이동"
+    },
+    {
+     "name": "CT13.rt",
+     "arg": "학생 id",
+     "does": "재테스트 카드 대상 바꾸기 (기본 s1 윤서아)"
+    },
+    {
+     "name": "CT13.book",
+     "arg": "학생 id",
+     "does": "가능일이 지났으면 s.reservations에 재테스트 예약을 넣는다. 지금 예시는 모두 가능일 전이라 막힌다"
+    },
+    {
+     "name": "CT13.reqForm",
+     "arg": "없음",
+     "does": "레벨 조정 요청 폼을 연다"
+    },
+    {
+     "name": "CT13.req",
+     "arg": "{student:'s1', to:'L3', reason:'입학 테스트 날 컨디션 문제, 4주 관찰 결과 L3 수준'}",
+     "does": "사유 5자 미만이면 오류 문구. 통과하면 s.ct13.requests에 '본사 검토 중'으로 쌓는다"
+    },
+    {
+     "name": "CT13.sync",
+     "arg": "없음 또는 'fail'",
+     "does": "학습 결과 다시 받기. 'fail'이면 연동 오류 상태(빨간 경고)를 보여 준다"
+    },
+    {
+     "name": "CT13.excel",
+     "arg": "없음(모달) 또는 사유 문자열 '학부모 상담 자료'",
+     "does": "사유를 받아 s.audit에 엑셀 다운로드 기록을 남긴다"
+    },
+    {
+     "name": "CT13.applyRt",
+     "arg": "학생 id (s.ui['CT-13'].student와 같은 원생)",
+     "does": "원장만. CT-03에서 넘어온 재테스트 결과 레벨(s.ui['CT-13'].level)로 레벨을 바꾸고 승급 대상 표에 '승인, 반 이동' 줄을 만든다. 반은 옮기지 않는다"
+    }
+   ],
+   "reads": "s.students, s.classes(대치1), POL-29 값(숫자 '개월'이 있으면 그 값, 없으면 6개월 예시). CT-03이 넘기는 s.ui['CT-13'] = {student, cls, level, from}를 받으면 그 반을 고르고 재테스트 칸에 그 원생과 결과 레벨을 보여 준다(결과 레벨로 바꾸기 버튼). 새 키 s.ct13 { scores, promo, tests, requests, log, method, syncState }",
+   "demo_hint": "대치1 원장 김지원. 오지호(오*호) 승급 승인, L4 확정, 반 이동 대기 확인 후 CT13.toMove로 CT-06. 윤서아(윤*아)는 재테스트 가능일 2027-07-04 전이라 예약이 잠긴 장면, 레벨 조정 요청 장면에 쓴다"
+  },
+  {
+   "id": "CT-14",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "review_pins": [
+    6,
+    7,
+    8
+   ],
+   "actions": [
+    {
+     "name": "CT14.confirm",
+     "arg": "없음",
+     "does": "보내기 확인 모달(대상 수, 예상 비용, 취소 불가 안내, 'N명에게 보내기')을 연다"
+    },
+    {
+     "name": "CT14.send",
+     "arg": "{tpl:'T05', grp:'g1'} (부산, 원문 장면) 또는 {tpl:'T03', grp:'c3'} (대치1)",
+     "does": "승인 템플릿만 보낸다. 가맹은 잔액을 확인하고 성공 건 비용만 s.alim.balances[센터]에서 뺀다. s.alim.log 맨 앞에 {center, at, tpl:'T05', n, ok, fail, reason, cost} 를 넣는다 (hq-d.js HQ-18과 같은 모양)"
+    },
+    {
+     "name": "CT14.auto",
+     "arg": "'입실'|'퇴실'|'수납'|'미납'|'재등록'|'결과지' 또는 {key, on}",
+     "does": "s.alim.auto[key]를 켜고 끈다. 그 템플릿이 승인 전(심사 중, 반려)이면 막는다. 전체 빌드에서는 hq-d.js가 T04 심사 중, T06 반려로 바꿔서 미납, 결과지 줄이 잠긴다"
+    },
+    {
+     "name": "CT14.topupForm",
+     "arg": "없음",
+     "does": "충전 요청 폼을 연다 (직영은 막힘)"
+    },
+    {
+     "name": "CT14.topup",
+     "arg": "{amount:50000} 또는 50000",
+     "does": "1만 원 단위 검사 후 s.alim.topups 맨 앞에 {center, amount, status:'입금 대기', at}를 넣는다. HQ-18이 충전 완료로 바꾸면 된다"
+    },
+    {
+     "name": "CT14.fix",
+     "arg": "없음",
+     "does": "그 센터 재원생 한 명을 s.ui['CT-06'].student로 넘기고 CT-06으로 이동"
+    }
+   ],
+   "reads": "s.alim(templates, auto, balances, topups, log). 새 키 s.ct14 { avg7(예시 7일 평균), warnDays 3, safeLimit 5000, groups }. 발송 내역은 묶음 행 {n, ok, fail, cost} 과 키오스크(cm-ks-pa.js)가 남기는 한 건 행 {student, name, status} 를 같이 보여 준다. 부산, 대치1 예시 2줄씩 넣는다 (같은 at+tpl이면 hq-d.js가 다시 넣지 않음). 교사(◐)는 보내기만 되고 자동 발송 켜기와 충전 요청은 막힌다",
+   "demo_hint": "원문 장면은 부산해운대 원장 최하은(ct:busan:원장). 전체 빌드에서 잔액 3,120원 약 2일분 경고, 기본 템플릿 T05, L2-화목A 보호자 12명, 12건 × 7원 = 84원. CT14.topup {amount:30000} 다음 HQ-18에서 HQ18.topup('busan')(hq:ops)을 부르면 충전 완료와 잔액 증가가 이어진다. 직영 대치1에서는 잔액 대신 내부 비용 안내가 나온다"
+  },
+  {
+   "id": "CT-15",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "review_pins": [
+    6,
+    7,
+    8
+   ],
+   "actions": [
+    {
+     "name": "CT15.dForm",
+     "arg": "없음",
+     "does": "이의 신청 폼을 연다. 확인 대기이고 처리 중인 이의가 없을 때만"
+    },
+    {
+     "name": "CT15.dispute",
+     "arg": "{row:'r1'(원생 줄 번호, 숫자 1도 됨) | 'l2'(청구서 줄 번호) | 'all', reason:'퇴원일이 달라요', amount:20000, memo:'9월 18일 퇴원했는데 25일까지 계정이 켜져 있었어요', file:true}. row를 빼면 이미 정산한 교재 줄이 있으면 그 줄, 없으면 첫 원생 줄",
+     "does": "금액, 내용(5자 이상) 검사 후 inv.dispute = {kind, reason(HQ-16 disputeText가 읽는 문장), row, amount, memo, file, at, by, status:'접수', due}. inv.status는 '확인 대기' 그대로 둔다(hq-d.js 흐름과 같음). 이의 금액만 납부를 미룬다"
+    },
+    {
+     "name": "CT15.confirm",
+     "arg": "없음",
+     "does": "원장만(실장·데스크는 이의 신청까지). inv.status='확인 완료'. 본사가 HQ16.confirm으로 '확정'하면 거래원장에 청구서 줄이 적히고 세금계산서 버튼이 열린다"
+    },
+    {
+     "name": "CT15.tax",
+     "arg": "없음",
+     "does": "'확정', '입금 완료', '연체' 청구서만 세금계산서 내려받기"
+    }
+   ],
+   "reads": "s.invoices(센터의 가장 최근 달)와 inv.lines로 합계. 상태 흐름은 hq-d.js와 같다: 초안(발행 전 안내), 확인 대기(D-n), 확인 완료, 확정, 입금 완료, 연체. 처리 중인 이의는 inv.dispute.status가 완료, 처리, 반영, 넘김이 아닐 때. 직영 계정은 대구수성 청구서 미리 보기(버튼 잠김). 새 키 s.ct15 { date:'2027-10-06', rows(원생별 근거, HQ-17과 같은 4명 + 60명), ledger(주문 아닌 줄과 08-10 정산 끝 표시), account }. 거래원장의 교재 주문 줄은 s.orders에서 바로 만든다. 거래원장에는 s.alim.topups(CT-14 충전 요청, HQ-18 입금 확인)도 보인다. 입금 대기는 '입금 대기', 충전 완료는 '알림톡 충전' 줄",
+   "demo_hint": "대구수성 원장 오세린(ct:daegu:원장). 전체 빌드 처음에는 초안(발행 전). HQ16.issue 뒤 확인 기간 D-2이고, 08-10 교재 대금 126,000원 줄에 이미 정산했다는 빨간 경고가 뜬다. CT15.dispute로 그 줄 이의, 또는 HQ16.fixRoute로 본사가 먼저 고친 뒤 CT15.confirm, HQ16.confirm 순서로 거래원장 기록과 세금계산서까지 이어진다"
+  },
+  {
+   "id": "CT-16",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    5,
+    6,
+    7
+   ],
+   "actions": [
+    {
+     "name": "CT16.submit",
+     "arg": "없음",
+     "does": "수량 검사 후 주문 확인 모달을 연다"
+    },
+    {
+     "name": "CT16.order",
+     "arg": "없음 또는 {q_wbL2:24, q_wbL3:21, q_kit3:0, q_flyer:2}",
+     "does": "수량 검사(숫자 아님, 전부 0이면 오류) 후 s.orders에 {id:'#0713'..., center, item, qty, amount(직영 0), status:'접수', date, orderDate, ship(그 주 금)} 추가. CT-15 거래원장은 s.orders에서 줄을 만들므로 따로 쓰지 않는다"
+    },
+    {
+     "name": "CT16.cancel",
+     "arg": "주문 id ('#0713')",
+     "does": "접수 상태이고 이번 주 마감(수 18:00, 예시) 전인 주문을 '취소'로. 거래원장 줄도 함께 빠진다"
+    },
+    {
+     "name": "CT16.ret",
+     "arg": "주문 id 또는 {id:'#0705', reason:'파손'|'잘못 인쇄'}",
+     "does": "배송 완료 주문을 반품 요청으로 바꾼다"
+    },
+    {
+     "name": "CT16.auto",
+     "arg": "없음",
+     "does": "정기 주문 켜고 끄기 (s.ct16.auto[센터]). 원장만"
+    },
+    {
+     "name": "CT16.cart",
+     "arg": "없음",
+     "does": "장바구니 모달"
+    }
+   ],
+   "reads": "s.classes로 레벨별 재원 수(대치1), 없으면 s.ct16.dist (대구 L2 24, L3 21 원문 값). '대기' 원생은 등록 대기로 권장 수량에 더한다. s.orders에 대구 #0712(L1~L4 워크북 10월 1주, 113,400, 제작, date 10-08, orderDate 09-29)를 넣는다(id+center가 같으면 넣지 않음, hq-d.js도 같은 규칙). 청구 칸은 그 주문이 들어간 청구서를 inv.lines의 order나 주문 번호로 찾고, 없으면 출고한 달 청구서 예정",
+   "demo_hint": "대구수성 원장. 기본 수량(L2 24, L3 21, 전단 2)으로 주문하면 합계 105,000원(필수 81,000 + 권장 24,000), 10-08(금) 출고, 10월 청구서. 이어서 CT-15 거래원장에 줄이 생긴 장면을 보여 준다"
+  },
+  {
+   "id": "CT-17",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "review_pins": [
+    6,
+    7,
+    8
+   ],
+   "actions": [
+    {
+     "name": "CT17.tab",
+     "arg": "'notice'|'files'|'qna'|'docs'|'views'",
+     "does": "위쪽 탭. 고른 칸을 넓게 펼치고 나머지는 아래 작은 카드로 둔다"
+    },
+    {
+     "name": "CT17.read",
+     "arg": "공지 id ('n-ct17-1' 4월 재등록 안내 문구 변경. ct-a.js는 CT-17이 있으면 같은 공지를 넣지 않음)",
+     "does": "필독 공지 확인. notice.read[센터]=true, s.ct17.readBy에 사람과 날짜"
+    },
+    {
+     "name": "CT17.new",
+     "arg": "없음",
+     "does": "1:1 문의 탭과 새 문의 폼을 연다"
+    },
+    {
+     "name": "CT17.ask",
+     "arg": "{cat:'정산', title:'3월 청구 금액 문의', body:'s3 원생 미수 처리 기준이 궁금해요'}",
+     "does": "제목, 내용 필수. 전화번호가 있으면 막는다. s.inquiries에 {id, no:'#1032', center, cat, title, body, status:'접수', date} 추가"
+    },
+    {
+     "name": "CT17.qopen",
+     "arg": "문의 id ('q1027')",
+     "does": "문의 내용과 본사 답변을 펼친다"
+    },
+    {
+     "name": "CT17.upload",
+     "arg": "서류 id ('d1')",
+     "does": "서류 상태를 '검토 중'으로"
+    },
+    {
+     "name": "CT17.vopen",
+     "arg": "열람 기록 id ('v1')",
+     "does": "시작, 끝, 본 화면, 한 일을 펼친다"
+    },
+    {
+     "name": "CT17.edit",
+     "arg": "'ok' | 'no'",
+     "does": "원장만. 본사 편집 요청(P1b)을 승인 또는 거절"
+    }
+   ],
+   "reads": "s.notices(+ 이 파일이 '4월 재등록 안내 문구 변경', 'L3 워크북 개정 사항' 두 줄을 제목 기준으로 추가), s.inquiries(+ #1031, #1027), s.staff(경력 조회일 수), s.audit(대상이 센터 이름으로 시작하고 '지원 모드', '마스킹 해제', '열람'이 들어간 줄을 열람 기록에 보탠다). 새 키 s.ct17 { bodies, readBy, files, dl, docs, views, editReq }",
+   "demo_hint": "대치1 원장. 필독 공지 확인하기, 문의하기에서 전화번호를 넣어 막히는 장면, 경력 조회 5명 중 4명 완료(문채원 미조회)에서 CT-20으로 이동, 본사 편집 요청 승인"
+  }
+ ]
+}

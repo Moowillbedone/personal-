@@ -1,0 +1,483 @@
+{
+  "screens": [
+    {
+      "id": "HQ-16",
+      "tabs": [
+        "a",
+        "b"
+      ],
+      "tab_labels": {
+        "a": "청구서 (1/2 월 마감·청구, P1b, p.35)",
+        "b": "직영 수납 대사 (2/2, P1a, p.36)"
+      },
+      "persona": "hq:fin (정산 이수민) 또는 hq:super. hq:ops는 보기만 해서 저장 동작이 막혀요",
+      "pins": {
+        "a": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "b": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "review_pins": {
+        "a": [
+          7,
+          8,
+          9
+        ],
+        "b": [
+          5,
+          6
+        ]
+      },
+      "review_imps": {
+        "a": [
+          "IMP-22",
+          "IMP-26",
+          "IMP-27"
+        ],
+        "b": [
+          "IMP-13"
+        ]
+      },
+      "actions": [
+        {
+          "name": "HQ16.request",
+          "arg": "없음",
+          "does": "대사 불일치 2건을 센터에 확인 요청한다 (탭 a)"
+        },
+        {
+          "name": "HQ16.resolve",
+          "arg": "'m1|stop' 또는 {id:'m2', how:'exclude'|'keep'}. m1 대구수성 이*호(금액 영향 없음), m2 부산해운대 김*아(금액 영향 있음)",
+          "does": "불일치를 처리한다. m2 exclude면 부산 과금 계정 41에서 40, 사용료 738,000에서 720,000으로 바뀌고 발행된 청구서는 재발행 대기가 된다"
+        },
+        {
+          "name": "HQ16.fixRoute",
+          "arg": "없음",
+          "does": "IMP-26 청구 경로 검사 반영. 부산 알림톡 후불 12,400을 빼고, 대구 교재 126,000(8/15 입금분)을 주문 #0705 98,000으로 바꾼다. 청구 예정액 2,200,400에서 2,160,000"
+        },
+        {
+          "name": "HQ16.issue",
+          "arg": "'inv-daegu-09'",
+          "does": "초안을 발행해 센터 확인 대기로 바꾼다(issued 2027-10-05, 기한 10-08). 금액 영향 불일치가 남은 센터는 발행 버튼이 잠기고, 동작으로 불러도 막는다"
+        },
+        {
+          "name": "HQ16.dispute",
+          "arg": "{inv:'inv-daegu-09', reason:'이*호 9/18 퇴원생 사용료 이의'}",
+          "does": "CT-15가 없을 때 센터 이의 신청을 흉내 낸다. inv.dispute = {reason, at:'10-07', status:'접수', by}. 탭 a 9번 카드에 접수일, 상태, 답변 기한(10-09 예시)이 보인다"
+        },
+        {
+          "name": "HQ16.centerOk",
+          "arg": "'inv-busan-09' 또는 'inv-daegu-09'",
+          "does": "센터 확인 완료로 바꾼다(status '확인 완료'). 이의가 열려 있으면 막는다"
+        },
+        {
+          "name": "HQ16.carry",
+          "arg": "'inv-daegu-09'",
+          "does": "IMP-27 반영. 열린 이의를 다음 달 조정으로 넘기고 바로 확정한다"
+        },
+        {
+          "name": "HQ16.confirm",
+          "arg": "'inv-busan-09'",
+          "does": "확인 완료 청구서를 확정한다. 금액 영향 불일치가 남으면 버튼이 잠기고, 이의가 남아도 막는다. 확정하면 HQ-17 원장에 청구서가 적힌다"
+        },
+        {
+          "name": "HQ16.tax",
+          "arg": "청구서 id",
+          "does": "확정한 청구서의 세금계산서를 발행 완료로 바꾼다"
+        },
+        {
+          "name": "HQ16.paid",
+          "arg": "청구서 id",
+          "does": "입금 완료로 바꾸고 paid=합계, HQ-17 원장에 10-15 입금 줄을 더한다"
+        },
+        {
+          "name": "HQ16.overdue",
+          "arg": "청구서 id (확정 상태)",
+          "does": "연체 1단계를 적용한다 (POL-05 미정)"
+        },
+        {
+          "name": "HQ16.open",
+          "arg": "청구서 id",
+          "does": "s.ui['HQ-17'].invoice에 넣고 HQ-17로 이동한다"
+        },
+        {
+          "name": "HQ16.month",
+          "arg": "'2027-09' | '2027-03'",
+          "does": "탭 b 대상 월. 2027-03은 s.payments(CT-07 수납 기록) 중 직영 수납으로 표를 만든다"
+        },
+        {
+          "name": "HQ16.van",
+          "arg": "'d2' (또는 3월 행 id)",
+          "does": "IMP-13. 현장 카드 수납을 VAN 매출과 맞춘 표시를 남긴다"
+        },
+        {
+          "name": "HQ16.fix",
+          "arg": "{row:'d2', act:'현장 수납 확인', memo:'현장 카드 결제 후 결제선생 미연동'} / {row:'d4', act:'차액 환불 (CT-10)', memo:'형제 할인 미반영'} / 3월 {row:'pay5', act:'현장 수납 확인', memo:'현금 시재와 맞음', rcpt:'123456789'}",
+          "does": "불일치 처리 완료. 메모 필수, 현장 수납에 결제 재요청이면 오류, 단말기는 VAN 확인 필요, 10만 원 이상 현금·이체는 현금영수증 번호 필요"
+        },
+        {
+          "name": "HQ16.settle",
+          "arg": "없음",
+          "does": "IMP-13. 결제선생 정산 내역을 올려 차이 660,000을 정산 대기 260,000과 수수료 400,000(예시)으로 나눈다. d3 입금 지연은 정산 대기로 바뀐다"
+        },
+        {
+          "name": "HQ16.report",
+          "arg": "없음",
+          "does": "남은 불일치가 0이면 직영 매출 보고에 반영한다"
+        },
+        {
+          "name": "HQ16.loadPg",
+          "arg": "없음",
+          "does": "결제선생 내역 불러오기 (토스트만)"
+        }
+      ],
+      "reads": "탭 a는 s.invoices(2027-09 가맹), s.hq16, s.alim.balances(선불 여부), s.orders(9월 출고 주문), s.hq17.ledger, inv.dispute(CT-15가 넣는 값, 문자열이나 {reason|text|memo, status} 모두 읽음). 탭 b 3월은 s.payments",
+      "demo_hint": "P1b 가맹 월 마감 장. 탭 a를 hq:fin으로 연다. 첫 화면은 원문처럼 ② 대사 (불일치 2)에서 멈춰 있다. 순서 예시 request, resolve 'm1|stop', fixRoute, issue 'inv-daegu-09', (CT-15에서 대구 이의 신청 또는 HQ16.dispute), carry 'inv-daegu-09', resolve {id:'m2',how:'exclude'}, centerOk 'inv-busan-09', confirm 'inv-busan-09', tax, paid. P1a 직영 장에서는 탭 b로 van 'd2', fix d2 현장 수납 확인, settle, fix d4 차액 환불, report. CT-07 수납 다음에 보여 줄 때는 HQ16.month '2027-03'"
+    },
+    {
+      "id": "HQ-17",
+      "tabs": [],
+      "persona": "hq:fin 또는 hq:super",
+      "pins": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "review_pins": [
+        6,
+        7,
+        8
+      ],
+      "review_imps": [
+        "IMP-27",
+        "IMP-23",
+        "IMP-26"
+      ],
+      "actions": [
+        {
+          "name": "HQ17.pick",
+          "arg": "'inv-daegu-09' | 'inv-busan-09'",
+          "does": "볼 청구서를 고른다"
+        },
+        {
+          "name": "HQ17.adjForm",
+          "arg": "없음 또는 항목 이름 ('이의 반영')",
+          "does": "조정 추가 폼을 연다. 항목을 넘기면 그 항목으로 연다"
+        },
+        {
+          "name": "HQ17.adjSave",
+          "arg": "{invoice:'inv-daegu-09', item:'시스템 장애 보상'|'이의 반영'|'오류 정정'|'기타', amount:-10000, reason:'9/20 결과지 오류 정정', hours:2 (장애 보상일 때 필수), approver:'정산팀장'|'정본부'}",
+          "does": "조정 줄을 청구서에 더한다. 금액, 사유가 없거나 장애 보상인데 장애 시간이 없으면 오류(IMP-27). 이의 반영은 열린 이의가 있을 때만. 발행된 청구서면 재발행 대기, 세금계산서 발행 뒤면 수정세금계산서 대기. 열린 이의는 조정 저장으로 닫힌다"
+        },
+        {
+          "name": "HQ17.vat",
+          "arg": "'미정' | '전부 과세' | '교재 면세'",
+          "does": "IMP-23. 공급가액, 부가세, 납부할 금액을 나눠 보여 준다 (예시 계산)"
+        },
+        {
+          "name": "HQ17.reissue",
+          "arg": "없음",
+          "does": "발행된 청구서를 바뀐 금액으로 다시 보낸다. 초안이면 버튼이 잠겨 있다"
+        },
+        {
+          "name": "HQ17.taxFix",
+          "arg": "없음",
+          "does": "수정세금계산서를 발행한다 (확정 뒤 조정이 있을 때)"
+        }
+      ],
+      "reads": "s.ui['HQ-17'].invoice (청구서 id). 없으면 inv-daegu-09",
+      "demo_hint": "HQ-16 표의 가맹 줄을 누르거나 HQ16.open으로 들어온다. 이의가 들어온 뒤 HQ17.adjForm '이의 반영'으로 폼을 열고 adjSave로 -20,000이나 -10,000을 넣는 장면, 확정 전 청구서가 원장에 흐리게 보이는 장면(⑧)에 쓰면 좋다"
+    },
+    {
+      "id": "HQ-18",
+      "tabs": [
+        "tpl",
+        "bal",
+        "stat"
+      ],
+      "tab_labels": {
+        "tpl": "템플릿",
+        "bal": "센터별 잔액·충전",
+        "stat": "발송 통계"
+      },
+      "persona": "hq:ops (운영 홍길동) 또는 hq:super. 정산은 보기만",
+      "pins": {
+        "tpl": [
+          1,
+          2,
+          3,
+          7
+        ],
+        "bal": [
+          4,
+          6,
+          8
+        ],
+        "stat": [
+          5
+        ]
+      },
+      "review_pins": {
+        "tpl": [
+          7
+        ],
+        "bal": [
+          8
+        ]
+      },
+      "review_imps": [
+        "IMP-06",
+        "IMP-26"
+      ],
+      "actions": [
+        {
+          "name": "HQ18.pick",
+          "arg": "'T01'~'T06'",
+          "does": "미리보기 템플릿을 고른다"
+        },
+        {
+          "name": "HQ18.center",
+          "arg": "센터 id",
+          "does": "미리보기 발신 센터 이름을 바꾼다"
+        },
+        {
+          "name": "HQ18.newForm",
+          "arg": "없음",
+          "does": "템플릿 등록 폼을 연다 (탭 tpl)"
+        },
+        {
+          "name": "HQ18.save",
+          "arg": "{name:'보강 일정 안내', body:'#{학생명} 학생의 보강은 #{시각}이에요.', vars:'학생명·시각'}",
+          "does": "T07로 심사 중 등록. 본문에 할인, 이벤트 같은 광고 문구가 있으면 오류"
+        },
+        {
+          "name": "HQ18.review",
+          "arg": "'T04'",
+          "does": "심사 결과 승인을 받는다. 묶인 센터 기능(CT-08 미수 안내) 잠금이 풀린다"
+        },
+        {
+          "name": "HQ18.resubmit",
+          "arg": "'T06'",
+          "does": "반려 템플릿을 고쳐 다시 심사 중으로 올린다"
+        },
+        {
+          "name": "HQ18.topup",
+          "arg": "'busan'",
+          "does": "입금 대기 충전 50,000을 확인해 잔액 3,120에서 53,120으로. HQ-17 부산 원장에 알림톡 충전 줄을 더한다"
+        },
+        {
+          "name": "HQ18.threshold",
+          "arg": "숫자 (예 50000)",
+          "does": "IMP-26. 부족 경고 기준을 적용한다. 비우면 이번 달 사용액 기준(예시)으로 돌아간다"
+        },
+        {
+          "name": "HQ18.grace",
+          "arg": "'busan' | 'daegu'",
+          "does": "IMP-26. 잔액 0원이어도 입·퇴실 알림을 보내는 안전 유예를 켜고 끈다"
+        },
+        {
+          "name": "HQ18.askFix",
+          "arg": "'1' (발송 기록 순번)",
+          "does": "실패 건 번호 확인을 센터에 요청한다"
+        }
+      ],
+      "reads": "s.alim (templates, balances, topups, log). CT-14가 s.alim.log에 {at, center, tpl, n, ok, fail, reason, cost} 모양으로 넣으면 발송 통계에 보인다",
+      "demo_hint": "P1a 준비 장에서 템플릿 심사와 미리보기, P1b 가맹 장에서 부산해운대 잔액 부족과 충전 확인(topup) 장면에 쓴다. 탭은 demo step의 tab으로 지정"
+    },
+    {
+      "id": "HQ-19",
+      "tabs": [
+        "prod",
+        "order",
+        "week"
+      ],
+      "tab_labels": {
+        "prod": "상품",
+        "order": "주문 처리",
+        "week": "주간 인쇄 마감"
+      },
+      "persona": "hq:ops 또는 hq:super. 정산은 보기만",
+      "pins": {
+        "prod": [
+          1,
+          2,
+          6
+        ],
+        "order": [
+          3,
+          4,
+          5,
+          7
+        ],
+        "week": [
+          3,
+          8
+        ]
+      },
+      "review_pins": {
+        "prod": [
+          6
+        ],
+        "order": [
+          7
+        ],
+        "week": [
+          8
+        ]
+      },
+      "review_imps": [
+        "IMP-25",
+        "IMP-26",
+        "IMP-19"
+      ],
+      "actions": [
+        {
+          "name": "HQ19.newForm",
+          "arg": "없음",
+          "does": "상품 등록 폼을 연다"
+        },
+        {
+          "name": "HQ19.save",
+          "arg": "{name:'L2 주간 워크북 (10월 3주)', cat:'주간 교재 인쇄본'|'홍보물'|'학습 패드', unit:'권', price:1800}",
+          "does": "상품을 등록한다. 구분과 산정 방식은 POL-09 품목 분류에서 가져온다"
+        },
+        {
+          "name": "HQ19.priceForm",
+          "arg": "'g1'~'g5'",
+          "does": "공급가 바꾸기 폼을 연다 (IMP-25)"
+        },
+        {
+          "name": "HQ19.priceSave",
+          "arg": "{id:'g1', price:2000, reason:'인쇄소 견적서 (예시)', when:'다음 주 마감부터'|'2027-11-01 0시 예약'}",
+          "does": "근거 없으면 오류. 저장하면 변경 예약, 필수품목이면 정보공개서 변경등록 할 일이 생긴다"
+        },
+        {
+          "name": "HQ19.view",
+          "arg": "'가맹 주문' | '직영 내부 출고'",
+          "does": "주문 목록 필터"
+        },
+        {
+          "name": "HQ19.step",
+          "arg": "'#0711@busan' | '#0712@daegu' (주문 id@센터)",
+          "does": "접수, 제작, 출고, 배송 완료 순서로 한 단계 넘긴다"
+        },
+        {
+          "name": "HQ19.ret",
+          "arg": "{key:'#0698@busan', ok:true|false}",
+          "does": "반품 요청을 승인하거나 거절한다"
+        },
+        {
+          "name": "HQ19.spare",
+          "arg": "숫자",
+          "does": "IMP-19. 센터 여유분을 권장 수량에 더한다"
+        },
+        {
+          "name": "HQ19.rush",
+          "arg": "없음",
+          "does": "IMP-19. 마감 뒤 긴급 소량 주문 받기를 켜고 끈다"
+        },
+        {
+          "name": "HQ19.close",
+          "arg": "없음",
+          "does": "주간 마감. 접수 주문을 제작으로 넘기고 인쇄 지시"
+        }
+      ],
+      "reads": "s.orders, s.hq20.open (열린 레벨), s.centers.students",
+      "demo_hint": "P1a 직영 장에서는 주간 인쇄 마감(탭 week)으로 직영 내부 출고를 보여 주고, P1b 가맹 장에서는 주문 처리(탭 order)에서 #0711 제작 시작, #0698 반품 승인을 누른다. 주문 키는 'id@센터'(#0698은 대치1과 부산 두 건이 있어요)"
+    },
+    {
+      "id": "HQ-20",
+      "tabs": [],
+      "persona": "hq:content (콘텐츠 정다은) 또는 hq:super. 운영은 보기만, 정산과 SV는 메뉴 없음",
+      "pins": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "review_pins": [
+        6,
+        7,
+        8
+      ],
+      "review_imps": [
+        "IMP-05",
+        "IMP-22",
+        "IMP-19"
+      ],
+      "actions": [
+        {
+          "name": "HQ20.form",
+          "arg": "없음",
+          "does": "배포 예약 폼을 연다"
+        },
+        {
+          "name": "HQ20.schedule",
+          "arg": "{v:'2027.4', date:'2027-10-04'}",
+          "does": "배포 예약. 상태가 배포 예약으로 바뀌고 공지 초안과 워크북 전환 안내가 생긴다 (IMP-19)"
+        },
+        {
+          "name": "HQ20.toggle",
+          "arg": "'daechi1|L3' 같은 '센터|레벨'",
+          "does": "레벨 열기 또는 닫기. 학생이 있으면 닫지 않고 확인 창(ui.pending)을 띄운다 (대치1 L3는 재원생 3명, 반 1개)"
+        },
+        {
+          "name": "HQ20.block",
+          "arg": "'daechi1|L3'",
+          "does": "닫는 대신 신규 배정만 막는다"
+        },
+        {
+          "name": "HQ20.cancel",
+          "arg": "없음",
+          "does": "닫기 확인을 취소한다"
+        },
+        {
+          "name": "HQ20.test",
+          "arg": "{brain:'간단판 v1'|'원본 180문항', read:'v1', report:'유형·레벨형 v1'}",
+          "does": "입학 테스트 버전과 결과지를 센터에 배포한다"
+        },
+        {
+          "name": "HQ20.check",
+          "arg": "없음",
+          "does": "IMP-05. 학습 시스템 계정 상태와 관리자 기록을 맞춰 보고 HQ-16 대사의 남은 불일치를 보여 준다"
+        },
+        {
+          "name": "HQ20.resend",
+          "arg": "'m1' | 'm2'",
+          "does": "정지 신호를 다시 보내 HQ-16 대사 불일치를 처리한다 (m2면 부산 과금 계정이 40으로)"
+        }
+      ],
+      "reads": "s.hq16.mism (HQ-16과 같은 불일치), s.students와 s.classes (레벨별 재원생과 반 수)",
+      "demo_hint": "P1a 준비 장에서 개방 레벨과 검사 버전 배포에 쓰고, P1b 월 마감 장 앞에서 check, resend 'm1'로 HQ-16 대사와 이어 보여 주면 좋다"
+    }
+  ],
+  "shared_data_changes": [
+    "inv-busan-09, inv-daegu-09를 원문 p.35 값으로 맞췄어요. 부산 status '확인 대기' 834,400(사용료 738,000, 알림톡 12,400, 교재 84,000), 대구 status '초안' 1,366,000(사용료 1,260,000, 조정 -20,000, 교재 126,000). lines에 k('fee'|'adj'|'alim'|'book')를 더했어요. CT-15는 HQ16.issue 다음에 대구 청구서를 받는 흐름이에요",
+    "s.alim.templates 상태를 원문 p.38로 맞췄어요 (T04 심사 중, T05 승인, T06 반려). s.alim.balances busan 3,120, daegu 41,500. s.alim.log에 10-04 부산 발송 2건(CT-14 원문 예시)을 중복 없이 더했어요",
+    "s.orders의 #0705(대구)를 도서 키트 L3 1권 98,000으로 맞추고 #0712(대구), #0711(부산), #0698(부산 반품 요청)을 더했어요. 대치1 #0698은 그대로 둬요",
+    "새 키 s.hq16, s.hq17, s.hq18, s.hq19, s.hq20"
+  ]
+}

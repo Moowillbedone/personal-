@@ -1,0 +1,382 @@
+{
+ "screens": [
+  {
+   "id": "CM-01",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    5,
+    6,
+    7
+   ],
+   "devices": [
+    "pc",
+    "tablet"
+   ],
+   "chrome": "none",
+   "actions": [
+    {
+     "name": "CM01.quick",
+     "arg": "없음 | {first:true} | {enter:true} | {first:true, np:'Brain180!x', enter:true}",
+     "does": "지금 persona 계정으로 비밀번호와 2단계 인증을 한 번에 통과시킨다. enter:true면 역할별 첫 화면(본사 HQ-01, 센터 CT-01, 다점포 원장 ct:daegu:원장은 CM-02)으로 이동한다. first:true면 첫 로그인 단계에서 멈추고, np를 주면 새 비밀번호와 보안 서약까지 마친다"
+    },
+    {
+     "name": "CM01.login",
+     "arg": "{id:'daechi1-director', pw:'brain180!'} (틀린 pw면 실패 횟수, 5회면 잠금) | {id:'hq-ops', pw:'brain180!'} 처럼 다른 계정 id를 넣으면 persona가 그 계정으로 바뀐다",
+     "does": "1단계 로그인. 실패와 잠금은 s.audit에 남긴다. 보조교사 문채원(daechi1-assistant)은 경력 조회 전이라 막힌다"
+    },
+    {
+     "name": "CM01.verify",
+     "arg": "'123456' 같은 6자리 문자열 | {code:'123456', remember:true}",
+     "does": "2단계 인증. 성공하면 로그인 성공 기록, 첫 로그인 계정(ct:daegu:실장·데스크)은 비밀번호 변경 단계로 간다"
+    },
+    {
+     "name": "CM01.first",
+     "arg": "{np1:'Brain180!x', np2:'Brain180!x', pledge:true}",
+     "does": "첫 로그인 비밀번호 변경과 보안 서약. 규칙에 안 맞으면 오류 문구"
+    },
+    {
+     "name": "CM01.enter",
+     "arg": "없음",
+     "does": "인증을 마친 뒤 역할별 첫 화면으로 이동한다"
+    },
+    {
+     "name": "CM01.sms",
+     "arg": "없음",
+     "does": "2단계 인증을 문자(예외 수단)로 바꾼다"
+    },
+    {
+     "name": "CM01.lost",
+     "arg": "없음",
+     "does": "인증 수단 복구 안내(검토 반영)를 연다"
+    },
+    {
+     "name": "CM01.recover",
+     "arg": "'ABCD1234' 같은 복구 코드",
+     "does": "복구 코드로 들어간다(1단계 로그인 뒤에만)"
+    },
+    {
+     "name": "CM01.find",
+     "arg": "없음",
+     "does": "비밀번호 찾기 안내를 열고 닫는다"
+    },
+    {
+     "name": "CM01.unlock",
+     "arg": "없음",
+     "does": "잠금이 풀린 뒤 상태로 바꾼다(시연)"
+    }
+   ],
+   "reads": "B.state.persona로 시연 계정을 채운다. 시연 비밀번호 brain180!",
+   "writes": "s.audit 맨 앞에 로그인 성공, 실패, 잠금, 차단 기록. s.cm01.first[personaId] 첫 로그인 여부",
+   "demo_hint": "1장 맨 앞. persona 'hq:ops'로 CM01.quick 하면 본사 대시보드 버튼까지 나온다. 다점포 원장은 persona 'ct:daegu:원장', CM01.quick {enter:true}로 CM-02가 열린다. 잠금 장면은 CM01.login {id:'daechi1-director', pw:'x'}를 다섯 번"
+  },
+  {
+   "id": "CM-02",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    5,
+    6,
+    7
+   ],
+   "devices": [
+    "pc"
+   ],
+   "actions": [
+    {
+     "name": "CM02.open",
+     "arg": "{center:'daegu', reason:'1:1 문의 대응 (#1042)', memo:'청구서 조정 문의 확인'} | 센터 id 문자열. reason:''이면 오류, reason:'기타 (메모에 적어요)'인데 memo가 비면 오류",
+     "does": "본사 persona만 된다. 사유를 검사하고 B.state.support = 센터 id로 지원 모드를 연 뒤 s.ui['CM-02'].next 화면(없으면 CT-01)으로 이동한다. s.cm02.log와 s.audit(지원 모드 열람)에 남긴다"
+    },
+    {
+     "name": "CM02.pick",
+     "arg": "센터 id (daechi1이면 직영 처리자 안내 7번이 보인다)",
+     "does": "열 센터를 고른다"
+    },
+    {
+     "name": "CM02.end",
+     "arg": "없음",
+     "does": "지원 모드를 끝내고 끝난 시각을 기록한다"
+    },
+    {
+     "name": "CM02.switch",
+     "arg": "센터 id ('daegu' 또는 오픈 준비 'beomeo')",
+     "does": "센터 persona의 센터 전환. 운영 중인 자기 센터면 CT-01로, 오픈 준비 센터면 안내만 띄운다"
+    },
+    {
+     "name": "CM02.cancel",
+     "arg": "없음",
+     "does": "지원 모드 입력을 처음 값으로 되돌린다"
+    }
+   ],
+   "reads": "s.ui['CM-02'] {center, reason, memo, next 또는 target (열고 나서 갈 CT 화면, 없으면 CT-01), from (넘어온 화면)}. HQ-01이 toSupport로 넘기는 값과 같다. 열고 나면 next, target, from은 지운다",
+   "writes": "B.state.support, s.cm02.log [{at, who, center, reason, memo, seen, end}], s.audit",
+   "demo_hint": "지원 모드 장면은 step을 {persona:'hq:ops', screen:'CT-01', support:'daegu', act:[{name:'CM02.open', arg:{center:'daegu', reason:'1:1 문의 대응 (#1042)', memo:'청구서 조정 문의 확인'}}]}로 두면 기록까지 남는다. 앞 장면으로 CM-02 화면(persona 'hq:ops', pins [2,3])을 먼저 보여 주면 좋다. 센터 쪽에서 본사 열람 기록을 보는 장면은 persona 'ct:daechi1:원장', pins [4]"
+  },
+  {
+   "id": "CM-03",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "review_pins": [
+    7,
+    8,
+    9,
+    10
+   ],
+   "devices": [
+    "pc",
+    "tablet"
+   ],
+   "actions": [
+    {
+     "name": "CM03.search",
+     "arg": "{f_st:'전체'|'재원'|'휴원', f_cls:'전체'|'L1-월수A'|'L2-화목A'|'L3-화목B', q:'1290', f_sort:'이름순'|'학년순'}",
+     "does": "필터를 적용한다. 필터는 화면을 떠나도 남는다"
+    },
+    {
+     "name": "CM03.unmask",
+     "arg": "{um_id:'e1', um_reason:'보호자 전화 상담'} (사유 없으면 오류)",
+     "does": "원생 한 명만 마스킹을 푼다. 교사, 본사 운영, 지원 모드에서는 막힌다. s.audit에 남긴다"
+    },
+    {
+     "name": "CM03.unmaskForm",
+     "arg": "'open' | 'close'",
+     "does": "해제 입력 칸을 연다"
+    },
+    {
+     "name": "CM03.remask",
+     "arg": "없음",
+     "does": "다시 가린다"
+    },
+    {
+     "name": "CM03.dl",
+     "arg": "'open' | 'close'",
+     "does": "엑셀 다운로드 창을 연다"
+    },
+    {
+     "name": "CM03.dlRaw",
+     "arg": "'가려서 내보내기' | '원본 (해제 권한자만)'",
+     "does": "파일 속 개인정보 처리 방식을 고른다"
+    },
+    {
+     "name": "CM03.download",
+     "arg": "{dl_reason:'일일 마감', dl_phone:true, dl_raw:false} (dl_reason:''이면 오류)",
+     "does": "사유와 항목을 검사하고 다운로드 기록을 s.audit과 최근 다운로드에 남긴다. 지원 모드와 원본 권한 없음은 막는다"
+    },
+    {
+     "name": "CM03.state",
+     "arg": "'정상' | '빈 목록' | '오류' | '오프라인'",
+     "does": "목록 상태 미리 보기를 바꾼다"
+    },
+    {
+     "name": "CM03.leave",
+     "arg": "'메모 적는 중' 같은 입력 중 문자열",
+     "does": "저장하지 않은 입력이 있으면 이탈 경고를 띄운다"
+    },
+    {
+     "name": "CM03.stay",
+     "arg": "없음",
+     "does": "경고에서 머무르기"
+    },
+    {
+     "name": "CM03.leaveNow",
+     "arg": "없음",
+     "does": "입력을 버리고 대시보드로 나간다"
+    },
+    {
+     "name": "CM03.saveDraft",
+     "arg": "없음",
+     "does": "입력을 저장한다"
+    }
+   ],
+   "reads": "B.state.support (지원 모드면 다운로드와 해제를 막는다), persona 역할",
+   "writes": "s.cm03.unmask, s.cm03.downloads, s.audit",
+   "demo_hint": "개인정보 장면. persona 'ct:daechi1:원장'으로 CM03.unmask {um_id:'e1', um_reason:'보호자 전화 상담'} 후 pins [2,7]. 다운로드는 CM03.download {dl_reason:'일일 마감'} 후 pins [3,8]. 교사 persona로 같은 화면을 열면 해제 버튼이 잠긴다"
+  },
+  {
+   "id": "KS-01",
+   "tabs": [],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "review_pins": [
+    5,
+    6,
+    7
+   ],
+   "devices": [
+    "kiosk"
+   ],
+   "chrome": "none",
+   "actions": [
+    {
+     "name": "KS01.check",
+     "arg": "'5521' (박하준) | {code:'2210', time:'15:56'} | {code:'1122'}. 번호는 보호자 휴대폰 뒤 4자리",
+     "does": "번호 확인과 이름 확인을 한 번에 지나 입실을 기록한다. 같은 학생에게 다시 부르면 퇴실, 학습 앱 자동 로그아웃, 퇴실 알림톡. 세 번째는 이미 퇴실 안내. 휴원 학생(0401)과 없는 번호는 오류"
+    },
+    {
+     "name": "KS01.number",
+     "arg": "'5521' | {code:'5521', time:'17:45'}",
+     "does": "번호만 넣고 이름 확인 단계(5번 핀)에서 멈춘다"
+    },
+    {
+     "name": "KS01.confirm",
+     "arg": "없음 | {time:'17:45'}",
+     "does": "이름 확인 단계에서 맞아요를 누른다"
+    },
+    {
+     "name": "KS01.key",
+     "arg": "'0'~'9' | '지움' | '확인'",
+     "does": "키패드 한 칸을 누른다"
+    },
+    {
+     "name": "KS01.offline",
+     "arg": "true | false | 없음(토글)",
+     "does": "연결 끊김 시험. false로 돌리면 저장해 둔 기록과 알림톡을 한꺼번에 보낸다"
+    },
+    {
+     "name": "KS01.admin",
+     "arg": "없음",
+     "does": "관리자 PIN 입력으로 간다. 이어서 KS01.key 네 번과 '확인'이면 관리자 메뉴(CT-12, CT-19 이동)"
+    },
+    {
+     "name": "KS01.reset",
+     "arg": "없음",
+     "does": "첫 화면으로 돌아간다"
+    }
+   ],
+   "reads": "B.state.persona의 센터 (지원 모드면 그 센터), s.students 보호자 휴대폰 뒤 4자리, s.classes 시간표, s.alim.auto['입실'|'퇴실']",
+   "writes": "s.attendance (새 공용 키, 배열) [{id, center, date:'2027-03-08', student, cls, in:'15:55', out:'', device:'#1 입구 패드', alimIn:'발송 완료'|'대기'|'꺼짐', alimOut, appLogout:'완료'|'대기'|'', sync:'전송'|'대기', src:'키오스크'}]. 기본 2건(s2, s8 오늘 입실). s.alim.log에 입실 T01, 퇴실 T02 [{at:'03-08 16:05', center, student, tpl, name, to, text, status, src:'KS-01'}]. s.ks01.clock",
+   "demo_hint": "하루 운영 장. persona 'ct:daechi1:원장', screen KS-01, act KS01.check '5521' 이면 입실 화면(pins [1,2]), 다음 step에서 같은 act를 한 번 더 넣으면 퇴실과 자동 로그아웃(pins [3]). 이어서 PA-01 chat 탭(student 's5')을 열면 방금 보낸 입실, 퇴실 알림톡이 대화방에 보인다. 이름 확인 장면은 KS01.number '5521' (pins [5])"
+  },
+  {
+   "id": "PA-01",
+   "tabs": [
+    "chat",
+    "pay",
+    "consent",
+    "result"
+   ],
+   "pins": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "review_pins": [
+    6,
+    8,
+    9,
+    10
+   ],
+   "pins_by_tab": {
+    "chat": [
+     1,
+     2
+    ],
+    "pay": [
+     3,
+     4,
+     10
+    ],
+    "consent": [
+     5,
+     6,
+     8
+    ],
+    "result": [
+     7,
+     9
+    ]
+   },
+   "devices": [
+    "mobile"
+   ],
+   "chrome": "none",
+   "actions": [
+    {
+     "name": "PA01.student",
+     "arg": "학생 id ('s5' 기본 박하준, 's3' 강민우 가오픈, 's4' 임채희 동의 전) | 'reg' (CT-05 등록 중인 아이, s.ui['CT-05'].name 사용) | {student:'s3', bill:{student:'s3', month:'3월', lines:[{t:'3월 교습비', a:260000}], total:260000}}",
+     "does": "어느 보호자의 휴대폰인지 고른다. bill을 주면 그 금액으로 결제 링크와 수강료 안내 메시지를 보여 준다"
+    },
+    {
+     "name": "PA01.tab",
+     "arg": "'chat' | 'pay' | 'consent' | 'result'",
+     "does": "아래 탭을 바꾼다 (step의 tab으로 열어도 된다)"
+    },
+    {
+     "name": "PA01.pay",
+     "arg": "없음 | 학생 id | {student:'s3', method:'카드'|'계좌이체', bill:{...}}",
+     "does": "결제선생 결제를 마친다. s.payments에 결제선생 링크 기록을 더하고, 학생 paid를 수납 완료로, account를 활성으로 바꾼다. s.ui['CT-07'].student, 반이 없으면 s.ui['CT-11'].assign을 넘긴다"
+    },
+    {
+     "name": "PA01.method",
+     "arg": "'카드' | '계좌이체'",
+     "does": "결제 수단을 고른다"
+    },
+    {
+     "name": "PA01.consent",
+     "arg": "{student:'s4', code:'123456', req1:true, req2:true, mkAlim:false, mkSms:false, mkNight:false} (req1이나 req2가 false면 오류)",
+     "does": "보호자 휴대폰 본인인증과 동의를 마친다. 학생 consent와 s.ui['CT-05'].consent {student, status:'인증 완료', at, method, version:'v1', marketing}를 채운다"
+    },
+    {
+     "name": "PA01.sendCode",
+     "arg": "없음",
+     "does": "인증번호를 받는다"
+    },
+    {
+     "name": "PA01.redo",
+     "arg": "없음",
+     "does": "이미 동의한 학생도 처음부터 다시 해 본다(시연)"
+    },
+    {
+     "name": "PA01.openResult",
+     "arg": "'5521' 같은 보호자 휴대폰 뒤 4자리",
+     "does": "결과지 링크의 보호자 확인. 맞으면 결과지가 열리고 틀리면 오류"
+    }
+   ],
+   "reads": "s.ui['PA-01'].student (없으면 s5), s.ui['PA-01'].bill, s.ui['CT-05'] {name, grade, phone, level, consent} ('reg'일 때), s.alim.log (status '발송 완료'인 그 학생 메시지), s.pa01.seed 대화 예시",
+   "writes": "s.payments, s.students[].paid/account/consent, s.ui['CT-07'], s.ui['CT-11'], s.ui['CT-05'].consent, s.pa01.extra(결제 완료 메시지)",
+   "demo_hint": "학부모 시점 장면을 관리자 장면 사이에 끼운다. 월 재등록 장: PA-01 tab chat (student 's5') pins [2], 다음 step tab pay에서 PA01.pay 후 pins [4], 이어서 CT-07로 가면 수납이 기록되어 있다. 신규 원생 장: CT-05 다음에 PA-01 tab consent, PA01.consent {student:'s4'} pins [5,6], 결과지는 tab result, PA01.openResult '7710' (s4 임채희) pins [7,9]"
+  }
+ ]
+}

@@ -1,0 +1,92 @@
+{ "screens": [
+  { "id": "CT-18", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "review_pins": [8, 9, 10],
+    "actions": [
+      {"name": "CT18.view", "arg": "'가맹' | '직영'", "does": "비교 버튼. 사람을 대구수성 원장(가맹) 또는 대치1 원장(직영)으로 바꾼다. 데모에서는 단계의 persona를 바로 쓰는 편이 낫다"},
+      {"name": "CT18.save", "arg": "{prices:{pr3:170000}, reasons:{pr3:{reason:'원가 상승', memo:'임대료 인상'}}, midMonth:'일할'|'다음 달부터'|'남은 회차', weeks45:'월 정액'|'회차 차감'}", "does": "가맹만. 센터 교습비를 저장한다. 권장가에서 10%를 넘게 벗어난 상품에 사유가 없으면 저장을 막고 4번 패널에 오류를 띄운다. 등록액을 넘으면 판매가 잠긴다"},
+      {"name": "CT18.sel", "arg": "'pr1' | 'pr2' | 'pr3' (pr3 주 1회, pr1 주 2회, pr2 주 3회)", "does": "이탈 사유 패널에 보여 줄 상품을 고른다"},
+      {"name": "CT18.eduSubmit", "arg": "{prod:'pr3', amount:170000, file:true}", "does": "등록액 변경 신고. 수리 문서가 없으면 막는다. 올리면 변경신고 중이 되어 판매가 잠긴다"},
+      {"name": "CT18.eduConfirm", "arg": "'pr2' (상품 id) 또는 기타경비 id", "does": "본사 확인 결과를 받아(시연) 등록액을 바꾸고 판매 잠금을 푼다. 대구수성 주 3회는 400,000원으로 풀린다"},
+      {"name": "CT18.addDisc", "arg": "{type:'친구 추천', value:'5%'}", "does": "가맹 할인 유형을 더한다"},
+      {"name": "CT18.addExtra", "arg": "{name:'독서 활동지', amount:8000, edu:8000}", "does": "기타경비를 더한다. 등록액이 없으면 미등록, 있으면 본사 확인 대기로 잠긴다"},
+      {"name": "CT18.pvProd", "arg": "'pr1'", "does": "청구 금액 미리 보기 상품"},
+      {"name": "CT18.pvDay", "arg": "'1일 등록' | '15일 등록'", "does": "미리 보기 등록일. 15일이면 월중 계산법을 적용한다"},
+      {"name": "CT18.pvDisc", "arg": "'할인 없음' | '형제' | '장기 3개월' | '개원 프로모션'", "does": "미리 보기 할인"},
+      {"name": "CT18.mid", "arg": "'일할' | '다음 달부터' | '남은 회차'", "does": "가맹 월중 등록 처리 (저장 전 임시값)"},
+      {"name": "CT18.w45", "arg": "'월 정액' | '회차 차감'", "does": "가맹 4·5주 달 처리 (저장 전 임시값)"},
+      {"name": "CT18.print", "arg": "없음", "does": "교습비 게시표 미리 보기 창을 연다"},
+      {"name": "CT18.ad", "arg": "없음", "does": "광고 표시 문구 창을 연다"},
+      {"name": "CT18.attach", "arg": "'on' | 'off'", "does": "등록액 변경 신고에 수리 문서를 붙이거나 뺀다 (시연용 파일 이름)"},
+      {"name": "CT18.delDisc", "arg": "'0' (할인 표 순서)", "does": "가맹 할인 유형을 지운다"}
+    ],
+    "reads": "없음. 센터 유형으로 화면이 갈린다 (직영은 보기 전용, 가맹은 편집)", "demo_hint": "가맹 개시 장면에서 ct:daegu:원장으로 연다. 주 2회 +11.5% 이탈 사유(4)와 주 3회 변경신고 중 잠김(3, 8)을 보여 주고 CT18.eduConfirm('pr2')로 잠금이 풀리는 장면을 잇는다. 직영 장면은 ct:daechi1:원장으로 열면 본사 확정가 보기 전용이다. pins 4는 가맹 화면에서만 보인다" },
+  { "id": "CT-19", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "review_pins": [7, 8, 9, 10],
+    "actions": [
+      {"name": "CT19.save", "arg": "{o_wd1:'14:00', o_wd2:'21:30', o_sat1:'10:00', o_sat2:'14:00', r_keep:'20', methods:['현장 출력','우편']}", "does": "운영시간과 결과지 설정을 저장한다. 조례 상한(대치1 22:00)을 넘거나 보관 기간이 30일보다 길면 오류"},
+      {"name": "CT19.holForm", "arg": "없음", "does": "센터 휴원일 입력 칸을 연다"},
+      {"name": "CT19.addHol", "arg": "{from:'2027-03-10', to:'', name:'센터 휴원', fix:'보강'|'다음 달 차감'}", "does": "센터 휴원일을 넣는다. 청구가 끝난 달(3월)이면 fix가 없을 때 막고, 수업이 있는 반과 학생 수를 보여 준다"},
+      {"name": "CT19.delHol", "arg": "'h2' (센터 휴원만)", "does": "센터 휴원일을 지운다"},
+      {"name": "CT19.method", "arg": "'현장 출력' | '이메일' | '알림톡 링크' | '우편'", "does": "결과지 전달 방식을 켜고 끈다 (저장 전 임시값)"},
+      {"name": "CT19.devForm", "arg": "없음", "does": "기기 등록 칸을 연다"},
+      {"name": "CT19.addDev", "arg": "{name:'#3 상담실 패드', use:'입·퇴실'|'입학 테스트', code:'123456'}", "does": "패드를 등록한다. 연결 코드 6자리 검사 (10번 핀, IMP-05)"},
+      {"name": "CT19.delDev", "arg": "'d1' (확인 창) 또는 {id:'d1'} (바로 해제)", "does": "패드 연결을 해제한다. 마지막 입·퇴실 패드면 경고"},
+      {"name": "CT19.spec", "arg": "없음", "does": "패드 지정 사양 창"},
+      {"name": "CT19.fix", "arg": "'보강' | '다음 달 차감'", "does": "청구가 끝난 달 휴원일의 처리 방법을 고른다 (저장 전 임시값)"},
+      {"name": "CT19.holClose", "arg": "없음", "does": "휴원일 입력 칸을 닫는다"},
+      {"name": "CT19.devClose", "arg": "없음", "does": "기기 등록 칸을 닫는다"}
+    ],
+    "reads": "없음", "demo_hint": "P1a 개원 준비 장면. CT19.holForm 다음 CT19.addHol({from:'2027-03-10'})로 청구 끝난 달 경고(7)를 띄우고, 다음 단계에서 fix:'보강'으로 저장한다. CT19.save({o_wd2:'22:30'})로 조례 상한 오류를 보여 줄 수 있다" },
+  { "id": "CT-20", "tabs": [], "pins": [1, 2, 3, 4, 5, 6, 7, 8], "review_pins": [6, 7, 8],
+    "actions": [
+      {"name": "CT20.new", "arg": "없음", "does": "등록 폼을 비우고 연다 (기본 역할 보조교사)"},
+      {"name": "CT20.edit", "arg": "'st5'", "does": "교직원 정보를 폼에 채워 수정 모드로 연다"},
+      {"name": "CT20.save", "arg": "{id:'st5', check:'2027-03-08', clear:true, notified:'2027-03-08'} 또는 새 등록 {name:'최서연', role:'교사', phone:'010-1234-5678', edu:'이수'} (f_ 접두어 있어도 됨)", "does": "저장하고 초대 문자를 보낸다. 조회일이 있으면 계정 활성, 없으면 잠김. 교습소는 강사 0명, 보조 1명 제한. 휴대폰 형식 검사"},
+      {"name": "CT20.assign", "arg": "{staff:'st5', cls:'c5', as:'보조'|'담당 교사'}", "does": "반에 넣기. 경력 조회 전, 직원 구분, 교육청 통보일 없음이면 막는다. 되면 s.classes의 teacher나 assistant를 바꾼다"},
+      {"name": "CT20.retire", "arg": "'st4' (확인 창) 또는 {id:'st4', date:'2027-03-08'} (바로)", "does": "퇴사 처리. 비활성, 기억 기기 해제. 원장은 막힘"},
+      {"name": "CT20.close", "arg": "없음", "does": "폼을 닫는다"},
+      {"name": "CT20.docs", "arg": "'st1'", "does": "자격 서류 창"},
+      {"name": "CT20.legal", "arg": "'교습자' | '강사' | '보조' | '직원'", "does": "등록 창의 법적 구분을 바꾼다"},
+      {"name": "CT20.as", "arg": "'담당 교사' | '보조'", "does": "수업 배치 확인 카드에서 넣을 자리를 고른다"}
+    ],
+    "reads": "없음. B.staffCanTeach(staffId) 를 열어 둠 ({ok, why}). CT-11 교사 목록 거르기에 쓸 수 있다", "demo_hint": "보조교사 문채원(st5)은 경력 조회 전이라 잠김, 수업 배치 불가. CT20.assign({staff:'st5',cls:'c5',as:'보조'})로 막히는 걸 보여 주고, CT20.save({id:'st5',check:'2027-03-08',clear:true,notified:'2027-03-08'}) 뒤 다시 배치하면 된다. 교습소 제한은 ct:busan:원장으로 CT20.save({name:'강사A',role:'교사',phone:'010-1111-2222'})" },
+  { "id": "CT-21", "tabs": [], "pins": [1, 2, 3, 4, 5], "review_pins": [4, 5],
+    "actions": [
+      {"name": "CT21.metric", "arg": "'재원생' | '신규' | '퇴원'", "does": "재원생 추이 막대 지표"},
+      {"name": "CT21.month", "arg": "'1월' | '2월' | '3월'", "does": "막대를 골라 그달 숫자를 보여 준다"},
+      {"name": "CT21.att", "arg": "'출석률' | '보강 사용률'", "does": "출석률 카드 지표"},
+      {"name": "CT21.period", "arg": "'2027 상반기' | '2027 1분기'", "does": "기간"}
+    ],
+    "reads": "없음", "demo_hint": "P2 장. ct:daechi1:원장으로 연다. 퇴원 사유 8명(5, 2, 1)과 월말 자동 저장 기록(5)으로 P1a부터 데이터를 쌓아야 한다는 점을 보여 준다" },
+  { "id": "CT-22", "tabs": [], "pins": [1, 2, 3, 4, 5], "review_pins": [3, 4, 5],
+    "actions": [
+      {"name": "CT22.newForm", "arg": "없음", "does": "대기 등록 폼을 연다"},
+      {"name": "CT22.save", "arg": "{name:'김하율', grade:'초4', phone:'010-5555-6666', cls:'c4', consent:true}", "does": "대기 등록. 자리가 있는 반(c3 12/15 등)이면 막고, 보호자 동의 체크가 없으면 막는다"},
+      {"name": "CT22.seat", "arg": "'c3' (반 id)", "does": "자리 생김 안내. 그 반 첫 대기자에게 안내 발송, 24시간 기한"},
+      {"name": "CT22.reply", "arg": "'w2|수락' 또는 {id:'w2', answer:'수락'|'거절'|'시간 초과'}", "does": "응답 처리. 거절이나 시간 초과면 같은 반 다음 순번에게 자동 안내"},
+      {"name": "CT22.toRegister", "arg": "'w2'", "does": "s.ui['CT-05'] = {from:'waitlist:w2', name, grade, phone, cls}를 넘기고 CT-05로 간다"},
+      {"name": "CT22.select", "arg": "'w1'", "does": "응답 처리 카드에 보일 대기자"},
+      {"name": "CT22.filter", "arg": "'진행 중' | '전체'", "does": "명단 거르기"},
+      {"name": "CT22.closeForm", "arg": "없음", "does": "대기 등록 폼을 닫는다"}
+    ],
+    "reads": "없음", "demo_hint": "w2 서*진(L3-화목B)이 안내 발송 상태다. CT22.reply('w2|수락') 다음 CT22.toRegister('w2')로 CT-05로 이어 간다. 자리 있는 반 대기 막기는 CT22.save({name:'김하율',phone:'010-5555-6666',cls:'c3',consent:true}). 원문 예시의 서*진 희망 반은 L3-월수A인데 기본 데이터에 그 반이 없어서 정원이 찬 L3-화목B(c4)로 두었다" },
+  { "id": "CT-23", "tabs": [], "pins": [1, 2, 3], "review_pins": [3],
+    "actions": [
+      {"name": "CT23.open", "arg": "'sv1'", "does": "회신할 점검 항목을 고른다"},
+      {"name": "CT23.send", "arg": "{id:'sv1', text:'보조교사 경력 조회를 마쳤어요.'}", "does": "회신. 경력 조회 항목은 CT-20 조회일이 모두 있어야 보낼 수 있다 (파일 첨부 없음). 다른 항목은 증빙 파일 1개 이상"},
+      {"name": "CT23.addFile", "arg": "'sv2|photo' | 'sv2|file'", "does": "증빙 파일을 붙인다 (경력 조회 외 항목)"},
+      {"name": "CT23.recheck", "arg": "'sv1|적합' 또는 {id:'sv1', result:'적합'|'재보완'}", "does": "본사 재점검 결과를 받는다 (시연)"}
+    ],
+    "reads": "s.staff의 check (CT-20에서 바뀜). SV 이름은 센터의 sv 값(대치1 최민호)을 쓴다", "demo_hint": "처음에는 문채원 조회일이 없어 CT23.send가 막힌다. 앞 단계에서 CT-20 화면으로 CT20.save({id:'st5',check:'2027-03-08',clear:true})를 부른 뒤 CT-23에서 send, recheck 적합 순서로 쓴다. 날짜는 P2 예시 2027-07-12 기준" },
+  { "id": "CT-24", "tabs": [], "pins": [1, 2, 3, 4, 5], "review_pins": [3, 4, 5],
+    "actions": [
+      {"name": "CT24.newForm", "arg": "없음", "does": "요청 접수 폼을 연다"},
+      {"name": "CT24.save", "arg": "{student:'s6', type:'열람'|'정정'|'삭제', detail:'주소', requester:'모'|'부'|'본인'|'그 밖의 법정대리인'}", "does": "접수. 기한은 접수일(07-12) 뒤 10일(예시)"},
+      {"name": "CT24.sel", "arg": "'q2'", "does": "처리할 요청을 고른다"},
+      {"name": "CT24.verified", "arg": "{id:'q2', method:'휴대폰 본인인증'|'방문 신분증 확인'|'서면 위임장'}", "does": "본인 확인을 마치고 처리 중으로 바꾼다 (실장도 가능)"},
+      {"name": "CT24.ext", "arg": "{id:'q2', target:'*'} 또는 'q2|결제선생'", "does": "외부 업체 삭제 요청 완료 표시. '*'는 전부"},
+      {"name": "CT24.finish", "arg": "{id:'q2', outcome:'처리 완료'|'일부 처리'|'거절', result:'연락처와 학습 기록을 지웠어요.', notifyBy:'알림톡'}", "does": "처리를 마치고 통지일을 남긴다. 원장만. 삭제는 외부 완료가 다 있어야 한다"},
+      {"name": "CT24.verify", "arg": "'휴대폰 본인인증' | '방문 신분증 확인' | '서면 위임장'", "does": "본인 확인 방법을 고른다 (확인 완료 전 임시값)"},
+      {"name": "CT24.notify", "arg": "'알림톡' | '문자' | '서면'", "does": "결과 통지 방법을 고른다"},
+      {"name": "CT24.closeForm", "arg": "없음", "does": "요청 접수 폼을 닫는다"}
+    ],
+    "reads": "없음", "demo_hint": "q2 한*결 삭제 요청이 D-3 경고(5)로 떠 있다. CT24.verified 다음 CT24.finish를 부르면 외부 삭제 확인이 없어 막히고, CT24.ext({id:'q2',target:'*'}) 뒤에 끝난다. 실장(ct:daechi1:실장·데스크)은 본인 확인까지만 된다" }
+] }
