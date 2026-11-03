@@ -387,6 +387,11 @@
      "name": "PA01.openResult",
      "arg": "'5521' 같은 보호자 휴대폰 뒤 4자리",
      "does": "결과지 링크의 보호자 확인. 맞으면 결과지가 열리고 틀리면 오류"
+    },
+    {
+     "name": "PA01.payLink",
+     "arg": "없음 (s.ui['CT-07'].student) | 학생 id | {student, method:'카드'|'계좌이체'}",
+     "does": "CT07.sendLink로 결제 대기가 된 원생의 결제선생 링크를 보호자가 휴대폰에서 결제한다. CT07.paid를 불러 수납을 기록하고(학습 계정 열림, s.ui['CT-11'].assign), PA-01을 그 원생의 결제 완료 화면(영수증, 수강료 안내 메시지)으로 맞춘다. 결제 대기가 아니면 안내만 띄운다"
     }
    ],
    "reads": "s.ui['PA-01'].student (없으면 s5), s.ui['PA-01'].bill, s.ui['CT-05'] {name, grade, phone, level, consent} ('reg'일 때), s.alim.log (status '발송 완료'인 그 학생 메시지), s.pa01.seed 대화 예시",

@@ -66,6 +66,11 @@
      "name": "CT05.cancel",
      "arg": "없음",
      "does": "등록을 멈춘다. CT-02에서 왔으면 CT-02로, 아니면 CT-04로 돌아간다(없으면 안내만)"
+    },
+    {
+     "name": "CT05.fill",
+     "arg": "{g_name:'정민서', g_rel:'모'} (name, grade, birth, phone, school, alim, method 등 폼 칸 아무거나)",
+     "does": "검사와 저장 없이 폼 칸만 채운다(데모용). 보호자 이름을 먼저 넣어 두면 PA-01 보호자 휴대폰 동의(PA01.consent 'reg')가 들어올 때 본인인증과 필수 동의가 자동으로 채워지고, 이어서 CT05.register로 저장한다"
     }
    ],
    "reads": "s.ui['CT-05'] = {from:'r1', name, grade, phone, level} 를 받으면 그 값으로 시작한다(CT-02 toRegister, CT-03 level). 없으면 대치1센터 r1 윤시온(초4, 010-4420-2210) 예시로 시작한다. CT-06 재입학은 {from:'readmit:s9', ...} 를 넘긴다. 그 밖에 받는 키: testDate, testType (CT-03 결과 날짜와 두뇌 유형), cls (CT-22 대기 명단의 희망 반, CT-07 기본 반이 된다), consent {student:'reg', status:'인증 완료', at, method, marketing} (PA-01 보호자 휴대폰 동의, 받으면 필수 동의와 인증 완료가 자동으로 채워진다)",

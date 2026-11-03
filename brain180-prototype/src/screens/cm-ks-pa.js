@@ -1223,4 +1223,24 @@
     if (String(ui.r4 || '') === String(st.phone || '').replace(/\D/g, '').slice(-4)) { ui.rOk = st.id; ui.rErr = null; }
     else ui.rErr = '번호가 맞지 않아요. 센터에 등록한 보호자 휴대폰 뒤 4자리를 넣어 주세요.';
   });
+  // CT-07에서 결제선생 링크를 보내 결제 대기로 둔 원생을 보호자가 휴대폰에서 결제해요.
+  // 수납 기록은 CT07.paid가 남기고, 이 화면은 그 원생의 결제 완료와 영수증을 보여 줘요.
+  B.action('PA01.payLink', (ctx, arg) => {
+    const s = ctx.s, ui = U(s, 'PA-01');
+    const sid = (arg && typeof arg === 'object' ? arg.student : arg) || (s.ui['CT-07'] || {}).student;
+    const st = s.students.find(x => x.id === sid);
+    const f = st && s.ct07 && s.ct07.flow ? s.ct07.flow[st.id] : null;
+    if (!st || !f || f.stage !== '결제 대기' || !B.actions['CT07.paid']) { say('센터가 결제 링크를 보내면 여기서 결제할 수 있어요.'); return; }
+    if (arg && typeof arg === 'object' && arg.method) ui.method = arg.method;
+    Object.assign(ui, { student: st.id, rOk: null, redo: false });
+    B.actions['CT07.paid'](ctx);
+    if (f.stage !== '수납 완료') return;
+    const pr = s.products.find(p => p.id === f.pid) || {};
+    const month = ((/(\d+)월/.exec((f.lines && f.lines[0] && f.lines[0][0]) || '') || [])[1] || '3') + '월';
+    ui.bill = { student: st.id, month, lines: (f.lines || []).map(l => ({ t: l[0], a: l[1] })), total: f.total, product: pr.name || '', at: md(s) + ' 11:58' };
+    ui.paidFor = st.id;
+    ui.receipt = { approval: f.approval, method: ui.method || '카드', total: f.total, opened: true, at: md(s) + ' 12:03' };
+    s.pa01.extra.push({ student: st.id, at: s.today + ' 12:03', kind: 'pay', name: '결제 완료', text: month + ' 수강료 ' + h.money(f.total) + ' 결제가 끝났어요. 승인번호 ' + f.approval });
+    say('결제가 끝났어요. 센터 수납 기록(CT-07)과 학습 계정에 바로 반영돼요.');
+  });
 })();

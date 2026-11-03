@@ -442,6 +442,14 @@
   A5('CT05.compare', ctx => { ctx.ui.showOrig = !ctx.ui.showOrig; });
   A5('CT05.toDetail', (ctx, id) => { ctx.s.ui['CT-06'] = Object.assign(ctx.s.ui['CT-06'] || {}, { student: id || (ctx.ui.dup || {}).active }); B.go('CT-06'); return false; });
   A5('CT05.terms', ctx => { B.modal({ title: '항목별 동의 내용', body: termsBody(ctx), cancel: '닫기' }); return false; });
+  // 데모용: 실장이 폼 칸을 채운 상태로 만들어요. 검사와 저장은 하지 않아요 (저장은 CT05.register).
+  A5('CT05.fill', (ctx, arg) => {
+    c05init(ctx); if (!ctx.canEdit || !arg || typeof arg !== 'object') return;
+    const o = Object.assign({}, arg); delete o.verify; delete o.dupChoice; delete o.consent; delete o.verified;
+    Object.assign(ctx.ui, o);
+    if (ctx.ui.g_name) ctx.ui.guardian = ctx.ui.g_name;
+    c05init(ctx);
+  });
   A5('CT05.cancel', ctx => {
     const from = ctx.ui.from || '';
     if (/^r/.test(from) && B.screens['CT-02']) { B.go('CT-02'); return false; }

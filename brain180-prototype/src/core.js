@@ -354,7 +354,8 @@
     }
     const p = B.persona();
     const ph = B.phaseOf(def, B.state.tab), c = B.center(B.state.support || p.center);
-    const later = ph !== 'P1a' || (c && c.type !== '직영');
+    const ds = B.state.mode === 'demo' ? B.demoSteps[B.state.step] : null;
+    const later = ds && ds.phaseLabel ? !/^P1a/.test(ds.phaseLabel) : (ph !== 'P1a' || (c && c.type !== '직영'));
     const permText = { '●': '보고 고칠 수 있음', '◐': '일부만 고칠 수 있음', '○': '보기만 가능', '–': '메뉴 숨김' }[B.perm(def.id, p)] || '';
     $('#viewMeta').innerHTML = '<span>지금 사람 <b>' + esc(p.label) + '</b>, 권한 <b>' + esc(permText) + '</b></span><span>화면 속 날짜 <b>' + (later ? '2027년 10월 (가맹 개시 뒤 예시)' : '2027-03-08 월요일 (직영 시범 예시)') + '</b></span><span>운영 환경 <b>' +
       esc(def.devices.map(x => ({ pc: 'PC 웹', tablet: '태블릿', mobile: '학부모 휴대폰', kiosk: '공용 태블릿' })[x]).join(', ')) + '</b></span>';
