@@ -28,7 +28,7 @@
       h += '<div class="prd-sec"><h5>' + ph + ' 화면 목록</h5><ul>' + byPhase(ph).map(id => '<li>' + link(id) + '</li>').join('') + '</ul></div>';
     });
     h += '<div class="prd-sec"><h5>검토 제안으로 더한 화면</h5><ul>' + ids.filter(id => /^(KS|PA)/.test(id)).map(id => '<li>' + link(id) + '</li>').join('') + '</ul></div>';
-    h += '<div class="prd-sec"><h5>먼저 정해야 할 10가지 (부록 A)</h5><ul>' + (R.decisions || []).map(d => '<li><b>' + d.no + '. ' + esc(d.topic) + '</b><br><span class="muted small">결정 ' + esc(d.owner) + ' · ' + esc(d.deadline) + '</span></li>').join('') + '</ul></div>';
+    h += '<div class="prd-sec"><h5>먼저 정해야 할 10가지 (부록 A)</h5><ul>' + (R.decisions || []).map(d => '<li><b>' + d.no + '. ' + esc(d.topic) + '</b><br><span class="muted small">결정은 ' + esc(d.owner) + ', 기한은 ' + esc(d.deadline) + '</span></li>').join('') + '</ul></div>';
     h += '<div class="prd-sec"><h5>보완점 30개와 프로토타입 반영 위치</h5><ul>' + (R.imps || []).map(i => {
       const where = uniq(reflected[i.id] || []);
       return '<li><span class="chip ' + (i.priority === 'P0' ? 'brand' : i.priority === 'P1' ? 'info' : 'p2') + '">' + esc(i.priority) + '</span> <b>' + esc(i.id) + '</b> ' + esc(i.title) +

@@ -201,7 +201,7 @@
     const c = ctx.center;
     const centerBox = side === 'ct'
       ? '<button class="head-center" data-go="CM-02" title="센터 전환">' + esc(c ? c.name : '') + ' <span class="chip ' + (c && c.type === '직영' ? 'navy' : c && c.type === '가맹' ? 'brand' : 'review') + '">' + esc(c ? c.type : '') + '</span> ▾</button>'
-      : (st.support ? '<span class="head-center">지원 모드 · ' + esc(c ? c.name : '') + '</span>' : '');
+      : (st.support ? '<span class="head-center">지원 모드로 보는 센터 ' + esc(c ? c.name : '') + '</span>' : '');
     const lvl = B.perm(def.id, p);
     let body;
     if (lvl === '–') {
@@ -282,13 +282,13 @@
     const pages = def.pages || (spec ? spec.pages : []);
     const chan = def.channelText || (spec ? spec.channel : (def.devices.includes('mobile') ? '모바일 (학부모 휴대폰)' : def.devices.includes('kiosk') ? '공용 태블릿 (키오스크)' : 'PC 웹'));
     let head = '<div class="prd-head"><div class="prd-chips">' + chip(def.id, 'id') + chip(PHASE_TEXT[phase] || phase, phase.toLowerCase()) + chip(chan, 'line') +
-      (pages && pages.length ? chip('원문 ' + pages.map(x => 'p.' + x).join(', '), 'line') : chip('원문 없음 · 검토 제안', 'review')) +
-      '</div><h2>' + esc(def.title) + (def.tabs ? ' · ' + esc((def.tabs.find(t => t.id === ctx.tab) || {}).label || '') : '') + '</h2><p>' + esc(def.prd.summary || '') + '</p></div>';
+      (pages && pages.length ? chip('원문 ' + pages.map(x => 'p.' + x).join(', '), 'line') : chip('검토 제안 화면 (원문 범위 밖)', 'review')) +
+      '</div><h2>' + esc(def.title) + (def.tabs ? ' <small style="font-size:13px;color:var(--sub);font-weight:600">' + esc((def.tabs.find(t => t.id === ctx.tab) || {}).label || '') + '</small>' : '') + '</h2><p>' + esc(def.prd.summary || '') + '</p></div>';
     let narr = '';
     if (st.mode === 'demo' && B.demoSteps.length) {
       const s = B.demoSteps[st.step], tot = B.demoSteps.length;
       const per = B.persona(s.persona);
-      narr = '<div class="narr" aria-live="polite"><div class="narr-top"><span><b>데모 ' + (st.step + 1) + ' / ' + tot + '</b> · ' + esc(s.ch || '') + '</span><span>' + esc(s.phaseLabel || '') + '</span></div>' +
+      narr = '<div class="narr" aria-live="polite"><div class="narr-top"><span><b>데모 ' + (st.step + 1) + ' / ' + tot + '</b> ' + esc(s.ch || '') + '</span><span>' + esc(s.phaseLabel || '') + '</span></div>' +
         '<h3>' + esc(s.title) + '</h3><p>' + esc(s.say) + '</p><div class="who">지금 화면을 쓰는 사람 <b>' + esc(per.label) + '</b></div>' +
         '<div class="narr-nav"><button data-demo="prev"' + (st.step === 0 ? ' disabled' : '') + '>‹ 이전</button><button class="primary" data-demo="next"' + (st.step === tot - 1 ? ' disabled' : '') + '>다음 ›</button></div></div>';
     }
@@ -313,11 +313,11 @@
     if (def.prd.rules && def.prd.rules.length) html += '<div class="prd-sec"><h5>지켜야 할 규칙</h5><ul>' + def.prd.rules.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
     return html;
   }
-  function polName(c) { const p = (B.POLICIES || []).find(x => x.code === c); return p ? p.name + ' · 현재 ' + p.now : c; }
+  function polName(c) { const p = (B.POLICIES || []).find(x => x.code === c); return p ? p.name + ', 지금 값 ' + p.now : c; }
   function polStatusClass(c) { const p = (B.POLICIES || []).find(x => x.code === c); return p ? 'st-' + p.status : ''; }
   function guideList() {
     if (!B.demoSteps.length) return '<div class="empty">데모 가이드를 준비 중이에요.</div>';
-    let html = '<div class="prd-hint">위쪽의 ‹ 이전 · 다음 › 버튼이나 키보드 ← → 로 넘겨요. 아래 목록을 누르면 그 단계로 바로 가요.</div>';
+    let html = '<div class="prd-hint">위쪽의 이전, 다음 버튼이나 키보드의 왼쪽, 오른쪽 화살표 키로 넘겨요. 아래 목록을 누르면 그 단계로 바로 가요.</div>';
     let last = null;
     B.demoSteps.forEach((s, i) => {
       if (s.ch !== last) { html += (last !== null ? '</ul></div>' : '') + '<div class="prd-sec"><h5>' + esc(s.ch) + '</h5><ul>'; last = s.ch; }
@@ -342,12 +342,12 @@
     const label = $('#tourLabel'), bar = $('#tourBar');
     if (st.mode === 'demo' && tot) {
       const s = B.demoSteps[st.step];
-      label.innerHTML = '<b>' + (st.step + 1) + '/' + tot + '</b> · ' + esc(s.ch) + ' · ' + esc(s.title);
+      label.innerHTML = '<b>' + (st.step + 1) + '/' + tot + '</b> ' + esc(s.title) + ' <span style="opacity:.7">(' + esc(s.ch) + ')</span>';
       bar.style.width = ((st.step + 1) / tot * 100) + '%';
       $('#prevBtn').disabled = st.step === 0; $('#nextBtn').disabled = st.step === tot - 1;
       $('#nextBtn').textContent = '다음 ›';
     } else {
-      label.innerHTML = '자유 탐색 중 · <b>' + esc(def.id) + '</b> ' + esc(def.title);
+      label.innerHTML = '자유 탐색 중 <b>' + esc(def.id) + '</b> ' + esc(def.title);
       bar.style.width = '0%';
       $('#prevBtn').disabled = false; $('#nextBtn').disabled = false;
       $('#nextBtn').textContent = tot ? '데모 시작 ›' : '다음 ›';

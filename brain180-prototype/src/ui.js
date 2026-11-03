@@ -62,7 +62,7 @@
 
   /* ---------------- policies ---------------- */
   h.pol = code => (B.POLICIES || []).find(p => p.code === code) || { code, name: code, now: '-', status: '미정' };
-  h.polChip = code => { const p = h.pol(code); return '<span class="chip st-' + p.status + '" title="' + esc(p.name + ' · ' + p.now) + '">' + esc(code) + '</span>'; };
+  h.polChip = code => { const p = h.pol(code); return '<span class="chip st-' + p.status + '" title="' + esc(p.name + ', 지금 값 ' + p.now) + '">' + esc(code) + '</span>'; };
   // Effective value for a center: center value, then group value, then HQ default (12쪽 값을 찾는 순서)
   h.polValue = (code, center) => {
     const st = (B.store.pol || {})[code] || {};
@@ -94,21 +94,21 @@
     const ro = !ctx.canEdit;
     const hist = (st.history || []).slice().reverse();
     return '<div class="stack">' +
-      '<div class="card"' + P(o.pins && o.pins.scope) + '><div class="card-h"><h3>' + esc(p.code + ' ' + p.name) + '</h3>' + h.chip(p.status === '안' ? '(안)' : p.status, 'st-' + p.status) + '<span class="sub">' + esc(p.catName) + ' · 결정 ' + esc(p.decider) + ' · ' + esc(p.when) + '</span></div>' +
+      '<div class="card"' + P(o.pins && o.pins.scope) + '><div class="card-h"><h3>' + esc(p.code + ' ' + p.name) + '</h3>' + h.chip(p.status === '안' ? '(안)' : p.status, 'st-' + p.status) + '<span class="sub">' + esc(p.catName) + ', 결정 ' + esc(p.decider) + ', ' + esc(p.when) + '</span></div>' +
       h.opts(scopes, scope.startsWith('개별') ? scopes[4] : scope, { act: 'pe.scope' }).replace(/data-arg="([^"]*)"/g, (m, v) => 'data-arg="' + esc(code + '|' + v) + '"') +
       '<div class="grid g3" style="margin-top:12px">' +
       h.field({ label: '값', value: draft, id: 'pe-' + code, field: code + ':draft', pin: o.pins && o.pins.value, hint: '지금 표시값 ' + p.now, disabled: ro }) +
       h.field({ label: '상태', type: 'select', value: st.status || p.status, options: ['미정', '안', '예시', '확정', '법정'].map(x => ({ v: x, l: x === '안' ? '미확정(안)' : x })), field: code + ':status', disabled: ro || p.status === '법정' }) +
       h.field({ label: '적용 시작', type: 'select', value: when, options: ['즉시', '2027-04-01 0시 예약', '2027-05-01 0시 예약'], field: code + ':when', pin: o.pins && o.pins.when, disabled: ro }) +
       '</div><div class="grid g2" style="margin-top:10px">' +
-      h.field({ label: '센터 권한', type: 'static', value: '직영 ' + p.direct + ' · 가맹 ' + p.franchise, pin: o.pins && o.pins.perm }) +
+      h.field({ label: '센터 권한', type: 'static', value: '직영은 ' + p.direct + ', 가맹은 ' + p.franchise, pin: o.pins && o.pins.perm }) +
       h.field({ label: '근거' + (contract ? ' (가맹 계약에 영향, 필수)' : ''), req: contract, value: reason, field: code + ':reason', ph: '회의록, 결재 문서, 계약 조항 번호', pin: o.pins && o.pins.reason, err: ui[code + ':err'], disabled: ro }) +
       '</div></div>' +
       '<div class="card"' + P(o.pins && o.pins.impact) + '><div class="card-h"><h3>바꾸기 전에 미리 보기</h3><span class="sub">영향 센터 수와 금액 변화를 먼저 보여 줘요</span></div>' +
       h.kv([['영향 센터', affected.length + '곳 (' + (affected.map(c => c.name).join(', ') || '없음') + ')'], ['개별 값이 있는 센터', Object.keys(st.centers || {}).map(id => (B.center(id) || {}).name + ' ' + st.centers[id].value).join(', ') || '없음 (개별 값은 그대로 유지돼요)'], ['적용 시점', when === '즉시' ? '저장하는 즉시' : when]]) +
       '<div class="row" style="margin-top:12px;justify-content:flex-end">' + h.btn('변경 저장', { primary: true, act: 'pe.save', arg: code, disabled: ro, pin: o.pins && o.pins.save }) + '</div></div>' +
       '<div class="card"' + P(o.pins && o.pins.history) + '><div class="card-h"><h3>이 정책의 변경 이력</h3></div>' +
-      (hist.length ? '<div class="tl">' + hist.map(x => '<div><b>' + esc(x.date) + '</b> ' + esc(x.from) + '에서 ' + esc(x.to) + '로 바꿈 · ' + esc(x.by) + ' · 근거 ' + esc(x.reason) + ' · 영향 ' + esc(x.n) + '곳</div>').join('') + '</div>' : h.empty('아직 바꾼 기록이 없어요.')) + '</div></div>';
+      (hist.length ? '<div class="tl">' + hist.map(x => '<div><b>' + esc(x.date) + '</b> ' + esc(x.by) + '님이 ' + esc(x.from) + '에서 ' + esc(x.to) + '로 바꿨어요. 근거는 ' + esc(x.reason) + ', 영향 센터는 ' + esc(x.n) + '곳이에요.</div>').join('') + '</div>' : h.empty('아직 바꾼 기록이 없어요.')) + '</div></div>';
   };
   B.action('pe.scope', (ctx, arg) => { const [code, v] = arg.split('|'); ctx.ui[code + ':scope'] = v; });
   B.action('pe.save', (ctx, code) => {

@@ -54,7 +54,7 @@
         '<div><span class="chip st-안">(안)</span><span>회의에서 나온 제안이에요. 아직 확정이 아니에요. 예시는 화면용 가짜 값, 미정은 아직 정하지 않은 값, 법정은 법으로 정해진 값이에요.</span></div>' +
         '<div><span class="chip p1a">P1a</span><span>단계 표시예요. P1a 직영 시범, P1b 가맹 개시, P2 가맹 확대예요. 메뉴 옆에도 붙어 있어요.</span></div>' +
         '<div><span class="chip line">사람 선택</span><span>맨 위에서 본사 운영팀, 정산팀, 센터 원장, 실장, 교사로 바꿔 볼 수 있어요. 역할마다 보이는 메뉴와 고칠 수 있는 범위가 달라요(설계서 7쪽).</span></div>' +
-        '<div><span class="chip line">PC · 태블릿</span><span>설계서가 태블릿도 된다고 한 화면만 태블릿 보기가 켜져요. 관리자 화면은 모두 PC가 기본이에요.</span></div>' +
+        '<div><span class="chip line">PC와 태블릿</span><span>설계서가 태블릿도 된다고 한 화면만 태블릿 보기가 켜져요. 관리자 화면은 모두 PC가 기본이에요.</span></div>' +
         '</div></section>' +
         '<section class="in-sec"' + h.p(6) + '><h2>어디서부터 볼까요</h2><p style="margin:0 0 10px;font-size:12.8px">처음이라면 데모 가이드를 권해요. 위쪽 다음 버튼이나 키보드 오른쪽 화살표로 업무 순서대로 한 단계씩 넘어가요.</p><div class="in-go">' +
         h.btn('데모 가이드 처음부터 보기', { primary: true, act: 'IN.demo' }) + h.btn('본사 화면 둘러보기', { act: 'IN.hq' }) + h.btn('센터 화면 둘러보기', { act: 'IN.ct' }) + h.btn('키오스크 보기', { act: 'IN.ks' }) + h.btn('학부모 휴대폰 보기', { act: 'IN.pa' }) + '</div></section>' +
