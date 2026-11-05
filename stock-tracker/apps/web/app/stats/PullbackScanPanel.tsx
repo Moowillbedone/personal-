@@ -132,15 +132,14 @@ export default function PullbackScanPanel({ refreshKey = 0 }: { refreshKey?: num
         if (alive) setLoading(false);
       }
     };
-    // Initial (mount / 새로고침) fetch shows the loading state; the 3-min
-    // auto-poll below refreshes silently so the panel stays live during the
-    // session (the worker rewrites the table every ~15 min) without a reload.
+    // Fetch on mount and whenever the dashboard's ↻ 새로고침 bumps refreshKey.
+    // No timer: the 3-min auto-poll was removed (2026-11-05, user request) so
+    // an open tab never keeps hitting Vercel/Supabase on its own — it ran 24/7
+    // with no session or visibility gate.
     setLoading(true);
     fetchScan();
-    const id = setInterval(fetchScan, 180_000);
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, [refreshKey]);
 

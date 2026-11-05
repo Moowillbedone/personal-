@@ -127,8 +127,7 @@ export default function DashboardPage() {
   // whole dashboard, not just the regime banner.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useCallback(async () => {
-    setRefreshKey((k) => k + 1);
+  const fetchRegime = useCallback(async () => {
     setRegimeLoading(true);
     try {
       const res = await fetch("/api/regime");
@@ -140,16 +139,25 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // ↻ 새로고침: re-fetch the banner AND bump refreshKey so every panel re-fetches.
+  const refreshAll = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    fetchRegime();
+  }, [fetchRegime]);
+
+  // Mount: panels already fetch on their own mount (refreshKey=0), so only load
+  // the banner here. Reusing the button handler on mount used to bump
+  // refreshKey immediately, making every panel fetch twice per page open.
   useEffect(() => {
-    load();
-  }, [load]);
+    fetchRegime();
+  }, [fetchRegime]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">스윙 콘솔</h1>
         <button
-          onClick={load}
+          onClick={refreshAll}
           className="text-xs px-3 py-1.5 border border-neutral-700 rounded bg-neutral-900 hover:bg-neutral-800"
         >
           ↻ 새로고침
@@ -160,7 +168,7 @@ export default function DashboardPage() {
       <PullbackScanPanel refreshKey={refreshKey} />
       <Sma200Panel refreshKey={refreshKey} />
       <IchimokuPanel refreshKey={refreshKey} />
-      <SectorStrengthPanel />
+      <SectorStrengthPanel refreshKey={refreshKey} />
     </div>
   );
 }

@@ -311,7 +311,7 @@ function SectorRowItem({
   );
 }
 
-export default function SectorStrengthPanel() {
+export default function SectorStrengthPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<SectorStrengthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -323,7 +323,9 @@ export default function SectorStrengthPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const didAutoExpand = useRef(false);
 
-  // Fetch (initial + interval refresh). Preserves expand/sort state across
+  // Fetch on mount and whenever the dashboard's ↻ 새로고침 bumps refreshKey
+  // (the 60s auto-poll was removed 2026-11-05, user request — an open tab no
+  // longer calls Alpaca/Vercel on its own). Preserves expand/sort state across
   // refreshes; only auto-expands the leader once, on first successful load.
   useEffect(() => {
     let cancelled = false;
@@ -353,32 +355,13 @@ export default function SectorStrengthPanel() {
         });
     };
 
-    load(false);
+    // refreshKey > 0 → a ↻ 새로고침 click: keep current data on screen and
+    // show the small "갱신 중…" badge instead of the full loading state.
+    load(refreshKey > 0);
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // Auto-refresh every 60s while the market is active (pre/regular/after).
-  // Closed → data won't change, so we don't poll.
-  const session = data?.session;
-  useEffect(() => {
-    if (!session || session === "closed") return;
-    const id = setInterval(() => {
-      fetch("/api/sector-strength")
-        .then((r) => r.json())
-        .then((d: SectorStrengthResponse | { error: string }) => {
-          if (!("error" in d)) {
-            setData(d);
-            setError(null);
-          }
-        })
-        .catch(() => {
-          /* keep last good data on a transient refresh failure */
-        });
-    }, 60_000);
-    return () => clearInterval(id);
-  }, [session]);
+  }, [refreshKey]);
 
   const toggle = (key: string) =>
     setExpanded((prev) => {
@@ -406,7 +389,6 @@ export default function SectorStrengthPanel() {
         {data && (
           <span className="text-[11px] text-neutral-500">
             {SESSION_LABEL[data.session]} · {new Date(data.asOf).toLocaleTimeString("ko-KR")}
-            {data.session !== "closed" && <span className="text-neutral-600"> · 60초 자동갱신</span>}
           </span>
         )}
       </div>
